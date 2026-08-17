@@ -3,8 +3,11 @@
 Out-of-tree MLIR dialect family for:
 
 ```text
-S²C² = Storage + Schedule + Compute + Communication
+S²C² = Storage + Compute + Communication + Execution Semantics
 ```
+
+Schedule is the happens-before / event constraint layer among the three
+data and compute dimensions, not a fourth data dialect.
 
 This repository follows the official MLIR `examples/standalone` project
 layout. It does **not** fork XLA, TVM, or IREE. IREE is a Phase 3 runtime
@@ -36,7 +39,8 @@ normalization and native lowering).
 definition and not async lowering.
 
 Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/phase1.5-semantic-normalization.md),
-[`docs/design/phase2a-sequential-lowering.md`](docs/design/phase2a-sequential-lowering.md)
+[`docs/design/phase2a-sequential-lowering.md`](docs/design/phase2a-sequential-lowering.md),
+[`docs/design/execution-semantics.md`](docs/design/execution-semantics.md)
 
 ## Requirements
 
