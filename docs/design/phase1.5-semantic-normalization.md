@@ -37,14 +37,39 @@ LogicalObject  (!stor.object<tensor<...>>)     SSA identity
 `%w` is the logical datum. `%w_ssd` / `%w_hbm` are residencies (replicas /
 handles) of **that** object.
 
-| Op | Meaning |
-| -- | ------- |
-| `stor.object` | Create a logical identity (no allocation) |
-| `stor.materialize` | Allocate a residency of an object in the result space |
-| `stor.transfer` | Allocate a new residency and copy payload from an existing one (same object) |
-| `stor.alloc` | Anonymous residency (no object). Legacy / local scratch |
-| `stor.dealloc` | Free a residency, not the logical object |
-| `stor.pack` / `stor.unpack` | Tensor ↔ residency edge |
+| Op | Meaning | Contents |
+| -- | ------- | -------- |
+| `stor.object` | Create a logical identity (no allocation) | n/a |
+| `stor.materialize` | Allocate a residency of an object in the result space | **unspecified** |
+| `stor.transfer` | Allocate a new residency and copy payload (same object) | dest **valid** |
+| `stor.alloc` | Anonymous residency (no object). Legacy / local scratch | unspecified |
+| `stor.dealloc` | Free a residency, not the logical object | n/a |
+| `stor.pack` / `stor.unpack` | Tensor ↔ residency edge | pack ⇒ dest **valid** |
+
+### Data validity (not a state machine)
+
+Object identity and data validity are separate. Phase 1.5 does **not**
+introduce `valid/stale/dirty/inflight` attributes.
+
+```text
+materialize  ⇒  residency exists, content unspecified
+transfer / copy / stream / pack  ⇒  destination becomes valid
+```
+
+```mlir
+%w = stor.object ...
+%w_ssd = stor.materialize %w   // allocated, uninitialized
+%w_hbm = stor.materialize %w   // allocated, uninitialized
+%t = comm.stream %w_ssd, %w_hbm
+sched.wait %t                  // now %w_hbm is valid
+```
+
+A `!sched.token` from `comm.stream` / optional `comm.copy` means
+**transfer completion: destination is valid**. Using a materialized
+buffer in compute before any fill/copy is undefined.
+
+This is the contract Phase 2B async overlap must preserve. See
+[Phase 2A sequential lowering](phase2a-sequential-lowering.md).
 
 ### Alias / copy contract
 
@@ -95,10 +120,13 @@ Producers in this phase:
 | `comm.copy` | Optional (`-> !sched.token` means non-blocking) |
 | `sched.task` | Always (region completion) |
 
-`sched.wait` / `comm.barrier` consume tokens.
+`sched.wait` / `comm.barrier` consume tokens. A token from `comm.stream`
+or optional `comm.copy` means the destination residency is **valid**. A
+token from `sched.task` means the region completed.
 
 Phase 2 may lower `!sched.token` to `!async.token`. The semantic IR does **not**
-embed `async.token`.
+embed `async.token`. Sequentialize in Phase 2A erases these events as a
+blocking baseline; that is not the semantic definition.
 
 ## 3. Generic concurrency
 
@@ -129,6 +157,19 @@ The core construct is N-way:
 
 Tasks may contain storage, compute, or communication. Concurrency is
 `Concurrent(A, B, C)`, not `Overlap(Compute, Comm)`.
+
+`sched.concurrent` means **no ordering requirement** among children, not
+“must execute in parallel”:
+
+```text
+NoOrderingRequirement(A, B, C)
+SequentialSchedule ∈ ValidSchedules
+```
+
+Sequentialization may pick any legal total order consistent with
+explicit token / `sched.wait` dependencies. Phase 2A / v0.1: the
+concurrent body may contain only direct `sched.task` children (plus
+`sched.yield`). Nested structured schedule is rejected until Phase 2B.
 
 ## 4. Target memory-space mapping
 
@@ -163,6 +204,10 @@ y      = hidden @ Wd
 
 Pass: `--expand-comp-composites`. Default pipelines do **not** run it.
 
+`comp.matmul` means `C = A @ B`. `comp.elemwise` is **canonical math**,
+not a fixed instruction sequence. Phase 2A linalg lowering is one
+realization (see [phase2a-sequential-lowering.md](phase2a-sequential-lowering.md)).
+
 ## 6. Test IDs
 
-See `docs/design/test-plan.md` (S3–S5, M3, H2–H3, V2, C2, I1 update).
+See `docs/design/test-plan.md` (S3–S5, M3, H2–H4, V2, C2, I1 update).

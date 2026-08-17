@@ -54,6 +54,11 @@ def Comp_ElemwiseKindAttr : EnumAttr<Compute_Dialect, Comp_ElemwiseKind, "elemwi
 
 def Comp_MatmulOp : Comp_Op<"matmul", [Pure]> {
   let summary = "Matrix multiply";
+  let description = [{
+    Semantic contract: `C = A @ B`. A tensor-based linalg realization may
+    emit `linalg.fill(0)` plus `linalg.matmul`; that zero-fill is an
+    implementation choice, not part of the S²C² compute model.
+  }];
   let arguments = (ins
     AnyRankedTensor:$lhs,
     AnyRankedTensor:$rhs,
@@ -67,6 +72,11 @@ def Comp_MatmulOp : Comp_Op<"matmul", [Pure]> {
 
 def Comp_ElemwiseOp : Comp_Op<"elemwise", [Pure]> {
   let summary = "Elementwise compute or activation";
+  let description = [{
+    Canonical math semantics (`add`, `mul`, `silu`, `gelu`, `relu`).
+    Lowering to `linalg.map` + `math` / `arith` is a correctness baseline,
+    not a fixed target instruction sequence.
+  }];
   let arguments = (ins
     Variadic<AnyRankedTensor>:$inputs,
     Comp_ElemwiseKindAttr:$kind,

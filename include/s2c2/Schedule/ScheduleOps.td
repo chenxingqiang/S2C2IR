@@ -68,8 +68,18 @@ def Sched_ConcurrentOp : Sched_Op<"concurrent", [
   let summary = "N-way concurrent tasks (storage, compute, and/or communication)";
   let description = [{
     Core concurrency construct: `Concurrent(A, B, C)`, not
-    `Overlap(Compute, Comm)`. Nested `sched.task` regions are intended to
-    run concurrently. Results match this op's `sched.yield` operands.
+    `Overlap(Compute, Comm)`.
+
+    Semantics: children have **no ordering requirement**. They may run
+    concurrently, or in any legal total order consistent with explicit
+    `sched.wait` / token dependencies. Sequentialization is a legal
+    degeneration, not schedule preservation.
+
+    Phase 2A / v0.1: the body may contain only `sched.task` ops plus the
+    terminator. Nested `sched.pipeline` / `sched.overlap` / `sched.concurrent`
+    is rejected until structured-schedule lowering exists.
+
+    Results match this op's `sched.yield` operands.
 
     Example:
 

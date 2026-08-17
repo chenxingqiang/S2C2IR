@@ -16,8 +16,12 @@ def ConvertStorToMemref : Pass<"convert-stor-to-memref", "::mlir::ModuleOp"> {
   let description = [{
     Lowers `stor.alloc` / `stor.materialize` / `stor.dealloc` to
     `memref.alloc` / `memref.dealloc`, `stor.transfer` / `comm.copy` /
-    `comm.stream` to `memref.copy`, and `stor.pack` / `stor.unpack` to
-    `bufferization.to_memref` / `bufferization.to_tensor`.
+    `comm.stream` to `memref.copy` (**Phase 2A blocking approximation**;
+    not event-preserving comm lowering), and `stor.pack` / `stor.unpack`
+    to `bufferization.to_memref` / `bufferization.to_tensor`.
+
+    `stor.materialize` is allocation only (contents unspecified).
+    `stor.transfer` / copy / stream establish valid destination contents.
 
     Logical S²C² spaces are mapped to integer memref memory spaces by a
     *target* map (not a hardware ABI). Default:
@@ -40,9 +44,12 @@ def ConvertStorToMemref : Pass<"convert-stor-to-memref", "::mlir::ModuleOp"> {
 def ConvertCompToLinalg : Pass<"convert-comp-to-linalg", "::mlir::ModuleOp"> {
   let summary = "Convert S2C2 compute ops to linalg / tensor / math";
   let description = [{
-    `comp.matmul` → `linalg.matmul` (zero-initialized dest).
-    `comp.elemwise` add/mul → `linalg.add` / `linalg.mul`.
-    Activations → `linalg.map` with `math` / `arith`.
+    Correctness realization, not the compute model:
+
+    `comp.matmul` means `C = A @ B`; this pass may emit `linalg.fill(0)`
+    plus `linalg.matmul` as a tensor-based dest.
+    `comp.elemwise` is canonical math; add/mul → `linalg.add` /
+    `linalg.mul`, activations → `linalg.map` with `math` / `arith`.
     `comp.gated_mlp` is expanded with its decomposition contract then lowered.
   }];
   let dependentDialects = [
@@ -54,21 +61,26 @@ def ConvertCompToLinalg : Pass<"convert-comp-to-linalg", "::mlir::ModuleOp"> {
 }
 
 def SequentializeS2C2Schedule : Pass<"sequentialize-s2c2-schedule", "::mlir::ModuleOp"> {
-  let summary = "Inline S2C2 schedule regions in IR order and drop events";
+  let summary = "Blocking / legal total-order schedule baseline";
   let description = [{
-    Conservative sequential lowering: `sched.concurrent` / `sched.task` /
-    `sched.overlap` / `sched.pipeline` / `sched.stage` are inlined.
-    `sched.overlap` inlines the communicate region first, then compute.
-    `!sched.token` waits and `comm.barrier` are erased (copies become
-    blocking `memref.copy` in the memory conversion).
+    Semantic baseline, **not** a general schedule lowering:
+
+      Sequential lowering ≠ S²C² semantics ≠ async lowering
+
+    Makes async ops synchronous, then erases completion consumers
+    (`sched.wait`, `comm.barrier`) and inlines regions. `sched.concurrent`
+    children are inlined in IR order (one legal total order;
+    `NoOrderingRequirement`). `sched.overlap` inlines communicate first,
+    then compute. Phase 2B must not treat wait as unconditionally erasable.
   }];
 }
 
 def ConvertCommToMemref : Pass<"convert-comm-to-memref", "::mlir::ModuleOp"> {
   let summary = "Convert S2C2 communication (and storage) to memref";
   let description = [{
-    Same memory lowering as `--convert-stor-to-memref`, including
-    `comm.copy` / `comm.stream` → `memref.copy`.
+    Same **blocking** memory lowering as `--convert-stor-to-memref`.
+    `comm.copy` / `comm.stream` → synchronous `memref.copy` is a Phase 2A
+    approximation, not event-preserving communication lowering.
   }];
   let dependentDialects = [
     "mlir::memref::MemRefDialect",
@@ -83,13 +95,15 @@ def ConvertCommToMemref : Pass<"convert-comm-to-memref", "::mlir::ModuleOp"> {
 def LowerS2C2 : Pass<"s2c2-lower", "::mlir::ModuleOp"> {
   let summary = "Lower S2C2 to linalg / memref / bufferization";
   let description = [{
-    Phase 2A pipeline:
+    Phase 2A sequential / blocking baseline (not async, not the semantic
+    definition):
 
       convert-comp-to-linalg
       sequentialize-s2c2-schedule
-      convert-stor-to-memref (includes comm → memref.copy)
+      convert-stor-to-memref (blocking comm → memref.copy)
 
-    Tokens are dropped (sequential). Async overlap is a later pass.
+    Tokens are dropped because copies are synchronous. Event-preserving
+    overlap is Phase 2B.
   }];
   let dependentDialects = [
     "mlir::linalg::LinalgDialect",

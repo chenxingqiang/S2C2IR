@@ -40,4 +40,17 @@ module {
     }
     return %y : tensor<4xf32>
   }
+
+  // Sequentialize is a blocking baseline: wait/barrier are completion
+  // consumers and are erased after making producers synchronous.
+  // CHECK-LABEL: func.func @erase_wait_after_stream
+  func.func @erase_wait_after_stream(%v: tensor<4xf32>) -> tensor<4xf32> {
+    %src = stor.alloc : !stor.buffer<tensor<4xf32>, ssd>
+    %dst = stor.alloc : !stor.buffer<tensor<4xf32>, hbm>
+    %t = comm.stream %src, %dst : !stor.buffer<tensor<4xf32>, ssd>, !stor.buffer<tensor<4xf32>, hbm> -> !sched.token
+    sched.wait %t : !sched.token
+    // CHECK: comm.stream
+    // CHECK-NOT: sched.wait
+    return %v : tensor<4xf32>
+  }
 }

@@ -52,6 +52,8 @@ static Value emptyTensor(OpBuilder &b, Location loc, RankedTensorType ty) {
   return b.create<tensor::EmptyOp>(loc, ty.getShape(), ty.getElementType());
 }
 
+// Tensor-based linalg realization of C = AB. The explicit zero fill is
+// not part of the S²C² compute model; backends may use accumulator inits.
 static Value zeroFilled(OpBuilder &b, Location loc, RankedTensorType ty) {
   Value empty = emptyTensor(b, loc, ty);
   Value zero = floatConst(b, loc, ty.getElementType(), 0.0);

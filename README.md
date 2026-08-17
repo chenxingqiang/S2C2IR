@@ -26,12 +26,17 @@ normalization and native lowering).
 | -------- | -- |
 | Logical identity | `!stor.object<tensor<...>>` |
 | Residency | `!stor.buffer<tensor<...>, space>` via `materialize` / `transfer` |
-| Completion event | `!sched.token` (task, stream, optional copy) |
-| Concurrency | `sched.concurrent` + `sched.task` |
+| Validity | `materialize` = allocated, uninitialized; transfer/copy/pack = dest valid |
+| Completion event | `!sched.token` (task done, or dest valid after stream/copy) |
+| Concurrency | `sched.concurrent` = no ordering requirement among `sched.task`s |
 | Target memref spaces | `--convert-stor-to-memref="space-map=hbm=9,..."` |
 | Fused MLP | keep `comp.gated_mlp`; opt-in `--expand-comp-composites` |
 
-Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/phase1.5-semantic-normalization.md)
+`--s2c2-lower` is a **sequential / blocking baseline**, not the semantic
+definition and not async lowering.
+
+Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/phase1.5-semantic-normalization.md),
+[`docs/design/phase2a-sequential-lowering.md`](docs/design/phase2a-sequential-lowering.md)
 
 ## Requirements
 

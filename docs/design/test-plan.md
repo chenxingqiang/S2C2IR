@@ -34,6 +34,7 @@ Executable tests live under `test/` and run via `check-s2c2` (llvm-lit + FileChe
 | H1 | `test/Schedule/ops.mlir` | Round-trip `wait`, `overlap`, `pipeline`, `stage` |
 | H2 | `test/Schedule/ops.mlir` | `concurrent` + `task` with value + token results |
 | H3 | `test/Schedule/invalid.mlir` | Task yield operands must match task values |
+| H4 | `test/Schedule/invalid.mlir` | `concurrent` body may only contain `sched.task` |
 
 ## Conversion
 

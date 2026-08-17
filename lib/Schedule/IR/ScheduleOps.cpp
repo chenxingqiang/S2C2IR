@@ -39,7 +39,17 @@ LogicalResult TaskOp::verify() {
 }
 
 LogicalResult ConcurrentOp::verify() {
-  return verifyYieldMatches(getOperation(), getBody(), getResults());
+  if (failed(verifyYieldMatches(getOperation(), getBody(), getResults())))
+    return failure();
+
+  // Phase 2A / v0.1: concurrent children must be direct sched.task ops.
+  // Nested structured schedule (pipeline, overlap, concurrent) is deferred.
+  for (Operation &child : getBody().front().without_terminator()) {
+    if (!isa<TaskOp>(child))
+      return emitOpError(
+          "body may only contain sched.task ops before the terminator");
+  }
+  return success();
 }
 
 LogicalResult OverlapOp::verify() {

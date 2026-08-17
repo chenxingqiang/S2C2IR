@@ -36,6 +36,10 @@ def Stor_MaterializeOp : Stor_Op<"materialize", [
   ]> {
   let summary = "Allocate a residency of a logical object";
   let description = [{
+    Allocates a residency. The buffer **exists**; its contents are
+    **unspecified** until a later `stor.transfer`, `stor.pack`,
+    `comm.copy`, or `comm.stream` establishes validity.
+
     Multiple materializations of the same object are independent replicas
     (SSD vs HBM, or two HBM slots for double buffering).
 
@@ -65,6 +69,10 @@ def Stor_TransferOp : Stor_Op<"transfer", [
   ]> {
   let summary = "Create a new residency of the same object and copy payload";
   let description = [{
+    Allocates a new residency and copies payload from `source`. After this
+    op (or after its completion token, when one is introduced), the
+    destination contents are **valid**.
+
     Destination space comes from the result type. Same-space transfer is
     allowed (double buffering). Does not create a new logical object.
   }];

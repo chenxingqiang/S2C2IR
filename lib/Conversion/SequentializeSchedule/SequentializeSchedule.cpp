@@ -1,8 +1,18 @@
-//===- SequentializeSchedule.cpp - Inline S2C2 schedule regions -*- C++ -*-===//
+//===- SequentializeSchedule.cpp - Blocking schedule baseline -*- C++ -*-===//
 //
 // This file is licensed under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+// SequentializeS2C2Schedule is a *semantic baseline*, not a general
+// schedule lowering:
+//
+//   Sequential lowering  ≠  S²C² semantic definition  ≠  async lowering
+//
+// It chooses one legal total order (IR order for concurrent tasks;
+// communicate-then-compute for overlap) and erases completion consumers
+// (`sched.wait`, `comm.barrier`) because producers are made synchronous.
+// Phase 2B must not treat this pass as "wait may always be deleted".
 //
 //===----------------------------------------------------------------------===//
 
@@ -53,8 +63,12 @@ static LogicalResult inlineTaskAt(PatternRewriter &rewriter, TaskOp task) {
   rewriter.inlineBlockBefore(body, task);
   for (auto [result, value] : llvm::zip(task.getValues(), yielded))
     rewriter.replaceAllUsesWith(result, value);
+  // The region is now synchronous, so the completion token is already
+  // satisfied. Wait/barrier consumers were removed first; any remaining
+  // use means the token escaped the sequential baseline.
   if (!task.getToken().use_empty())
-    return failure();
+    return rewriter.notifyMatchFailure(
+        task, "task completion token escapes sequentialization");
   rewriter.eraseOp(yield);
   rewriter.eraseOp(task);
   return success();
@@ -76,6 +90,8 @@ struct InlineConcurrent : OpRewritePattern<ConcurrentOp> {
 
   LogicalResult matchAndRewrite(ConcurrentOp op,
                                 PatternRewriter &rewriter) const override {
+    // Legal degeneration: Concurrent(A,B,C) has no ordering requirement,
+    // so IR order is one valid total order. Not schedule preservation.
     SmallVector<TaskOp> tasks;
     for (TaskOp task : op.getBody().front().getOps<TaskOp>())
       tasks.push_back(task);
@@ -146,6 +162,8 @@ struct SequentializeS2C2Schedule
       SequentializeS2C2Schedule>::SequentializeS2C2ScheduleBase;
 
   void runOnOperation() override {
+    // Sequentialization erases completion semantics: wait/barrier are
+    // consumers of already-satisfied events once producers are blocking.
     SmallVector<Operation *> syncOps;
     getOperation()->walk([&](Operation *op) {
       if (isa<WaitOp, BarrierOp>(op))

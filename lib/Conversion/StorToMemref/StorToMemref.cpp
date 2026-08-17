@@ -94,6 +94,7 @@ struct ConvertMaterialize : OpConversionPattern<MaterializeOp> {
         getTypeConverter()->convertType(bufTy));
     if (!memrefTy)
       return rewriter.notifyMatchFailure(op, "could not convert buffer type");
+    // Allocation only: contents remain unspecified (no copy).
     rewriter.replaceOpWithNewOp<memref::AllocOp>(op, memrefTy);
     return success();
   }
@@ -160,6 +161,9 @@ struct ConvertPack : OpConversionPattern<PackOp> {
   }
 };
 
+// Phase 2A blocking approximation: comm.copy / comm.stream become a
+// synchronous memref.copy. This is *not* event-preserving comm lowering;
+// Phase 2B must keep !sched.token → !async.token.
 static LogicalResult rewriteAsMemrefCopy(Operation *op, Value src, Value dst,
                                          ConversionPatternRewriter &rewriter) {
   rewriter.create<memref::CopyOp>(op->getLoc(), src, dst);

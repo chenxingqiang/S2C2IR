@@ -18,9 +18,10 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def Comm_CopyOp : Comm_Op<"copy", []> {
   let summary = "Copy payload between residencies of the same logical object";
   let description = [{
-    Synchronizes two residencies. Does not create a new logical object and
-    does not alias the same allocation. Optional `-> !sched.token` makes the
-    copy a non-blocking event producer.
+    Synchronizes two residencies. After completion, `dst` contents are
+    **valid**. Does not create a new logical object and does not alias the
+    same allocation. Optional `-> !sched.token` makes the copy a
+    non-blocking event producer; the token means the destination is valid.
   }];
   let arguments = (ins
     Stor_BufferType:$src,
@@ -40,7 +41,11 @@ def Comm_StreamOp : Comm_Op<"stream", [HasAsyncToken]> {
   let description = [{
     SSD-to-HBM (or DMA) streaming between residencies of the same logical
     object. Payload types must match; spaces must differ.
-    Produces a generic `!sched.token` completion event.
+    Produces a generic `!sched.token` completion event: after the token
+    is waited, `dst` contents are **valid**.
+
+    Phase 2A blocking baseline lowers this to synchronous `memref.copy`.
+    That is an approximation, not event-preserving comm lowering.
   }];
   let arguments = (ins
     Stor_BufferType:$src,
