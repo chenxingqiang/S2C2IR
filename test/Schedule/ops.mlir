@@ -38,4 +38,29 @@ module {
     }
     return %y : tensor<4xf32>
   }
+
+  // CHECK-LABEL: func.func @concurrent_tasks
+  func.func @concurrent_tasks(%v: tensor<4xf32>) -> tensor<4xf32> {
+    %w = stor.object : !stor.object<tensor<4xf32>>
+    %ssd = stor.materialize %w : !stor.object<tensor<4xf32>> -> !stor.buffer<tensor<4xf32>, ssd>
+    %hbm = stor.materialize %w : !stor.object<tensor<4xf32>> -> !stor.buffer<tensor<4xf32>, hbm>
+    %t = comm.stream %ssd, %hbm : !stor.buffer<tensor<4xf32>, ssd>, !stor.buffer<tensor<4xf32>, hbm> -> !sched.token
+
+    // CHECK: %[[Y:.*]] = sched.concurrent -> tensor<4xf32> {
+    // CHECK:   %[[TC:.*]], %[[OUT:.*]] = sched.task -> tensor<4xf32>
+    // CHECK:   %[[TS:.*]] = sched.task
+    // CHECK:   sched.yield %[[OUT]]
+    %y = sched.concurrent -> tensor<4xf32> {
+      %tc, %out = sched.task -> tensor<4xf32> {
+        sched.wait %t : !sched.token
+        sched.yield %v : tensor<4xf32>
+      }
+      %ts = sched.task {
+        %t2 = comm.stream %ssd, %hbm : !stor.buffer<tensor<4xf32>, ssd>, !stor.buffer<tensor<4xf32>, hbm> -> !sched.token
+        sched.yield
+      }
+      sched.yield %out : tensor<4xf32>
+    }
+    return %y : tensor<4xf32>
+  }
 }

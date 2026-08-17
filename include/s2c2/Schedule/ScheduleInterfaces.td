@@ -13,7 +13,10 @@ include "mlir/IR/OpBase.td"
 
 def HasAsyncToken : OpInterface<"HasAsyncToken"> {
   let cppNamespace = "::mlir::s2c2::sched";
-  let description = [{Ops that produce an asynchronous completion token.}];
+  let description = [{
+    Ops that produce a generic `!sched.token` completion event. The producer
+    may be storage, compute, communication, or a `sched.task` region.
+  }];
   let methods = [
     InterfaceMethod<
       "Return the async token type produced by this op.",

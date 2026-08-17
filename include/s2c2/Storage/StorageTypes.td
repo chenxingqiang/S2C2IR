@@ -35,11 +35,27 @@ class Stor_Type<string name, string typeMnemonic, list<Trait> traits = []>
   let mnemonic = typeMnemonic;
 }
 
-def Stor_BufferType : Stor_Type<"Buffer", "buffer"> {
-  let summary = "Logical buffer placed in a storage space";
+def Stor_ObjectType : Stor_Type<"Object", "object"> {
+  let summary = "Logical data identity (no placement, no allocation)";
   let description = [{
-    `!stor.buffer<tensor<...>, space>` pairs a ranked-tensor payload
-    description with a storage space.
+    `!stor.object<tensor<...>>` names a logical datum. Instance identity is
+    the SSA value, not the type. Residencies of the same object are created
+    with `stor.materialize` / `stor.transfer`.
+  }];
+  let parameters = (ins "Type":$payloadType);
+  let assemblyFormat = "`<` $payloadType `>`";
+  let genVerifyDecl = 1;
+}
+
+def Stor_BufferType : Stor_Type<"Buffer", "buffer"> {
+  let summary = "Residency / handle of a tensor payload in a storage space";
+  let description = [{
+    `!stor.buffer<tensor<...>, space>` is a placed replica, not a logical
+    identity. Pair it with a `!stor.object` SSA value via `stor.materialize`
+    when alias / coherence analysis is required.
+
+    The `space` parameter is a *logical* S²C² space. Integer memref memory
+    spaces are a target mapping applied by `--convert-stor-to-memref`.
   }];
   let parameters = (ins
     "Type":$sourceType,

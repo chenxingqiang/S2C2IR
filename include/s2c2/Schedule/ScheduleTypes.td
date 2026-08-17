@@ -18,9 +18,12 @@ class Sched_Type<string name, string typeMnemonic, list<Trait> traits = []>
 }
 
 def Sched_TokenType : Sched_Type<"Token", "token"> {
-  let summary = "Asynchronous completion token";
+  let summary = "Generic completion event";
   let description = [{
-    Produced by asynchronous communication and consumed by `sched.wait`.
+    A unified completion event for storage, compute, or communication work.
+    Not owned by `comm`. Consumed by `sched.wait` / `comm.barrier`.
+    Phase 2 may lower this to `!async.token`; the semantic IR does not
+    embed that type.
   }];
 }
 

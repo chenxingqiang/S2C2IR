@@ -40,6 +40,13 @@ void StorageDialect::registerAttributes() {
       >();
 }
 
+LogicalResult ObjectType::verify(
+    function_ref<InFlightDiagnostic()> emitError, Type payloadType) {
+  if (!::llvm::isa<RankedTensorType>(payloadType))
+    return emitError() << "logical object payload must be a ranked tensor";
+  return success();
+}
+
 LogicalResult BufferType::verify(
     function_ref<InFlightDiagnostic()> emitError, Type sourceType, Space) {
   if (!::llvm::isa<RankedTensorType>(sourceType))

@@ -17,6 +17,34 @@
 using namespace mlir;
 using namespace mlir::s2c2::stor;
 
+Value mlir::s2c2::stor::getLogicalObject(Value buffer) {
+  Operation *def = buffer.getDefiningOp();
+  if (!def)
+    return {};
+  if (auto materialize = dyn_cast<MaterializeOp>(def))
+    return materialize.getObject();
+  if (auto transfer = dyn_cast<TransferOp>(def))
+    return getLogicalObject(transfer.getSource());
+  return {};
+}
+
+LogicalResult MaterializeOp::verify() {
+  auto objTy = llvm::cast<ObjectType>(getObject().getType());
+  auto bufTy = llvm::cast<BufferType>(getBuffer().getType());
+  if (objTy.getPayloadType() != bufTy.getSourceType())
+    return emitOpError("materialized buffer payload must match logical object");
+  return success();
+}
+
+LogicalResult TransferOp::verify() {
+  auto srcTy = llvm::cast<BufferType>(getSource().getType());
+  auto dstTy = llvm::cast<BufferType>(getBuffer().getType());
+  if (srcTy.getSourceType() != dstTy.getSourceType())
+    return emitOpError(
+        "transfer result payload must match the source buffer payload");
+  return success();
+}
+
 LogicalResult PackOp::verify() {
   auto bufTy = llvm::cast<BufferType>(getBuffer().getType());
   if (getValue().getType() != bufTy.getSourceType())

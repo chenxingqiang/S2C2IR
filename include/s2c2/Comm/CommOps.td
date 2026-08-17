@@ -16,21 +16,31 @@ include "s2c2/Schedule/ScheduleInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def Comm_CopyOp : Comm_Op<"copy", []> {
-  let summary = "Copy between storage buffers";
+  let summary = "Copy payload between residencies of the same logical object";
+  let description = [{
+    Synchronizes two residencies. Does not create a new logical object and
+    does not alias the same allocation. Optional `-> !sched.token` makes the
+    copy a non-blocking event producer.
+  }];
   let arguments = (ins
     Stor_BufferType:$src,
     Stor_BufferType:$dst,
     OptionalAttr<Comm_KindAttr>:$kind
   );
-  let assemblyFormat = "$src `,` $dst attr-dict `:` qualified(type($src)) `,` qualified(type($dst))";
+  let results = (outs Optional<Sched_TokenType>:$token);
+  let assemblyFormat = [{
+    $src `,` $dst attr-dict `:` qualified(type($src)) `,` qualified(type($dst))
+    (`->` type($token)^)?
+  }];
   let hasVerifier = 1;
 }
 
 def Comm_StreamOp : Comm_Op<"stream", [HasAsyncToken]> {
   let summary = "Asynchronous streaming transfer between storage spaces";
   let description = [{
-    SSD-to-HBM (or DMA) streaming. Payload types must match; spaces must differ.
-    Produces a `!sched.token` for `sched.wait` / compute-comm overlap.
+    SSD-to-HBM (or DMA) streaming between residencies of the same logical
+    object. Payload types must match; spaces must differ.
+    Produces a generic `!sched.token` completion event.
   }];
   let arguments = (ins
     Stor_BufferType:$src,
