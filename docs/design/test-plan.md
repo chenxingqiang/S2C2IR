@@ -53,17 +53,17 @@ Executable tests live under `test/` and run via `check-s2c2` (llvm-lit + FileChe
 | I1 | `test/Integration/gated_mlp_ssd_stream.mlir` | Object identity, HBM replicas, concurrent gated MLP + stream |
 | I2 | same file `--s2c2-lower` | Lowers to linalg + memref.copy + bufferization.to_tensor |
 
-## Execution semantics (spec outlines; not executable yet)
+## Execution semantics (`--check-s2c2-execution`)
 
-See [`execution-semantics.md`](execution-semantics.md) §13. These become
-tests only after that document is approved.
+See [`execution-semantics.md`](execution-semantics.md) §13. Oracle only;
+not token → async lowering.
 
-| ID | Claim |
-| -- | ----- |
-| E1 | `materialize` then read, no write → undefined (no `Valid`) |
-| E2 | `stream` + `wait` + unpack → dest valid after the event |
-| E3 | Concurrent stream ∥ compute without wait → undefined (no HB) |
-| E4 | Same with `wait` in the consumer → `T1 →HB T2` |
-| E5 | Concurrent with no events → both sibling orders are legal |
-| E6 | Pipeline stages are HB-ordered by construct |
-| E7 | Sibling textual order without an event does not establish HB |
+| ID | File | Checks |
+| -- | ---- | ------ |
+| E1 | `test/Semantics/e1.mlir` | `materialize` then unpack, no write → undefined |
+| E2 | `test/Semantics/e2.mlir` | `stream` + `wait` + unpack → dest valid |
+| E3 | `test/Semantics/e3.mlir` | Concurrent stream ∥ unpack without wait → undefined |
+| E4 | `test/Semantics/e4.mlir` | Wait producer task event → defined |
+| E5 | `test/Semantics/e5.mlir` | Both sibling orders of event-free concurrent are legal |
+| E6 | `test/Semantics/e6.mlir` | Pipeline `S1` write →HB `S2` read |
+| E7 | `test/Semantics/e7.mlir` | T1-before-T2 textual order without event → undefined |

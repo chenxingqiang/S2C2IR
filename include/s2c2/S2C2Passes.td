@@ -119,6 +119,20 @@ def LowerS2C2 : Pass<"s2c2-lower", "::mlir::ModuleOp"> {
   ];
 }
 
+def CheckS2C2Execution : Pass<"check-s2c2-execution", "::mlir::ModuleOp"> {
+  let summary = "MustProve oracle for S2C2 happens-before and validity";
+  let description = [{
+    Phase 2B semantic tests (E1–E7). Builds HB = TC(PO ∪ SW) over
+    observable actions. Concurrent sibling textual order is not PO.
+    Async dest validity is visible only through wait of the transfer
+    event or the enclosing task event.
+
+    This is a MustProve checker, not a completeness claim
+    (semantic validity ≠ static verifiability). It does not lower
+    `!sched.token`.
+  }];
+}
+
 def ExpandCompComposites : Pass<"expand-comp-composites", "::mlir::ModuleOp"> {
   let summary = "Expand composite compute ops using their decomposition contract";
   let description = [{
