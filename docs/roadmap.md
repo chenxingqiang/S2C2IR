@@ -23,13 +23,14 @@ Do **not** start StableHLO or IREE until this layer is stable.
 
 ## Phase 2A — Lower S²C² to MLIR native dialects
 
-Validate lowering **before** a frontend:
-
 ```text
-comp  → linalg → vector / scf
-stor  → memref (+ bufferization pack/unpack)
-sched → async (token → !async.token)
+comp  → linalg / tensor / math     (--convert-comp-to-linalg)
+sched → sequential IR              (--sequentialize-s2c2-schedule)
+stor/comm → memref + bufferization (--convert-stor-to-memref / --convert-comm-to-memref)
 ```
+
+Pipeline: `--s2c2-lower`. Tokens are dropped (blocking copies). True
+`!async.token` overlap is Phase 2B.
 
 ## Phase 2B — Communication backends
 

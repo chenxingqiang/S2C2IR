@@ -1,5 +1,5 @@
-add_mlir_conversion_library(S2C2StorToMemref
-  StorToMemref.cpp
+add_mlir_conversion_library(S2C2SequentializeSchedule
+  SequentializeSchedule.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/s2c2
@@ -10,11 +10,8 @@ add_mlir_conversion_library(S2C2StorToMemref
   LINK_LIBS PUBLIC
   S2C2Comm
   S2C2Schedule
-  S2C2Storage
-  MLIRBufferizationDialect
   MLIRFuncDialect
   MLIRIR
-  MLIRMemRefDialect
   MLIRPass
   MLIRTransforms
 )

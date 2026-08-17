@@ -39,11 +39,15 @@ Executable tests live under `test/` and run via `check-s2c2` (llvm-lit + FileChe
 
 | ID | File | Checks |
 | -- | ---- | ------ |
-| V1 | `test/Conversion/stor-to-memref.mlir` | Default map: `hbm` → `memref<..., 3>` |
+| V1 | `test/Conversion/stor-to-memref.mlir` | Default map: `hbm` → `memref<..., 3>`; pack/unpack |
 | V2 | `test/Conversion/stor-to-memref.mlir` | Override `space-map=hbm=9,ssd=100`; materialize/transfer |
+| V3 | `test/Conversion/comp-to-linalg.mlir` | matmul / elemwise / gated_mlp → linalg |
+| V4 | `test/Conversion/sequentialize-schedule.mlir` | overlap communicate-first; concurrent IR order |
+| V5 | `test/Conversion/comm-to-memref.mlir` | stream/copy → memref.copy; wait erased |
 
 ## Integration
 
 | ID | File | Checks |
 | -- | ---- | ------ |
 | I1 | `test/Integration/gated_mlp_ssd_stream.mlir` | Object identity, HBM replicas, concurrent gated MLP + stream |
+| I2 | same file `--s2c2-lower` | Lowers to linalg + memref.copy + bufferization.to_tensor |

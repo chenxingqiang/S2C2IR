@@ -37,4 +37,16 @@ module {
     stor.dealloc %hbm : !stor.buffer<tensor<2x4xf32>, hbm>
     return
   }
+
+  // CHECK-LABEL: func.func @pack_unpack
+  func.func @pack_unpack(%t: tensor<2x4xf32>) -> tensor<2x4xf32> {
+    %buf = stor.alloc : !stor.buffer<tensor<2x4xf32>, hbm>
+    // CHECK: bufferization.to_memref
+    // CHECK: memref.copy
+    stor.pack %t into %buf : tensor<2x4xf32>, !stor.buffer<tensor<2x4xf32>, hbm>
+    // CHECK: bufferization.to_tensor
+    %out = stor.unpack %buf : !stor.buffer<tensor<2x4xf32>, hbm> -> tensor<2x4xf32>
+    stor.dealloc %buf : !stor.buffer<tensor<2x4xf32>, hbm>
+    return %out : tensor<2x4xf32>
+  }
 }

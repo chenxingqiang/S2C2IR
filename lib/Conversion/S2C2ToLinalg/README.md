@@ -1,2 +1,2 @@
-Reserved for Phase 2: `comp` → `linalg`. Composite expansion
-(`--expand-comp-composites`) lives beside this directory and stays in `comp`.
+Reserved for further `comp` → `vector` / `scf` tiling. Named lowering
+`--convert-comp-to-linalg` lives in this directory.

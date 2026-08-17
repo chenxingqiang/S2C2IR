@@ -68,8 +68,8 @@ the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 ## Tools
 
-- `s2c2-opt` — parse, verify, and transform S²C² IR
-- `s2c2-translate` — translation driver (Phase 1 stub)
+- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A)
+- `s2c2-translate` — translation driver (stub)
 
 Round-trip an example:
 

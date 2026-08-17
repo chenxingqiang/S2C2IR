@@ -1,8 +1,10 @@
 // RUN: s2c2-opt %s | s2c2-opt | FileCheck %s
+// RUN: s2c2-opt %s --s2c2-lower | FileCheck %s --check-prefix=LOWER
 
 // SSD-streaming Gated MLP with N-way concurrent storage/compute/comm tasks.
 // Weights are one logical object with SSD and HBM residencies. Prefetch uses
-// comm.stream events; compute overlaps the next replica fill.
+// comm.stream events; the stream task is listed first so sequential lowering
+// fills the down-projection replica before compute reads it.
 
 module {
   // CHECK-LABEL: func.func @gated_mlp_ssd_stream
@@ -29,13 +31,27 @@ module {
       : !stor.buffer<tensor<4096x11008xf16>, ssd>, !stor.buffer<tensor<4096x11008xf16>, hbm> -> !sched.token
 
     // CHECK: sched.concurrent -> tensor<1x4096xf16>
+    // CHECK: sched.task
+    // CHECK: comm.stream
     // CHECK: sched.task -> tensor<1x4096xf16>
     // CHECK: sched.wait
     // CHECK: stor.unpack
     // CHECK: comp.gated_mlp
-    // CHECK: sched.task
-    // CHECK: comm.stream
+    // LOWER-LABEL: func.func @gated_mlp_ssd_stream
+    // LOWER: memref.alloc() : memref<4096x11008xf16, 4>
+    // LOWER: memref.alloc() : memref<4096x11008xf16, 3>
+    // LOWER: memref.copy
+    // LOWER: bufferization.to_tensor
+    // LOWER: linalg.matmul
+    // LOWER-NOT: sched.concurrent
+    // LOWER-NOT: comp.gated_mlp
+    // LOWER-NOT: comm.stream
     %y = sched.concurrent -> tensor<1x4096xf16> {
+      %ts = sched.task {
+        %t_down = comm.stream %w_down_ssd, %w_down_hbm {engine = #comm.engine<dma>}
+          : !stor.buffer<tensor<11008x4096xf16>, ssd>, !stor.buffer<tensor<11008x4096xf16>, hbm> -> !sched.token
+        sched.yield
+      }
       %tc, %out = sched.task -> tensor<1x4096xf16> {
         sched.wait %t_gate, %t_up : !sched.token, !sched.token
         %wg = stor.unpack %w_gate_hbm : !stor.buffer<tensor<4096x11008xf16>, hbm> -> tensor<4096x11008xf16>
@@ -45,11 +61,6 @@ module {
           : tensor<1x4096xf16>, tensor<4096x11008xf16>, tensor<4096x11008xf16>, tensor<11008x4096xf16>
             -> tensor<1x4096xf16>
         sched.yield %out : tensor<1x4096xf16>
-      }
-      %ts = sched.task {
-        %t_down = comm.stream %w_down_ssd, %w_down_hbm {engine = #comm.engine<dma>}
-          : !stor.buffer<tensor<11008x4096xf16>, ssd>, !stor.buffer<tensor<11008x4096xf16>, hbm> -> !sched.token
-        sched.yield
       }
       sched.yield %out : tensor<1x4096xf16>
     }
