@@ -18,6 +18,40 @@
 using namespace mlir;
 using namespace mlir::s2c2::sched;
 
+static LogicalResult verifyYieldMatches(Operation *op, Region &region,
+                                        ValueRange expected) {
+  if (region.empty())
+    return op->emitOpError("region must not be empty");
+  auto yield = dyn_cast<YieldOp>(region.front().getTerminator());
+  if (!yield)
+    return op->emitOpError("region must terminate with sched.yield");
+  if (yield.getNumOperands() != expected.size())
+    return op->emitOpError("yield operands must match result types");
+  for (auto [yielded, result] : llvm::zip(yield.getOperands(), expected)) {
+    if (yielded.getType() != result.getType())
+      return op->emitOpError("yield operand types must match result types");
+  }
+  return success();
+}
+
+LogicalResult TaskOp::verify() {
+  return verifyYieldMatches(getOperation(), getBody(), getValues());
+}
+
+LogicalResult ConcurrentOp::verify() {
+  if (failed(verifyYieldMatches(getOperation(), getBody(), getResults())))
+    return failure();
+
+  // Phase 2A / v0.1: concurrent children must be direct sched.task ops.
+  // Nested structured schedule (pipeline, overlap, concurrent) is deferred.
+  for (Operation &child : getBody().front().without_terminator()) {
+    if (!isa<TaskOp>(child))
+      return emitOpError(
+          "body may only contain sched.task ops before the terminator");
+  }
+  return success();
+}
+
 LogicalResult OverlapOp::verify() {
   Region &compute = getCompute();
   if (compute.empty())

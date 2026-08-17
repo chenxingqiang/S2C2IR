@@ -13,10 +13,11 @@ include "mlir/IR/OpBase.td"
 
 def Schedule_Dialect : Dialect {
   let name = "sched";
-  let summary = "S2C2 schedule dialect: when ops run and how they overlap.";
+  let summary = "S2C2 schedule dialect: tasks, events, and concurrency.";
   let description = [{
-    Async tokens, wait, compute/communication overlap, and pipeline stages.
-    This is intentionally independent of IREE Stream/HAL.
+    Generic completion events (`!sched.token`), waits, N-way concurrent
+    tasks, and pipeline stages. Not a GPU compute/comm-overlap dialect.
+    Independent of IREE Stream/HAL.
   }];
   let cppNamespace = "::mlir::s2c2::sched";
   let useDefaultTypePrinterParser = 1;

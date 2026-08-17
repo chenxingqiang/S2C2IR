@@ -1,1 +1,5 @@
 add_subdirectory(StorToMemref)
+add_subdirectory(ExpandCompComposites)
+add_subdirectory(S2C2ToLinalg)
+add_subdirectory(SequentializeSchedule)
+add_subdirectory(LowerS2C2)

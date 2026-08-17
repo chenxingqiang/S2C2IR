@@ -42,7 +42,8 @@ def Comp_ElemwiseKind : I32EnumAttr<"ElemwiseKind", "elementwise kind", [
     I32EnumAttrCase<"ADD", 0, "add">,
     I32EnumAttrCase<"MUL", 1, "mul">,
     I32EnumAttrCase<"SILU", 2, "silu">,
-    I32EnumAttrCase<"GELU", 3, "gelu">
+    I32EnumAttrCase<"GELU", 3, "gelu">,
+    I32EnumAttrCase<"RELU", 4, "relu">
   ]> {
   let cppNamespace = "::mlir::s2c2::comp";
   let genSpecializedAttr = 0;
@@ -53,6 +54,11 @@ def Comp_ElemwiseKindAttr : EnumAttr<Compute_Dialect, Comp_ElemwiseKind, "elemwi
 
 def Comp_MatmulOp : Comp_Op<"matmul", [Pure]> {
   let summary = "Matrix multiply";
+  let description = [{
+    Semantic contract: `C = A @ B`. A tensor-based linalg realization may
+    emit `linalg.fill(0)` plus `linalg.matmul`; that zero-fill is an
+    implementation choice, not part of the S²C² compute model.
+  }];
   let arguments = (ins
     AnyRankedTensor:$lhs,
     AnyRankedTensor:$rhs,
@@ -66,6 +72,11 @@ def Comp_MatmulOp : Comp_Op<"matmul", [Pure]> {
 
 def Comp_ElemwiseOp : Comp_Op<"elemwise", [Pure]> {
   let summary = "Elementwise compute or activation";
+  let description = [{
+    Canonical math semantics (`add`, `mul`, `silu`, `gelu`, `relu`).
+    Lowering to `linalg.map` + `math` / `arith` is a correctness baseline,
+    not a fixed target instruction sequence.
+  }];
   let arguments = (ins
     Variadic<AnyRankedTensor>:$inputs,
     Comp_ElemwiseKindAttr:$kind,
@@ -78,10 +89,18 @@ def Comp_ElemwiseOp : Comp_Op<"elemwise", [Pure]> {
 }
 
 def Comp_GatedMLPOp : Comp_Op<"gated_mlp", [Pure]> {
-  let summary = "Fused gated MLP: silu(x@Wg)*(x@Wu) @ Wd";
+  let summary = "Fused gated MLP: act(x@Wg)*(x@Wu) @ Wd";
   let description = [{
-    First-class Gated MLP so storage and schedule decisions can attach to
-    the fused kernel rather than a lowered matmul chain.
+    Composite fused-candidate op (kept fused by default). Storage and
+    schedule analysis decide whether to expand. Decomposition contract:
+
+    ```text
+    hidden = act(x @ Wgate) * (x @ Wup)
+    y      = hidden @ Wdown
+    ```
+
+    `act` is `silu` (default), `gelu`, or `relu`. Expansion is
+    `--expand-comp-composites`, not the default pipeline.
 
     Example:
 

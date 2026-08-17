@@ -31,12 +31,87 @@ def Sched_WaitOp : Sched_Op<"wait", []> {
   let assemblyFormat = "$tokens attr-dict `:` type($tokens)";
 }
 
+def Sched_TaskOp : Sched_Op<"task", [
+    RecursiveMemoryEffects,
+    SingleBlockImplicitTerminator<"YieldOp">,
+    HasAsyncToken
+  ]> {
+  let summary = "A concurrently schedulable region with a completion event";
+  let description = [{
+    Always produces a `!sched.token`. Additional results match the body's
+    `sched.yield` operands and are visible to the parent block.
+
+    Example:
+
+    ```mlir
+    %t, %out = sched.task -> tensor<4xf32> {
+      %out = comp.matmul %a, %b : tensor<4x4xf32>, tensor<4x4xf32> -> tensor<4x4xf32>
+      sched.yield %out : tensor<4xf32>
+    }
+    ```
+  }];
+  let regions = (region SizedRegion<1>:$body);
+  let results = (outs Sched_TokenType:$token, Variadic<AnyType>:$values);
+  let assemblyFormat = [{
+    (`->` type($values)^)? attr-dict-with-keyword $body
+  }];
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::Type getAsyncTokenType() { return getToken().getType(); }
+  }];
+}
+
+def Sched_ConcurrentOp : Sched_Op<"concurrent", [
+    RecursiveMemoryEffects,
+    SingleBlockImplicitTerminator<"YieldOp">
+  ]> {
+  let summary = "N-way concurrent tasks (storage, compute, and/or communication)";
+  let description = [{
+    Core concurrency construct: `Concurrent(A, B, C)`, not
+    `Overlap(Compute, Comm)`.
+
+    Semantics: children have **no ordering requirement**. They may run
+    concurrently, or in any legal total order consistent with explicit
+    `sched.wait` / token dependencies. Sequentialization is a legal
+    degeneration, not schedule preservation.
+
+    Phase 2A / v0.1: the body may contain only `sched.task` ops plus the
+    terminator. Nested `sched.pipeline` / `sched.overlap` / `sched.concurrent`
+    is rejected until structured-schedule lowering exists.
+
+    Results match this op's `sched.yield` operands.
+
+    Example:
+
+    ```mlir
+    %y = sched.concurrent -> tensor<4xf32> {
+      %tc, %out = sched.task -> tensor<4xf32> {
+        sched.yield %v : tensor<4xf32>
+      }
+      %ts = sched.task {
+        sched.yield
+      }
+      sched.yield %out : tensor<4xf32>
+    }
+    ```
+  }];
+  let regions = (region SizedRegion<1>:$body);
+  let results = (outs Variadic<AnyType>:$results);
+  let assemblyFormat = [{
+    (`->` type($results)^)? attr-dict-with-keyword $body
+  }];
+  let hasVerifier = 1;
+}
+
 def Sched_OverlapOp : Sched_Op<"overlap", [
     RecursiveMemoryEffects,
     SingleBlockImplicitTerminator<"YieldOp">
   ]> {
-  let summary = "Overlap a compute region with a communication region";
+  let summary = "Two-region compute/comm overlap (sugar for sched.concurrent)";
   let description = [{
+    Convenience 2-way form. Prefer `sched.concurrent` + `sched.task` when
+    more than two sides overlap (storage || compute || communication).
+
     Two regions intended to execute concurrently:
 
     * `compute` yields the overlap results
