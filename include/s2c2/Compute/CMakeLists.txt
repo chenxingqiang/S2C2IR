@@ -1,0 +1,10 @@
+add_mlir_dialect(ComputeOps comp)
+add_mlir_doc(ComputeDialect ComputeDialect Compute/ -gen-dialect-doc)
+add_mlir_doc(ComputeOps ComputeOps Compute/ -gen-op-doc)
+
+set(LLVM_TARGET_DEFINITIONS ComputeOps.td)
+mlir_tablegen(ComputeEnums.h.inc -gen-enum-decls)
+mlir_tablegen(ComputeEnums.cpp.inc -gen-enum-defs)
+mlir_tablegen(ComputeAttrs.h.inc -gen-attrdef-decls -attrdefs-dialect=comp)
+mlir_tablegen(ComputeAttrs.cpp.inc -gen-attrdef-defs -attrdefs-dialect=comp)
+add_public_tablegen_target(S2C2ComputeAttrsIncGen)

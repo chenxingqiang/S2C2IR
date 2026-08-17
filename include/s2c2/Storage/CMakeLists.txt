@@ -1,0 +1,15 @@
+add_mlir_dialect(StorageOps stor)
+add_mlir_doc(StorageDialect StorageDialect Storage/ -gen-dialect-doc)
+add_mlir_doc(StorageOps StorageOps Storage/ -gen-op-doc)
+
+set(LLVM_TARGET_DEFINITIONS StorageOps.td)
+mlir_tablegen(StorageEnums.h.inc -gen-enum-decls)
+mlir_tablegen(StorageEnums.cpp.inc -gen-enum-defs)
+mlir_tablegen(StorageAttrs.h.inc -gen-attrdef-decls -attrdefs-dialect=stor)
+mlir_tablegen(StorageAttrs.cpp.inc -gen-attrdef-defs -attrdefs-dialect=stor)
+add_public_tablegen_target(S2C2StorageAttrsIncGen)
+
+set(LLVM_TARGET_DEFINITIONS StorageInterfaces.td)
+mlir_tablegen(StorageInterfaces.h.inc -gen-op-interface-decls)
+mlir_tablegen(StorageInterfaces.cpp.inc -gen-op-interface-defs)
+add_public_tablegen_target(S2C2StorageInterfacesIncGen)
