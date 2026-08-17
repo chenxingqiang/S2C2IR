@@ -75,3 +75,4 @@ not token → async lowering.
 | A2 | `test/Conversion/token-to-async-e2.mlir` | stream+wait → execute + await before unpack |
 | A3 | `test/Conversion/token-to-async-e3.mlir` | no wait ⇒ no await (no invented HB) |
 | A4 | `test/Conversion/token-to-async-e4.mlir` | wait(event(T1)) → await of T1 execute token |
+| A5 | `test/Conversion/token-to-async-a5.mlir` | inner stream wait remaps to await of inner execute token |

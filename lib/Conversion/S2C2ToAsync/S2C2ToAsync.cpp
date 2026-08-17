@@ -19,6 +19,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -57,30 +58,98 @@ static Value wrapCopyEvent(OpBuilder &b, Location loc, Value src, Value dst) {
   return execute.getToken();
 }
 
+static bool isTokenProducer(Operation *op) {
+  if (isa<StreamOp>(op))
+    return true;
+  if (auto copy = dyn_cast<CopyOp>(op))
+    return copy.getNumResults() == 1;
+  return false;
+}
+
+static LogicalResult mapInnerTokenProducer(Operation *op, IRRewriter &rewriter,
+                                           IRMapping &mapping,
+                                           SmallVectorImpl<Value> &innerTokens) {
+  if (auto stream = dyn_cast<StreamOp>(op)) {
+    Value token = wrapCopyEvent(rewriter, stream.getLoc(), stream.getSrc(),
+                                stream.getDst());
+    mapping.map(stream.getToken(), token);
+    innerTokens.push_back(token);
+    return success();
+  }
+  if (auto copy = dyn_cast<CopyOp>(op)) {
+    if (copy.getNumResults() != 1)
+      return success();
+    Value token =
+        wrapCopyEvent(rewriter, copy.getLoc(), copy.getSrc(), copy.getDst());
+    mapping.map(copy.getToken(), token);
+    innerTokens.push_back(token);
+    return success();
+  }
+  return success();
+}
+
 static LogicalResult lowerWaitedValuelessTask(TaskOp task,
                                               IRRewriter &rewriter) {
+  IRMapping mapping;
+  SmallVector<Value> innerTokens;
+  bool hasInnerWait = false;
+  bool onlyTokenProducers = true;
+  rewriter.setInsertionPoint(task);
+  for (Operation &inner : task.getBody().front().without_terminator()) {
+    if (isa<WaitOp>(inner))
+      hasInnerWait = true;
+    if (isTokenProducer(&inner)) {
+      if (failed(mapInnerTokenProducer(&inner, rewriter, mapping, innerTokens)))
+        return failure();
+      continue;
+    }
+    onlyTokenProducers = false;
+  }
+
+  // A4: a waited task that only launches one transfer is that transfer event.
+  if (!hasInnerWait && onlyTokenProducers && innerTokens.size() == 1) {
+    rewriter.replaceOp(task, innerTokens.front());
+    return success();
+  }
+
+  for (Operation &inner : task.getBody().front().without_terminator()) {
+    auto wait = dyn_cast<WaitOp>(inner);
+    if (!wait)
+      continue;
+    for (Value token : wait.getTokens()) {
+      Value mapped = mapping.lookupOrDefault(token);
+      if (!isa<async::TokenType>(mapped.getType()))
+        return wait.emitOpError(
+            "inner wait token was not remapped to !async.token");
+    }
+  }
+
+  llvm::DenseSet<Value> awaited;
   auto execute = rewriter.create<async::ExecuteOp>(
       task.getLoc(), TypeRange{}, ValueRange{}, ValueRange{},
       [&](OpBuilder &body, Location bodyLoc, ValueRange) {
-        IRMapping mapping;
         for (Operation &inner : task.getBody().front().without_terminator()) {
-          if (auto stream = dyn_cast<StreamOp>(inner)) {
-            body.create<CopyOp>(stream.getLoc(), TypeRange{},
-                                ValueRange{stream.getSrc(), stream.getDst()});
+          if (isTokenProducer(&inner))
             continue;
-          }
           if (auto copy = dyn_cast<CopyOp>(inner)) {
             body.create<CopyOp>(copy.getLoc(), TypeRange{},
                                 ValueRange{copy.getSrc(), copy.getDst()});
             continue;
           }
           if (auto wait = dyn_cast<WaitOp>(inner)) {
-            for (Value token : wait.getTokens())
-              body.create<async::AwaitOp>(wait.getLoc(),
-                                          mapping.lookupOrDefault(token));
+            for (Value token : wait.getTokens()) {
+              Value mapped = mapping.lookupOrDefault(token);
+              body.create<async::AwaitOp>(wait.getLoc(), mapped);
+              awaited.insert(mapped);
+            }
             continue;
           }
           body.clone(inner, mapping);
+        }
+        // Task completion includes unwaited inner events (PO inside the task).
+        for (Value token : innerTokens) {
+          if (awaited.insert(token).second)
+            body.create<async::AwaitOp>(bodyLoc, token);
         }
         body.create<async::YieldOp>(bodyLoc, ValueRange{});
       });

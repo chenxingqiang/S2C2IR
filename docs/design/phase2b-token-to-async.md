@@ -52,9 +52,15 @@ execution remains legal (`SequentialSchedule ∈ ValidSchedules`).
 ```
 
 The execute token *is* the transfer event. The inner `comm.copy` is a
-blocking payload, not Phase 2A `memref.copy`. A valueless task that only
-launches a stream is flattened: the task event and the stream event are
-the same execute token (E4 waits `event(T1)`).
+blocking payload, not Phase 2A `memref.copy`.
+
+A waited valueless task is represented by one `async.execute`; its task
+completion is that execute token. Token-producing inner operations
+(`comm.stream`, token `comm.copy`) keep their own events: each becomes
+an `async.execute`, and the old `!sched.token` is remapped to the new
+`!async.token` so an inner `wait` stays a `SW`. If the task body is only
+one such transfer and has no inner wait, the task event and the transfer
+event are the same token (E4).
 
 **Wait:**
 
@@ -81,5 +87,6 @@ valueless task is itself an event and becomes `async.execute`.
 | E2 | `async.await` of the stream/execute token before unpack |
 | E3 | sibling unpack has **no** `async.await` (no false HB) |
 | E4 | consumer task `async.await`s the producer execute token |
+| A5 | inner `stream`+`wait` remaps to `await` of the inner execute token |
 
 E1 / E5 / E6 / E7 stay on `--check-s2c2-execution` (semantic IR).
