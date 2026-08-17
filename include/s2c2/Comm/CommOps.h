@@ -13,6 +13,7 @@
 #include "s2c2/Schedule/ScheduleOps.h"
 #include "s2c2/Storage/StorageTypes.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"

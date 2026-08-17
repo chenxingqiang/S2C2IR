@@ -60,7 +60,7 @@ def Sched_OverlapOp : Sched_Op<"overlap", [
   );
   let results = (outs Variadic<AnyType>:$results);
   let assemblyFormat = [{
-    attr-dict (`->` type($results)^)? $compute $communicate
+    (`->` type($results)^)? attr-dict-with-keyword $compute $communicate
   }];
   let hasVerifier = 1;
 }
@@ -71,7 +71,7 @@ def Sched_PipelineOp : Sched_Op<"pipeline", [
   ]> {
   let summary = "Ordered pipeline of named stages";
   let regions = (region SizedRegion<1>:$body);
-  let assemblyFormat = "attr-dict $body";
+  let assemblyFormat = "attr-dict-with-keyword $body";
 }
 
 def Sched_StageOp : Sched_Op<"stage", [
@@ -81,7 +81,7 @@ def Sched_StageOp : Sched_Op<"stage", [
   let summary = "Named pipeline stage";
   let arguments = (ins StrAttr:$name);
   let regions = (region SizedRegion<1>:$body);
-  let assemblyFormat = "$name attr-dict $body";
+  let assemblyFormat = "$name attr-dict-with-keyword $body";
 }
 
 #endif // S2C2_SCHEDULE_OPS

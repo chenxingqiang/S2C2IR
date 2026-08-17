@@ -25,28 +25,34 @@ Design notes: [`docs/design/phase1-s2c2-core.md`](docs/design/phase1-s2c2-core.m
 
 - CMake >= 3.20
 - Ninja
-- LLVM/MLIR **20.1.x** (built with `-DLLVM_INSTALL_UTILS=ON` so `FileCheck` and `llvm-lit` are available)
+- LLVM/MLIR **20.1.x**
+- `FileCheck` (LLVM utils or `llvm-*-tools`) and `lit` (`pip install lit`)
 
-Bootstrap a local LLVM/MLIR prefix:
+The most portable prefix is a source build with utils installed:
 
 ```sh
 ./scripts/bootstrap-llvm.sh
 ```
+
+The GitHub `LLVM-*-Linux-X64.tar.xz` release also ships MLIR. Those libraries
+are LTO bitcode built against **libc++**, so configure with
+`-stdlib=libc++ -fuse-ld=lld -flto` and the tarball's `lib/<triple>` libc++ path.
 
 ## Build
 
 ```sh
 cmake -G Ninja -S . -B build \
   -DMLIR_DIR=$PWD/third_party/llvm-install/lib/cmake/mlir \
-  -DLLVM_EXTERNAL_LIT=$PWD/third_party/llvm-install/bin/llvm-lit \
-  -DCMAKE_BUILD_TYPE=Debug
+  -DLLVM_EXTERNAL_LIT=$(command -v lit) \
+  -DCMAKE_BUILD_TYPE=Release
 
 cmake --build build --target s2c2-opt
 cmake --build build --target check-s2c2
 ```
 
 If LLVM is already installed elsewhere, point `MLIR_DIR` at
-`<prefix>/lib/cmake/mlir`.
+`<prefix>/lib/cmake/mlir`. Some prebuilt packages export `zstd::libzstd_static`;
+the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 ## Tools
 

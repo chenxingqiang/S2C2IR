@@ -11,3 +11,4 @@ __pycache__/
 install/
 third_party/llvm-project/
 third_party/llvm-install/
+third_party/*.deb

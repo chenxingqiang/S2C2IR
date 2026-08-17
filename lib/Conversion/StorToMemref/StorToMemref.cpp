@@ -44,7 +44,7 @@ struct BufferToMemRefConverter : TypeConverter {
   BufferToMemRefConverter() {
     addConversion([](Type type) { return type; });
     addConversion([](BufferType type) -> std::optional<Type> {
-      if (!isa<RankedTensorType>(type.getSourceType()))
+      if (!llvm::isa<RankedTensorType>(type.getSourceType()))
         return std::nullopt;
       return convertBuffer(type);
     });

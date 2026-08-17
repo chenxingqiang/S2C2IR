@@ -26,21 +26,8 @@ def Stor_Space : I32EnumAttr<"Space", "S2C2 storage space", [
   let genSpecializedAttr = 0;
 }
 
-def Stor_SpaceAttr : EnumAttr<Storage_Dialect, Stor_Space, "space">;
-
-class SpaceParameter
-    : AttrOrTypeParameter<"::mlir::s2c2::stor::Space", "storage space"> {
-  let parser = [{[&]() -> ::mlir::FailureOr<::mlir::s2c2::stor::Space> {
-    ::llvm::StringRef mnemonic;
-    if ($_parser.parseKeyword(&mnemonic))
-      return ::mlir::failure();
-    if (::std::optional<::mlir::s2c2::stor::Space> parsed =
-            ::mlir::s2c2::stor::symbolizeSpace(mnemonic))
-      return *parsed;
-    return $_parser.emitError($_parser.getCurrentLocation())
-           << "unknown storage space: " << mnemonic;
-  }()}];
-  let printer = [{$_printer << stringifySpace($_self)}];
+def Stor_SpaceAttr : EnumAttr<Storage_Dialect, Stor_Space, "space"> {
+  let assemblyFormat = "`<` $value `>`";
 }
 
 class Stor_Type<string name, string typeMnemonic, list<Trait> traits = []>
@@ -56,7 +43,7 @@ def Stor_BufferType : Stor_Type<"Buffer", "buffer"> {
   }];
   let parameters = (ins
     "Type":$sourceType,
-    SpaceParameter:$space
+    "::mlir::s2c2::stor::Space":$space
   );
   let assemblyFormat = "`<` $sourceType `,` $space `>`";
   let genVerifyDecl = 1;

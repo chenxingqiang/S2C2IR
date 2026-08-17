@@ -5,6 +5,18 @@ set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
 set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  # Prebuilt LLVM 20 packages may export LLVMSupport with
+  # zstd::libzstd_static even when only the shared zstd library is present.
+  find_package(zstd QUIET)
+  if(NOT TARGET zstd::libzstd_static)
+    find_library(S2C2_ZSTD_LIB zstd)
+    if(S2C2_ZSTD_LIB)
+      add_library(zstd::libzstd_static STATIC IMPORTED)
+      set_target_properties(zstd::libzstd_static PROPERTIES
+        IMPORTED_LOCATION "${S2C2_ZSTD_LIB}")
+    endif()
+  endif()
+
   find_package(MLIR REQUIRED CONFIG)
 
   message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")

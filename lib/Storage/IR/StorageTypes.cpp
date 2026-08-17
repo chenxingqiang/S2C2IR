@@ -12,6 +12,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 using namespace mlir;
@@ -41,7 +42,7 @@ void StorageDialect::registerAttributes() {
 
 LogicalResult BufferType::verify(
     function_ref<InFlightDiagnostic()> emitError, Type sourceType, Space) {
-  if (!isa<RankedTensorType>(sourceType))
+  if (!::llvm::isa<RankedTensorType>(sourceType))
     return emitError() << "buffer payload must be a ranked tensor";
   return success();
 }

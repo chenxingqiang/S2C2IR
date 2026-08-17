@@ -22,7 +22,9 @@ def Comp_Unit : I32EnumAttr<"Unit", "compute unit", [
   let cppNamespace = "::mlir::s2c2::comp";
   let genSpecializedAttr = 0;
 }
-def Comp_UnitAttr : EnumAttr<Compute_Dialect, Comp_Unit, "unit">;
+def Comp_UnitAttr : EnumAttr<Compute_Dialect, Comp_Unit, "unit"> {
+  let assemblyFormat = "`<` $value `>`";
+}
 
 def Comp_Activation : I32EnumAttr<"Activation", "gated-MLP activation", [
     I32EnumAttrCase<"SILU", 0, "silu">,
@@ -32,7 +34,9 @@ def Comp_Activation : I32EnumAttr<"Activation", "gated-MLP activation", [
   let cppNamespace = "::mlir::s2c2::comp";
   let genSpecializedAttr = 0;
 }
-def Comp_ActivationAttr : EnumAttr<Compute_Dialect, Comp_Activation, "activation">;
+def Comp_ActivationAttr : EnumAttr<Compute_Dialect, Comp_Activation, "activation"> {
+  let assemblyFormat = "`<` $value `>`";
+}
 
 def Comp_ElemwiseKind : I32EnumAttr<"ElemwiseKind", "elementwise kind", [
     I32EnumAttrCase<"ADD", 0, "add">,
@@ -43,7 +47,9 @@ def Comp_ElemwiseKind : I32EnumAttr<"ElemwiseKind", "elementwise kind", [
   let cppNamespace = "::mlir::s2c2::comp";
   let genSpecializedAttr = 0;
 }
-def Comp_ElemwiseKindAttr : EnumAttr<Compute_Dialect, Comp_ElemwiseKind, "elemwise">;
+def Comp_ElemwiseKindAttr : EnumAttr<Compute_Dialect, Comp_ElemwiseKind, "elemwise"> {
+  let assemblyFormat = "`<` $value `>`";
+}
 
 def Comp_MatmulOp : Comp_Op<"matmul", [Pure]> {
   let summary = "Matrix multiply";

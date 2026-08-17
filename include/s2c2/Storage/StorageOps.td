@@ -29,7 +29,7 @@ def Stor_AllocOp : Stor_Op<"alloc", [
   }];
   let arguments = (ins);
   let results = (outs Stor_BufferType:$buffer);
-  let assemblyFormat = "attr-dict `:` type($buffer)";
+  let assemblyFormat = "attr-dict `:` qualified(type($buffer))";
   let extraClassDeclaration = [{
     ::mlir::s2c2::stor::Space getStorageSpace() {
       return ::llvm::cast<BufferType>(getBuffer().getType()).getSpace();
@@ -40,14 +40,14 @@ def Stor_AllocOp : Stor_Op<"alloc", [
 def Stor_DeallocOp : Stor_Op<"dealloc", [MemoryEffects<[MemFree]>]> {
   let summary = "Deallocate a storage buffer";
   let arguments = (ins Stor_BufferType:$buffer);
-  let assemblyFormat = "$buffer attr-dict `:` type($buffer)";
+  let assemblyFormat = "$buffer attr-dict `:` qualified(type($buffer))";
 }
 
 def Stor_PackOp : Stor_Op<"pack", []> {
   let summary = "Write a tensor into a storage buffer";
   let arguments = (ins AnyRankedTensor:$value, Stor_BufferType:$buffer);
   let assemblyFormat = [{
-    $value `into` $buffer attr-dict `:` type($value) `,` type($buffer)
+    $value `into` $buffer attr-dict `:` type($value) `,` qualified(type($buffer))
   }];
   let hasVerifier = 1;
 }
@@ -57,7 +57,7 @@ def Stor_UnpackOp : Stor_Op<"unpack", [Pure]> {
   let arguments = (ins Stor_BufferType:$buffer);
   let results = (outs AnyRankedTensor:$result);
   let assemblyFormat = [{
-    $buffer attr-dict `:` type($buffer) `->` type($result)
+    $buffer attr-dict `:` qualified(type($buffer)) `->` type($result)
   }];
   let hasVerifier = 1;
 }

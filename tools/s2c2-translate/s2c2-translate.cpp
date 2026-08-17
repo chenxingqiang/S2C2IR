@@ -11,6 +11,7 @@
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/InitAllTranslations.h"
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"
+#include "mlir/Tools/mlir-translate/Translation.h"
 
 int main(int argc, char **argv) {
   mlir::registerAllTranslations();

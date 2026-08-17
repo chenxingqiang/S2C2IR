@@ -10,6 +10,7 @@
 #define S2C2_STORAGE_STORAGEOPS_H
 
 #include "s2c2/Storage/StorageTypes.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"
