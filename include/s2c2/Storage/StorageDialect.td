@@ -13,10 +13,11 @@ include "mlir/IR/OpBase.td"
 
 def Storage_Dialect : Dialect {
   let name = "stor";
-  let summary = "S2C2 storage dialect: where data lives.";
+  let summary = "S2C2 storage dialect: logical objects and placed residencies.";
   let description = [{
-    The `stor` dialect models logical buffers placed in a storage space
-    (register, SRAM, DRAM, HBM, SSD, CIM, host).
+    Distinguishes logical data identity (`!stor.object`) from placed
+    residencies (`!stor.buffer<tensor<...>, space>`). Spaces are logical;
+    target memory-space integers are a conversion mapping, not an ABI.
   }];
   let cppNamespace = "::mlir::s2c2::stor";
   let useDefaultTypePrinterParser = 1;

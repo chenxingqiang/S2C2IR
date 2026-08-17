@@ -9,6 +9,7 @@ set(LIBS
         S2C2Comm
         S2C2Schedule
         S2C2StorToMemref
+        S2C2ExpandComposites
         )
 add_llvm_executable(s2c2-opt s2c2-opt.cpp)
 

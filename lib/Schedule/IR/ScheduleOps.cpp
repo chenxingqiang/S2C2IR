@@ -18,6 +18,30 @@
 using namespace mlir;
 using namespace mlir::s2c2::sched;
 
+static LogicalResult verifyYieldMatches(Operation *op, Region &region,
+                                        ValueRange expected) {
+  if (region.empty())
+    return op->emitOpError("region must not be empty");
+  auto yield = dyn_cast<YieldOp>(region.front().getTerminator());
+  if (!yield)
+    return op->emitOpError("region must terminate with sched.yield");
+  if (yield.getNumOperands() != expected.size())
+    return op->emitOpError("yield operands must match result types");
+  for (auto [yielded, result] : llvm::zip(yield.getOperands(), expected)) {
+    if (yielded.getType() != result.getType())
+      return op->emitOpError("yield operand types must match result types");
+  }
+  return success();
+}
+
+LogicalResult TaskOp::verify() {
+  return verifyYieldMatches(getOperation(), getBody(), getValues());
+}
+
+LogicalResult ConcurrentOp::verify() {
+  return verifyYieldMatches(getOperation(), getBody(), getResults());
+}
+
 LogicalResult OverlapOp::verify() {
   Region &compute = getCompute();
   if (compute.empty())

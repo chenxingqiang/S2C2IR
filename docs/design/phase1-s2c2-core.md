@@ -1,6 +1,6 @@
 # Phase 1 Design: S²C² Core Dialects
 
-Status: **implementation baseline** (out-of-tree MLIR, LLVM 20.1).
+Status: **Phase 1 baseline**, refined by [Phase 1.5](phase1.5-semantic-normalization.md).
 
 ## 1. Problem
 
@@ -43,10 +43,12 @@ C++ namespaces:
 
 ## 3. Type and attribute model
 
-### 3.1 `!stor.buffer<sourceType, space>`
+### 3.1 Logical object vs residency
 
-`sourceType` is a ranked tensor describing the logical payload.
-`space` is a storage-space enum:
+`!stor.object<tensor<...>>` is logical identity (SSA).  
+`!stor.buffer<tensor<...>, space>` is a placed replica. See Phase 1.5.
+
+`space` is a **logical** storage-space enum (not a memref ABI):
 
 | Enum | Meaning |
 | ---- | ------- |
@@ -62,14 +64,14 @@ Example: `!stor.buffer<tensor<4096x11008xf16>, ssd>`
 
 ### 3.2 `!sched.token`
 
-Asynchronous completion token produced by `comm.stream` / `comm.copy` and
-consumed by `sched.wait`.
+Generic completion event produced by `sched.task`, `comm.stream`, optional
+`comm.copy`, and consumed by `sched.wait`. Not owned by `comm`.
 
 ### 3.3 Compute attributes
 
 - `#comp.unit<cpu|gpu|npu|cim>`
 - `#comp.activation<silu|gelu|relu>`
-- `#comp.elemwise<add|mul|silu|gelu>`
+- `#comp.elemwise<add|mul|silu|gelu|relu>`
 
 ### 3.4 Communication attributes
 
@@ -82,10 +84,13 @@ consumed by `sched.wait`.
 
 | Op | Role |
 | -- | ---- |
-| `stor.alloc` | Allocate a buffer in a space (space lives on the result type) |
-| `stor.dealloc` | Free a buffer |
-| `stor.pack` | Write a tensor into a buffer |
-| `stor.unpack` | Read a tensor from a buffer |
+| `stor.object` | Logical identity (no allocation) |
+| `stor.materialize` | Allocate a residency of an object |
+| `stor.transfer` | New residency of the same object + copy |
+| `stor.alloc` | Anonymous residency (no object) |
+| `stor.dealloc` | Free a residency |
+| `stor.pack` | Write a tensor into a residency |
+| `stor.unpack` | Read a tensor from a residency |
 
 Compute stays on tensors. Placement is a Storage concern. `pack`/`unpack`
 are the explicit tensor↔buffer edge so later lowering can target
@@ -97,11 +102,7 @@ are the explicit tensor↔buffer edge so later lowering can target
 | -- | ---- |
 | `comp.matmul` | High-level matmul (lowers to `linalg` later) |
 | `comp.elemwise` | Elementwise / activation |
-| `comp.gated_mlp` | First-class Gated MLP: `silu(x@Wg) * (x@Wu)` then `@ Wd` |
-
-`comp.gated_mlp` is intentionally **not** expanded in Phase 1. The research
-IR should name the fused kernel so schedule/storage decisions can attach to
-it as a unit.
+| `comp.gated_mlp` | Fused candidate; expand with `--expand-comp-composites` |
 
 ### 4.3 Communication (`comm`)
 
@@ -120,7 +121,9 @@ types must match; spaces should differ.
 | -- | ---- |
 | `sched.wait` | Wait on one or more tokens |
 | `sched.yield` | Region terminator |
-| `sched.overlap` | Two regions: compute and communicate, intended to overlap |
+| `sched.task` | Concurrent region; always produces `!sched.token` |
+| `sched.concurrent` | N-way concurrent tasks |
+| `sched.overlap` | 2-way compute/comm sugar |
 | `sched.pipeline` | Ordered pipeline body |
 | `sched.stage` | Named pipeline stage |
 
@@ -152,15 +155,18 @@ Phase 1 implementations are ODS-backed; more methods land with conversion.
 
 | Pass | Purpose |
 | ---- | ------- |
-| `--convert-stor-to-memref` | `stor.alloc`/`stor.dealloc` → `memref.alloc`/`memref.dealloc`, mapping spaces to integer memory spaces |
+| `--convert-stor-to-memref` | Storage → memref; logical spaces via **target** `space-map` |
+| `--expand-comp-composites` | Optional `gated_mlp` decomposition (not default) |
 
-Integer memory-space mapping (stable for tests):
+Integer memory-space mapping is a **target option**, defaulting to:
 
 ```text
 register=0, sram=1, dram=2, hbm=3, ssd=4, cim=5, host=6
 ```
 
-Not in Phase 1: `S2C2ToLinalg`, `S2C2ToAsync`, `S2C2ToMPI`, `S2C2ToLLVM`
+Override: `--convert-stor-to-memref="space-map=hbm=9,ssd=100"`.
+
+Not in this phase: `S2C2ToLinalg`, `S2C2ToAsync`, `S2C2ToMPI`, `S2C2ToLLVM`
 (directories reserved).
 
 ## 7. Lowering direction (not fully implemented)
@@ -177,12 +183,12 @@ S²C² IR
 
 `test/Integration/gated_mlp_ssd_stream.mlir` must represent:
 
-1. Weights live in `ssd`
-2. Prefetch via `comm.stream` into `hbm`
-3. `sched.overlap` of compute (`comp.gated_mlp`) and the next stream
+1. Each weight is a `stor.object` with SSD and HBM residencies
+2. Prefetch via `comm.stream` into HBM (same logical object)
+3. `sched.concurrent` of a compute `sched.task` (`comp.gated_mlp`) and a stream task
 4. Tokens connect stream completion to `sched.wait`
 
-This is the Phase-1 research kernel: Gated MLP + SSD streaming + overlap.
+This is the research kernel: Gated MLP + SSD streaming + N-way overlap.
 
 ## 9. Explicit non-goals
 

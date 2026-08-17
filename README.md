@@ -7,8 +7,9 @@ S²C² = Storage + Schedule + Compute + Communication
 ```
 
 This repository follows the official MLIR `examples/standalone` project
-layout. It does **not** fork XLA, TVM, or IREE. IREE is a Phase-2 runtime
-backend; StableHLO is a Phase-2 compute frontend.
+layout. It does **not** fork XLA, TVM, or IREE. IREE is a Phase 3 runtime
+backend; StableHLO is a Phase 2C compute frontend (after semantic
+normalization and native lowering).
 
 ## Phase 1 dialects
 
@@ -19,7 +20,18 @@ backend; StableHLO is a Phase-2 compute frontend.
 | `comm`  | `mlir::s2c2::comm`  | How does data move? |
 | `sched` | `mlir::s2c2::sched` | When does it run, and how is compute/comm overlapped? |
 
-Design notes: [`docs/design/phase1-s2c2-core.md`](docs/design/phase1-s2c2-core.md)
+## Phase 1.5 semantics
+
+| Contract | IR |
+| -------- | -- |
+| Logical identity | `!stor.object<tensor<...>>` |
+| Residency | `!stor.buffer<tensor<...>, space>` via `materialize` / `transfer` |
+| Completion event | `!sched.token` (task, stream, optional copy) |
+| Concurrency | `sched.concurrent` + `sched.task` |
+| Target memref spaces | `--convert-stor-to-memref="space-map=hbm=9,..."` |
+| Fused MLP | keep `comp.gated_mlp`; opt-in `--expand-comp-composites` |
+
+Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/phase1.5-semantic-normalization.md)
 
 ## Requirements
 
@@ -70,9 +82,9 @@ Round-trip an example:
 See [`docs/roadmap.md`](docs/roadmap.md).
 
 ```text
-StableHLO          (Phase 2 frontend)
+StableHLO          (Phase 2C frontend, optional)
     ↓
-S²C² IR            (this repo: stor / comp / comm / sched)
+S²C² IR            (stor / comp / comm / sched)
     ↓
 MLIR standard      memref, linalg, async, mpi, scf, vector, transform
     ↓

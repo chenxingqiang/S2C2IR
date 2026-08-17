@@ -1,41 +1,44 @@
 # S²C² IR Roadmap
 
-## Phase 1 — Core dialects (this tree)
+## Phase 1 — Core dialects
 
 GitHub project: `s2c2ir`, based on MLIR `examples/standalone`.
 
-Implement first-class IR for:
+Four dialects: `stor`, `comp`, `comm`, `sched`. Round-trip, verifiers, and
+`stor` → `memref`. Integration: SSD-streaming Gated MLP.
 
-- `stor` — storage spaces and buffers
-- `comp` — high-level compute (including `gated_mlp`)
-- `comm` — copy / stream / barrier
-- `sched` — async tokens, wait, compute/comm overlap, pipeline stages
+## Phase 1.5 — Semantic normalization (this tree)
 
-Goals:
+Design: [`docs/design/phase1.5-semantic-normalization.md`](design/phase1.5-semantic-normalization.md)
 
-- Round-trip parse/print
-- Verifiers for shape/space mismatches
-- One lowering: `stor` → `memref`
-- Integration IR for SSD-streaming Gated MLP with overlap
+| Contract | Mechanism |
+| -------- | --------- |
+| Logical object vs residency | `!stor.object` + `stor.materialize` / `stor.transfer` |
+| Unified events | `!sched.token` from task / stream / optional copy |
+| N-way concurrency | `sched.concurrent` + `sched.task` (`overlap` is 2-way sugar) |
+| Target space mapping | `--convert-stor-to-memref=space-map=...` |
+| Composite compute | `gated_mlp` stays fused; `--expand-comp-composites` is opt-in |
 
-Non-goals:
+Do **not** start StableHLO or IREE until this layer is stable.
 
-- Forking IREE / XLA / TVM
-- Full codegen
-- Python bindings
+## Phase 2A — Lower S²C² to MLIR native dialects
 
-## Phase 2 — Reuse MLIR native dialects
-
-Lower S²C² into existing dialects instead of reimplementing them:
+Validate lowering **before** a frontend:
 
 ```text
-stor  → memref (+ async)
 comp  → linalg → vector / scf
-comm  → mpi / memref.copy / async
-sched → transform / async
+stor  → memref (+ bufferization pack/unpack)
+sched → async (token → !async.token)
 ```
 
-Optional frontend:
+## Phase 2B — Communication backends
+
+```text
+comm  → memref.copy / async
+comm  → MPI (collectives)
+```
+
+## Phase 2C — Compute frontend (optional)
 
 ```text
 PyTorch / JAX → StableHLO → S²C²
@@ -43,12 +46,10 @@ PyTorch / JAX → StableHLO → S²C²
 
 ## Phase 3 — Runtime / multi-backend
 
-After the IR semantics are independently validated:
-
 ```text
-S²C² → Linalg / Async / Stream-like IR → IREE HAL
-                                      → LLVM CPU
-                                      → GPU / NPU / CIM (later, CIRCT-like HW model)
+S²C² → Linalg / Async → IREE HAL
+                      → LLVM CPU
+                      → GPU / NPU / CIM
 ```
 
 IREE is a **runtime and deployment backend**, not the IR definition base.

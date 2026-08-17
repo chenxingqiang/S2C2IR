@@ -18,6 +18,17 @@
 
 #include "s2c2/Storage/StorageInterfaces.h.inc"
 
+namespace mlir {
+namespace s2c2 {
+namespace stor {
+/// Walk defining ops to the logical object SSA value.
+/// Materialize returns its object operand; transfer forwards to the source.
+/// Anonymous `stor.alloc` (and unknown defs) return a null Value.
+Value getLogicalObject(Value buffer);
+} // namespace stor
+} // namespace s2c2
+} // namespace mlir
+
 #define GET_OP_CLASSES
 #include "s2c2/Storage/StorageOps.h.inc"
 

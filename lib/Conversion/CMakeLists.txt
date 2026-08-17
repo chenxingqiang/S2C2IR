@@ -1,1 +1,2 @@
 add_subdirectory(StorToMemref)
+add_subdirectory(ExpandCompComposites)
