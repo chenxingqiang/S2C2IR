@@ -1,0 +1,37 @@
+//===- ScheduleOps.cpp - S2C2 Schedule ops ----------------------*- C++ -*-===//
+//
+// This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "s2c2/Schedule/ScheduleOps.h"
+#include "s2c2/Schedule/ScheduleDialect.h"
+#include "llvm/ADT/STLExtras.h"
+
+#include "s2c2/Schedule/ScheduleInterfaces.cpp.inc"
+
+#define GET_OP_CLASSES
+#include "s2c2/Schedule/ScheduleOps.cpp.inc"
+
+using namespace mlir;
+using namespace mlir::s2c2::sched;
+
+LogicalResult OverlapOp::verify() {
+  Region &compute = getCompute();
+  if (compute.empty())
+    return emitOpError("compute region must not be empty");
+
+  auto yield = dyn_cast<YieldOp>(compute.front().getTerminator());
+  if (!yield)
+    return emitOpError("compute region must terminate with sched.yield");
+  if (yield.getNumOperands() != getNumResults())
+    return emitOpError("yield operands must match overlap results");
+  for (auto [yielded, result] :
+       llvm::zip(yield.getOperands(), getResults())) {
+    if (yielded.getType() != result.getType())
+      return emitOpError("yield operand types must match overlap results");
+  }
+  return success();
+}

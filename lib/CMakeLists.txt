@@ -1,0 +1,5 @@
+add_subdirectory(Storage)
+add_subdirectory(Compute)
+add_subdirectory(Comm)
+add_subdirectory(Schedule)
+add_subdirectory(Conversion)

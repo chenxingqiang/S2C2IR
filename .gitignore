@@ -1,0 +1,13 @@
+build/
+cmake-build-*/
+.cache/
+compile_commands.json
+*.swp
+*.swo
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+install/
+third_party/llvm-project/
+third_party/llvm-install/
