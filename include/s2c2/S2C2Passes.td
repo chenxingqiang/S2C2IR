@@ -150,6 +150,20 @@ def ConvertS2C2ConcurrentToAsync : Pass<"convert-s2c2-concurrent-to-async", "::m
   let dependentDialects = ["mlir::async::AsyncDialect"];
 }
 
+def ConvertS2C2PipelineToAsync : Pass<"convert-s2c2-pipeline-to-async", "::mlir::ModuleOp"> {
+  let summary = "HB-preserving v0.1 sched.pipeline → chained async.execute";
+  let description = [{
+    Phase 2B pipeline slice. Acceptance: **StageOrder is preserved**,
+    not "the pipeline runs in parallel".
+
+    Each stage becomes `async.execute`; the parent awaits that token
+    before the next stage (and awaits the last stage as pipeline
+    completion). Does not explode stages as unordered sibling executes.
+    Does not add iteration IR or SoftPipe.
+  }];
+  let dependentDialects = ["mlir::async::AsyncDialect"];
+}
+
 def CheckS2C2Execution : Pass<"check-s2c2-execution", "::mlir::ModuleOp"> {
   let summary = "MustProve oracle for S2C2 happens-before and validity";
   let description = [{
