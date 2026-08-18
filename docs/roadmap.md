@@ -57,15 +57,17 @@ Conflict / Race Analysis (unordered conflicting writes) — not in the
 oracle.
 
 Token slice: [`phase2b-token-to-async.md`](design/phase2b-token-to-async.md)
-(`--convert-s2c2-token-to-async`). Acceptance: **HB-preserving**, not
-“async works.”
+(`--convert-s2c2-token-to-async`). Concurrent slice:
+[`phase2b-concurrent-to-async.md`](design/phase2b-concurrent-to-async.md)
+(`--convert-s2c2-concurrent-to-async`). Acceptance: **HB-preserving**,
+not “async works.”
 
 Then (later slices):
 
 ```text
-event  →  !async.token          (this slice)
-wait   →  async.await           (this slice)
-concurrent → unordered async.execute
+event  →  !async.token          (slice 1)
+wait   →  async.await           (slice 1)
+concurrent → unordered async.execute  (slice 2)
 pipeline / overlap
 ```
 

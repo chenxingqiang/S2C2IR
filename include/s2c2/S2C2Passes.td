@@ -134,6 +134,22 @@ def ConvertS2C2TokenToAsync : Pass<"convert-s2c2-token-to-async", "::mlir::Modul
   let dependentDialects = ["mlir::async::AsyncDialect"];
 }
 
+def ConvertS2C2ConcurrentToAsync : Pass<"convert-s2c2-concurrent-to-async", "::mlir::ModuleOp"> {
+  let summary = "HB-preserving sched.concurrent → N × async.execute";
+  let description = [{
+    Phase 2B slice 2. Acceptance: **HB-preserving concurrent lowering**,
+    not "async concurrent works".
+
+    Direct `sched.task` / leftover `async.execute` children become
+    sibling `async.execute` ops. Lexical sibling order does not insert
+    `async.await`. A cross-sibling wait stays an await *inside* the
+    consumer. Task-local SSA is remapped per child.
+
+    Does not lower pipeline or overlap.
+  }];
+  let dependentDialects = ["mlir::async::AsyncDialect"];
+}
+
 def CheckS2C2Execution : Pass<"check-s2c2-execution", "::mlir::ModuleOp"> {
   let summary = "MustProve oracle for S2C2 happens-before and validity";
   let description = [{
