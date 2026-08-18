@@ -104,6 +104,15 @@ Meaning: the effects of `A` are complete before `B` may observe them.
 →HB  =  transitive closure of ( →PO  ∪  →SW )
 ```
 
+HB is defined over **observable actions** (allocate, pack, compute,
+transfer/copy/stream, wait, yield, and the other leaf effects). Task and
+Event are not themselves points in the order: a task or event edge
+**induces** HB between the corresponding action regions (the actions in
+the producer region, and the wait / continuation that observe the event).
+
+So `event(T1) →HB event(T2)` is not a primitive. The induced fact is
+`actions(T1) →HB wait(event(T1)) →HB continuation`.
+
 Consequences:
 
 - HB is a strict partial order on actions (irreflexive, transitive).
@@ -311,6 +320,16 @@ A read of `r` is **defined** iff there exists a write `W` of `r` such that
 Otherwise the read is **undefined**. The IR does not have to diagnose
 undefined programs in v0.1; lowering may produce arbitrary contents.
 
+```text
+Semantic validity  ≠  static verifiability
+```
+
+A program may be semantically defined without the current checker being
+able to prove it (`Unknown`). A checker may `MustProve` definedness
+(reject `Unknown`), `MayAssume` it, or leave it `Unknown`. v0.1
+`--check-s2c2-execution` is a `MustProve` test oracle for E1–E7, not a
+completeness claim about all well-defined programs.
+
 Concurrent writes of the same residency with no HB between them are
 undefined.
 
@@ -428,9 +447,10 @@ It must not:
 
 ---
 
-## 13. Test outlines (not yet executable)
+## 13. Executable semantic tests
 
-These are specification tests. Implementation comes after approval.
+`--check-s2c2-execution` is the v0.1 `MustProve` oracle. It does **not**
+lower tokens. Files: `test/Semantics/e1.mlir` … `e7.mlir`.
 
 | ID | Claim | Expected |
 | -- | ----- | -------- |

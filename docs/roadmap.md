@@ -52,8 +52,8 @@ Approve this spec before any event-preserving lowering.
 
 ## Phase 2B — Implement the approved execution semantics
 
-Do not start until `execution-semantics.md` is approved. Then realize
-`→HB` (do not redefine it):
+Spec approved. First executable oracle (`--check-s2c2-execution`, E1–E7),
+then event-preserving realization of `→HB` (do not redefine it):
 
 ```text
 event  →  runtime completion object
