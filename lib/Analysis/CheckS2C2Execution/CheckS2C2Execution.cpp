@@ -4,7 +4,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// MustProve checker for Execution Semantics E1–E7. Not token lowering.
+// MustProve checker for Execution Semantics E1–E8. Not token lowering.
 // Concurrent sibling lexical order is not happens-before.
 //
 //===----------------------------------------------------------------------===//

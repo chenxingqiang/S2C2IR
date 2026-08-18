@@ -67,6 +67,10 @@ not token → async lowering.
 | E5 | `test/Semantics/e5.mlir` | Both sibling orders of event-free concurrent are legal |
 | E6 | `test/Semantics/e6.mlir` | Pipeline `S1` write →HB `S2` read |
 | E7 | `test/Semantics/e7.mlir` | T1-before-T2 textual order without event → undefined |
+| E8 | `test/Semantics/e8.mlir` | Pipeline `S1` read then `S2` write → undefined (directed StageOrder) |
+
+Pipeline contract: [`pipeline-semantics.md`](pipeline-semantics.md).
+No pipeline → async lowering in this phase.
 
 ## Token → async (HB-preserving slice)
 

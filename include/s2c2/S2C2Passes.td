@@ -153,7 +153,7 @@ def ConvertS2C2ConcurrentToAsync : Pass<"convert-s2c2-concurrent-to-async", "::m
 def CheckS2C2Execution : Pass<"check-s2c2-execution", "::mlir::ModuleOp"> {
   let summary = "MustProve oracle for S2C2 happens-before and validity";
   let description = [{
-    Phase 2B semantic tests (E1–E7). Builds HB = TC(PO ∪ SW) over
+    Phase 2B semantic tests (E1–E8). Builds HB = TC(PO ∪ SW) over
     observable actions. Concurrent sibling textual order is not PO.
     Async dest validity is visible only through wait of the transfer
     event or the enclosing task event.
