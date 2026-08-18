@@ -39,15 +39,27 @@ lowering. Tokens are dropped because copies are synchronous.
 Sequential lowering  ≠  S²C² semantic definition  ≠  async lowering
 ```
 
-## Phase 2B — Execution semantics, then async
+## Execution semantics (before Phase 2B)
 
-First write S²C² execution semantics (task/event DAG, happens-before,
-transfer-completion ⇒ destination valid). Then:
+Design: [`docs/design/execution-semantics.md`](design/execution-semantics.md)
 
 ```text
-!sched.token → !async.token
-comm.stream  → event-preserving async / DMA
-comm         → MPI (collectives)
+S²C²  =  Storage + Compute + Communication + Execution Semantics
+```
+
+Schedule is the HB / event constraint layer, not a fourth data dialect.
+Approve this spec before any event-preserving lowering.
+
+## Phase 2B — Implement the approved execution semantics
+
+Do not start until `execution-semantics.md` is approved. Then realize
+`→HB` (do not redefine it):
+
+```text
+event  →  runtime completion object
+wait   →  await
+task   →  schedulable region
+concurrent → unordered launch (SW only where the spec puts it)
 ```
 
 ## Phase 2C — Compute frontend (optional)

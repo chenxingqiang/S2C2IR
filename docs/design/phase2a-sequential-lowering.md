@@ -133,14 +133,8 @@ into memref. Phase 2B is event-preserving.
 Zero-fill and `exp`/`erf` expansions are **not** the compute model.
 Targets (CUDA, NPU, CIM) may use different instruction sequences.
 
-## 6. Phase 2B next (do not implement here)
+## 6. Next document (not this PR)
 
-Define **S²C² execution semantics** first:
-
-- Task: consumes values / tokens; produces values + completion token
-- Concurrent: no ordering between children
-- Wait: happens-before
-- Pipeline: iteration / stage dependence
-- Transfer: new residency; token ⇒ destination valid
-
-Then lower the event DAG to `async.execute` / `async.await`.
+[S²C² Execution Semantics](execution-semantics.md) is the definition.
+Phase 2A remains a realization. Do not implement event-preserving
+lowering until that spec is approved.

@@ -52,3 +52,18 @@ Executable tests live under `test/` and run via `check-s2c2` (llvm-lit + FileChe
 | -- | ---- | ------ |
 | I1 | `test/Integration/gated_mlp_ssd_stream.mlir` | Object identity, HBM replicas, concurrent gated MLP + stream |
 | I2 | same file `--s2c2-lower` | Lowers to linalg + memref.copy + bufferization.to_tensor |
+
+## Execution semantics (spec outlines; not executable yet)
+
+See [`execution-semantics.md`](execution-semantics.md) §13. These become
+tests only after that document is approved.
+
+| ID | Claim |
+| -- | ----- |
+| E1 | `materialize` then read, no write → undefined (no `Valid`) |
+| E2 | `stream` + `wait` + unpack → dest valid after the event |
+| E3 | Concurrent stream ∥ compute without wait → undefined (no HB) |
+| E4 | Same with `wait` in the consumer → `T1 →HB T2` |
+| E5 | Concurrent with no events → both sibling orders are legal |
+| E6 | Pipeline stages are HB-ordered by construct |
+| E7 | Sibling textual order without an event does not establish HB |
