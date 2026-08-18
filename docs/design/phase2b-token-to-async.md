@@ -61,8 +61,11 @@ same region**: each becomes a nested `async.execute`. The old
 `!sched.token` **and** the producer's `src`/`dst` operands are remapped
 (`lookupOrDefault`) so an inner `wait` stays a `SW`, Task PO is
 preserved, and task-local buffers are not left as stale SSA. If the
-task body is only one such transfer and has no inner wait, the task
-event and the transfer event are the same token (E4 flatten).
+task body is only one such transfer, has no inner wait, **and** the
+transfer operands are defined outside the task, the task event and the
+transfer event are the same token (E4 flatten). Task-local operands
+fall back to nested `async.execute` plus an await of the inner event
+at task completion (A7).
 
 **Wait:**
 
@@ -91,5 +94,6 @@ valueless task is itself an event and becomes `async.execute`.
 | E4 | consumer task `async.await`s the producer execute token |
 | A5 | inner `stream`+`wait` remaps to `await` of the inner execute token |
 | A6 | task-local `src`/`dst` are remapped into the nested `comm.copy` |
+| A7 | task-local operands reject A4 flatten; nested execute + await |
 
 E1 / E5 / E6 / E7 stay on `--check-s2c2-execution` (semantic IR).

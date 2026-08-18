@@ -66,6 +66,21 @@ static bool isTokenProducer(Operation *op) {
   return false;
 }
 
+static bool isDefinedInsideTask(Value value, TaskOp task) {
+  Region &body = task.getBody();
+  if (Operation *def = value.getDefiningOp())
+    return body.isAncestor(def->getParentRegion());
+  if (auto arg = dyn_cast<BlockArgument>(value))
+    return body.isAncestor(arg.getOwner()->getParent());
+  return false;
+}
+
+static bool allOperandsExternalToTask(Operation *op, TaskOp task) {
+  return llvm::all_of(op->getOperands(), [&](Value operand) {
+    return !isDefinedInsideTask(operand, task);
+  });
+}
+
 static Value emitMappedTokenProducer(OpBuilder &b, Operation *op,
                                      IRMapping &mapping) {
   if (auto stream = dyn_cast<StreamOp>(op)) {
@@ -101,8 +116,10 @@ static LogicalResult lowerWaitedValuelessTask(TaskOp task,
   }
 
   rewriter.setInsertionPoint(task);
-  // A4: a waited task that only launches one transfer is that transfer event.
-  if (!hasInnerWait && onlyTokenProducers && tokenProducers == 1) {
+  // A4 flatten only when the single transfer's operands are defined
+  // outside the task. Task-local src/dst fall through to nested execute.
+  if (!hasInnerWait && onlyTokenProducers && tokenProducers == 1 &&
+      allOperandsExternalToTask(singleProducer, task)) {
     IRMapping unused;
     rewriter.replaceOp(task,
                        emitMappedTokenProducer(rewriter, singleProducer, unused));

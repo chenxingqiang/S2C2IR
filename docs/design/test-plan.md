@@ -77,3 +77,4 @@ not token → async lowering.
 | A4 | `test/Conversion/token-to-async-e4.mlir` | wait(event(T1)) → await of T1 execute token |
 | A5 | `test/Conversion/token-to-async-a5.mlir` | nested inner execute; PO before stream and after wait |
 | A6 | `test/Conversion/token-to-async-a6.mlir` | task-local stream operands remapped into nested copy |
+| A7 | `test/Conversion/token-to-async-a7.mlir` | no flatten when src/dst are defined inside the task |
