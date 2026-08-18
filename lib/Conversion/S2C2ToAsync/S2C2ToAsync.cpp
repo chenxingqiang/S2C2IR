@@ -66,71 +66,58 @@ static bool isTokenProducer(Operation *op) {
   return false;
 }
 
-static LogicalResult mapInnerTokenProducer(Operation *op, IRRewriter &rewriter,
-                                           IRMapping &mapping,
-                                           SmallVectorImpl<Value> &innerTokens) {
+static Value emitMappedTokenProducer(OpBuilder &b, Operation *op,
+                                     IRMapping &mapping) {
   if (auto stream = dyn_cast<StreamOp>(op)) {
-    Value token = wrapCopyEvent(rewriter, stream.getLoc(), stream.getSrc(),
-                                stream.getDst());
-    mapping.map(stream.getToken(), token);
-    innerTokens.push_back(token);
-    return success();
-  }
-  if (auto copy = dyn_cast<CopyOp>(op)) {
-    if (copy.getNumResults() != 1)
-      return success();
     Value token =
-        wrapCopyEvent(rewriter, copy.getLoc(), copy.getSrc(), copy.getDst());
-    mapping.map(copy.getToken(), token);
-    innerTokens.push_back(token);
-    return success();
+        wrapCopyEvent(b, stream.getLoc(), stream.getSrc(), stream.getDst());
+    mapping.map(stream.getToken(), token);
+    return token;
   }
-  return success();
+  auto copy = cast<CopyOp>(op);
+  Value token = wrapCopyEvent(b, copy.getLoc(), copy.getSrc(), copy.getDst());
+  mapping.map(copy.getToken(), token);
+  return token;
 }
 
 static LogicalResult lowerWaitedValuelessTask(TaskOp task,
                                               IRRewriter &rewriter) {
-  IRMapping mapping;
-  SmallVector<Value> innerTokens;
   bool hasInnerWait = false;
   bool onlyTokenProducers = true;
-  rewriter.setInsertionPoint(task);
+  int tokenProducers = 0;
+  Operation *singleProducer = nullptr;
   for (Operation &inner : task.getBody().front().without_terminator()) {
     if (isa<WaitOp>(inner))
       hasInnerWait = true;
     if (isTokenProducer(&inner)) {
-      if (failed(mapInnerTokenProducer(&inner, rewriter, mapping, innerTokens)))
-        return failure();
+      ++tokenProducers;
+      singleProducer = &inner;
       continue;
     }
     onlyTokenProducers = false;
   }
 
+  rewriter.setInsertionPoint(task);
   // A4: a waited task that only launches one transfer is that transfer event.
-  if (!hasInnerWait && onlyTokenProducers && innerTokens.size() == 1) {
-    rewriter.replaceOp(task, innerTokens.front());
+  if (!hasInnerWait && onlyTokenProducers && tokenProducers == 1) {
+    IRMapping unused;
+    rewriter.replaceOp(task,
+                       emitMappedTokenProducer(rewriter, singleProducer, unused));
     return success();
   }
 
-  for (Operation &inner : task.getBody().front().without_terminator()) {
-    auto wait = dyn_cast<WaitOp>(inner);
-    if (!wait)
-      continue;
-    for (Value token : wait.getTokens()) {
-      Value mapped = mapping.lookupOrDefault(token);
-      if (!isa<async::TokenType>(mapped.getType()))
-        return wait.emitOpError(
-            "inner wait token was not remapped to !async.token");
-    }
-  }
-
   llvm::DenseSet<Value> awaited;
+  SmallVector<Value> innerTokens;
   auto execute = rewriter.create<async::ExecuteOp>(
       task.getLoc(), TypeRange{}, ValueRange{}, ValueRange{},
       [&](OpBuilder &body, Location bodyLoc, ValueRange) {
+        IRMapping mapping;
         for (Operation &inner : task.getBody().front().without_terminator()) {
-          if (isTokenProducer(&inner))
+          if (isTokenProducer(&inner)) {
+            innerTokens.push_back(
+                emitMappedTokenProducer(body, &inner, mapping));
             continue;
+          }
           if (auto copy = dyn_cast<CopyOp>(inner)) {
             body.create<CopyOp>(copy.getLoc(), TypeRange{},
                                 ValueRange{copy.getSrc(), copy.getDst()});

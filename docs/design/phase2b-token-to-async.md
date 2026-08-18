@@ -56,11 +56,12 @@ blocking payload, not Phase 2A `memref.copy`.
 
 A waited valueless task is represented by one `async.execute`; its task
 completion is that execute token. Token-producing inner operations
-(`comm.stream`, token `comm.copy`) keep their own events: each becomes
-an `async.execute`, and the old `!sched.token` is remapped to the new
-`!async.token` so an inner `wait` stays a `SW`. If the task body is only
-one such transfer and has no inner wait, the task event and the transfer
-event are the same token (E4).
+(`comm.stream`, token `comm.copy`) keep their own events **inside that
+same region**: each becomes a nested `async.execute`, and the old
+`!sched.token` is remapped to the new `!async.token` so an inner `wait`
+stays a `SW` and Task PO (`A → stream → wait → B`) is preserved. If the
+task body is only one such transfer and has no inner wait, the task
+event and the transfer event are the same token (E4 flatten).
 
 **Wait:**
 
