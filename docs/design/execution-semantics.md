@@ -291,20 +291,38 @@ implicit instance (v0.1: stages only; iterations are not IR).
 Stage order  ≠  pipeline parallelism
 ```
 
+Formal relations (v0.1 uses only `StageOrder` on the implicit instance):
+
 ```text
-S1  →HB  S2  →HB  …  →HB  Sk     // StageOrder, same instance
+StageOrder(S_i, S_{i+1})  ⇒  actions(S_i) →HB actions(S_{i+1})
+
+StageOrder_n :  S1(n) →HB S2(n) →HB … →HB Sk(n)
+
+InstanceOrder(n, n+1)  (future default, not IR):
+    instance n →HB instance n+1
+    i.e. yield(Sk(n)) →HB entry(S1(n+1))
 ```
 
 Each stage is a sequential region (PO inside the stage). `StageOrder`
 is the meaning of the construct, not `NoOrderingRequirement`.
 
+```text
+actions(S_i)  →PO  yield(S_i)  →HB  entry(S_{i+1})  →PO  actions(S_{i+1})
+```
+
 Reordering stages is a different program. That is the opposite of
 concurrent siblings, whose lexical list is presentation.
 
-Future instance overlap (`S2(n)` with `S1(n+1)`) is a weakening of
-**instance** order by explicit events. It does not delete `StageOrder`
-and it is not implied by writing stages next to each other. Until
-iteration IR exists, do not assume overlapped pipelines.
+`StageOrder` **induces** HB (`yield(S_i) →HB entry(S_{i+1})`). It is
+not a second memory model: those edges enter the same `→HB` already
+defined as the transitive closure of primitive edges. Extra SW may
+only add edges; it cannot delete `StageOrder`.
+
+Future software pipelining is **not** “add SW on top of InstanceOrder”
+(SW only adds edges). It is a recorded future issue: relax/replace the
+default `InstanceOrder`, then add the required SW. That does not delete
+`StageOrder_n`. Until iteration IR exists, do not assume overlapped
+pipelines.
 
 `sched.overlap` remains 2-way concurrent sugar (§6.1), not a pipeline.
 
