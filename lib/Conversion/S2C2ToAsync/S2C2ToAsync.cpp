@@ -69,13 +69,16 @@ static bool isTokenProducer(Operation *op) {
 static Value emitMappedTokenProducer(OpBuilder &b, Operation *op,
                                      IRMapping &mapping) {
   if (auto stream = dyn_cast<StreamOp>(op)) {
-    Value token =
-        wrapCopyEvent(b, stream.getLoc(), stream.getSrc(), stream.getDst());
+    Value token = wrapCopyEvent(b, stream.getLoc(),
+                                mapping.lookupOrDefault(stream.getSrc()),
+                                mapping.lookupOrDefault(stream.getDst()));
     mapping.map(stream.getToken(), token);
     return token;
   }
   auto copy = cast<CopyOp>(op);
-  Value token = wrapCopyEvent(b, copy.getLoc(), copy.getSrc(), copy.getDst());
+  Value token = wrapCopyEvent(b, copy.getLoc(),
+                              mapping.lookupOrDefault(copy.getSrc()),
+                              mapping.lookupOrDefault(copy.getDst()));
   mapping.map(copy.getToken(), token);
   return token;
 }
@@ -119,8 +122,10 @@ static LogicalResult lowerWaitedValuelessTask(TaskOp task,
             continue;
           }
           if (auto copy = dyn_cast<CopyOp>(inner)) {
-            body.create<CopyOp>(copy.getLoc(), TypeRange{},
-                                ValueRange{copy.getSrc(), copy.getDst()});
+            body.create<CopyOp>(
+                copy.getLoc(), TypeRange{},
+                ValueRange{mapping.lookupOrDefault(copy.getSrc()),
+                           mapping.lookupOrDefault(copy.getDst())});
             continue;
           }
           if (auto wait = dyn_cast<WaitOp>(inner)) {

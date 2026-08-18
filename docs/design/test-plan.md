@@ -76,3 +76,4 @@ not token → async lowering.
 | A3 | `test/Conversion/token-to-async-e3.mlir` | no wait ⇒ no await (no invented HB) |
 | A4 | `test/Conversion/token-to-async-e4.mlir` | wait(event(T1)) → await of T1 execute token |
 | A5 | `test/Conversion/token-to-async-a5.mlir` | nested inner execute; PO before stream and after wait |
+| A6 | `test/Conversion/token-to-async-a6.mlir` | task-local stream operands remapped into nested copy |
