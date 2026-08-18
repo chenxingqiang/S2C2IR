@@ -42,12 +42,13 @@ LogicalResult ConcurrentOp::verify() {
   if (failed(verifyYieldMatches(getOperation(), getBody(), getResults())))
     return failure();
 
-  // Phase 2A / v0.1: concurrent children must be direct sched.task ops.
+  // v0.1: direct sched.task, or async.execute after token lowering.
   // Nested structured schedule (pipeline, overlap, concurrent) is deferred.
   for (Operation &child : getBody().front().without_terminator()) {
-    if (!isa<TaskOp>(child))
-      return emitOpError(
-          "body may only contain sched.task ops before the terminator");
+    if (!isa<TaskOp>(child) &&
+        child.getName().getStringRef() != "async.execute")
+      return emitOpError("body may only contain sched.task or async.execute "
+                         "ops before the terminator");
   }
   return success();
 }

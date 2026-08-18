@@ -76,8 +76,9 @@ def Sched_ConcurrentOp : Sched_Op<"concurrent", [
     degeneration, not schedule preservation.
 
     Phase 2A / v0.1: the body may contain only `sched.task` ops plus the
-    terminator. Nested `sched.pipeline` / `sched.overlap` / `sched.concurrent`
-    is rejected until structured-schedule lowering exists.
+    terminator. After token lowering, a lowered event may appear as
+    `async.execute` next to remaining tasks. Nested `sched.pipeline` /
+    `sched.overlap` / `sched.concurrent` is rejected.
 
     Results match this op's `sched.yield` operands.
 

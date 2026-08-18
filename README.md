@@ -77,7 +77,7 @@ the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 ## Tools
 
-- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E7 HB/validity)
+- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E7; `--convert-s2c2-token-to-async` for HB-preserving token lowering)
 - `s2c2-translate` — translation driver (stub)
 
 Round-trip an example:

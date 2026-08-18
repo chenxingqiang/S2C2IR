@@ -119,6 +119,21 @@ def LowerS2C2 : Pass<"s2c2-lower", "::mlir::ModuleOp"> {
   ];
 }
 
+def ConvertS2C2TokenToAsync : Pass<"convert-s2c2-token-to-async", "::mlir::ModuleOp"> {
+  let summary = "HB-preserving !sched.token → !async.token";
+  let description = [{
+    Phase 2B slice 1. Acceptance: **HB-preserving lowering**, not
+    "async works".
+
+    Token producers become `async.execute` (inner `comm.copy` is the
+    transfer payload). `sched.wait` / `comm.barrier` become
+    `async.await`. No wait ⇒ no await (does not invent sibling HB).
+
+    Does not lower `sched.concurrent`, pipeline, or overlap.
+  }];
+  let dependentDialects = ["mlir::async::AsyncDialect"];
+}
+
 def CheckS2C2Execution : Pass<"check-s2c2-execution", "::mlir::ModuleOp"> {
   let summary = "MustProve oracle for S2C2 happens-before and validity";
   let description = [{

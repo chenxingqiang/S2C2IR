@@ -34,7 +34,7 @@ Executable tests live under `test/` and run via `check-s2c2` (llvm-lit + FileChe
 | H1 | `test/Schedule/ops.mlir` | Round-trip `wait`, `overlap`, `pipeline`, `stage` |
 | H2 | `test/Schedule/ops.mlir` | `concurrent` + `task` with value + token results |
 | H3 | `test/Schedule/invalid.mlir` | Task yield operands must match task values |
-| H4 | `test/Schedule/invalid.mlir` | `concurrent` body may only contain `sched.task` |
+| H4 | `test/Schedule/invalid.mlir` | `concurrent` body may only contain `sched.task` or `async.execute` |
 
 ## Conversion
 
@@ -67,3 +67,14 @@ not token → async lowering.
 | E5 | `test/Semantics/e5.mlir` | Both sibling orders of event-free concurrent are legal |
 | E6 | `test/Semantics/e6.mlir` | Pipeline `S1` write →HB `S2` read |
 | E7 | `test/Semantics/e7.mlir` | T1-before-T2 textual order without event → undefined |
+
+## Token → async (HB-preserving slice)
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| A2 | `test/Conversion/token-to-async-e2.mlir` | stream+wait → execute + await before unpack |
+| A3 | `test/Conversion/token-to-async-e3.mlir` | no wait ⇒ no await (no invented HB) |
+| A4 | `test/Conversion/token-to-async-e4.mlir` | wait(event(T1)) → await of T1 execute token |
+| A5 | `test/Conversion/token-to-async-a5.mlir` | nested inner execute; PO before stream and after wait |
+| A6 | `test/Conversion/token-to-async-a6.mlir` | task-local stream operands remapped into nested copy |
+| A7 | `test/Conversion/token-to-async-a7.mlir` | no flatten when src/dst are defined inside the task |

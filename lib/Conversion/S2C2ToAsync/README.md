@@ -1,4 +1,13 @@
-Reserved for Phase 2B event-preserving `!sched.token` → `!async.token`.
+`--convert-s2c2-token-to-async` is Phase 2B slice 1:
 
-Do not start that lowering until E1–E7 pass under `--check-s2c2-execution`.
-Phase 2A sequentialize / `memref.copy` remain a blocking baseline.
+```text
+!sched.token  →  !async.token
+sched.wait    →  async.await
+```
+
+Acceptance: **HB-preserving lowering**, not “async works.”
+
+Design: `docs/design/phase2b-token-to-async.md`.
+
+Not in this slice: concurrent → many `async.execute`, pipeline, overlap,
+memref/DMA, conflict/race analysis.

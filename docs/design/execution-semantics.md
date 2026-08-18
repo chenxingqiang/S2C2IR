@@ -333,6 +333,26 @@ completeness claim about all well-defined programs.
 Concurrent writes of the same residency with no HB between them are
 undefined.
 
+### Future: Conflict / Race Analysis (not v0.1)
+
+`--check-s2c2-execution` currently implements only the first conjunct:
+
+```text
+Defined(R)  ⇐  ∃ W.  W →HB R
+```
+
+The full contract is:
+
+```text
+Defined(R)  ⇔  ∃ W. W →HB R
+            ∧  ¬∃ W'. Conflict(W', R) ∧ ¬(W' →HB R)
+```
+
+An unordered conflicting write must make the program undefined. That is a
+separate **Conflict / Race Semantics** checker, not part of the E1–E7
+oracle. Do not fold a race detector into `--check-s2c2-execution` until
+that document exists.
+
 ---
 
 ## 10. Worked examples

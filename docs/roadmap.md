@@ -52,14 +52,21 @@ Approve this spec before any event-preserving lowering.
 
 ## Phase 2B — Implement the approved execution semantics
 
-Spec approved. First executable oracle (`--check-s2c2-execution`, E1–E7),
-then event-preserving realization of `→HB` (do not redefine it):
+Spec approved. Oracle: `--check-s2c2-execution` (E1–E7). Future:
+Conflict / Race Analysis (unordered conflicting writes) — not in the
+oracle.
+
+Token slice: [`phase2b-token-to-async.md`](design/phase2b-token-to-async.md)
+(`--convert-s2c2-token-to-async`). Acceptance: **HB-preserving**, not
+“async works.”
+
+Then (later slices):
 
 ```text
-event  →  runtime completion object
-wait   →  await
-task   →  schedulable region
-concurrent → unordered launch (SW only where the spec puts it)
+event  →  !async.token          (this slice)
+wait   →  async.await           (this slice)
+concurrent → unordered async.execute
+pipeline / overlap
 ```
 
 ## Phase 2C — Compute frontend (optional)

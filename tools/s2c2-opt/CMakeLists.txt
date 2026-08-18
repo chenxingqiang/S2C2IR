@@ -14,6 +14,7 @@ set(LIBS
         S2C2SequentializeSchedule
         S2C2Lower
         S2C2CheckExecution
+        S2C2ToAsync
         )
 add_llvm_executable(s2c2-opt s2c2-opt.cpp)
 
