@@ -1,6 +1,8 @@
 # S²C² Execution Semantics
 
-Status: **design** (not an implementation). Awaits review before Phase 2B.
+Status: **design**. Task / Event / Concurrent are approved (Phase 2B
+slices 1–2 realize them). Pipeline is specified in
+[`pipeline-semantics.md`](pipeline-semantics.md); do not lower it yet.
 
 This document defines the execution constraint layer of S²C². It does not
 describe a compiler, a runtime, or a target.
@@ -280,27 +282,33 @@ does.
 
 ## 8. Pipeline
 
-A pipeline is an ordered sequence of stages `S1, …, Sk` inside one
-region.
+Full contract: [`pipeline-semantics.md`](pipeline-semantics.md).
 
-v0.1 (stages only; iterations are not yet first-class):
+A pipeline is an ordered sequence of stages `S1, …, Sk` of **one**
+implicit instance (v0.1: stages only; iterations are not IR).
 
 ```text
-S1  →HB  S2  →HB  …  →HB  Sk
+Stage order  ≠  pipeline parallelism
 ```
 
-Each stage is a sequential region (PO inside the stage). The HB edges
-between stages are part of the construct, not inferred from file order
-alone — they are the *meaning* of “pipeline.”
+```text
+S1  →HB  S2  →HB  …  →HB  Sk     // StageOrder, same instance
+```
 
-When iterations become first-class:
+Each stage is a sequential region (PO inside the stage). `StageOrder`
+is the meaning of the construct, not `NoOrderingRequirement`.
 
-- Default: iteration `n` →HB iteration `n+1` (no overlap).
-- Overlapped software pipelining is allowed only by **explicit events**
-  between stages of different iterations. Lexical placement of stages
-  does not create cross-iteration overlap.
+Reordering stages is a different program. That is the opposite of
+concurrent siblings, whose lexical list is presentation.
 
-Until iterations exist in the IR, do not assume overlapped pipelines.
+Future instance overlap (`S2(n)` with `S1(n+1)`) is a weakening of
+**instance** order by explicit events. It does not delete `StageOrder`
+and it is not implied by writing stages next to each other. Until
+iteration IR exists, do not assume overlapped pipelines.
+
+`sched.overlap` remains 2-way concurrent sugar (§6.1), not a pipeline.
+
+Do not lower `sched.pipeline` as `N ×` unordered `async.execute`.
 
 ---
 
@@ -327,7 +335,7 @@ Semantic validity  ≠  static verifiability
 A program may be semantically defined without the current checker being
 able to prove it (`Unknown`). A checker may `MustProve` definedness
 (reject `Unknown`), `MayAssume` it, or leave it `Unknown`. v0.1
-`--check-s2c2-execution` is a `MustProve` test oracle for E1–E7, not a
+`--check-s2c2-execution` is a `MustProve` test oracle for E1–E8, not a
 completeness claim about all well-defined programs.
 
 Concurrent writes of the same residency with no HB between them are
@@ -349,7 +357,7 @@ Defined(R)  ⇔  ∃ W. W →HB R
 ```
 
 An unordered conflicting write must make the program undefined. That is a
-separate **Conflict / Race Semantics** checker, not part of the E1–E7
+separate **Conflict / Race Semantics** checker, not part of the E1–E8
 oracle. Do not fold a race detector into `--check-s2c2-execution` until
 that document exists.
 
@@ -470,7 +478,7 @@ It must not:
 ## 13. Executable semantic tests
 
 `--check-s2c2-execution` is the v0.1 `MustProve` oracle. It does **not**
-lower tokens. Files: `test/Semantics/e1.mlir` … `e7.mlir`.
+lower tokens. Files: `test/Semantics/e1.mlir` … `e8.mlir`.
 
 | ID | Claim | Expected |
 | -- | ----- | -------- |
@@ -481,5 +489,7 @@ lower tokens. Files: `test/Semantics/e1.mlir` … `e7.mlir`.
 | E5 | `Concurrent` with no events | Both sibling orders are legal schedules |
 | E6 | Pipeline `S1` then `S2` | `S1 →HB S2` by construct |
 | E7 | Sibling textual order without an event | Does **not** establish HB |
+| E8 | Pipeline `S1` unpack then `S2` pack | Undefined; `StageOrder` is directed |
 
-E3/E7 are the regression that keeps lexical order out of the semantic IR.
+E3/E7 keep lexical concurrent order out of HB. E6/E8 lock directed
+`StageOrder` (see [`pipeline-semantics.md`](pipeline-semantics.md)).

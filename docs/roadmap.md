@@ -52,7 +52,7 @@ Approve this spec before any event-preserving lowering.
 
 ## Phase 2B — Implement the approved execution semantics
 
-Spec approved. Oracle: `--check-s2c2-execution` (E1–E7). Future:
+Spec approved. Oracle: `--check-s2c2-execution` (E1–E8). Future:
 Conflict / Race Analysis (unordered conflicting writes) — not in the
 oracle.
 
@@ -68,7 +68,8 @@ Then (later slices):
 event  →  !async.token          (slice 1)
 wait   →  async.await           (slice 1)
 concurrent → unordered async.execute  (slice 2)
-pipeline / overlap
+pipeline semantics             (this: stage order ≠ parallelism)
+pipeline / overlap lowering    (only after the pipeline contract)
 ```
 
 ## Phase 2C — Compute frontend (optional)

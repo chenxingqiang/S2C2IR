@@ -40,7 +40,8 @@ definition and not async lowering.
 
 Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/phase1.5-semantic-normalization.md),
 [`docs/design/phase2a-sequential-lowering.md`](docs/design/phase2a-sequential-lowering.md),
-[`docs/design/execution-semantics.md`](docs/design/execution-semantics.md)
+[`docs/design/execution-semantics.md`](docs/design/execution-semantics.md),
+[`docs/design/pipeline-semantics.md`](docs/design/pipeline-semantics.md)
 
 ## Requirements
 
@@ -77,7 +78,7 @@ the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 ## Tools
 
-- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E7; `--convert-s2c2-token-to-async` / `--convert-s2c2-concurrent-to-async` for HB-preserving event lowering)
+- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E8; `--convert-s2c2-token-to-async` / `--convert-s2c2-concurrent-to-async` for HB-preserving event lowering)
 - `s2c2-translate` — translation driver (stub)
 
 Round-trip an example:
