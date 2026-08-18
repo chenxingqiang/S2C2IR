@@ -1,6 +1,8 @@
 // RUN: s2c2-opt %s --check-s2c2-execution | FileCheck %s
 
 // E6: pipeline stages are HB-ordered by construct (S1 →HB S2).
+//
+//   S1.pack --StageOrder/HB--> S2.unpack   => defined
 module {
   // CHECK-LABEL: func.func @e6_pipeline_stages
   func.func @e6_pipeline_stages(%t: tensor<4xf32>) -> tensor<4xf32> {

@@ -43,7 +43,9 @@ Two relations must stay distinct:
 ```text
 StageOrder(S_i, S_{i+1})     =  actions(S_i)  →HB  actions(S_{i+1})
 InstanceOrder(n, n+1)        =  instance n    →HB  instance n+1     (future default)
-SoftPipe(n, n+1)             =  a weakening of InstanceOrder by SW   (future only)
+SoftPipe                     =  future alternative to default InstanceOrder
+                                 (relax/replace InstanceOrder, then add SW;
+                                  not “InstanceOrder ∪ SW”)
 ```
 
 `StageOrder` is the *meaning* of `sched.pipeline` today.
@@ -119,6 +121,23 @@ E6 locks the forward direction: `pack` in `S1` →HB `unpack` in `S2`.
 E8 locks that the edge is directed: `unpack` in `S1` is **not**
 HB-after `pack` in `S2`.
 
+```text
+E6 (defined)                         E8 (undefined)
+
+S1.pack                              S1.unpack          S2.pack
+   │                                      │                │
+   │ StageOrder / HB                      └──── no HB ─────┘
+   ▼
+S2.unpack                            S1.unpack has no HB-prior Valid write
+   │
+   ▼
+defined                              undefined
+```
+
+A later `pack` cannot make an earlier `unpack` defined: `StageOrder` is
+directed, and residency validity still requires some write `W →HB R`
+(`execution-semantics.md` §9).
+
 ### 3.2 Pipeline completion
 
 ```text
@@ -178,8 +197,8 @@ When an instance `n` exists:
 StageOrder_n :  S1(n) →HB S2(n) →HB … →HB Sk(n)
 ```
 
-always remains. Overlap of `S2(n)` with `S1(n+1)` is **not** a
-weakening of `StageOrder`. It is a weakening of **instance** order.
+always remains. Overlap of `S2(n)` with `S1(n+1)` is **not** a change
+to `StageOrder`. It is a change to **instance** order.
 
 ### 5.1 Default instance order (no overlap)
 
@@ -194,30 +213,56 @@ This is ordinary loop-carried HB, not software pipelining.
 S1(n) ─HB─► S2(n) ─HB─► S3(n) ─HB─► S1(n+1) ─HB─► S2(n+1) ─HB─► …
 ```
 
-### 5.2 Soft-pipe overlap (explicit events only)
+### 5.2 Future issue: SoftPipe is InstanceOrder relaxation, not extra SW
 
-To allow `S1(n+1)` to start before `Sk(n)` finishes, the program must
-state a **synchronizes-with** edge that names which completion of
-instance `n` the next instance may observe. Lexical placement of
-stages does not create that edge.
+**Not v0.1. Do not implement.** Recorded so iteration IR cannot treat
+`SW` as a way to *subtract* HB.
+
+`→HB` is the transitive closure of primitive edges (PO, SW, and
+construct-induced `StageOrder`). Adding SW only **adds** edges:
 
 ```text
-S1(n) ─HB─► S2(n) ─HB─► S3(n)
-  │
-  └── event(S1(n)) ─SW─► wait in S1(n+1)     // example only
-S1(n+1) ─HB─► S2(n+1) ─HB─► S3(n+1)
+HB_new  =  TC(HB_old ∪ SW)   ⊇   HB_old
 ```
 
-`StageOrder` on each instance still holds. `S2(n)` and `S1(n+1)` are
-unordered **only if** no HB path connects them. If they write the same
-residency without such an edge, the program is undefined (ordinary
-conflict / validity rules).
+So this formulation is **wrong**:
 
 ```text
-SoftPipe  =  InstanceOrder weakened by explicit SW
-          ≠  deleting StageOrder
+SoftPipe  =  InstanceOrder weakened by explicit SW     // no
+```
+
+because if `InstanceOrder` (`n →HB n+1`) is already present, an extra
+`event(Sk(n)) →SW wait in S1(n+1)` cannot let `S1(n+1)` start before
+`Sk(n)`.
+
+The relation that must be designed *before* iteration IR is:
+
+```text
+SoftPipe  =  relax/replace default InstanceOrder
+          +  required explicit SW edges
+          ≠  deleting StageOrder_n
           ≠  Concurrent(S1, S2, S3)
+          ≠  InstanceOrder ∪ SW
 ```
+
+`InstanceOrder` is the **default** constraint (no two instances in
+flight). SoftPipe is an **alternative scheduling relation** that
+removes or relaxes that default, then names which completions of
+instance `n` instance `n+1` may observe.
+
+Example shape only (not IR):
+
+```text
+S1(n) ─HB─► S2(n) ─HB─► S3(n)          // StageOrder_n remains
+  │
+  └── event(S1(n)) ─SW─► wait in S1(n+1)
+S1(n+1) ─HB─► S2(n+1) ─HB─► S3(n+1)    // StageOrder_{n+1} remains
+```
+
+Here there is **no** `yield(S3(n)) →HB entry(S1(n+1))`. `S2(n)` and
+`S1(n+1)` are unordered only if no HB path connects them. Conflicting
+unordered writes stay undefined under ordinary validity / future race
+rules.
 
 Until iteration IR exists:
 
