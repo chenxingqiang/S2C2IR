@@ -18,7 +18,8 @@ sched.wait    →  async.await
 
 Out of scope here:
 
-- `sched.concurrent` → several `async.execute` (next slice)
+- `sched.concurrent` → several `async.execute` (slice 2:
+  [`phase2b-concurrent-to-async.md`](phase2b-concurrent-to-async.md))
 - `sched.pipeline` / `sched.overlap`
 - `comm.stream` → memref / DMA runtime
 - Conflict / race analysis

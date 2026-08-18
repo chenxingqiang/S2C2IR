@@ -78,3 +78,11 @@ not token → async lowering.
 | A5 | `test/Conversion/token-to-async-a5.mlir` | nested inner execute; PO before stream and after wait |
 | A6 | `test/Conversion/token-to-async-a6.mlir` | task-local stream operands remapped into nested copy |
 | A7 | `test/Conversion/token-to-async-a7.mlir` | no flatten when src/dst are defined inside the task |
+
+## Concurrent → async (HB-preserving slice 2)
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| C1 | `test/Conversion/concurrent-to-async-c1.mlir` | no-wait siblings: two executes, no await |
+| C2 | `test/Conversion/concurrent-to-async-c2.mlir` | each sibling remaps its own task-local SSA |
+| C3 | `test/Conversion/concurrent-to-async-c3.mlir` | consumer awaits producer token; parent awaits result value |

@@ -5,9 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 // Slice 1: !sched.token → !async.token and sched.wait → async.await.
+// Slice 2: sched.concurrent → sibling async.execute (no invented HB).
 // Acceptance: HB-preserving lowering, not "async works".
-// Valueless tasks are lowered only when their token is waited.
-// Concurrent itself is not rewritten.
+// Valueless tasks are lowered by slice 1 only when their token is waited.
 //
 //===----------------------------------------------------------------------===//
 
@@ -25,13 +25,16 @@
 
 namespace mlir::s2c2 {
 #define GEN_PASS_DEF_CONVERTS2C2TOKENTOASYNC
+#define GEN_PASS_DEF_CONVERTS2C2CONCURRENTTOASYNC
 #include "s2c2/S2C2Passes.h.inc"
 
 using comm::BarrierOp;
 using comm::CopyOp;
 using comm::StreamOp;
+using sched::ConcurrentOp;
 using sched::TaskOp;
 using sched::WaitOp;
+using sched::YieldOp;
 
 namespace {
 static bool isValuelessTask(TaskOp task) { return task.getValues().empty(); }
@@ -225,6 +228,204 @@ struct ConvertS2C2TokenToAsync
         rewriter.create<async::AwaitOp>(op->getLoc(), token);
       }
       rewriter.eraseOp(op);
+    }
+  }
+};
+
+static bool isDefinedInTaskOutside(Value value, TaskOp task, Region &inner) {
+  if (!isDefinedInsideTask(value, task))
+    return false;
+  if (Operation *def = value.getDefiningOp())
+    return !inner.isAncestor(def->getParentRegion());
+  if (auto arg = dyn_cast<BlockArgument>(value))
+    return !inner.isAncestor(arg.getOwner()->getParent());
+  return false;
+}
+
+static bool allCapturedValuesExternalToTask(async::ExecuteOp exec,
+                                            TaskOp task) {
+  bool ok = true;
+  exec.walk([&](Operation *op) {
+    for (Value operand : op->getOperands()) {
+      if (isDefinedInTaskOutside(operand, task, exec.getBodyRegion()))
+        ok = false;
+    }
+  });
+  return ok;
+}
+
+static void mapExecuteResults(async::ExecuteOp oldExec,
+                              async::ExecuteOp newExec, IRMapping &mapping) {
+  mapping.map(oldExec.getToken(), newExec.getToken());
+  for (auto [oldV, newV] :
+       llvm::zip(oldExec.getBodyResults(), newExec.getBodyResults()))
+    mapping.map(oldV, newV);
+}
+
+static void hoistExecute(IRRewriter &rewriter, async::ExecuteOp exec,
+                         IRMapping &mapping) {
+  auto newExec = cast<async::ExecuteOp>(rewriter.clone(*exec, mapping));
+  mapExecuteResults(exec, newExec, mapping);
+}
+
+static void emitTaskBodyInto(OpBuilder &body, TaskOp task, IRMapping &mapping,
+                             SmallVectorImpl<Value> &innerTokens,
+                             llvm::DenseSet<Value> &awaited,
+                             SmallVectorImpl<Value> &yielded) {
+  for (Operation &inner : task.getBody().front().without_terminator()) {
+    if (isTokenProducer(&inner)) {
+      innerTokens.push_back(emitMappedTokenProducer(body, &inner, mapping));
+      continue;
+    }
+    if (auto exec = dyn_cast<async::ExecuteOp>(inner)) {
+      auto newExec = cast<async::ExecuteOp>(body.clone(inner, mapping));
+      mapExecuteResults(exec, newExec, mapping);
+      innerTokens.push_back(newExec.getToken());
+      continue;
+    }
+    if (auto copy = dyn_cast<CopyOp>(inner)) {
+      body.create<CopyOp>(
+          copy.getLoc(), TypeRange{},
+          ValueRange{mapping.lookupOrDefault(copy.getSrc()),
+                     mapping.lookupOrDefault(copy.getDst())});
+      continue;
+    }
+    if (auto wait = dyn_cast<WaitOp>(inner)) {
+      for (Value token : wait.getTokens()) {
+        Value mapped = mapping.lookupOrDefault(token);
+        body.create<async::AwaitOp>(wait.getLoc(), mapped);
+        awaited.insert(mapped);
+      }
+      continue;
+    }
+    if (auto awaitOp = dyn_cast<async::AwaitOp>(inner)) {
+      Value mapped = mapping.lookupOrDefault(awaitOp.getOperand());
+      auto created = body.create<async::AwaitOp>(awaitOp.getLoc(), mapped);
+      if (!awaitOp.getResultTypes().empty())
+        mapping.map(awaitOp.getResult(), created.getResult());
+      awaited.insert(mapped);
+      continue;
+    }
+    body.clone(inner, mapping);
+  }
+  auto yield = cast<YieldOp>(task.getBody().front().getTerminator());
+  for (Value value : yield.getOperands())
+    yielded.push_back(mapping.lookupOrDefault(value));
+}
+
+static LogicalResult lowerTaskAsConcurrentChild(IRRewriter &rewriter,
+                                                TaskOp task,
+                                                IRMapping &mapping) {
+  bool hasInnerWait = false;
+  bool onlyTokenProducers = true;
+  int tokenProducers = 0;
+  int leftoverExecutes = 0;
+  Operation *singleProducer = nullptr;
+  async::ExecuteOp leftoverExec;
+  for (Operation &inner : task.getBody().front().without_terminator()) {
+    if (isa<WaitOp, async::AwaitOp>(inner))
+      hasInnerWait = true;
+    if (isTokenProducer(&inner)) {
+      ++tokenProducers;
+      singleProducer = &inner;
+      continue;
+    }
+    if (auto exec = dyn_cast<async::ExecuteOp>(inner)) {
+      ++leftoverExecutes;
+      leftoverExec = exec;
+      continue;
+    }
+    onlyTokenProducers = false;
+  }
+
+  // A4 flatten: single transfer / leftover execute, no inner wait,
+  // captured operands defined outside this task.
+  if (!hasInnerWait && task.getValues().empty()) {
+    if (onlyTokenProducers && tokenProducers == 1 && leftoverExecutes == 0 &&
+        allOperandsExternalToTask(singleProducer, task)) {
+      Value token = emitMappedTokenProducer(rewriter, singleProducer, mapping);
+      mapping.map(task.getToken(), token);
+      return success();
+    }
+    if (tokenProducers == 0 && leftoverExecutes == 1 && onlyTokenProducers &&
+        allCapturedValuesExternalToTask(leftoverExec, task)) {
+      auto newExec =
+          cast<async::ExecuteOp>(rewriter.clone(*leftoverExec, mapping));
+      mapExecuteResults(leftoverExec, newExec, mapping);
+      mapping.map(task.getToken(), newExec.getToken());
+      return success();
+    }
+  }
+
+  SmallVector<Type> valueTypes(task.getValues().getTypes());
+  auto execute = rewriter.create<async::ExecuteOp>(
+      task.getLoc(), valueTypes, ValueRange{}, ValueRange{},
+      [&](OpBuilder &body, Location bodyLoc, ValueRange) {
+        llvm::DenseSet<Value> awaited;
+        SmallVector<Value> innerTokens;
+        SmallVector<Value> yielded;
+        emitTaskBodyInto(body, task, mapping, innerTokens, awaited, yielded);
+        for (Value token : innerTokens) {
+          if (awaited.insert(token).second)
+            body.create<async::AwaitOp>(bodyLoc, token);
+        }
+        body.create<async::YieldOp>(bodyLoc, yielded);
+      });
+  mapping.map(task.getToken(), execute.getToken());
+  for (auto [oldV, newV] :
+       llvm::zip(task.getValues(), execute.getBodyResults()))
+    mapping.map(oldV, newV);
+  return success();
+}
+
+static LogicalResult lowerConcurrent(ConcurrentOp concurrent,
+                                     IRRewriter &rewriter) {
+  rewriter.setInsertionPoint(concurrent);
+  IRMapping mapping;
+  for (Operation &child : concurrent.getBody().front().without_terminator()) {
+    if (auto exec = dyn_cast<async::ExecuteOp>(child)) {
+      hoistExecute(rewriter, exec, mapping);
+      continue;
+    }
+    if (auto task = dyn_cast<TaskOp>(child)) {
+      if (failed(lowerTaskAsConcurrentChild(rewriter, task, mapping)))
+        return failure();
+      continue;
+    }
+    return child.emitOpError(
+        "concurrent child must be sched.task or async.execute");
+  }
+
+  auto yield = cast<YieldOp>(concurrent.getBody().front().getTerminator());
+  SmallVector<Value> results;
+  for (Value value : yield.getOperands()) {
+    Value mapped = mapping.lookupOrDefault(value);
+    if (isa<async::ValueType>(mapped.getType()))
+      results.push_back(
+          rewriter.create<async::AwaitOp>(concurrent.getLoc(), mapped)
+              .getResult());
+    else
+      results.push_back(mapped);
+  }
+  rewriter.replaceOp(concurrent, results);
+  return success();
+}
+
+struct ConvertS2C2ConcurrentToAsync
+    : impl::ConvertS2C2ConcurrentToAsyncBase<ConvertS2C2ConcurrentToAsync> {
+  using impl::ConvertS2C2ConcurrentToAsyncBase<
+      ConvertS2C2ConcurrentToAsync>::ConvertS2C2ConcurrentToAsyncBase;
+
+  void runOnOperation() override {
+    IRRewriter rewriter(&getContext());
+    SmallVector<ConcurrentOp> concs;
+    getOperation()->walk([&](ConcurrentOp op) { concs.push_back(op); });
+    for (ConcurrentOp concurrent : llvm::reverse(concs)) {
+      rewriter.setInsertionPoint(concurrent);
+      if (failed(lowerConcurrent(concurrent, rewriter))) {
+        signalPassFailure();
+        return;
+      }
     }
   }
 };
