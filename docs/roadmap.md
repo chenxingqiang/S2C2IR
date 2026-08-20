@@ -70,6 +70,7 @@ wait   →  async.await           (slice 1)
 concurrent → unordered async.execute  (slice 2)
 pipeline semantics             (frozen v0.1: StageOrder ≠ parallelism)
 pipeline chained-await lowering
+composition: Token + Concurrent + Pipeline  (verification; contracts frozen)
 overlap / iteration IR         (later; SoftPipe = InstanceOrder relaxation)
 ```
 

@@ -26,5 +26,14 @@ S1 → await → S2 → await → Sk
 
 Acceptance: **StageOrder is preserved**, not “pipeline parallelism.”
 
+Composition (no new semantics): run the three passes in this order on
+one program (`docs/design/phase2b-composition.md`, test X1):
+
+```text
+--convert-s2c2-token-to-async
+--convert-s2c2-concurrent-to-async
+--convert-s2c2-pipeline-to-async
+```
+
 Not in these slices: overlap, iteration IR, memref/DMA, conflict/race
 analysis.

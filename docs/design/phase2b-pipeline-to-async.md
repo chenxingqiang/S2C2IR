@@ -72,4 +72,7 @@ invariant; it is not A4 flatten and not concurrent explode.
 | P2 | three stages: await between each pair of executes |
 | P3 | stage-local SSA remapped inside that stage’s execute |
 
+Composition (frozen contracts, no new semantics): X1 in
+[`phase2b-composition.md`](phase2b-composition.md).
+
 E6 / E8 remain on `--check-s2c2-execution` (semantic IR).
