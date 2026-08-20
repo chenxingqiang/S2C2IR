@@ -20,6 +20,7 @@ Out of scope:
 - relaxing `InstanceOrder` / SoftPipe
 - `sched.overlap` lowering
 - unordered `N × async.execute` (that is concurrent, not pipeline)
+- `StageResult` / value-carrying stage or pipeline yield (v0.1 is valueless)
 
 ## 1. Rewrite
 

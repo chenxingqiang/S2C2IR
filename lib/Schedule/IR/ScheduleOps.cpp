@@ -70,3 +70,19 @@ LogicalResult OverlapOp::verify() {
   }
   return success();
 }
+
+LogicalResult PipelineOp::verify() {
+  // v0.1: valueless. StageResult / cross-stage SSA is a future feature.
+  if (failed(verifyYieldMatches(getOperation(), getBody(), {})))
+    return failure();
+  for (Operation &child : getBody().front().without_terminator()) {
+    if (!isa<StageOp>(child))
+      return emitOpError(
+          "body may only contain sched.stage ops before the terminator");
+  }
+  return success();
+}
+
+LogicalResult StageOp::verify() {
+  return verifyYieldMatches(getOperation(), getBody(), {});
+}

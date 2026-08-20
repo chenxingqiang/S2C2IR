@@ -73,6 +73,14 @@ Stages do not yield SSA values to each other in v0.1. Data between
 stages moves through residencies (and optional events). Identity sharing
 still does not move validity.
 
+```text
+v0.1 Stage / Pipeline is valueless
+```
+
+The verifier rejects `sched.yield` operands on `sched.stage` and
+`sched.pipeline`. `StageResult` / cross-stage SSA is a future feature,
+not a hole in chained-await lowering.
+
 v0.1 surface: a pipeline body contains only `sched.stage` ops plus the
 terminator. Nested `concurrent` / `overlap` / `pipeline` inside a stage
 is out of scope (same nested-schedule deferral as concurrent).
@@ -324,9 +332,9 @@ It must not:
 | ID | Claim | Status |
 | -- | ----- | ------ |
 | E6 | `S1` pack →HB `S2` unpack: defined | exists (`test/Semantics/e6.mlir`) |
-| E8 | `S1` unpack, `S2` pack: undefined (edge is directed) | this PR |
+| E8 | `S1` unpack, `S2` pack: undefined (edge is directed) | exists |
+| H5 | stage / pipeline yield must be valueless | this follow-up |
 | — | iteration overlap / soft-pipe | **not** written until iteration IR exists |
-| — | pipeline → async | **not** this phase |
 
 C4 (token `comm.copy` vs `comm.stream`) remains a later token-slice
 regression, not a pipeline test.
@@ -339,3 +347,4 @@ regression, not a pipeline test.
 - Iteration, trip count, or induction IR
 - Conflict / race checker
 - Changing Concurrent, token, or wait contracts
+- `StageResult` / value-carrying `sched.stage` or `sched.pipeline` yield
