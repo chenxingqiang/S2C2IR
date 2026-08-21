@@ -94,6 +94,9 @@ capability / target mapping** (CPU sequential, GPU async, NPU staged
 DMA, multi-device comm, SSD→DRAM→device). Mapping must preserve `→HB`;
 it must not redefine Token, Concurrent, or Pipeline.
 
+Design: [`capability-mapping.md`](design/capability-mapping.md). v0.1 is
+a verification matrix over existing passes, not a new dialect.
+
 ## Phase 2C — Compute frontend (optional)
 
 ```text

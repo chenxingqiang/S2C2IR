@@ -42,11 +42,12 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/phase2a-sequential-lowering.md`](docs/design/phase2a-sequential-lowering.md),
 [`docs/design/execution-semantics.md`](docs/design/execution-semantics.md),
 [`docs/design/pipeline-semantics.md`](docs/design/pipeline-semantics.md),
-[`docs/design/phase2b-composition.md`](docs/design/phase2b-composition.md)
+[`docs/design/phase2b-composition.md`](docs/design/phase2b-composition.md),
+[`docs/design/capability-mapping.md`](docs/design/capability-mapping.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
-composition) are **frozen**. Hardware capability mapping is next; it
-must not redefine `→HB`.
+composition) are **frozen**. Hardware capability mapping is a
+verification layer over existing lowerings; it must not redefine `→HB`.
 
 ## Requirements
 
