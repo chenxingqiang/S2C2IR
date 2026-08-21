@@ -32,6 +32,8 @@ module {
     // CHECK:     comp.elemwise
     // CHECK:     async.yield
     // CHECK:   }
+    // No sibling HB: launch Communication before awaiting Compute.
+    // CHECK-NOT: async.await
     // CHECK:   %[[COMM:.*]] = async.execute {
     // CHECK:     comm.copy
     // CHECK:     async.yield

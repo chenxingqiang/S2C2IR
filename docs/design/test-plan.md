@@ -81,7 +81,7 @@ Design: [`phase2b-composition.md`](phase2b-composition.md).
 | ID | File | Checks |
 | -- | ---- | ------ |
 | X1 | `test/Semantics/compose-token-pipeline-concurrent.mlir` | Prefetch SW, S1→S2 StageOrder, concurrent siblings on distinct residencies: all reads defined |
-| X1 | `test/Conversion/compose-token-pipeline-concurrent.mlir` | Prefetch await before S1; await S1 before S2; sibling executes inside S2 with join at stage completion |
+| X1 | `test/Conversion/compose-token-pipeline-concurrent.mlir` | Prefetch await before S1; await S1 before S2; sibling executes inside S2 with `CHECK-NOT: async.await` between launches; join at stage completion |
 
 ## Token → async (HB-preserving slice)
 

@@ -75,4 +75,4 @@ Pass order for the lowering test:
 | ID | File | Oracle |
 | -- | ---- | ------ |
 | X1 source | `test/Semantics/compose-token-pipeline-concurrent.mlir` | `--check-s2c2-execution` |
-| X1 lowered | `test/Conversion/compose-token-pipeline-concurrent.mlir` | chained StageOrder + unordered siblings inside S2 |
+| X1 lowered | `test/Conversion/compose-token-pipeline-concurrent.mlir` | chained StageOrder + unordered siblings inside S2 (`CHECK-NOT: async.await` between the two launches) |
