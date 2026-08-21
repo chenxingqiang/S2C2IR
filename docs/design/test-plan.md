@@ -112,3 +112,15 @@ interference. Design: [`phase2b-composition.md`](phase2b-composition.md).
 
 Composition of the three (no new semantics): X1 in the Composition
 section above.
+
+## Capability / target mapping (v0.1)
+
+Does not change Token / Concurrent / Pipeline. Design:
+[`capability-mapping.md`](capability-mapping.md).
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| T1 | `test/Conversion/capability-matrix.mlir` `--s2c2-lower` | cpu-seq: blocking `memref.copy`, no async/wait |
+| T2 | same, three async passes | gpu-async / npu staged-DMA shape: prefetch SW, StageOrder, `CHECK-NOT: async.await` between S2 siblings |
+| T5 | same `--s2c2-lower=space-map=...` | ssd/hbm integers from the target map |
+| T5b | `@ssd_dram_hbm_hops` | SSD→DRAM→HBM Token chain |

@@ -31,8 +31,9 @@ Frozen / out of scope: `StageResult`, cross-stage SSA, iteration IR,
 InstanceOrder realization, SoftPipe, overlap optimization, race /
 conflict analysis.
 
-Next (not this document): hardware-capability / target mapping. That
-layer must realize these contracts; it must not redefine them.
+Next: hardware-capability / target mapping
+([`capability-mapping.md`](capability-mapping.md)). That layer must
+realize these contracts; it must not redefine them.
 
 ## 1. What is being checked
 
