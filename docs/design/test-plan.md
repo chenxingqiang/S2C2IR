@@ -73,6 +73,16 @@ not token → async lowering.
 Pipeline contract: [`pipeline-semantics.md`](pipeline-semantics.md)
 (v0.1 frozen). Lowering: chained await, not unordered executes.
 
+## Composition (Token + Concurrent + Pipeline)
+
+Foundation semantics are frozen. This layer only checks they compose.
+Design: [`phase2b-composition.md`](phase2b-composition.md).
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| X1 | `test/Semantics/compose-token-pipeline-concurrent.mlir` | Prefetch SW, S1→S2 StageOrder, concurrent siblings on distinct residencies: all reads defined |
+| X1 | `test/Conversion/compose-token-pipeline-concurrent.mlir` | Prefetch await before S1; await S1 before S2; sibling executes inside S2 with `CHECK-NOT: async.await` between launches; join at stage completion |
+
 ## Token → async (HB-preserving slice)
 
 | ID | File | Checks |
@@ -99,3 +109,6 @@ Pipeline contract: [`pipeline-semantics.md`](pipeline-semantics.md)
 | P1 | `test/Conversion/pipeline-to-async-p1.mlir` | await S1 (pack) before S2 unpack |
 | P2 | `test/Conversion/pipeline-to-async-p2.mlir` | three stages, await between each execute |
 | P3 | `test/Conversion/pipeline-to-async-p3.mlir` | stage-local SSA remapped; S2 awaits S1 |
+
+Composition of the three (no new semantics): X1 in the Composition
+section above.

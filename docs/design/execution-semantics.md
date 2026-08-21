@@ -511,3 +511,5 @@ lower tokens. Files: `test/Semantics/e1.mlir` … `e8.mlir`.
 
 E3/E7 keep lexical concurrent order out of HB. E6/E8 lock directed
 `StageOrder` (see [`pipeline-semantics.md`](pipeline-semantics.md)).
+Composition of Token + Concurrent + Pipeline (no new axioms) is X1 in
+[`phase2b-composition.md`](phase2b-composition.md).
