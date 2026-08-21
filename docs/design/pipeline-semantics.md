@@ -1,6 +1,8 @@
 # Pipeline Execution Semantics
 
-Status: **design** (not an implementation). Not a lowering.
+Status: **v0.1 frozen**. Design, not a new memory model. Conservative
+lowering is [`phase2b-pipeline-to-async.md`](phase2b-pipeline-to-async.md)
+(chained await). No iteration IR.
 
 This document defines `sched.pipeline` / `sched.stage`. It does not
 rewrite Phase 2B slices 1–2. It must be approved before any pipeline
@@ -293,14 +295,19 @@ Do not lower `sched.pipeline` by reusing `sched.overlap` or
 
 ---
 
-## 7. Lowering consequences (do not implement here)
+## 7. v0.1 lowering (chained await)
 
-A later HB-preserving realization of **v0.1** pipeline may:
+Realization: [`phase2b-pipeline-to-async.md`](phase2b-pipeline-to-async.md).
 
-- inline stages in stage order (sequential body), or
-- emit one `async.execute` per stage **and** make each successor
-  wait the predecessor’s completion (chained SW that realizes
-  `StageOrder`)
+```text
+%t1 = async.execute { S1 }
+async.await %t1
+%t2 = async.execute { S2 }
+async.await %t2
+```
+
+Invariant: `StageOrder_source ⊆ HB_lowered`. Joining `Sk` is pipeline
+completion.
 
 It must not:
 
@@ -309,14 +316,6 @@ It must not:
 - invent instance overlap or software pipelining
 - treat `sched.overlap` as a pipeline
 - drop `StageOrder` because file order “looks like” concurrent siblings
-
-Acceptance for a future lowering slice, when it exists:
-
-```text
-HB-preserving pipeline lowering
-```
-
-not “the pipeline runs in parallel.”
 
 ---
 

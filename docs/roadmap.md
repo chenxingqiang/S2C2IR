@@ -68,8 +68,9 @@ Then (later slices):
 event  →  !async.token          (slice 1)
 wait   →  async.await           (slice 1)
 concurrent → unordered async.execute  (slice 2)
-pipeline semantics             (this: stage order ≠ parallelism)
-pipeline / overlap lowering    (only after the pipeline contract)
+pipeline semantics             (frozen v0.1: StageOrder ≠ parallelism)
+pipeline chained-await lowering
+overlap / iteration IR         (later; SoftPipe = InstanceOrder relaxation)
 ```
 
 ## Phase 2C — Compute frontend (optional)

@@ -18,5 +18,13 @@ sched.concurrent { A, B, C }  →  async.execute A / B / C
 Acceptance: **HB-preserving concurrent lowering**. Lexical sibling
 order does not invent `async.await`.
 
-Not in these slices: pipeline, overlap, memref/DMA, conflict/race
+`--convert-s2c2-pipeline-to-async` is the v0.1 pipeline slice:
+
+```text
+S1 → await → S2 → await → Sk
+```
+
+Acceptance: **StageOrder is preserved**, not “pipeline parallelism.”
+
+Not in these slices: overlap, iteration IR, memref/DMA, conflict/race
 analysis.

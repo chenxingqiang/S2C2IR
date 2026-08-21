@@ -69,8 +69,8 @@ not token → async lowering.
 | E7 | `test/Semantics/e7.mlir` | T1-before-T2 textual order without event → undefined |
 | E8 | `test/Semantics/e8.mlir` | Pipeline `S1` read then `S2` write → undefined (directed StageOrder) |
 
-Pipeline contract: [`pipeline-semantics.md`](pipeline-semantics.md).
-No pipeline → async lowering in this phase.
+Pipeline contract: [`pipeline-semantics.md`](pipeline-semantics.md)
+(v0.1 frozen). Lowering: chained await, not unordered executes.
 
 ## Token → async (HB-preserving slice)
 
@@ -90,3 +90,11 @@ No pipeline → async lowering in this phase.
 | C1 | `test/Conversion/concurrent-to-async-c1.mlir` | no-wait siblings: two executes, no await |
 | C2 | `test/Conversion/concurrent-to-async-c2.mlir` | each sibling remaps its own task-local SSA |
 | C3 | `test/Conversion/concurrent-to-async-c3.mlir` | consumer awaits producer token; parent awaits result value |
+
+## Pipeline → async (v0.1 StageOrder)
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| P1 | `test/Conversion/pipeline-to-async-p1.mlir` | await S1 (pack) before S2 unpack |
+| P2 | `test/Conversion/pipeline-to-async-p2.mlir` | three stages, await between each execute |
+| P3 | `test/Conversion/pipeline-to-async-p3.mlir` | stage-local SSA remapped; S2 awaits S1 |

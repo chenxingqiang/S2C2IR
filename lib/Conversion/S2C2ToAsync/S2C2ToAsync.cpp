@@ -6,6 +6,7 @@
 //
 // Slice 1: !sched.token → !async.token and sched.wait → async.await.
 // Slice 2: sched.concurrent → sibling async.execute (no invented HB).
+// Pipeline: v0.1 StageOrder → chained execute + await (not unordered).
 // Acceptance: HB-preserving lowering, not "async works".
 // Valueless tasks are lowered by slice 1 only when their token is waited.
 //
@@ -26,12 +27,15 @@
 namespace mlir::s2c2 {
 #define GEN_PASS_DEF_CONVERTS2C2TOKENTOASYNC
 #define GEN_PASS_DEF_CONVERTS2C2CONCURRENTTOASYNC
+#define GEN_PASS_DEF_CONVERTS2C2PIPELINETOASYNC
 #include "s2c2/S2C2Passes.h.inc"
 
 using comm::BarrierOp;
 using comm::CopyOp;
 using comm::StreamOp;
 using sched::ConcurrentOp;
+using sched::PipelineOp;
+using sched::StageOp;
 using sched::TaskOp;
 using sched::WaitOp;
 using sched::YieldOp;
@@ -268,11 +272,11 @@ static void hoistExecute(IRRewriter &rewriter, async::ExecuteOp exec,
   mapExecuteResults(exec, newExec, mapping);
 }
 
-static void emitTaskBodyInto(OpBuilder &body, TaskOp task, IRMapping &mapping,
-                             SmallVectorImpl<Value> &innerTokens,
-                             llvm::DenseSet<Value> &awaited,
-                             SmallVectorImpl<Value> &yielded) {
-  for (Operation &inner : task.getBody().front().without_terminator()) {
+static void emitBlockInto(OpBuilder &body, Block &block, IRMapping &mapping,
+                          SmallVectorImpl<Value> &innerTokens,
+                          llvm::DenseSet<Value> &awaited,
+                          SmallVectorImpl<Value> &yielded) {
+  for (Operation &inner : block.without_terminator()) {
     if (isTokenProducer(&inner)) {
       innerTokens.push_back(emitMappedTokenProducer(body, &inner, mapping));
       continue;
@@ -308,9 +312,17 @@ static void emitTaskBodyInto(OpBuilder &body, TaskOp task, IRMapping &mapping,
     }
     body.clone(inner, mapping);
   }
-  auto yield = cast<YieldOp>(task.getBody().front().getTerminator());
+  auto yield = cast<YieldOp>(block.getTerminator());
   for (Value value : yield.getOperands())
     yielded.push_back(mapping.lookupOrDefault(value));
+}
+
+static void emitTaskBodyInto(OpBuilder &body, TaskOp task, IRMapping &mapping,
+                             SmallVectorImpl<Value> &innerTokens,
+                             llvm::DenseSet<Value> &awaited,
+                             SmallVectorImpl<Value> &yielded) {
+  emitBlockInto(body, task.getBody().front(), mapping, innerTokens, awaited,
+                yielded);
 }
 
 static LogicalResult lowerTaskAsConcurrentChild(IRRewriter &rewriter,
@@ -423,6 +435,57 @@ struct ConvertS2C2ConcurrentToAsync
     for (ConcurrentOp concurrent : llvm::reverse(concs)) {
       rewriter.setInsertionPoint(concurrent);
       if (failed(lowerConcurrent(concurrent, rewriter))) {
+        signalPassFailure();
+        return;
+      }
+    }
+  }
+};
+
+static LogicalResult lowerPipeline(PipelineOp pipe, IRRewriter &rewriter) {
+  rewriter.setInsertionPoint(pipe);
+  IRMapping mapping;
+  Value prevToken;
+  for (Operation &child : pipe.getBody().front().without_terminator()) {
+    auto stage = dyn_cast<StageOp>(child);
+    if (!stage)
+      return child.emitOpError("pipeline body may only contain sched.stage");
+    if (prevToken)
+      rewriter.create<async::AwaitOp>(stage.getLoc(), prevToken);
+    auto execute = rewriter.create<async::ExecuteOp>(
+        stage.getLoc(), TypeRange{}, ValueRange{}, ValueRange{},
+        [&](OpBuilder &body, Location bodyLoc, ValueRange) {
+          llvm::DenseSet<Value> awaited;
+          SmallVector<Value> innerTokens;
+          SmallVector<Value> yielded;
+          emitBlockInto(body, stage.getBody().front(), mapping, innerTokens,
+                        awaited, yielded);
+          for (Value token : innerTokens) {
+            if (awaited.insert(token).second)
+              body.create<async::AwaitOp>(bodyLoc, token);
+          }
+          body.create<async::YieldOp>(bodyLoc, yielded);
+        });
+    prevToken = execute.getToken();
+  }
+  if (prevToken)
+    rewriter.create<async::AwaitOp>(pipe.getLoc(), prevToken);
+  rewriter.eraseOp(pipe);
+  return success();
+}
+
+struct ConvertS2C2PipelineToAsync
+    : impl::ConvertS2C2PipelineToAsyncBase<ConvertS2C2PipelineToAsync> {
+  using impl::ConvertS2C2PipelineToAsyncBase<
+      ConvertS2C2PipelineToAsync>::ConvertS2C2PipelineToAsyncBase;
+
+  void runOnOperation() override {
+    IRRewriter rewriter(&getContext());
+    SmallVector<PipelineOp> pipes;
+    getOperation()->walk([&](PipelineOp op) { pipes.push_back(op); });
+    for (PipelineOp pipe : llvm::reverse(pipes)) {
+      rewriter.setInsertionPoint(pipe);
+      if (failed(lowerPipeline(pipe, rewriter))) {
         signalPassFailure();
         return;
       }
