@@ -1,6 +1,6 @@
 # Phase 2B (slice 2): concurrent → N × async.execute
 
-Status: **implementation**. Realizes `NoOrderingRequirement`; does not
+Status: **frozen**. Realizes `NoOrderingRequirement`; does not
 redefine Execution Semantics.
 
 Acceptance criterion for this slice:

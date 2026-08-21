@@ -1,6 +1,6 @@
 # Phase 2B: v0.1 pipeline lowering (chained await)
 
-Status: **implementation**. Realizes frozen v0.1 `StageOrder`. Does not
+Status: **frozen**. Realizes frozen v0.1 `StageOrder`. Does not
 redefine Execution Semantics and does not add iteration IR.
 
 Acceptance:

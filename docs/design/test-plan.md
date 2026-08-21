@@ -75,8 +75,8 @@ Pipeline contract: [`pipeline-semantics.md`](pipeline-semantics.md)
 
 ## Composition (Token + Concurrent + Pipeline)
 
-Foundation semantics are frozen. This layer only checks they compose.
-Design: [`phase2b-composition.md`](phase2b-composition.md).
+Frozen. This layer only checks the three constructs compose without
+interference. Design: [`phase2b-composition.md`](phase2b-composition.md).
 
 | ID | File | Checks |
 | -- | ---- | ------ |

@@ -41,7 +41,12 @@ definition and not async lowering.
 Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/phase1.5-semantic-normalization.md),
 [`docs/design/phase2a-sequential-lowering.md`](docs/design/phase2a-sequential-lowering.md),
 [`docs/design/execution-semantics.md`](docs/design/execution-semantics.md),
-[`docs/design/pipeline-semantics.md`](docs/design/pipeline-semantics.md)
+[`docs/design/pipeline-semantics.md`](docs/design/pipeline-semantics.md),
+[`docs/design/phase2b-composition.md`](docs/design/phase2b-composition.md)
+
+Phase 2B execution semantics (Token / Concurrent / Pipeline /
+composition) are **frozen**. Hardware capability mapping is next; it
+must not redefine `→HB`.
 
 ## Requirements
 

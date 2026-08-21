@@ -1,11 +1,22 @@
 # Phase 2B composition verification
 
-Status: **verification**. Does not add or change Token / Concurrent /
-Pipeline contracts. Those remain frozen.
+Status: **frozen**. Token / Concurrent / Pipeline contracts are frozen;
+this layer only checks they compose. Do not reopen StageResult,
+cross-stage SSA, iteration IR, InstanceOrder, SoftPipe, overlap
+optimization, or race / conflict analysis.
 
 ```text
 Token + Concurrent + Pipeline can compose without semantic interference
 ```
+
+Composition HB is the union of each construct's own constraints, not
+lexical order:
+
+```text
+HB_composition = HB_Token ∪ HB_Pipeline ∪ HB_explicit
+```
+
+not `HB_Token + HB_Pipeline + all lexical ordering`.
 
 Foundation (do not reopen):
 
@@ -19,6 +30,9 @@ HB           = TC(PO ∪ SW ∪ ConstructOrder)
 Frozen / out of scope: `StageResult`, cross-stage SSA, iteration IR,
 InstanceOrder realization, SoftPipe, overlap optimization, race /
 conflict analysis.
+
+Next (not this document): hardware-capability / target mapping. That
+layer must realize these contracts; it must not redefine them.
 
 ## 1. What is being checked
 
@@ -76,3 +90,7 @@ Pass order for the lowering test:
 | -- | ---- | ------ |
 | X1 source | `test/Semantics/compose-token-pipeline-concurrent.mlir` | `--check-s2c2-execution` |
 | X1 lowered | `test/Conversion/compose-token-pipeline-concurrent.mlir` | chained StageOrder + unordered siblings inside S2 (`CHECK-NOT: async.await` between the two launches) |
+
+X1-no-token / X1-no-stage-order (omit prefetch wait; omit S1 pack) were
+used as review mutations. They are not separate regression files; the
+positive X1 path plus E2/E6/E8 already cover those responsibilities.

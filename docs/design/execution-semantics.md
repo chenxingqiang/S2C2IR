@@ -1,8 +1,9 @@
 # S²C² Execution Semantics
 
-Status: **design**. Task / Event / Concurrent are approved (Phase 2B
-slices 1–2 realize them). Pipeline is specified in
-[`pipeline-semantics.md`](pipeline-semantics.md); do not lower it yet.
+Status: **frozen** (Phase 2B). Task / Event / Concurrent / Pipeline and
+their composition are approved and realized. Do not extend this document
+with StageResult, SoftPipe, InstanceOrder, iteration IR, or race /
+conflict analysis.
 
 This document defines the execution constraint layer of S²C². It does not
 describe a compiler, a runtime, or a target.
@@ -471,17 +472,27 @@ order.
 
 ---
 
-## 12. What Phase 2B may implement (after this spec is approved)
+## 12. What Phase 2B implemented (frozen)
 
-Phase 2B is an *implementation* of §3–§8, not a redesign.
+Phase 2B is an *implementation* of §3–§8, not a redesign. Semantic
+verification is frozen:
 
-It may realize:
+```text
+Token        → SW
+Concurrent   → no sibling HB
+Pipeline     → StageOrder HB
+Composition  → constructs do not pollute each other's constraints
+```
 
-- `event` as a runtime completion object
-- `wait` as an await of that object
+Realized:
+
+- `event` as a runtime completion object (`!async.token`)
+- `wait` as `async.await`
 - `Task` as a schedulable region
 - `Concurrent` as unordered launch of children, with SW edges only
   where this document puts them
+- `Pipeline` as chained await of valueless stages (`StageOrder`)
+- composition X1: Token + Concurrent + Pipeline in one program
 
 It must not:
 
@@ -490,6 +501,9 @@ It must not:
 - drop `wait` unless producers have been made synchronous *and* the
   chosen schedule still respects the original `→HB` (the Phase 2A
   special case)
+
+Hardware capability / target mapping is a later layer. It must preserve
+`→HB`; it must not add execution-semantics constructs here.
 
 ---
 

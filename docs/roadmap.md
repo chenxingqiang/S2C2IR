@@ -39,7 +39,7 @@ lowering. Tokens are dropped because copies are synchronous.
 Sequential lowering  ≠  S²C² semantic definition  ≠  async lowering
 ```
 
-## Execution semantics (before Phase 2B)
+## Execution semantics
 
 Design: [`docs/design/execution-semantics.md`](design/execution-semantics.md)
 
@@ -48,31 +48,51 @@ S²C²  =  Storage + Compute + Communication + Execution Semantics
 ```
 
 Schedule is the HB / event constraint layer, not a fourth data dialect.
-Approve this spec before any event-preserving lowering.
+Phase 2B realizes this spec; the contracts are frozen (next section).
 
-## Phase 2B — Implement the approved execution semantics
+## Phase 2B — Execution semantics (frozen)
 
-Spec approved. Oracle: `--check-s2c2-execution` (E1–E8). Future:
-Conflict / Race Analysis (unordered conflicting writes) — not in the
-oracle.
-
-Token slice: [`phase2b-token-to-async.md`](design/phase2b-token-to-async.md)
-(`--convert-s2c2-token-to-async`). Concurrent slice:
-[`phase2b-concurrent-to-async.md`](design/phase2b-concurrent-to-async.md)
-(`--convert-s2c2-concurrent-to-async`). Acceptance: **HB-preserving**,
-not “async works.”
-
-Then (later slices):
+Design: [`execution-semantics.md`](design/execution-semantics.md),
+[`pipeline-semantics.md`](design/pipeline-semantics.md),
+[`phase2b-composition.md`](design/phase2b-composition.md).
 
 ```text
-event  →  !async.token          (slice 1)
-wait   →  async.await           (slice 1)
-concurrent → unordered async.execute  (slice 2)
-pipeline semantics             (frozen v0.1: StageOrder ≠ parallelism)
-pipeline chained-await lowering
-composition: Token + Concurrent + Pipeline  (verification; contracts frozen)
-overlap / iteration IR         (later; SoftPipe = InstanceOrder relaxation)
+Token        = Event / SW                         ✅
+Concurrent   = NoOrderingRequirement              ✅
+Pipeline     = StageOrder (valueless stages)      ✅
+Composition  = Token + Concurrent + Pipeline      ✅
 ```
+
+```text
+HB = TC(PO ∪ SW ∪ ConstructOrder)
+```
+
+Oracle: `--check-s2c2-execution` (E1–E8). Composition: X1. Conflict /
+Race Analysis (unordered conflicting writes) remains future — not in
+the oracle.
+
+HB-preserving lowering (not “async works”):
+
+```text
+--convert-s2c2-token-to-async
+--convert-s2c2-concurrent-to-async
+--convert-s2c2-pipeline-to-async
+```
+
+Do **not** extend this layer with:
+
+```text
+StageResult / cross-stage SSA
+iteration IR / InstanceOrder realization
+SoftPipe
+overlap optimization
+race / conflict analysis
+```
+
+Those would change execution semantics. Next work is **hardware
+capability / target mapping** (CPU sequential, GPU async, NPU staged
+DMA, multi-device comm, SSD→DRAM→device). Mapping must preserve `→HB`;
+it must not redefine Token, Concurrent, or Pipeline.
 
 ## Phase 2C — Compute frontend (optional)
 
