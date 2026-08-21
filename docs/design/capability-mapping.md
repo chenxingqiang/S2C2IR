@@ -116,6 +116,10 @@ new storage spaces
 A later capability pass, if any, may only **select** among T1–T5. It
 must not add HB axioms.
 
+Cost / resource scoring of legal mappings is
+[`cost-resource-model.md`](cost-resource-model.md). It does not search
+yet and does not redefine HB.
+
 ---
 
 ## 5. Tests

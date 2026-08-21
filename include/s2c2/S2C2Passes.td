@@ -189,4 +189,26 @@ def ExpandCompComposites : Pass<"expand-comp-composites", "::mlir::ModuleOp"> {
   let dependentDialects = ["mlir::s2c2::comp::ComputeDialect"];
 }
 
+def S2C2Cost : Pass<"s2c2-cost", "::mlir::ModuleOp"> {
+  let summary = "Score S2C2 IR against a device capability table";
+  let description = [{
+    v0.1 cost / resource model. Score-only; does not rewrite IR and does
+    not redefine happens-before.
+
+      Cost = C_compute + C_storage + C_communication + C_synchronization
+             - C_overlap
+
+    `C_overlap` is credited only when the IR has unordered siblings
+    (`sched.concurrent` / `sched.overlap`) **and** the device
+    `canOverlap`. Pipeline stages stay sequential (StageOrder).
+
+    Device profiles (`cpu`, `gpu`, `npu`, `cim`) are capability tables,
+    not CUDA / NPU ISAs.
+  }];
+  let options = [
+    Option<"device", "device", "std::string", /*default=*/"\"cpu\"",
+           "Capability profile: cpu, gpu, npu, or cim">
+  ];
+}
+
 #endif // S2C2_PASSES
