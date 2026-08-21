@@ -36,4 +36,4 @@ one program (`docs/design/phase2b-composition.md`, test X1):
 ```
 
 Not in these slices: overlap, iteration IR, memref/DMA, conflict/race
-analysis.
+analysis. Phase 2B semantic verification is **frozen**.

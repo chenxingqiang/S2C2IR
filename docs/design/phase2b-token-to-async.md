@@ -1,6 +1,6 @@
 # Phase 2B (slice 1): HB-preserving token lowering
 
-Status: **implementation**. Realizes events; does not redefine Execution
+Status: **frozen**. Realizes events; does not redefine Execution
 Semantics.
 
 Acceptance criterion for this slice:

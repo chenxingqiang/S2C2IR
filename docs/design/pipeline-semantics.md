@@ -5,8 +5,8 @@ lowering is [`phase2b-pipeline-to-async.md`](phase2b-pipeline-to-async.md)
 (chained await). No iteration IR.
 
 This document defines `sched.pipeline` / `sched.stage`. It does not
-rewrite Phase 2B slices 1–2. It must be approved before any pipeline
-lowering.
+rewrite Phase 2B slices 1–2. Conservative lowering is frozen
+([`phase2b-pipeline-to-async.md`](phase2b-pipeline-to-async.md)).
 
 Prerequisite: [`execution-semantics.md`](execution-semantics.md)
 (Task / Event / `→HB` = TC(PO ∪ SW)). Concurrent and overlap stay as
