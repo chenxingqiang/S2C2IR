@@ -130,6 +130,9 @@ Search / Pareto over that set is [`search-pareto.md`](search-pareto.md)
 [`realization-argmin-pass.md`](realization-argmin-pass.md)
 (**v0.4.4 frozen**). Search Space / `Neighbor` / legality
 preservation are [`search-space.md`](search-space.md) (v0.4.5).
+The walk contract is
+[`search-algorithm-contract.md`](search-algorithm-contract.md)
+(v0.4.6).
 These layers do not redefine HB.
 
 ---

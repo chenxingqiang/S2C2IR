@@ -245,7 +245,7 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 
 ## Search Space / Neighbor / Legality (v0.4.5)
 
-**Design.** No algorithm pass. Design:
+**Frozen.** No algorithm pass. Design:
 [`search-space.md`](search-space.md). `Neighbor` generates in `F`;
 `LegalNeighbor` accepts only `R ∩ F`.
 
@@ -261,3 +261,20 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | K8 | design claim | no `--s2c2-search`; `π` is not a Neighbor axis |
 | K9 | design claim | `M ∈ N_all(M)` and `M ∉ N_1(M)`; a path starts in `X` |
 | K10 | design claim | rewrite `P ↦ P'` rebuilds `X(P', D; F)` |
+
+## Search Algorithm Contract (v0.4.6)
+
+**Design.** No `--s2c2-search`. Design:
+[`search-algorithm-contract.md`](search-algorithm-contract.md).
+`--s2c2-argmin` is the Complete / `N_all` witness.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| T1 | design claim | `State_walk.current ∈ X`; `π ∉ State` |
+| T2 | design claim | `Generated ⊆ F`, `Accepted ⊆ X`; illegal flips not scored |
+| T3 | A6 | Cache keys are `device`; shared `computeScore3` |
+| T4 | A2 | `WalkTieBreak` does not shrink `ArgMin_F` |
+| T5 | design claim | `next = first(Best)` in F_0 order; `Best` is a set |
+| T6 | A1–A3 | `Complete ⇒ Output = ArgMin_F / Pareto_F` |
+| T7 | design claim | `LocalStop ⇏ Output = ArgMin_F` |
+| T8 | design claim | verbs are Generate / Validate / Accept |
