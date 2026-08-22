@@ -122,8 +122,9 @@ must not add HB axioms.
 Cost / resource scoring of legal mappings is
 [`cost-resource-model.md`](cost-resource-model.md) (v0.1–v0.3 frozen).
 The set of legal mappings is
-[`realization-space.md`](realization-space.md). Neither layer searches
-or redefines HB.
+[`realization-space.md`](realization-space.md) (**v0.4.0 frozen**).
+Search / Pareto over that set is [`search-pareto.md`](search-pareto.md).
+Neither layer redefines HB.
 
 ---
 
