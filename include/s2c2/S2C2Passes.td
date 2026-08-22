@@ -223,7 +223,26 @@ def S2C2CostHB : Pass<"s2c2-cost-hb", "::mlir::ModuleOp"> {
       A ↛HB B ∧ B ↛HB A
       and OverlapCapability(kind(A), kind(B)).
 
-    Does not change `--s2c2-cost` (v0.1 syntax heuristic).
+    Does not change `--s2c2-cost` (v0.1 syntax heuristic). Frozen v0.2;
+    critical-path scoring is `--s2c2-cost-cp`.
+  }];
+  let options = [
+    Option<"device", "device", "std::string", /*default=*/"\"cpu\"",
+           "Capability profile: cpu, gpu, npu, or cim">
+  ];
+}
+
+def S2C2CostCP : Pass<"s2c2-cost-cp", "::mlir::ModuleOp"> {
+  let summary = "Critical-path cost score (Cost Model v0.3)";
+  let description = [{
+    Score-only. Does not rewrite IR and does not redefine happens-before.
+
+      Cost = T_critical_path(HB) + C_contention + C_capacity
+
+    `C_contention` is T_full − T_HB after adding score-only
+    serialization edges for HB-unordered, resource-incompatible pairs
+    (IR order). `C_capacity` is the v0.2 storage occupancy term.
+    Does not change `--s2c2-cost` or `--s2c2-cost-hb`.
   }];
   let options = [
     Option<"device", "device", "std::string", /*default=*/"\"cpu\"",

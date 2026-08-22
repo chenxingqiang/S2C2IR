@@ -149,3 +149,18 @@ v0.1 stays frozen. Design:
 | H5 | same | wait sibling: GPU overlap=0 (HB removes the pair) |
 | H5′ | same `--s2c2-cost` | frozen v0.1 still credits GPU overlap on that wait sibling |
 | H6 | same | two IO streams: GPU overlap=0 (IO∥IO = 0) |
+
+## Cost Model v0.3 (critical path)
+
+v0.1 and v0.2 stay frozen. Design:
+[`cost-resource-model-v03.md`](cost-resource-model-v03.md).
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| C1 | `test/Analysis/s2c2-cost-cp.mlir` | Compute∥IO: GPU contention=0 |
+| C2 | same | sequential: contention=0 |
+| C3 | same | pipeline: StageOrder in T_HB, contention=0 |
+| C5 | same | wait sibling: SW in T_HB, GPU contention=0 |
+| C6 | same | two IO streams: GPU contention>0 |
+| C7 | same | sibling `{compute; IO}` chains: v0.2 total is optimistic |
+| C8 | same | Compute∥DMA∥IO: T_HB is max of three kinds |

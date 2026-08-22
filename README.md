@@ -45,7 +45,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/phase2b-composition.md`](docs/design/phase2b-composition.md),
 [`docs/design/capability-mapping.md`](docs/design/capability-mapping.md),
 [`docs/design/cost-resource-model.md`](docs/design/cost-resource-model.md),
-[`docs/design/cost-resource-model-v02.md`](docs/design/cost-resource-model-v02.md)
+[`docs/design/cost-resource-model-v02.md`](docs/design/cost-resource-model-v02.md),
+[`docs/design/cost-resource-model-v03.md`](docs/design/cost-resource-model-v03.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Hardware capability mapping verifies legal
@@ -87,7 +88,7 @@ the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 ## Tools
 
-- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E8 and Token+Concurrent+Pipeline composition; `--convert-s2c2-token-to-async` / `--convert-s2c2-concurrent-to-async` / `--convert-s2c2-pipeline-to-async` for HB-preserving event lowering; `--s2c2-cost` for frozen v0.1 scores; `--s2c2-cost-hb` for HB-aware v0.2 scores)
+- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E8 and Token+Concurrent+Pipeline composition; `--convert-s2c2-token-to-async` / `--convert-s2c2-concurrent-to-async` / `--convert-s2c2-pipeline-to-async` for HB-preserving event lowering; `--s2c2-cost` for frozen v0.1 scores; `--s2c2-cost-hb` for frozen v0.2 HB-aware pair credit; `--s2c2-cost-cp` for v0.3 critical-path scores)
 - `s2c2-translate` — translation driver (stub)
 
 Round-trip an example:
