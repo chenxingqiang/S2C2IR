@@ -16,10 +16,13 @@ Target profile      =  one legal realization of frozen HB
 HB = TC(PO ∪ SW ∪ ConstructOrder)
 ```
 
-A profile may pick any schedule in `ValidSchedules`. It must preserve
-`HB_source ⊆ HB_lowered` for the edges the source actually wrote. It
-must not invent sibling HB, treat `materialize` as a fill, or add
-StageResult / SoftPipe / InstanceOrder / race analysis.
+A profile may pick any schedule in `ValidSchedules`. Lowering must
+preserve `HB_source ⊆ HB_lowered` for the edges the source actually
+wrote (implementation correctness: a backend may be more conservative).
+That `⊆` is **not** Realization Space membership. `R(P, D)` requires
+`HB_M = HB_source`; see [`realization-space.md`](realization-space.md).
+A profile must not invent sibling HB, treat `materialize` as a fill, or
+add StageResult / SoftPipe / InstanceOrder / race analysis.
 
 ---
 

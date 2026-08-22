@@ -119,11 +119,13 @@ v0.1 is **frozen**. HB-aware pair credit is
 Design: [`realization-space.md`](design/realization-space.md).
 
 ```text
-R(P, D) = { M | IsLegal(P, D, M) ∧ HB_source ⊆ HB_M }
+R(P, D) = { M | IsLegal(P, D, M) ∧ HB_M = HB_source }
 ```
 
-Enumerates legal mappings (`sched`, `spaceMap`, `device`). Does not
-`argmin`. Search / Pareto over `R` is later.
+Membership is HB equality, not refinement. Lowering may still use
+`HB_source ⊆ HB_impl` as implementation correctness; that `⊆` is not
+`R` membership. Enumerates legal mappings (`sched`, `spaceMap`,
+`device`). Does not `argmin`. Search / Pareto over `R` is later.
 
 ## Phase 2C — Compute frontend (optional)
 
