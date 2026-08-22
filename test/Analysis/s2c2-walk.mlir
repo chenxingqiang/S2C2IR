@@ -5,6 +5,7 @@
 // RUN: s2c2-opt %s --s2c2-argmin 2>&1 | grep 'argmin count\|argmin sched' | FileCheck %s --check-prefix=AMIN
 
 // Hamming-1 inhabitant: N=N_1, S=StartFirst, Rst=StartUnused, Nxt=first(Best).
+// Nxt is total: F0-NEXT locks every decision as step or localstop.
 // Does not rewrite P. After Complete, ArgMin equals --s2c2-argmin.
 module {
   func.func @r4_same_program(%t: tensor<8xf32>) {
@@ -46,6 +47,8 @@ module {
 // F0-NEXT: s2c2-walk func=r4_same_program argmin sched=npu-staged-dma map=t5 device=npu total=128
 // F0-NOT: winner=
 // F0-NOT: pi=
+// F0-NOT: error
+// F0-NOT: undefined
 
 // DTEST: s2c2-walk func=r4_same_program start sched=cpu-seq map=default device=cpu
 // DTEST-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=t5 device=cpu total=136

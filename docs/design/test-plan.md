@@ -327,3 +327,4 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | W4 | same DTEST | LocalStop accepted=2 then restart gpu; Complete=4 |
 | W5 | same IR | `sched.concurrent` unchanged |
 | W6 | same | no `winner=`, no `pi=` |
+| W7 | same F0 | `Nxt` is total: every decision is `step` or `localstop` (`F0-NEXT`); never error / undefined / outside `X` |

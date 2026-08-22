@@ -24,4 +24,16 @@ Empty flags use `F_0`. The pass restarts until `Accepted = X`
 `Nxt = ⊥` and `Unused ≠ ∅`. After Complete, printed `argmin` is
 `ArgMin_F`. Output is a set. `π` is not printed. IR is not rewritten.
 
-`Nxt` is total: `Frontier = ∅` ⇒ `⊥`, else `first(Best) ∈ Frontier`.
+`Nxt` is a **total** function on legal State (explicit v0.4.9
+invariant, requested when v0.4.8 froze):
+
+```text
+Nxt(State) ∈ Frontier(current) ∪ {⊥}
+Nxt(State) = ⊥   ⇔  Frontier(current) = ∅
+Nxt(State) ≠ ⊥   ⇒  Nxt(State) = first(Best) ∈ Frontier
+```
+
+`first(Best)` = min `Score_3.total` on Frontier; ties use `F_0`
+product order (`WalkTieBreak`). No `error`, no `undefined`, no
+candidate outside `X`. FileCheck `F0-NEXT` locks every decision
+as `step` or `localstop`.
