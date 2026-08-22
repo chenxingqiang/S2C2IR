@@ -46,7 +46,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/capability-mapping.md`](docs/design/capability-mapping.md),
 [`docs/design/cost-resource-model.md`](docs/design/cost-resource-model.md),
 [`docs/design/cost-resource-model-v02.md`](docs/design/cost-resource-model-v02.md),
-[`docs/design/cost-resource-model-v03.md`](docs/design/cost-resource-model-v03.md)
+[`docs/design/cost-resource-model-v03.md`](docs/design/cost-resource-model-v03.md),
+[`docs/design/realization-space.md`](docs/design/realization-space.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Hardware capability mapping verifies legal

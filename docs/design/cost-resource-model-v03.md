@@ -8,7 +8,8 @@ Pipeline. v0.1 and v0.2 remain frozen.
 v0.1  Cost(IR, Device)                         syntax heuristic          FROZEN
 v0.2  Cost(S²C², Hardware, HB, Mapping)        pair credit − overlap     FROZEN
 v0.3  CanonicalRealizationCost                 FROZEN (this document)
-v0.4+ search / placement / auto-scheduling     later
+v0.4.0 Realization Space R(P, D)               later
+v0.4+  Search / Pareto over R                  later
 ```
 
 ```text
