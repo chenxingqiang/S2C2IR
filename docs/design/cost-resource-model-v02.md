@@ -1,18 +1,21 @@
 # Cost Model v0.2: HB-aware resource cost
 
-Status: **design + score-only analysis**. Does not search, place, or
-rewrite. Does not redefine Token / Concurrent / Pipeline. v0.1 remains
-frozen ([`cost-resource-model.md`](cost-resource-model.md)).
+Status: **v0.2 frozen**. Score-only HB-aware pair credit. Do not
+replace this layer with critical-path costing or task-level demand;
+that is [`cost-resource-model-v03.md`](cost-resource-model-v03.md).
+Does not search, place, or rewrite. Does not redefine Token /
+Concurrent / Pipeline. v0.1 remains frozen
+([`cost-resource-model.md`](cost-resource-model.md)).
 
 ```text
-v0.1  Cost(IR, Device)                         syntax-construct heuristic
-v0.2  Cost(S²C², Hardware, HB, Mapping)        HB-filtered + resource-pair capability
-v0.3+ search / placement                       later
+v0.1  Cost(IR, Device)                         syntax-construct heuristic   FROZEN
+v0.2  Cost(S²C², Hardware, HB, Mapping)        HB-filtered + pair credit    FROZEN
+v0.3  CriticalPath(HB) + Contention + Capacity later
+v0.4+ search / placement                       later
 ```
 
 `Mapping` in v0.2 is the existing device / capability profile
-(`device=cpu|gpu|npu|cim`), not a search over placements. Search stays
-v0.3+.
+(`device=cpu|gpu|npu|cim`), not a search over placements.
 
 ```text
 Lowering_target may realize HB, but must not redefine HB
@@ -118,7 +121,7 @@ s2c2-cost-hb device=gpu func=k5 compute=… storage=… communication=… synchr
 
 ---
 
-## 5. Out of scope
+## 5. Out of scope / recorded for v0.3
 
 ```text
 search / placement / auto-scheduling
@@ -127,6 +130,15 @@ redefining HB
 StageResult / SoftPipe / iteration IR / race analysis
 IREE / StableHLO / MPI
 ```
+
+Two accepted limits. **Do not tighten v0.2 to fix them.**
+
+1. Overlap is still pair-unordered + resource-compatible credit, not
+   `CriticalPath(HB, Resource)`. `A ∥ B ∥ C` can be optimistic relative
+   to a real schedule. v0.3 computes path length, not more credit.
+2. `collectItems()` times **leaf operations**, not execution tasks. A
+   later scheduler needs task-level resource demand so leaves inside one
+   task are not credited independently.
 
 ---
 
