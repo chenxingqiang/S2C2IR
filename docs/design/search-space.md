@@ -1,6 +1,6 @@
 # Search Space, Neighbor, Legality (v0.4.5)
 
-Status: **v0.4.5 design**. Defines three objects only. Does not pick
+Status: **v0.4.5 frozen**. Defines three objects only. Does not pick
 beam / hill-climbing / enumerative / Pareto-exploration *as an
 algorithm*, does not add `--s2c2-search`, and does not rewrite `P`.
 Cost v0.1–v0.3, HB, `R`, `Enum_F`, and set-valued `ArgMin_F` /
