@@ -198,8 +198,10 @@ def S2C2Cost : Pass<"s2c2-cost", "::mlir::ModuleOp"> {
       Cost = C_compute + C_storage + C_communication + C_synchronization
              - C_overlap
 
-    `C_overlap` is credited only when the IR has unordered siblings
-    (`sched.concurrent` / `sched.overlap`) **and** the device
+    `C_storage` is bytes of a new residency (`materialize` / `alloc` /
+    `transfer` dest) scored as ticks with coefficient 1.
+    `C_overlap` is an upper-bound credit when the IR has unordered
+    siblings (`sched.concurrent` / `sched.overlap`) **and** the device
     `canOverlap`. Pipeline stages stay sequential (StageOrder).
 
     Device profiles (`cpu`, `gpu`, `npu`, `cim`) are capability tables,
