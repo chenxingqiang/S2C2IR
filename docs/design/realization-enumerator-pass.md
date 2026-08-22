@@ -24,3 +24,5 @@ profile pairing). `M ∈ F` is not sufficient. Count is `|R ∩ F|`,
 not `|F|`.
 
 Does **not** print Score_3, ArgMin, Pareto, or `π`.
+`--s2c2-argmin` (**v0.4.4 frozen**) lists `ArgMin_F` / `Pareto_F`
+over this set.

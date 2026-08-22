@@ -150,9 +150,10 @@ Pareto_F  = Pareto(Enum_F)
 
 `ArgMin_F` is not, in general, `ArgMin_R ∩ F`. Lists members of frozen
 `R` inside a declared finite family. `--s2c2-enumerate` (**v0.4.3 frozen**) prints that list
-(`Output = R ∩ F` via `isLegalRealization`). Does not pick a unique
-`M*`, rewrite `P`, or generate new space maps. Heuristic searcher and
-placement remain later.
+(`Output = R ∩ F` via `isLegalRealization`). `--s2c2-argmin`
+(**v0.4.4 frozen**) prints set-valued `ArgMin_F` / `Pareto_F` over
+`Enum_F`. Does not pick a unique `M*`, rewrite `P`, or generate new
+space maps. Heuristic searcher and placement remain later.
 
 ## Phase 2C — Compute frontend (optional)
 

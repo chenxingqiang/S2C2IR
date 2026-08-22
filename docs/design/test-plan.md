@@ -226,3 +226,19 @@ Search / rewrite.
 | L4 | same IR | module still has `sched.concurrent` |
 | N9 | same F0 | illegal-in-F skipped (`npu-staged-dma`+`cim`, `gpu-async`+`cpu`, …) |
 | N10 | same F0 | every legal member emitted |
+
+## ArgMin_F / Pareto_F listing (v0.4.4)
+
+**Frozen.** `--s2c2-argmin`. Design:
+[`realization-argmin-pass.md`](realization-argmin-pass.md).
+Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
+`computeScore3`. No unique `M*`, rewrite, or `π`.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| A1 | `test/Analysis/s2c2-argmin.mlir` F0 | `enum=8`; frozen Score_3 per device |
+| A2 | same F0 | `argmin count=4` (gpu+npu ties, both maps) |
+| A3 | same F0 | `pareto count=4`; cpu/cim dominated; no `winner=` / `pi=` |
+| A4 | same DTEST | `D_test={cpu,gpu}`: `argmin count=2`, both gpu-async |
+| A5 | same IR | module still has `sched.concurrent` |
+| A6 | same CP | `--s2c2-cost-cp` gpu total still 128 |
