@@ -55,6 +55,32 @@ Cost = T_critical_path(HB)
 
 Still a **score**. Not predicted runtime, not a scheduler.
 
+Layers stay separate:
+
+```text
+Semantics  →  Legality  →  Cost  →  Optimization
+   frozen       frozen     v0.3      later Search
+```
+
+v0.2 itself is not revised. Its credit
+
+```text
+C_overlap = min(Σ eligible compute, Σ eligible communication)
+```
+
+is self-consistent **only while** the GPU/NPU matrix is the current
+complete off-diagonal (“unlike kinds may overlap”). That bound is
+frozen with v0.2. A later sparse or weighted matrix would need
+
+```text
+C_overlap* = max Σ x_ij · credit_ij
+             s.t. x_ij ≤ Candidate(i,j)
+             plus resource capacity / duration
+```
+
+That matching problem is **not** v0.3 and is **not** Search. v0.3
+stops stacking overlap credit and scores a path instead.
+
 ---
 
 ## 2. Timed leaves (unchanged ticks)
@@ -109,16 +135,36 @@ CPU/CIM all 0, SSD/Host ⇒ IO).
 
 ## 4. Granularity
 
-v0.3 still times **leaf operations**, then constrains them with HB and
-pairwise resource conflicts. That matches the recorded v0.2 follow-up:
-task-level resource demand is later, once this layer is a scheduler
-input rather than a score.
+Research target for this layer:
 
 ```text
-v0.3  leaf durations + HB + pairwise conflict edges
-later Task-level resource demand
-later resource counts / queue depth
-later Search
+HB Graph
+  + Resource Capacity
+  + Task Duration
+  + Critical Path
+  + Storage / Communication contention
+        ↓
+Estimated Schedule Cost     (still a score)
+```
+
+This cut implements path length now, and records the rest:
+
+| Piece | v0.3.0 |
+| ----- | ------ |
+| Frozen HB | used as `G_HB` |
+| Critical path | `T_HB` / `T_full` |
+| Communication contention | pairwise `G_conflict` (IR order) |
+| Storage capacity | `C_capacity = C_storage` |
+| Task duration | **leaf ticks**; not aggregated per `sched.task` |
+| Resource counts / queues | recorded, coefficient 0 |
+
+Leaf timing answers “which work units sit on the path?” Task-level
+demand stays a Cost refinement, not a Search pass.
+
+```text
+v0.3.0  leaf durations + HB + pairwise conflict + storage occupancy
+later   Task Duration / resource counts
+later   Search / Placement / Auto-Scheduling
 ```
 
 ---
@@ -144,6 +190,7 @@ s2c2-cost-cp device=gpu func=c1 critical_path=… contention=… capacity=… to
 ```text
 search / placement / auto-scheduling / rewrite
 changing v0.1 or v0.2 scores
+replacing v0.2 min(ΣC, ΣM) with weighted matching
 redefining HB
 cycle-accurate latency
 queue depth / multi-channel / NoC

@@ -140,6 +140,11 @@ Two accepted limits. **Do not tighten v0.2 to fix them.**
    later scheduler needs task-level resource demand so leaves inside one
    task are not credited independently.
 
+`min(Σ eligible compute, Σ eligible communication)` is self-consistent
+for the current complete off-diagonal GPU/NPU matrix. A later sparse
+or weighted `OverlapCapability` would need a matching / capacity
+formulation; that is not a v0.2 revision.
+
 ---
 
 ## 6. Tests
