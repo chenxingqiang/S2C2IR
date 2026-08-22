@@ -242,3 +242,20 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | A4 | same DTEST | `D_test={cpu,gpu}`: `argmin count=2`, both gpu-async |
 | A5 | same IR | module still has `sched.concurrent` |
 | A6 | same CP | `--s2c2-cost-cp` gpu total still 128 |
+
+## Search is selection over Enum_F (v0.4.5)
+
+**Frozen.** Design only. Design:
+[`search-selection.md`](search-selection.md). No new pass.
+`--s2c2-argmin` already *is* `Search_F(ArgMin)` / `Search_F(Pareto)`.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| Q1 | design claim | `Search_F(Policy) ⊆ Enum_F` |
+| Q2 | design claim | `T(M)=M'` with `M' ∈ Enum_F` is re-selection |
+| Q3 | design claim | `M' ∈ R \ F` is family extension, not Search |
+| Q4 | S3 / N4 | Concurrent → Pipeline ∉ `R` |
+| Q5 | A3 / A4 | no `--s2c2-search` heuristic; no unique `M*` |
+| Q6 | S4 / A4 | `π` is not a Policy input |
+| Q7 | S6 / A2 | same-device `sched` / `spaceMap` stay distinct ties |
+| Q8 | A1–A3 | `--s2c2-argmin` is `Search_F(ArgMin)` and `Search_F(Pareto)` |

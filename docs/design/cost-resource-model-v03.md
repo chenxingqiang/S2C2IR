@@ -13,6 +13,7 @@ v0.4.1 Search / Pareto over R                  FROZEN in search-pareto.md
 v0.4.2 Realization Enumerator                  FROZEN in realization-enumerator.md
 v0.4.3 listing `--s2c2-enumerate`               FROZEN in realization-enumerator-pass.md
 v0.4.4 listing `--s2c2-argmin`                  FROZEN in realization-argmin-pass.md
+v0.4.5 listing Search = selection               FROZEN in search-selection.md
 ```
 
 ```text

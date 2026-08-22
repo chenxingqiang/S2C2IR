@@ -11,7 +11,8 @@ v0.4.1  Search / Pareto over R                 FROZEN (this document)
 v0.4.2  Realization Enumerator                 FROZEN in realization-enumerator.md
 v0.4.3  listing pass `--s2c2-enumerate`        FROZEN in realization-enumerator-pass.md
 v0.4.4  listing `--s2c2-argmin`                FROZEN in realization-argmin-pass.md
-v0.4.5+ heuristic searcher / placement         later
+v0.4.5  Search = selection over Enum_F         FROZEN in search-selection.md
+v0.4.6+ family extension / rewrite / placement later
 ```
 
 ```text
