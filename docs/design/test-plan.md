@@ -194,3 +194,18 @@ v0.1 and v0.2 stay frozen. Design:
 | S4 | C9 | π is not a search axis |
 | S5 | C1 | GPU weakly dominates CPU on Cost⃗; device-table fact |
 | S6 | R1 / R2 | cpu-seq and gpu-async stay distinct M |
+
+## Realization Enumerator (v0.4.2)
+
+Design only. Completeness is `R ∩ F`, not `R`. Design:
+[`realization-enumerator.md`](realization-enumerator.md).
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| N1 | design claim | `\|F_0\| = 3 × 2 × 4 = 24` |
+| N2 | design claim | `Enum = R ∩ F`; no heuristic drop |
+| N3 | R1 / R2 / R3 | existing witnesses ∈ Enum for their F |
+| N4 | R5 | Concurrent → Pipeline ∉ F and ∉ Enum |
+| N5 | C9 / R6 | `π` is not an enumerated component |
+| N6 | S1 / S2 | `Dev_F = D_test={cpu,gpu}` |
+| N7 | C6 | equal totals stay two Enum members; no ArgMin here |

@@ -10,6 +10,7 @@ v0.2  Cost(S²C², Hardware, HB, Mapping)        pair credit − overlap     FRO
 v0.3  CanonicalRealizationCost                 FROZEN (this document)
 v0.4.0 Realization Space R(P, D)               FROZEN in realization-space.md
 v0.4.1 Search / Pareto over R                  FROZEN in search-pareto.md
+v0.4.2 Realization Enumerator                  defined in realization-enumerator.md
 ```
 
 ```text

@@ -48,7 +48,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/cost-resource-model-v02.md`](docs/design/cost-resource-model-v02.md),
 [`docs/design/cost-resource-model-v03.md`](docs/design/cost-resource-model-v03.md),
 [`docs/design/realization-space.md`](docs/design/realization-space.md),
-[`docs/design/search-pareto.md`](docs/design/search-pareto.md)
+[`docs/design/search-pareto.md`](docs/design/search-pareto.md),
+[`docs/design/realization-enumerator.md`](docs/design/realization-enumerator.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**

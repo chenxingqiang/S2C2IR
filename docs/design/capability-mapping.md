@@ -123,8 +123,10 @@ Cost / resource scoring of legal mappings is
 [`cost-resource-model.md`](cost-resource-model.md) (v0.1–v0.3 frozen).
 The set of legal mappings is
 [`realization-space.md`](realization-space.md) (**v0.4.0 frozen**).
-Search / Pareto over that set is [`search-pareto.md`](search-pareto.md).
-Neither layer redefines HB.
+Search / Pareto over that set is [`search-pareto.md`](search-pareto.md)
+(**v0.4.1 frozen**). Listing members inside a finite family is
+[`realization-enumerator.md`](realization-enumerator.md). These layers
+do not redefine HB.
 
 ---
 
