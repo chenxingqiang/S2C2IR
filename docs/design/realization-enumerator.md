@@ -1,15 +1,15 @@
 # Realization Enumerator (v0.4.2)
 
-Status: **design**. Finite, provably complete listing of candidates
-already in frozen `R`. Does not pick `M*`, rewrite `P`, place
-residencies, or change Cost / HB / `π`. v0.4.0–v0.4.1 and Cost
+Status: **v0.4.2 frozen**. Finite, provably complete listing of
+candidates already in frozen `R`. Does not pick `M*`, rewrite `P`,
+place residencies, or change Cost / HB / `π`. v0.4.0–v0.4.1 and Cost
 v0.1–v0.3 remain frozen.
 
 ```text
 v0.4.0  R(P, D)                                FROZEN
 v0.4.1  ArgMin / Pareto over R                 FROZEN
-v0.4.2  Realization Enumerator                 this document
-v0.4.3+ heuristic searcher / placement         later
+v0.4.2  Realization Enumerator                 FROZEN (this document)
+v0.4.3+ listing pass / heuristic searcher      later
 ```
 
 ```text

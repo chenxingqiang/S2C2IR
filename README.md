@@ -55,7 +55,9 @@ Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
 (`HB_M = HB_source`). Hardware capability mapping verifies legal
 realizations; `--s2c2-cost` scores them against a device table and must
-not redefine `→HB`. Search / Pareto may only select among `R`.
+not redefine `→HB`. Search / Pareto may only select among `R`. A
+Realization Enumerator may only list `R ∩ F` for a declared finite
+family `F`; it is not a heuristic searcher.
 
 ## Requirements
 

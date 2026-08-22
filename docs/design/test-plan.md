@@ -197,7 +197,7 @@ v0.1 and v0.2 stay frozen. Design:
 
 ## Realization Enumerator (v0.4.2)
 
-Design only. Completeness is `R ∩ F`, not `R`. Design:
+**Frozen.** Completeness is `R ∩ F`, not `R`. Design:
 [`realization-enumerator.md`](realization-enumerator.md).
 
 | ID | File | Checks |

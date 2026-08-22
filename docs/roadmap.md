@@ -140,7 +140,7 @@ as a decision variable. Does not change v0.1–v0.3 scores.
 
 ## Realization Enumerator (v0.4.2)
 
-Design: [`realization-enumerator.md`](design/realization-enumerator.md).
+**Frozen.** Design: [`realization-enumerator.md`](design/realization-enumerator.md).
 
 ```text
 Enum_F    = R(P, D) ∩ F
