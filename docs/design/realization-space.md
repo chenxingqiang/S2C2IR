@@ -1,14 +1,15 @@
 # Realization Space (v0.4.0)
 
-Status: **design + enumeration of already-legal mappings**. Does not
+Status: **v0.4.0 frozen**. Set of already-legal mappings. Does not
 search, place, or rewrite. Does not redefine Token / Concurrent /
 Pipeline. Cost v0.1–v0.3 remain frozen. Membership is **HB equality**,
-not HB refinement.
+not HB refinement. Search / Pareto is
+[`search-pareto.md`](search-pareto.md).
 
 ```text
 v0.3  CanonicalRealizationCost(P, D, HB, π)    FROZEN
-v0.4.0  R(P, D) = legal realization set        this document
-v0.4+   Search / Pareto over R                 later
+v0.4.0  R(P, D) = legal realization set        FROZEN (this document)
+v0.4.1  Search / Pareto over R                 defined in search-pareto.md
 ```
 
 ```text
@@ -41,10 +42,11 @@ M ∈ R(P, D)
        ↓
 Cost(M)
        ↓
-argmin_{M ∈ R} Cost                        later Search
+argmin_{M ∈ R} Cost                        search-pareto.md
 ```
 
-v0.4.0 only defines the set. It must not pick `M*`.
+v0.4.0 only defines the set. Picking `M*` is
+[`search-pareto.md`](search-pareto.md).
 
 ---
 
@@ -183,7 +185,7 @@ Same P
 No pass here enumerates `R` automatically.
 
 ```text
-M* = argmin_{M ∈ R(P, D)} Cost(M)          later, not this document
+M* = argmin_{M ∈ R(P, D)} Cost(M)          search-pareto.md
 ```
 
 ---

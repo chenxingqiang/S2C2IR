@@ -116,7 +116,7 @@ v0.1 is **frozen**. HB-aware pair credit is
 
 ## Realization Space (v0.4.0)
 
-Design: [`realization-space.md`](design/realization-space.md).
+**Frozen.** Design: [`realization-space.md`](design/realization-space.md).
 
 ```text
 R(P, D) = { M | IsLegal(P, D, M) ∧ HB_M = HB_source }
@@ -124,8 +124,19 @@ R(P, D) = { M | IsLegal(P, D, M) ∧ HB_M = HB_source }
 
 Membership is HB equality, not refinement. Lowering may still use
 `HB_source ⊆ HB_impl` as implementation correctness; that `⊆` is not
-`R` membership. Enumerates legal mappings (`sched`, `spaceMap`,
-`device`). Does not `argmin`. Search / Pareto over `R` is later.
+`R` membership.
+
+## Search / Pareto (v0.4.1)
+
+Design: [`search-pareto.md`](design/search-pareto.md).
+
+```text
+M* ∈ argmin_{M ∈ R(P, D)} Score_3(M).total
+Pareto(R) over (T_HB, C_contention, C_capacity)
+```
+
+Selects among frozen `R`. Does not rewrite `P`, add HB, or treat `π`
+as a decision variable. Does not change v0.1–v0.3 scores.
 
 ## Phase 2C — Compute frontend (optional)
 
