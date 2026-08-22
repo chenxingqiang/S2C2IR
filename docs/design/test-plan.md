@@ -242,3 +242,20 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | A4 | same DTEST | `D_test={cpu,gpu}`: `argmin count=2`, both gpu-async |
 | A5 | same IR | module still has `sched.concurrent` |
 | A6 | same CP | `--s2c2-cost-cp` gpu total still 128 |
+
+## Search Space / Neighbor / Legality (v0.4.5)
+
+**Design.** No algorithm pass. Design:
+[`search-space.md`](search-space.md). `Neighbor` generates in `F`;
+`LegalNeighbor` accepts only `R ∩ F`.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| K1 | design claim | Search Space `X = Enum_F`, not `F` or all of `R` |
+| K2 | design claim | `M' ∈ Neighbor(M) ⇏ M' ∈ R` |
+| K3 | design claim | `LegalNeighbor = Neighbor ∩ Enum_F`; Accept ⇒ `R` |
+| K4 | A1–A3 | `ArgMin_F` is batch optimization on `X` with implicit `N_all` |
+| K5 | design claim | `N_1` Hamming-1 on `F_0` has size 6 |
+| K6 | N9 / A2 | illegal neighbors discarded, not scored into `ArgMin_F` |
+| K7 | S3 / N4 | Concurrent → Pipeline ∉ `LegalNeighbor` |
+| K8 | design claim | no `--s2c2-search`; `π` is not a Neighbor axis |

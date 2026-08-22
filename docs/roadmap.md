@@ -153,7 +153,10 @@ Pareto_F  = Pareto(Enum_F)
 (`Output = R ∩ F` via `isLegalRealization`). `--s2c2-argmin`
 (**v0.4.4 frozen**) prints set-valued `ArgMin_F` / `Pareto_F` over
 `Enum_F`. Does not pick a unique `M*`, rewrite `P`, or generate new
-space maps. Heuristic searcher and placement remain later.
+space maps. Search Space / `Neighbor` / `LegalNeighbor`
+(**v0.4.5**, [`search-space.md`](design/search-space.md)) are the
+next design objects; a search algorithm is later. `Neighbor`
+generates in `F` and does not imply `R`.
 
 ## Phase 2C — Compute frontend (optional)
 

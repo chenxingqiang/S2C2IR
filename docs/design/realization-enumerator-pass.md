@@ -25,4 +25,5 @@ not `|F|`.
 
 Does **not** print Score_3, ArgMin, Pareto, or `π`.
 `--s2c2-argmin` (**v0.4.4 frozen**) lists `ArgMin_F` / `Pareto_F`
-over this set.
+over this set. Search Space / `Neighbor` are
+[`search-space.md`](search-space.md) (v0.4.5).

@@ -50,7 +50,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/realization-space.md`](docs/design/realization-space.md),
 [`docs/design/search-pareto.md`](docs/design/search-pareto.md),
 [`docs/design/realization-enumerator.md`](docs/design/realization-enumerator.md),
-[`docs/design/realization-argmin-pass.md`](docs/design/realization-argmin-pass.md)
+[`docs/design/realization-argmin-pass.md`](docs/design/realization-argmin-pass.md),
+[`docs/design/search-space.md`](docs/design/search-space.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
@@ -59,8 +60,9 @@ realizations; `--s2c2-cost` scores them against a device table and must
 not redefine `→HB`. Search / Pareto may only select among `R`. A
 Realization Enumerator (**v0.4.2 frozen**) may only list `R ∩ F` for a
 declared finite family `F`; `--s2c2-enumerate` prints that set.
-`--s2c2-argmin` prints set-valued `ArgMin_F` / `Pareto_F` over it. It is
-not a heuristic searcher.
+`--s2c2-argmin` prints set-valued `ArgMin_F` / `Pareto_F` over it.
+Search Space / `Neighbor` (v0.4.5) generate candidates in `F` and
+accept only `R ∩ F`. It is not a heuristic searcher.
 
 ## Requirements
 
