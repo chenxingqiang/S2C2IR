@@ -125,8 +125,8 @@ The set of legal mappings is
 [`realization-space.md`](realization-space.md) (**v0.4.0 frozen**).
 Search / Pareto over that set is [`search-pareto.md`](search-pareto.md)
 (**v0.4.1 frozen**). Listing members inside a finite family is
-[`realization-enumerator.md`](realization-enumerator.md). These layers
-do not redefine HB.
+[`realization-enumerator.md`](realization-enumerator.md)
+(**v0.4.2 frozen**). These layers do not redefine HB.
 
 ---
 
