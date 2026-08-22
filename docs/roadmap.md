@@ -108,6 +108,9 @@ Cost = C_compute + C_storage + C_communication + C_synchronization − C_overlap
 Scores semantic IR against a device capability table (`--s2c2-cost`).
 Does not search, place, or redefine Token / Concurrent / Pipeline.
 `C_overlap` requires unordered siblings **and** `canOverlap`.
+v0.1 is **frozen**. HB-aware scoring is
+[`cost-resource-model-v02.md`](design/cost-resource-model-v02.md)
+(`--s2c2-cost-hb`): still score-only, not search.
 
 ## Phase 2C — Compute frontend (optional)
 

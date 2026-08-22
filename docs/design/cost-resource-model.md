@@ -1,7 +1,9 @@
 # Cost / Resource Model (v0.1)
 
-Status: **design + score-only analysis**. Does **not** change Phase 2B
-execution semantics and does not pick a lowering. Prerequisite:
+Status: **v0.1 frozen**. Score-only syntax-construct heuristic. Do not
+tighten this layer with HB-aware overlap or a resource-pair matrix;
+that is [`cost-resource-model-v02.md`](cost-resource-model-v02.md).
+Does **not** change Phase 2B execution semantics. Prerequisite:
 
 [`capability-mapping.md`](capability-mapping.md) (legal realizations),
 [`execution-semantics.md`](execution-semantics.md) (frozen HB).
@@ -19,7 +21,7 @@ Cost        =  score of (S²C² IR, device capability)
 ```
 
 v0.1 **scores**; it does not search, place, or rewrite. Auto-scheduling
-and backend specialization are later.
+and backend specialization are later. HB-aware scoring is v0.2.
 
 ---
 

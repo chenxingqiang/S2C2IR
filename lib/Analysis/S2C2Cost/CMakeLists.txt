@@ -1,5 +1,6 @@
 add_mlir_library(S2C2Cost
   S2C2Cost.cpp
+  S2C2CostHB.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/s2c2
