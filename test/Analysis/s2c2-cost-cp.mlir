@@ -165,4 +165,41 @@ module {
     }
     return
   }
+
+  // C9: reverse-looking SW + unordered IO. Canonical HB-topo orientation
+  // must keep G_full a DAG. Does not claim pairwise IR-order would cycle.
+  // T2 is defined first (SSA); T0 waits T2; T1 is a third IO with no wait.
+  // CPU: s2c2-cost-cp device=cpu func=c9_reverse_hb_io critical_path=161 contention=31 capacity=192 total=384
+  // GPU: s2c2-cost-cp device=gpu func=c9_reverse_hb_io critical_path=161 contention=31 capacity=192 total=384
+  func.func @c9_reverse_hb_io(%t: tensor<8xf32>) {
+    %oa = stor.object : !stor.object<tensor<8xf32>>
+    %ob = stor.object : !stor.object<tensor<8xf32>>
+    %oc = stor.object : !stor.object<tensor<8xf32>>
+    %a_ssd = stor.materialize %oa : !stor.object<tensor<8xf32>> -> !stor.buffer<tensor<8xf32>, ssd>
+    %a_hbm = stor.materialize %oa : !stor.object<tensor<8xf32>> -> !stor.buffer<tensor<8xf32>, hbm>
+    %b_ssd = stor.materialize %ob : !stor.object<tensor<8xf32>> -> !stor.buffer<tensor<8xf32>, ssd>
+    %b_hbm = stor.materialize %ob : !stor.object<tensor<8xf32>> -> !stor.buffer<tensor<8xf32>, hbm>
+    %c_ssd = stor.materialize %oc : !stor.object<tensor<8xf32>> -> !stor.buffer<tensor<8xf32>, ssd>
+    %c_hbm = stor.materialize %oc : !stor.object<tensor<8xf32>> -> !stor.buffer<tensor<8xf32>, hbm>
+    stor.pack %t into %a_ssd : tensor<8xf32>, !stor.buffer<tensor<8xf32>, ssd>
+    stor.pack %t into %b_ssd : tensor<8xf32>, !stor.buffer<tensor<8xf32>, ssd>
+    stor.pack %t into %c_ssd : tensor<8xf32>, !stor.buffer<tensor<8xf32>, ssd>
+    sched.concurrent {
+      %t2 = sched.task {
+        %e2 = comm.stream %c_ssd, %c_hbm : !stor.buffer<tensor<8xf32>, ssd>, !stor.buffer<tensor<8xf32>, hbm> -> !sched.token
+        sched.yield
+      }
+      %t1 = sched.task {
+        %e1 = comm.stream %b_ssd, %b_hbm : !stor.buffer<tensor<8xf32>, ssd>, !stor.buffer<tensor<8xf32>, hbm> -> !sched.token
+        sched.yield
+      }
+      %t0 = sched.task {
+        sched.wait %t2 : !sched.token
+        %e0 = comm.stream %a_ssd, %a_hbm : !stor.buffer<tensor<8xf32>, ssd>, !stor.buffer<tensor<8xf32>, hbm> -> !sched.token
+        sched.yield
+      }
+      sched.yield
+    }
+    return
+  }
 }

@@ -1,13 +1,13 @@
 # Cost Model v0.3: critical-path resource cost
 
-Status: **design + score-only analysis**. Does not search, place, or
-rewrite. Does not redefine Token / Concurrent / Pipeline. v0.1 and v0.2
-remain frozen.
+Status: **v0.3 frozen**. Score-only CanonicalRealizationCost. Does not
+search, place, or rewrite. Does not redefine Token / Concurrent /
+Pipeline. v0.1 and v0.2 remain frozen.
 
 ```text
 v0.1  Cost(IR, Device)                         syntax heuristic          FROZEN
 v0.2  Cost(S²C², Hardware, HB, Mapping)        pair credit − overlap     FROZEN
-v0.3  CriticalPath(HB) + Contention + Capacity this document
+v0.3  CanonicalRealizationCost                 FROZEN (this document)
 v0.4+ search / placement / auto-scheduling     later
 ```
 
@@ -102,16 +102,30 @@ HB walk is the same as `--check-s2c2-execution` / `--s2c2-cost-hb`:
 ## 3. Constraint graphs
 
 ```text
-G_HB        = frozen HB edges
-G_conflict  = for work items A, B (compute/move leaves):
-                A ↛HB B ∧ B ↛HB A
-                ∧ ¬OverlapCapability(kind(A), kind(B))
-              add a score-only edge earlier → later in IR walk order
-G           = G_HB ∪ G_conflict
+G_HB     = frozen HB edges     (must be a DAG)
+π        = CanonicalTopo(G_HB; IR-rank tie-break)
+           A →HB B  ⇒  π(A) < π(B)
+G_conflict:
+    A ↛HB B ∧ B ↛HB A
+    ∧ ¬OverlapCapability(kind(A), kind(B))
+    ∧ π(A) < π(B)
+        ⇒  add score-only edge A → B
+G_full   = (V, E_HB ∪ E_conflict)     (still a DAG)
 ```
 
-IR order is a **canonical serialization** for incompatible unordered
-pairs. It is not placement search and does not pick a better order.
+`π` is **CanonicalRealizationCost**, not OptimalScheduleCost. IR rank
+is only the tie-break among HB-ready nodes (Kahn). Pairwise IR order
+is **not assumed** to be an HB-consistent linear extension.
+Canonical topological ordering makes that property explicit and
+guarantees that added conflict edges preserve DAG-ness.
+
+Current S²C² SSA (PO / SW dominance / StageOrder) may already make
+`G_HB` compatible with lexical IR order. That is **not proven** here,
+so the pass does not rely on it. C9 does **not** claim the old
+pairwise IR-order rule would cycle; it only checks that the canonical
+orientation stays a DAG under reverse-looking SW plus unordered IO.
+
+A cyclic `G_HB` or `G_full` is a pass failure, not a silent score.
 
 ```text
 T_HB   = longest path of durations on G_HB
@@ -153,7 +167,7 @@ This cut implements path length now, and records the rest:
 | ----- | ------ |
 | Frozen HB | used as `G_HB` |
 | Critical path | `T_HB` / `T_full` |
-| Communication contention | pairwise `G_conflict` (IR order) |
+| Communication contention | `G_conflict` along `π` |
 | Storage capacity | `C_capacity = C_storage` |
 | Task duration | **leaf ticks**; not aggregated per `sched.task` |
 | Resource counts / queues | recorded, coefficient 0 |
@@ -211,3 +225,4 @@ IREE / StableHLO / MPI
 | C6 | two IO streams: GPU `contention>0` (IO∥IO serializes) |
 | C7 | two sibling `{compute; IO}` chains: v0.2 pair credit is optimistic vs `T_full` |
 | C8 | Compute∥DMA∥IO: v0.2 lumps DMA+IO as one comm pool; `T_HB = max` of three |
+| C9 | reverse-looking SW + unordered IO: canonical orientation keeps `G_full` a DAG |

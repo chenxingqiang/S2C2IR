@@ -164,3 +164,4 @@ v0.1 and v0.2 stay frozen. Design:
 | C6 | same | two IO streams: GPU contention>0 |
 | C7 | same | sibling `{compute; IO}` chains: v0.2 total is optimistic |
 | C8 | same | Compute∥DMA∥IO: T_HB is max of three kinds |
+| C9 | same | reverse-looking SW + unordered IO: canonical orientation keeps G_full a DAG |
