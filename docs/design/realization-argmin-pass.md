@@ -27,3 +27,6 @@ ArgMin is a **set**. Ties stay ties. `total` is not a fourth Pareto
 objective. This is not a heuristic searcher and not Placement.
 
 Does **not** print `π`, `winner=`, or a collapsed unique `M*`.
+This pass is batch optimization on `X = Enum_F` with implicit
+`N_all`. Search Space / `Neighbor` / `LegalNeighbor` are
+[`search-space.md`](search-space.md) (v0.4.5), not this pass.
