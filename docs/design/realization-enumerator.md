@@ -17,6 +17,7 @@ Enumerator ≠ Searcher
 Enumerator ≠ ArgMin
 Enumerator ≠ Rewrite
 Enumerator ≠ Placement
+ArgMin_F ≠ ArgMin_R ∩ F                    in general
 π ∉ enumerated tuple
 HB_M = HB_source
 ```
