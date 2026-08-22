@@ -102,16 +102,23 @@ HB walk is the same as `--check-s2c2-execution` / `--s2c2-cost-hb`:
 ## 3. Constraint graphs
 
 ```text
-G_HB        = frozen HB edges
-G_conflict  = for work items A, B (compute/move leaves):
-                A ↛HB B ∧ B ↛HB A
-                ∧ ¬OverlapCapability(kind(A), kind(B))
-              add a score-only edge earlier → later in IR walk order
-G           = G_HB ∪ G_conflict
+G_HB     = frozen HB edges     (must be a DAG)
+π        = CanonicalTopo(G_HB; IR-rank tie-break)
+           A →HB B  ⇒  π(A) < π(B)
+G_conflict:
+    A ↛HB B ∧ B ↛HB A
+    ∧ ¬OverlapCapability(kind(A), kind(B))
+    ∧ π(A) < π(B)
+        ⇒  add score-only edge A → B
+G_full   = (V, E_HB ∪ E_conflict)     (still a DAG)
 ```
 
-IR order is a **canonical serialization** for incompatible unordered
-pairs. It is not placement search and does not pick a better order.
+`π` is **CanonicalRealizationCost**, not OptimalScheduleCost. IR rank
+is only the tie-break among HB-ready nodes (Kahn). Pairwise “earlier
+IR → later IR” is **not** used: that need not be an HB-consistent
+linear extension and can cycle when mixed with reverse-looking SW.
+
+A cyclic `G_HB` or `G_full` is a pass failure, not a silent score.
 
 ```text
 T_HB   = longest path of durations on G_HB
@@ -211,3 +218,4 @@ IREE / StableHLO / MPI
 | C6 | two IO streams: GPU `contention>0` (IO∥IO serializes) |
 | C7 | two sibling `{compute; IO}` chains: v0.2 pair credit is optimistic vs `T_full` |
 | C8 | Compute∥DMA∥IO: v0.2 lumps DMA+IO as one comm pool; `T_HB = max` of three |
+| C9 | reverse-looking wait vs two other IO leaves: `G_full` stays a DAG |

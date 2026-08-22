@@ -6,7 +6,8 @@
 //
 // Score-only. Does not rewrite IR or redefine happens-before.
 // Cost = T_HB + (T_full - T_HB) + C_capacity.
-// Conflict edges are IR-order serializations, not a schedule search.
+// Conflict edges follow an HB-consistent canonical topological order
+// (IR rank is only a tie-break). That keeps G_full a DAG. Not a search.
 // Does not change --s2c2-cost or --s2c2-cost-hb.
 //
 //===----------------------------------------------------------------------===//
@@ -26,7 +27,6 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
-#include <functional>
 
 namespace mlir::s2c2 {
 #define GEN_PASS_DEF_S2C2COSTCP
@@ -66,7 +66,6 @@ struct DeviceProfile {
 struct WorkItem {
   Operation *op = nullptr;
   ResKind kind = ResKind::None;
-  unsigned rank = 0;
 };
 
 struct HBGraph {
@@ -234,45 +233,103 @@ static bool isDmaEngine(StreamOp stream) {
   return stream.getEngine() == Engine::DMA;
 }
 
-static int64_t longestPath(
+static void collectGraphNodes(
     const llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> &succ,
-    const llvm::DenseMap<Operation *, int64_t> &dur) {
-  llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> pred;
-  SmallPtrSet<Operation *, 32> nodes;
+    const llvm::DenseMap<Operation *, int64_t> &dur,
+    SmallPtrSetImpl<Operation *> &nodes) {
   for (const auto &kv : dur) {
     if (kv.second > 0)
       nodes.insert(kv.first);
   }
   for (const auto &kv : succ) {
     nodes.insert(kv.first);
-    for (Operation *n : kv.second) {
+    for (Operation *n : kv.second)
       nodes.insert(n);
-      pred[n].push_back(kv.first);
-    }
   }
-  llvm::DenseMap<Operation *, int64_t> memo;
-  SmallPtrSet<Operation *, 16> stack;
-  std::function<int64_t(Operation *)> rec = [&](Operation *v) -> int64_t {
-    auto it = memo.find(v);
-    if (it != memo.end())
-      return it->second;
-    if (!stack.insert(v).second)
-      return dur.lookup(v);
+}
+
+/// HB-consistent order: Kahn, always emit the ready node with smallest IR
+/// rank. Tie-break only; not a schedule search.
+static bool canonicalTopoRank(
+    const llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> &succ,
+    const llvm::DenseMap<Operation *, unsigned> &irRank,
+    const SmallPtrSetImpl<Operation *> &nodes,
+    llvm::DenseMap<Operation *, unsigned> &topo) {
+  llvm::DenseMap<Operation *, unsigned> indeg;
+  for (Operation *n : nodes)
+    indeg[n] = 0;
+  for (const auto &kv : succ) {
+    if (!nodes.contains(kv.first))
+      continue;
+    for (Operation *n : kv.second)
+      if (nodes.contains(n))
+        indeg[n] += 1;
+  }
+  auto pickReady = [&]() -> Operation * {
+    Operation *best = nullptr;
+    unsigned bestIr = ~0u;
+    for (Operation *n : nodes) {
+      if (indeg.lookup(n) != 0 || topo.count(n))
+        continue;
+      unsigned ir = irRank.lookup(n);
+      if (!best || ir < bestIr) {
+        best = n;
+        bestIr = ir;
+      }
+    }
+    return best;
+  };
+  unsigned next = 0;
+  while (Operation *u = pickReady()) {
+    topo[u] = next++;
+    auto it = succ.find(u);
+    if (it == succ.end())
+      continue;
+    for (Operation *n : it->second)
+      if (nodes.contains(n) && indeg[n] > 0)
+        indeg[n] -= 1;
+  }
+  return topo.size() == nodes.size();
+}
+
+static bool longestPath(
+    const llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> &succ,
+    const llvm::DenseMap<Operation *, int64_t> &dur, int64_t &out) {
+  SmallPtrSet<Operation *, 32> nodes;
+  collectGraphNodes(succ, dur, nodes);
+  llvm::DenseMap<Operation *, unsigned> dummyIr;
+  unsigned i = 0;
+  for (Operation *n : nodes)
+    dummyIr[n] = i++;
+  llvm::DenseMap<Operation *, unsigned> topo;
+  if (!canonicalTopoRank(succ, dummyIr, nodes, topo))
+    return false;
+
+  llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> pred;
+  for (const auto &kv : succ)
+    for (Operation *n : kv.second)
+      pred[n].push_back(kv.first);
+
+  SmallVector<Operation *, 32> order(nodes.size());
+  for (Operation *n : nodes)
+    order[topo.lookup(n)] = n;
+
+  llvm::DenseMap<Operation *, int64_t> dp;
+  int64_t best = 0;
+  for (Operation *v : order) {
     int64_t bestIn = 0;
     auto pit = pred.find(v);
     if (pit != pred.end()) {
       for (Operation *p : pit->second)
-        bestIn = std::max(bestIn, rec(p));
+        if (nodes.contains(p))
+          bestIn = std::max(bestIn, dp.lookup(p));
     }
-    stack.erase(v);
     int64_t val = dur.lookup(v) + bestIn;
-    memo[v] = val;
-    return val;
-  };
-  int64_t best = 0;
-  for (Operation *n : nodes)
-    best = std::max(best, rec(n));
-  return best;
+    dp[v] = val;
+    best = std::max(best, val);
+  }
+  out = best;
+  return true;
 }
 
 struct S2C2CostCP : impl::S2C2CostCPBase<S2C2CostCP> {
@@ -291,7 +348,7 @@ struct S2C2CostCP : impl::S2C2CostCPBase<S2C2CostCP> {
   void buildHB(func::FuncOp func);
   void scoreLeaf(Operation *op);
   void collectLeaves(Operation *root);
-  int64_t scoreFunc(func::FuncOp func);
+  LogicalResult scoreFunc(func::FuncOp func);
 
   void runOnOperation() override;
 };
@@ -439,26 +496,37 @@ void S2C2CostCP::collectLeaves(Operation *root) {
   });
 }
 
-int64_t S2C2CostCP::scoreFunc(func::FuncOp func) {
+LogicalResult S2C2CostCP::scoreFunc(func::FuncOp func) {
   duration.clear();
   kindOf.clear();
   capacity = 0;
   buildHB(func);
   collectLeaves(func);
 
+  llvm::DenseMap<Operation *, unsigned> irRank;
+  unsigned walk = 0;
+  func.walk([&](Operation *op) { irRank[op] = walk++; });
+
+  SmallPtrSet<Operation *, 32> hbNodes;
+  collectGraphNodes(hb.succ, duration, hbNodes);
+  llvm::DenseMap<Operation *, unsigned> hbTopo;
+  if (!canonicalTopoRank(hb.succ, irRank, hbNodes, hbTopo)) {
+    func.emitError("happens-before graph is cyclic; cannot score");
+    return failure();
+  }
+
   SmallVector<WorkItem> items;
-  unsigned rank = 0;
   func.walk([&](Operation *op) {
     auto it = kindOf.find(op);
     if (it == kindOf.end())
       return;
-    items.push_back(WorkItem{op, it->second, rank++});
+    items.push_back(WorkItem{op, it->second});
   });
 
   HBGraph full = hb;
   for (const WorkItem &a : items) {
     for (const WorkItem &b : items) {
-      if (a.rank >= b.rank)
+      if (a.op == b.op)
         continue;
       if (hb.reaches(a.op, b.op) || hb.reaches(b.op, a.op))
         continue;
@@ -466,12 +534,20 @@ int64_t S2C2CostCP::scoreFunc(func::FuncOp func) {
       unsigned j = static_cast<unsigned>(b.kind);
       if (i < 4 && j < 4 && dev->pairCap[i][j])
         continue;
-      full.addEdge(a.op, b.op);
+      unsigned ra = hbTopo.lookup(a.op);
+      unsigned rb = hbTopo.lookup(b.op);
+      if (ra < rb)
+        full.addEdge(a.op, b.op);
     }
   }
 
-  int64_t tHB = longestPath(hb.succ, duration);
-  int64_t tFull = longestPath(full.succ, duration);
+  int64_t tHB = 0;
+  int64_t tFull = 0;
+  if (!longestPath(hb.succ, duration, tHB) ||
+      !longestPath(full.succ, duration, tFull)) {
+    func.emitError("cost constraint graph is cyclic; not a DAG longest path");
+    return failure();
+  }
   int64_t contention = tFull - tHB;
   if (contention < 0)
     contention = 0;
@@ -480,7 +556,7 @@ int64_t S2C2CostCP::scoreFunc(func::FuncOp func) {
                << " func=" << func.getName() << " critical_path=" << tHB
                << " contention=" << contention << " capacity=" << capacity
                << " total=" << total << "\n";
-  return total;
+  return success();
 }
 
 void S2C2CostCP::runOnOperation() {
@@ -494,7 +570,10 @@ void S2C2CostCP::runOnOperation() {
   for (auto func : getOperation().getOps<func::FuncOp>()) {
     if (func.getBody().empty())
       continue;
-    scoreFunc(func);
+    if (failed(scoreFunc(func))) {
+      signalPassFailure();
+      return;
+    }
   }
 }
 } // namespace
