@@ -205,7 +205,25 @@ def S2C2Cost : Pass<"s2c2-cost", "::mlir::ModuleOp"> {
     `canOverlap`. Pipeline stages stay sequential (StageOrder).
 
     Device profiles (`cpu`, `gpu`, `npu`, `cim`) are capability tables,
-    not CUDA / NPU ISAs.
+    not CUDA / NPU ISAs. Frozen v0.1; HB-aware scoring is
+    `--s2c2-cost-hb`.
+  }];
+  let options = [
+    Option<"device", "device", "std::string", /*default=*/"\"cpu\"",
+           "Capability profile: cpu, gpu, npu, or cim">
+  ];
+}
+
+def S2C2CostHB : Pass<"s2c2-cost-hb", "::mlir::ModuleOp"> {
+  let summary = "HB-aware cost score (Cost Model v0.2)";
+  let description = [{
+    Score-only. Does not rewrite IR and does not redefine happens-before.
+
+    Overlap credit requires OverlapCandidate(A, B):
+      A ↛HB B ∧ B ↛HB A
+      and OverlapCapability(kind(A), kind(B)).
+
+    Does not change `--s2c2-cost` (v0.1 syntax heuristic).
   }];
   let options = [
     Option<"device", "device", "std::string", /*default=*/"\"cpu\"",

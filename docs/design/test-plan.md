@@ -135,3 +135,17 @@ Score-only. Design: [`cost-resource-model.md`](cost-resource-model.md).
 | K2 | same | sequential IR: `overlap=0` on CPU and GPU |
 | K3 | same | pipeline stages: GPU `overlap=0` (StageOrder ≠ overlap) |
 | K4 | same | `sched.wait` counts in `synchronization` |
+
+## Cost Model v0.2 (HB-aware)
+
+v0.1 stays frozen. Design:
+[`cost-resource-model-v02.md`](cost-resource-model-v02.md).
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| H1 | `test/Analysis/s2c2-cost-hb.mlir` | Compute∥IO, no HB: GPU overlap > 0 |
+| H2 | same | sequential: overlap=0 |
+| H3 | same | pipeline: GPU overlap=0 |
+| H5 | same | wait sibling: GPU overlap=0 (HB removes the pair) |
+| H5′ | same `--s2c2-cost` | frozen v0.1 still credits GPU overlap on that wait sibling |
+| H6 | same | two IO streams: GPU overlap=0 (IO∥IO = 0) |
