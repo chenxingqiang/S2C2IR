@@ -4,12 +4,12 @@ Status: **v0.4.0 frozen**. Set of already-legal mappings. Does not
 search, place, or rewrite. Does not redefine Token / Concurrent /
 Pipeline. Cost v0.1–v0.3 remain frozen. Membership is **HB equality**,
 not HB refinement. Search / Pareto is
-[`search-pareto.md`](search-pareto.md).
+[`search-pareto.md`](search-pareto.md) (**v0.4.1 frozen**).
 
 ```text
 v0.3  CanonicalRealizationCost(P, D, HB, π)    FROZEN
 v0.4.0  R(P, D) = legal realization set        FROZEN (this document)
-v0.4.1  Search / Pareto over R                 defined in search-pareto.md
+v0.4.1  Search / Pareto over R                 FROZEN in search-pareto.md
 ```
 
 ```text

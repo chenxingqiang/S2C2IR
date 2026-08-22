@@ -128,10 +128,10 @@ Membership is HB equality, not refinement. Lowering may still use
 
 ## Search / Pareto (v0.4.1)
 
-Design: [`search-pareto.md`](design/search-pareto.md).
+**Frozen.** Design: [`search-pareto.md`](design/search-pareto.md).
 
 ```text
-M* ∈ argmin_{M ∈ R(P, D)} Score_3(M).total
+ArgMin(P, D) = argmin_{M ∈ R(P, D)} Score_3(M).total   ⊆ R(P, D)
 Pareto(R) over (T_HB, C_contention, C_capacity)
 ```
 

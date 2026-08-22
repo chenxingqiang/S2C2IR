@@ -1,12 +1,13 @@
 # Search / Pareto over R (v0.4.1)
 
-Status: **design**. Selects among already-legal realizations. Does not
-rewrite IR, place residencies, or redefine Token / Concurrent /
-Pipeline. Realization Space v0.4.0 and Cost v0.1–v0.3 remain frozen.
+Status: **v0.4.1 frozen**. Selects among already-legal realizations.
+Does not rewrite IR, place residencies, or redefine Token /
+Concurrent / Pipeline. Realization Space v0.4.0 and Cost v0.1–v0.3
+remain frozen.
 
 ```text
 v0.4.0  R(P, D)                                FROZEN
-v0.4.1  Search / Pareto over R                 this document
+v0.4.1  Search / Pareto over R                 FROZEN (this document)
 v0.4.2+ placement / IR rewrite / new Cost      later
 ```
 
@@ -89,12 +90,14 @@ No new weights, durations, queues, or device tables.
 ### Scalar search
 
 ```text
-M* ∈ argmin_{M ∈ R(P, D)} Score_3(M).total
+ArgMin(P, D) = argmin_{M ∈ R(P, D)} Score_3(M).total
+ArgMin(P, D) ⊆ R(P, D)
 ```
 
-If several `M` share the same total, all of them are minima. Do not
-break the tie by adding HB, inventing a lexical IR rule, or changing
-`π`.
+`ArgMin` is a **set**. If several `M` share the same total, all of
+them are minima. Do not break the tie by adding HB, inventing a
+lexical IR rule, or changing `π`. `M*` denotes any member of
+`ArgMin(P, D)`.
 
 ### Pareto search
 
@@ -152,8 +155,8 @@ Reuse existing scores. No new Cost pass.
 
 | ID | Claim |
 | -- | ----- |
-| S1 | R4 / C1: `Score_3(gpu).total=128 < Score_3(cpu).total=136` ⇒ `M*_total` has `device=gpu` |
-| S2 | C6 / C9: cpu and gpu totals equal ⇒ both are scalar minima |
+| S1 | R4 / C1 with `D_test={cpu,gpu}`: `Score_3(gpu).total=128 < Score_3(cpu).total=136` ⇒ every scalar minimum in `R_test` uses `device=gpu` |
+| S2 | C6 / C9 with `D_test={cpu,gpu}`: equal totals ⇒ both are scalar minima of `R_test` |
 | S3 | Concurrent → Pipeline is not in the search domain (`∉ R`) |
 | S4 | `π` is not enumerated; C9 still uses canonical topo |
 | S5 | GPU weakly dominates CPU on C1's `Cost⃗` (same `T_HB` / capacity, less contention); that is a device-table fact, not a semantic law |

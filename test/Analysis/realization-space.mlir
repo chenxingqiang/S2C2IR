@@ -9,7 +9,8 @@
 // R4: Score_3(cpu) != Score_3(gpu) on HB-unordered Compute || IO.
 // R5 (design): rewriting this Concurrent as Pipeline would add StageOrder,
 // so HB_candidate != HB_source and that candidate is not in R.
-// S1 (design): argmin_M Score_3.total over {cpu,gpu} is gpu (128 < 136).
+// S1 (design): D_test={cpu,gpu}; Score_3(gpu)=128 < Score_3(cpu)=136
+// so every scalar minimum in R_test uses device=gpu. Not a claim over {npu,cim}.
 // S3 (design): that Pipeline candidate is also outside the Search domain.
 module {
   // CPU: s2c2-cost-cp device=cpu func=r4_same_program critical_path=64 contention=8 capacity=64 total=136

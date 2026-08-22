@@ -182,13 +182,14 @@ v0.1 and v0.2 stay frozen. Design:
 
 ## Search / Pareto (v0.4.1)
 
-Design only. Reuses existing Score_3 numbers. Design:
-[`search-pareto.md`](search-pareto.md).
+**Frozen.** Design only. Reuses existing Score_3 numbers. Design:
+[`search-pareto.md`](search-pareto.md). Fixture claims S1/S2 use
+`D_test={cpu,gpu}`.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
-| S1 | `test/Analysis/realization-space.mlir` R4 | argmin total is gpu (128 < 136) |
-| S2 | `test/Analysis/s2c2-cost-cp.mlir` C6 / C9 | equal totals ⇒ both minima |
+| S1 | `test/Analysis/realization-space.mlir` R4 | `D_test={cpu,gpu}`: every scalar minimum uses gpu (128 < 136) |
+| S2 | `test/Analysis/s2c2-cost-cp.mlir` C6 / C9 | `D_test={cpu,gpu}`: equal totals ⇒ both minima |
 | S3 | design claim | Concurrent → Pipeline ∉ domain |
 | S4 | C9 | π is not a search axis |
 | S5 | C1 | GPU weakly dominates CPU on Cost⃗; device-table fact |
