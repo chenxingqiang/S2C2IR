@@ -9,6 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "s2c2/S2C2Family.h"
 #include "s2c2/S2C2Legality.h"
 #include "s2c2/S2C2Passes.h"
 
@@ -16,7 +17,6 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <tuple>
@@ -26,62 +26,18 @@ namespace mlir::s2c2 {
 #include "s2c2/S2C2Passes.h.inc"
 
 namespace {
-// F_0 declaration order. Deterministic product order, not a search rank.
-static constexpr StringRef kSchedF0[] = {"cpu-seq", "gpu-async",
-                                         "npu-staged-dma"};
-static constexpr StringRef kMapsF0[] = {"default", "t5"};
-static constexpr StringRef kDevsF0[] = {"cpu", "gpu", "npu", "cim"};
-
-static void splitCSV(StringRef csv, SmallVectorImpl<StringRef> &out) {
-  csv = csv.trim();
-  if (csv.empty())
-    return;
-  while (!csv.empty()) {
-    auto pair = csv.split(',');
-    StringRef one = pair.first.trim();
-    if (!one.empty())
-      out.push_back(one);
-    csv = pair.second;
-  }
-}
-
-static LogicalResult
-selectAxis(StringRef field, StringRef what, ArrayRef<StringRef> universe,
-           SmallVectorImpl<StringRef> &out, Operation *reporter) {
-  SmallVector<StringRef, 8> asked;
-  splitCSV(field, asked);
-  if (asked.empty()) {
-    out.append(universe.begin(), universe.end());
-    return success();
-  }
-  llvm::StringSet<> allow;
-  for (StringRef u : universe)
-    allow.insert(u);
-  for (StringRef a : asked) {
-    if (!allow.contains(a)) {
-      reporter->emitError("unknown enumerate ")
-          << what << " '" << a << "'; not in F_0";
-      return failure();
-    }
-  }
-  llvm::StringSet<> want;
-  for (StringRef a : asked)
-    want.insert(a);
-  for (StringRef u : universe)
-    if (want.contains(u))
-      out.push_back(u);
-  return success();
-}
-
 struct S2C2Enumerate : impl::S2C2EnumerateBase<S2C2Enumerate> {
   using impl::S2C2EnumerateBase<S2C2Enumerate>::S2C2EnumerateBase;
 
   void runOnOperation() override {
     SmallVector<StringRef, 4> schedF, mapF, devF;
     Operation *mod = getOperation();
-    if (failed(selectAxis(scheds, "sched", kSchedF0, schedF, mod)) ||
-        failed(selectAxis(maps, "map", kMapsF0, mapF, mod)) ||
-        failed(selectAxis(devices, "device", kDevsF0, devF, mod))) {
+    if (failed(selectFamilyAxis(scheds, "enumerate", "sched", familyF0Scheds(),
+                                schedF, mod)) ||
+        failed(selectFamilyAxis(maps, "enumerate", "map", familyF0Maps(), mapF,
+                                mod)) ||
+        failed(selectFamilyAxis(devices, "enumerate", "device",
+                                familyF0Devices(), devF, mod))) {
       signalPassFailure();
       return;
     }

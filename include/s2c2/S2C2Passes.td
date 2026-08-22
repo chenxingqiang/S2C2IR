@@ -266,6 +266,34 @@ def S2C2Enumerate : Pass<"s2c2-enumerate", "::mlir::ModuleOp"> {
   ];
 }
 
+def S2C2ArgMin : Pass<"s2c2-argmin", "::mlir::ModuleOp"> {
+  let summary = "List ArgMin_F and Pareto_F over Enum_F = R ∩ F";
+  let description = [{
+    Set-valued listing. Does not rewrite IR, pick a unique M*, or
+    redefine HB / Cost / π.
+
+      ArgMin_F  = argmin_{M ∈ Enum_F} Score_3(M).total
+      Pareto_F  = Pareto(Enum_F) over (T_HB, C_contention, C_capacity)
+
+    Enum_F is built with the shared IsLegal oracle and F_0 family
+    helpers (same flags as `--s2c2-enumerate`). Score_3 is the frozen
+    v0.3 CanonicalRealizationCost (shared `computeScore3`). Ties stay
+    ties: ArgMin is a set. `total` is not a fourth Pareto objective.
+    π is not printed.
+
+    Empty option fields use F_0. Requested labels are filtered to F_0
+    order. Because this pass does not rewrite P, HB_M = HB_source.
+  }];
+  let options = [
+    Option<"scheds", "scheds", "std::string", /*default=*/"\"\"",
+           "Comma-separated sched labels; empty = F_0">,
+    Option<"maps", "maps", "std::string", /*default=*/"\"\"",
+           "Comma-separated space-map labels; empty = F_0">,
+    Option<"devices", "devices", "std::string", /*default=*/"\"\"",
+           "Comma-separated device labels; empty = F_0">
+  ];
+}
+
 def S2C2CostCP : Pass<"s2c2-cost-cp", "::mlir::ModuleOp"> {
   let summary = "Critical-path cost score (Cost Model v0.3)";
   let description = [{
