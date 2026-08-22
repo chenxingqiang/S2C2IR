@@ -1,6 +1,6 @@
 # Algorithm object (v0.4.8)
 
-Status: **v0.4.8 design**. Freezes the search *interface*
+Status: **v0.4.8 frozen**. Freezes the search *interface*
 `A = (N, S, R, Nxt, Acc)`. Does not inhabit `A` with Hamming-1
 hill-climbing, beam, multi-start, Pareto traversal, or rewrite
 search, and does not add `--s2c2-search`. Neighbor v0.4.5, walk

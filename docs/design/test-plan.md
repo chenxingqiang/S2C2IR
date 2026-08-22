@@ -299,7 +299,7 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 
 ## Algorithm object (v0.4.8)
 
-**Design.** No inhabitant, no `--s2c2-search`. Design:
+**Frozen.** No inhabitant, no `--s2c2-search`. Design:
 [`search-algorithm.md`](search-algorithm.md).
 
 | ID | File | Checks |
