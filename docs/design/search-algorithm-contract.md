@@ -1,6 +1,6 @@
 # Search Algorithm Contract (v0.4.6)
 
-Status: **v0.4.6 design**. Contract for walking frozen
+Status: **v0.4.6 frozen**. Contract for walking frozen
 `(X, Neighbor, LegalNeighbor)`. Does not add `--s2c2-search`, does
 not pick beam / hill-climbing as *the* algorithm, and does not
 rewrite `P`. Search Space v0.4.5, ArgMin listing v0.4.4, and Cost

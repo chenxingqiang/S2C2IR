@@ -264,7 +264,7 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 
 ## Search Algorithm Contract (v0.4.6)
 
-**Design.** No `--s2c2-search`. Design:
+**Frozen.** No `--s2c2-search`. Design:
 [`search-algorithm-contract.md`](search-algorithm-contract.md).
 `--s2c2-argmin` is the Complete / `N_all` witness.
 
