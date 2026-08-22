@@ -153,7 +153,10 @@ Pareto_F  = Pareto(Enum_F)
 (`Output = R ∩ F` via `isLegalRealization`). `--s2c2-argmin`
 (**v0.4.4 frozen**) prints set-valued `ArgMin_F` / `Pareto_F` over
 `Enum_F`. Does not pick a unique `M*`, rewrite `P`, or generate new
-space maps. Heuristic searcher and placement remain later.
+space maps. **v0.4.5 frozen**
+([`search-selection.md`](design/search-selection.md)): Search is
+selection over `Enum_F`, not generation of a new `M'`. Family
+extension, rewrite, and placement remain later.
 
 ## Phase 2C — Compute frontend (optional)
 

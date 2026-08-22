@@ -27,3 +27,6 @@ ArgMin is a **set**. Ties stay ties. `total` is not a fourth Pareto
 objective. This is not a heuristic searcher and not Placement.
 
 Does **not** print `π`, `winner=`, or a collapsed unique `M*`.
+`--s2c2-argmin` **is** `Search_F(ArgMin)` / `Search_F(Pareto)`
+([`search-selection.md`](search-selection.md), v0.4.5). It does not
+generate realizations outside `Enum_F`.
