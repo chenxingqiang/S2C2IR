@@ -159,7 +159,11 @@ next design objects. The walk contract
 (**v0.4.6**, [`search-algorithm-contract.md`](design/search-algorithm-contract.md))
 names State, Generated/Accepted, termination, score cache, tie
 preservation, and next-state policy. `Neighbor` generates in `F`
-and does not imply `R`. No `--s2c2-search` yet.
+and does not imply `R`. Start / restart
+(**v0.4.7**, [`search-start-policy.md`](design/search-start-policy.md))
+name how a walk enters `X` and re-enters after `LocalStop`. No
+`--s2c2-search` yet. `StartFirst` is a witness kind, not the
+algorithm.
 
 ## Phase 2C — Compute frontend (optional)
 

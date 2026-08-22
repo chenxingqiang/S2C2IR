@@ -13,7 +13,8 @@ v0.4.3  listing pass `--s2c2-enumerate`        FROZEN in realization-enumerator-
 v0.4.4  listing `--s2c2-argmin`                FROZEN in realization-argmin-pass.md
 v0.4.5  Search Space / Neighbor / Legality     in search-space.md
 v0.4.6  Search Algorithm Contract              in search-algorithm-contract.md
-v0.4.7+ algorithm pass / rewrite generators    later
+v0.4.7  StartPolicy / RestartPolicy            in search-start-policy.md
+v0.4.8+ algorithm pass / rewrite generators    later
 ```
 
 ```text

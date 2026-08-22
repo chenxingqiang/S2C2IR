@@ -132,7 +132,8 @@ Search / Pareto over that set is [`search-pareto.md`](search-pareto.md)
 preservation are [`search-space.md`](search-space.md) (v0.4.5).
 The walk contract is
 [`search-algorithm-contract.md`](search-algorithm-contract.md)
-(v0.4.6).
+(v0.4.6). Start / restart are
+[`search-start-policy.md`](search-start-policy.md) (v0.4.7).
 These layers do not redefine HB.
 
 ---
