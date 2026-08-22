@@ -91,6 +91,15 @@ R(P, D)             semantic universe (may be larger than F)
 `π` is not a coordinate of `X`. Expanding `F` to a declared `F'`
 is family extension (v0.4.2), then `X` becomes `Enum_{F'}`.
 
+`X` is relative to a **fixed** `P`. A later rewrite generator that
+produces `P' ≠ P` must re-form `X(P', D; F)`; it does not keep the
+old `Enum_F` as its feasible set. `D` in this layer is the declared
+`Dev_F` axis, not a second hidden filter on top of `IsLegal`.
+
+A search *path* starts in `X`. `Neighbor` is still defined on every
+`M ∈ F`, including illegal coordinates, so generate-then-filter
+can name a failed flip. The walk itself does not start there.
+
 ---
 
 ## 3. Neighbor(M)
@@ -122,9 +131,15 @@ N_all(M) = F
 N_1(M)   = { M' ∈ F | d_H(M, M') = 1 }
 ```
 
+```text
+M ∈ N_all(M)
+M ∉ N_1(M)
+```
+
 `N_all` is the closed-set / enumerative neighborhood: every declared
-coordinate is a neighbor of every `M`. Batch `ArgMin_F` / `Pareto_F`
-is optimization on `X` with implicit `N_all` (no path is required).
+coordinate is a neighbor of every `M`, including `M` itself. Batch
+`ArgMin_F` / `Pareto_F` is optimization on `X` with implicit `N_all`
+(no path is required). A local step does not use the self-neighbor.
 
 `N_1` is the local *coordinate* transformation: change exactly one
 of `sched`, `spaceMap`, `device`. On `F_0`,
@@ -147,8 +162,8 @@ N_1(M) =
   (cpu-seq,        default, cim)     // legal
 ```
 
-A later algorithm may use `N_all`, `N_1`, or another
-`Neighbor_F ⊆ 𝒫(F)`. It may not silently grow `F`.
+A later algorithm may use `N_all`, `N_1`, or another function
+`N : F → 𝒫(F)`. It may not silently grow `F`.
 
 ### What Neighbor is not
 
@@ -297,3 +312,5 @@ the witnesses.
 | K6 | illegal `N_1` members are discarded, not scored into `ArgMin_F` |
 | K7 | Concurrent → Pipeline ∉ `LegalNeighbor` (S3 / N4) |
 | K8 | no algorithm pass; `π` is not a Neighbor axis |
+| K9 | `M ∈ N_all(M)` and `M ∉ N_1(M)`; a path starts in `X` |
+| K10 | rewrite `P ↦ P'` rebuilds `X(P', D; F)`; it does not keep the old `Enum_F` |
