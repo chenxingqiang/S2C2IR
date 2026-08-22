@@ -259,3 +259,5 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | K6 | N9 / A2 | illegal neighbors discarded, not scored into `ArgMin_F` |
 | K7 | S3 / N4 | Concurrent → Pipeline ∉ `LegalNeighbor` |
 | K8 | design claim | no `--s2c2-search`; `π` is not a Neighbor axis |
+| K9 | design claim | `M ∈ N_all(M)` and `M ∉ N_1(M)`; a path starts in `X` |
+| K10 | design claim | rewrite `P ↦ P'` rebuilds `X(P', D; F)` |
