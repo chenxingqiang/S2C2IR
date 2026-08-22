@@ -177,4 +177,5 @@ Does not search. Design:
 | R2 | same, async triple | gpu-async ∈ R; no sibling await |
 | R3 | same `space-map` | space-map ∈ R |
 | R4 | `test/Analysis/realization-space.mlir` | same P: Score_3(cpu)=136, Score_3(gpu)=128 |
+| R5 | design claim in `realization-space.md` | Concurrent → Pipeline ∉ R (`HB_M ≠ HB_source`) |
 | R6 | `test/Analysis/s2c2-cost-cp.mlir` C9 | π is canonical, not a search choice |

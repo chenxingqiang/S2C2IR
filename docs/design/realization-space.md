@@ -2,7 +2,8 @@
 
 Status: **design + enumeration of already-legal mappings**. Does not
 search, place, or rewrite. Does not redefine Token / Concurrent /
-Pipeline. Cost v0.1–v0.3 remain frozen.
+Pipeline. Cost v0.1–v0.3 remain frozen. Membership is **HB equality**,
+not HB refinement.
 
 ```text
 v0.3  CanonicalRealizationCost(P, D, HB, π)    FROZEN
@@ -14,7 +15,10 @@ v0.4+   Search / Pareto over R                 later
 Cost Model cannot add HB
 CanonicalRealizationCost ≠ Optimization
 π ≠ OptimalSchedule
+M ≠ π
 Hardware Capability ≠ Hardware Semantics
+HB_M = HB_source                           semantic realization
+HB_source ⊆ HB_impl                        lowering correctness
 ```
 
 ---
@@ -25,11 +29,19 @@ Frozen Cost already answers *how good is this (P, D) under canonical
 π?* It does not answer *which mappings are allowed to exist*.
 
 ```text
-IsLegal(P, D)          capability matrix (frozen)
-HB(P)                  execution semantics (frozen)
-Score_3(P, D, HB, π)   CanonicalRealizationCost (frozen)
-R(P, D)                this layer
-argmin_{M ∈ R} Cost    later Search
+Frozen Semantics
+       ↓
+HB(P)
+       ↓
+IsLegal(P, D, M)
+       ↓
+HB_M = HB(P)
+       ↓
+M ∈ R(P, D)
+       ↓
+Cost(M)
+       ↓
+argmin_{M ∈ R} Cost                        later Search
 ```
 
 v0.4.0 only defines the set. It must not pick `M*`.
@@ -52,12 +64,41 @@ M = (sched, spaceMap, device)
 | `device` | cost / capability profile | `--s2c2-cost-cp=device=cpu\|gpu\|npu\|cim` |
 
 Source IR still owns residencies, engines, Concurrent vs Pipeline.
-Those are part of `P` until a later rewrite pass is allowed to change
-them **and** still prove `HB_source ⊆ HB_M`.
+Those are part of `P`. A realization may change the physical schedule
+and space map; it must not rewrite S²C² semantic ordering constraints.
+
+`HB_source` means `HB(P)`.
+
+### Semantic realization vs lowering
+
+Do not mix these two layers in `R(P, D)`:
 
 ```text
-R(P, D) = { M | IsLegal(P, D, M) ∧ HB_source ⊆ HB_M }
+HB_M = HB_source
+    semantic realization preservation
+    defines membership of R(P, D)
+
+HB_source ⊆ HB_impl
+    lowering / implementation correctness
+    a backend may execute more conservatively
 ```
+
+```text
+R(P, D) = { M | IsLegal(P, D, M) ∧ HB_M = HB_source }
+```
+
+`cpu-seq`, `gpu-async`, and `npu-staged-dma` are distinct `M.sched`
+readings of the **same** `HB_source`. They do not add StageOrder or
+sibling await to `P`.
+
+A sequential backend may physically run `A` then `B` for source
+`A || B`. That is allowed as implementation conservatism
+(`HB_source ⊆ HB_impl`) **only if** the extra order is not written
+back into S²C² semantic IR as an HB edge. Writing it back would
+make `HB_M ≠ HB_source`, so that `M ∉ R(P, D)`.
+
+`HB_source ⊆ HB_impl` is a lowering / implementation-correctness
+condition, not the definition of semantic realization membership.
 
 `π = Topo(G_HB; IRRank)` is **not** a member of `R`. It is determined
 by `(P, HB)` for scoring one `M`. Search may later consider other
@@ -92,9 +133,22 @@ Concurrent ≠ Pipeline
 Turning Concurrent into Pipeline (or inventing sibling await) is
 **not** a legal realization: it adds HB.
 
+```text
+P:          Concurrent { A, B }
+candidate:  Pipeline { A, B }
+
+HB_candidate = HB_source ∪ {A →HB B}     (StageOrder)
+HB_candidate ≠ HB_source
+⇒  candidate ∉ R(P, D)
+```
+
+`⊆` would have admitted this candidate (`HB_source ⊆ HB_candidate`).
+Equality is the point of `R`: it preserves semantics rather than
+merely refining them.
+
 ### Recorded rewrite axes (later, still not Search)
 
-Only if a future pass proves `HB_source ⊆ HB_M` and `IsLegal`:
+Only if a future pass proves `HB_M = HB_source` and `IsLegal`:
 
 ```text
 residency placement (which Space for an object)
@@ -128,6 +182,10 @@ Same P
 
 No pass here enumerates `R` automatically.
 
+```text
+M* = argmin_{M ∈ R(P, D)} Cost(M)          later, not this document
+```
+
 ---
 
 ## 5. Invariants
@@ -135,7 +193,11 @@ No pass here enumerates `R` automatically.
 ```text
 Cost cannot add HB
 π is canonical realization, not optimal schedule
+M ≠ π
+CanonicalRealizationCost ≠ Search
 Capability / device / space-map cannot change Token, Concurrent, Pipeline
+HB_M = HB_source          semantic realization membership
+HB_source ⊆ HB_impl       lowering correctness, not R membership
 R is a set of legal M; Search is argmin over that set
 ```
 
@@ -165,5 +227,5 @@ Reuse existing files. No new lowering pass.
 | R2 | X1 + async triple ∈ `R` (gpu-async), same as T2; no sibling await |
 | R3 | X1 + `space-map` ∈ `R`, same as T5 |
 | R4 | same concurrent `P`: `Score_3(cpu) ≠ Score_3(gpu)` (C1 numbers) |
-| R5 | Concurrent → Pipeline is **not** in `R` (would add StageOrder) |
+| R5 | Concurrent → Pipeline is **not** in `R`: `HB_candidate ≠ HB_source` |
 | R6 | `π` is not a search choice; C9 keeps `G_full` a DAG under that π |
