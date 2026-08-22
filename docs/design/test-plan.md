@@ -279,3 +279,20 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | T7 | design claim | `LocalStop ⇏ Output = ArgMin_F` |
 | T8 | design claim | walk order is Generate → Validate → [Score] → Select → Accept |
 | T9 | design claim | `Scored ⇏ Accepted` and `Accepted ⊆ Scored` |
+
+## StartPolicy / RestartPolicy (v0.4.7)
+
+**Frozen.** No `--s2c2-search`. Design:
+[`search-start-policy.md`](search-start-policy.md). Does not freeze
+`StartFirst` or `StartBest` as *the* algorithm.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| U1 | design claim | `StartPolicy ∈ X`; `π` not an input |
+| U2 | design claim | must not require `ArgMin_F` as an input |
+| U3 | T1 | `Install(M)` is the only way to set `current` |
+| U4 | design claim | `StartFirst` / `StartUnused` / `StartGiven` are kinds |
+| U5 | design claim | `StartBest` reserved; not the v0.4.7 default |
+| U6 | design claim | `RestartPolicy(Unused) ∈ Unused`; keep `Checked` / `Cache` |
+| U7 | T6 / T7 | restarts to `Unused=∅` ⇒ Complete; one LocalStop ⇏ `ArgMin_F` |
+| U8 | A1–A3 | `--s2c2-argmin` does not use `StartPolicy` |
