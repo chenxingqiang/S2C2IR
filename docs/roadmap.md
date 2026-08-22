@@ -110,9 +110,9 @@ Does not search, place, or redefine Token / Concurrent / Pipeline.
 `C_overlap` requires unordered siblings **and** `canOverlap`.
 v0.1 is **frozen**. HB-aware pair credit is
 [`cost-resource-model-v02.md`](design/cost-resource-model-v02.md)
-(`--s2c2-cost-hb`), also **frozen**. Critical-path scoring is
+(`--s2c2-cost-hb`), also **frozen**. CanonicalRealizationCost is
 [`cost-resource-model-v03.md`](design/cost-resource-model-v03.md)
-(`--s2c2-cost-cp`): still score-only, not search.
+(`--s2c2-cost-cp`), also **frozen**: still score-only, not search.
 
 ## Phase 2C — Compute frontend (optional)
 
