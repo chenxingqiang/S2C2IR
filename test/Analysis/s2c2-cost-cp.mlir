@@ -166,10 +166,9 @@ module {
     return
   }
 
-  // C9: SSA-legal form of reverse-looking SW + unordered IO.
-  // T2 (IO) is defined first so T0 can wait on it; T1 is a third IO with
-  // no wait. HB is T2 → T0. Conflict edges must follow CanonicalTopo(HB),
-  // not pairwise IR order, so G_full stays a DAG and the pass succeeds.
+  // C9: reverse-looking SW + unordered IO. Canonical HB-topo orientation
+  // must keep G_full a DAG. Does not claim pairwise IR-order would cycle.
+  // T2 is defined first (SSA); T0 waits T2; T1 is a third IO with no wait.
   // CPU: s2c2-cost-cp device=cpu func=c9_reverse_hb_io critical_path=161 contention=31 capacity=192 total=384
   // GPU: s2c2-cost-cp device=gpu func=c9_reverse_hb_io critical_path=161 contention=31 capacity=192 total=384
   func.func @c9_reverse_hb_io(%t: tensor<8xf32>) {
