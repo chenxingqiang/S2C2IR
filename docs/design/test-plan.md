@@ -271,10 +271,11 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | ID | File | Checks |
 | -- | ---- | ------ |
 | T1 | design claim | `State_walk.current ∈ X`; `π ∉ State` |
-| T2 | design claim | `Generated ⊆ F`, `Accepted ⊆ X`; illegal flips not scored |
-| T3 | A6 | Cache keys are `device`; shared `computeScore3` |
+| T2 | design claim | `Checked ⊆ F`, `LegalChecked ⊆ X`; no re-Validate; illegal flips not scored |
+| T3 | A6 | Cache fills on validated `M ∈ X` before Accept; keys are `device` |
 | T4 | A2 | `WalkTieBreak` does not shrink `ArgMin_F` |
 | T5 | design claim | `next = first(Best)` in F_0 order; `Best` is a set |
 | T6 | A1–A3 | `Complete ⇒ Output = ArgMin_F / Pareto_F` |
 | T7 | design claim | `LocalStop ⇏ Output = ArgMin_F` |
-| T8 | design claim | verbs are Generate / Validate / Accept |
+| T8 | design claim | walk order is Generate → Validate → [Score] → Select → Accept |
+| T9 | design claim | `Scored ⇏ Accepted` and `Accepted ⊆ Scored` |

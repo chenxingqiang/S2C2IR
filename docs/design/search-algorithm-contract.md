@@ -16,14 +16,24 @@ v0.4.7+ algorithm pass / rewrite generators    later
 ```text
 Generate     : Neighbor_F(M) ⊆ F
 Validate     : IsLegal ∧ HB_M = HB_source
+[Score]      : only after Validate, only for M ∈ X
+Select       : Best / next on already-scored Frontier
 Accept       : LegalNeighbor ⊆ X
 WalkTieBreak ≠ ArgMin collapse
 Complete     ≠ LocalStop
 π            ∉ State
 ```
 
-Use these three verbs only. Do not use `emit` for both a candidate
-and a final answer.
+Generate / Validate / Accept remain the three **semantic** actions.
+The walk order is
+
+```text
+Generate → Validate → [Score] → Select → Accept
+```
+
+`[Score]` fires when a validated member of `X` must be ranked. It
+is not gated on Accept. Do not use `emit` for both a candidate and
+a final answer.
 
 ---
 
@@ -43,7 +53,7 @@ run objects:
 
 ```text
 State
-Generated / Accepted
+Checked / LegalChecked / Scored / Accepted
 Termination
 Score cache
 Tie preservation
@@ -73,50 +83,83 @@ No path. The whole feasible set is the state.
 
 ```text
 State_walk =
-  ( current     ∈ X
-  , Generated   ⊆ F
-  , Accepted    ⊆ X
-  , Cache       : device → Score_3 )
+  ( current        ∈ X
+  , Generated      ⊆ F
+  , Checked        ⊆ F
+  , LegalChecked   ⊆ X
+  , Scored         ⊆ X
+  , Accepted       ⊆ X
+  , Cache          : device → Score_3 )
 ```
 
-A path **starts** in `X`:
+A path **starts** in `X`. The start is generated, validated, scored,
+then accepted:
 
 ```text
-current_0 ∈ X
-Generated_0 ⊇ {current_0}
-Accepted_0  = {current_0}
+current_0        ∈ X
+Generated_0      ⊇ {current_0}
+Checked_0        ⊇ {current_0}
+LegalChecked_0   ⊇ {current_0}
+Scored_0         ⊇ {current_0}
+Accepted_0        = {current_0}
+Cache[current_0.device] filled
 ```
 
 `Neighbor` may still name illegal `M' ∈ F`. Those land in
-`Generated` after Generate, fail Validate, and never enter
-`Accepted`.
+`Generated`, fail Validate, stay in `Checked \ LegalChecked`, and
+never enter `Scored` or `Accepted`.
 
 `D` is the declared `Dev_F` axis, not a second filter.
 
+```text
+Scored ⇏ Accepted
+Accepted ⊆ Scored
+```
+
+because every accepted state was scored first. A Frontier member
+may be in `Scored` and not yet in `Accepted`.
+
 ---
 
-## 3. Generated and Accepted
+## 3. Checked, LegalChecked, Scored, Accepted
 
-Split “seen candidate” from “legal state”.
+Split named candidates from validated ones. `Generated` alone
+cannot remember a failed Validate.
 
 ```text
-Generate(M)  = Neighbor_F(M)
-Generated    ← Generated ∪ Generate(M)
+Generate(M)     = Neighbor_F(M)
+Generated       ← Generated ∪ Generate(M)
 
-Validate(M') = IsLegal(P, D, M') ∧ HB_{M'} = HB_source
-             ⇔ M' ∈ X
-
-Accept(M')   ⇔ M' ∈ LegalNeighbor_F(P, D, M)
-Frontier(M)  = LegalNeighbor_F(P, D, M) \ Accepted
+for M' ∈ Generate(M) \ Checked:
+    Validate(M') = IsLegal(P, D, M') ∧ HB_{M'} = HB_source
+                 ⇔ M' ∈ X
+    Checked      ← Checked ∪ {M'}
+    if M' ∈ X:
+        LegalChecked ← LegalChecked ∪ {M'}
 ```
 
 ```text
-Generated ⊆ F
-Accepted  ⊆ X ⊆ Generated ∩ X
+Generated    ⊆ F
+Checked      ⊆ Generated
+LegalChecked = Checked ∩ X
 ```
 
-Do not re-Validate a member of `Generated`. Do not Score a member
-of `Generated \ X`.
+Do not re-Validate a member of `Checked`. After every neighbor of
+`M` has been checked,
+
+```text
+LegalNeighbor_F(M) = { M' ∈ Neighbor_F(M) | M' ∈ LegalChecked }
+                   = Neighbor_F(M) ∩ LegalChecked
+Frontier(M)        = LegalNeighbor_F(M) \ Accepted
+```
+
+This is the same set as `Neighbor_F(M) ∩ X \ Accepted`, with
+Validate remembered in state instead of re-run.
+
+```text
+Accept(M')  ⇔  M' ∈ Frontier(current) after Select
+Accepted    ⊆ LegalChecked ⊆ X
+```
 
 ---
 
@@ -132,17 +175,32 @@ Score_3(P, M) = Score_3(P, M.device, HB(P), π(P))
 Cache : Dev_F → Score_3
 ```
 
-Fill `Cache[device]` with shared `computeScore3` the first time an
-**accepted** `M` with that device is scored. Reuse for every other
-accepted `M` with the same device.
+`Cache` records scores of **validated legal** members of `X` that
+have been evaluated, whether or not they are already accepted.
 
 ```text
 Score(M) is defined only for M ∈ X
+Fill Cache[device] the first time some M ∈ LegalChecked
+     with that device is scored
+Scored ← Scored ∪ {M}
+M ∈ Scored  ⇒  M ∈ X
+device ∈ dom(Cache)  ⇔  some M ∈ Scored has M.device = device
+```
+
+Frontier ranking scores every `M' ∈ Frontier` **before** Select /
+Accept:
+
+```text
+Validate → Score → Select → Accept
+```
+
+Reuse `Cache[device]` for every later legal `M` with that device.
+Do not grow a second device table. Do not score `Checked \ X`.
+
+```text
 same device ⇒ same Score_3 number
 distinct sched / spaceMap at that device remain distinct members
 ```
-
-Do not grow a second device table. Do not cache illegal candidates.
 
 ---
 
@@ -155,9 +213,9 @@ WalkTieBreak ≠ ArgMin_F
 WalkTieBreak ≠ Pareto_F
 ```
 
-F_0 declaration order may pick **which accepted member a walk
-steps to**. It must not delete other minima from the **output
-set**.
+F_0 declaration order may pick **which already-scored Frontier
+member a walk steps to**. It must not delete other minima from
+the **output set**.
 
 On frozen Score_3, same-device `sched` / `spaceMap` are score ties.
 A walk may visit one of them first; the output set still keeps
@@ -174,8 +232,10 @@ Policy is a function on the frontier, not a Cost revision and not
 a rewrite.
 
 ```text
-Frontier(M) = LegalNeighbor_F(P, D, M) \ Accepted
+Frontier(M) = (Neighbor_F(M) ∩ LegalChecked) \ Accepted
 ```
+
+Every member of `Frontier(M)` is scored before `Best(M)` is read.
 
 ### Batch / `N_all`
 
@@ -207,10 +267,11 @@ next(M) = first(Best(M)) in F_0 product order
           (sched, then map, then device)
 ```
 
-That `first` is `WalkTieBreak` only:
+That `first` is `WalkTieBreak` only. `next(M)` is already in
+`Scored`. Then:
 
 ```text
-current ← next(M)
+current  ← next(M)
 Accepted ← Accepted ∪ {next(M)}
 ```
 
@@ -300,10 +361,11 @@ Design claims only. No new pass. `--s2c2-argmin` is the Complete /
 | ID | Claim |
 | -- | ----- |
 | T1 | `State_all = X`; `State_walk.current ∈ X`; `π ∉ State` |
-| T2 | `Generated ⊆ F`, `Accepted ⊆ X`; illegal flips never scored |
-| T3 | Cache keys are `device`; shared `computeScore3` |
+| T2 | `Checked ⊆ F`, `LegalChecked ⊆ X`; do not re-Validate `Checked`; illegal flips never scored |
+| T3 | Cache fills on validated `M ∈ X`, including Frontier before Accept; keys are `device` |
 | T4 | `WalkTieBreak` (F_0 order) does not shrink `ArgMin_F` |
 | T5 | `next` is `first(Best)` in F_0 order; `Best` stays a set |
 | T6 | `Complete ⇒ Output = ArgMin_F / Pareto_F` (`--s2c2-argmin`) |
 | T7 | `LocalStop ⇏ Output = ArgMin_F` |
-| T8 | no `--s2c2-search`; verbs are Generate / Validate / Accept |
+| T8 | no `--s2c2-search`; walk order is Generate → Validate → [Score] → Select → Accept |
+| T9 | `Scored ⇏ Accepted` and `Accepted ⊆ Scored` |
