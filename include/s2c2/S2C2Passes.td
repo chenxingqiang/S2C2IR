@@ -294,6 +294,35 @@ def S2C2ArgMin : Pass<"s2c2-argmin", "::mlir::ModuleOp"> {
   ];
 }
 
+def S2C2Walk : Pass<"s2c2-walk", "::mlir::ModuleOp"> {
+  let summary = "Hamming-1 inhabitant of A (v0.4.9)";
+  let description = [{
+    First executable inhabitant of frozen A = (N, S, Rst, Nxt, Acc):
+
+      N   = N_1
+      S   = StartFirst
+      Rst = StartUnused
+      Nxt = first(Best) on Frontier (scalar total)
+
+    Does not rewrite IR, pick a unique M* as the output set, or
+    redefine HB / Cost / π. Restarts until Accepted = X (Complete).
+    A segment LocalStop is printed when Frontier is empty and
+    Unused is still nonempty. Output ArgMin is the set over
+    Accepted; after Complete it equals ArgMin_F.
+
+    Same F flags as `--s2c2-enumerate`. Empty = F_0.
+    This is not `--s2c2-search` and not beam / Pareto / rewrite.
+  }];
+  let options = [
+    Option<"scheds", "scheds", "std::string", /*default=*/"\"\"",
+           "Comma-separated sched labels; empty = F_0">,
+    Option<"maps", "maps", "std::string", /*default=*/"\"\"",
+           "Comma-separated space-map labels; empty = F_0">,
+    Option<"devices", "devices", "std::string", /*default=*/"\"\"",
+           "Comma-separated device labels; empty = F_0">
+  ];
+}
+
 def S2C2CostCP : Pass<"s2c2-cost-cp", "::mlir::ModuleOp"> {
   let summary = "Critical-path cost score (Cost Model v0.3)";
   let description = [{
