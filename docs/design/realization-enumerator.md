@@ -9,7 +9,8 @@ v0.1–v0.3 remain frozen.
 v0.4.0  R(P, D)                                FROZEN
 v0.4.1  ArgMin / Pareto over R                 FROZEN
 v0.4.2  Realization Enumerator                 FROZEN (this document)
-v0.4.3+ listing pass / heuristic searcher      later
+v0.4.3  listing pass `--s2c2-enumerate`        realization-enumerator-pass.md
+v0.4.4+ heuristic searcher / placement         later
 ```
 
 ```text
@@ -177,7 +178,8 @@ infinite spaceMap generation
 IREE / StableHLO / MPI / CUDA / NPU ISA
 ```
 
-A later pass may print `Enum` on stderr. It must not rewrite `P`.
+`--s2c2-enumerate` prints `Enum` on stderr. It must not rewrite `P`.
+See [`realization-enumerator-pass.md`](realization-enumerator-pass.md).
 
 ---
 

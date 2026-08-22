@@ -232,6 +232,38 @@ def S2C2CostHB : Pass<"s2c2-cost-hb", "::mlir::ModuleOp"> {
   ];
 }
 
+def S2C2Enumerate : Pass<"s2c2-enumerate", "::mlir::ModuleOp"> {
+  let summary = "List Enum_F = R(P, D) ∩ F (Realization Enumerator)";
+  let description = [{
+    Listing only. Does not rewrite IR, pick M*, score, or redefine HB.
+
+      Output(M) = 1  iff  M ∈ R(P, D) ∩ F
+
+    F is a declared finite family (default F_0). Completeness is inside
+    F, not Enum = R. Does not apply ArgMin / Pareto / Search.
+    π is not an enumerated component.
+
+    Default F_0:
+
+      scheds  = cpu-seq,gpu-async,npu-staged-dma
+      maps    = default,t5
+      devices = cpu,gpu,npu,cim
+
+    `t5` is the T5 witness ssd=100,dram=2,hbm=9. Empty option fields
+    use F_0. Requested labels are filtered to F_0 order.
+    Because this pass does not rewrite P, HB_M = HB_source for every
+    emitted M. IsLegal is membership in the declared axes.
+  }];
+  let options = [
+    Option<"scheds", "scheds", "std::string", /*default=*/"\"\"",
+           "Comma-separated sched labels; empty = F_0">,
+    Option<"maps", "maps", "std::string", /*default=*/"\"\"",
+           "Comma-separated space-map labels; empty = F_0">,
+    Option<"devices", "devices", "std::string", /*default=*/"\"\"",
+           "Comma-separated device labels; empty = F_0">
+  ];
+}
+
 def S2C2CostCP : Pass<"s2c2-cost-cp", "::mlir::ModuleOp"> {
   let summary = "Critical-path cost score (Cost Model v0.3)";
   let description = [{
