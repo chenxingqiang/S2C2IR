@@ -155,8 +155,11 @@ Pareto_F  = Pareto(Enum_F)
 `Enum_F`. Does not pick a unique `M*`, rewrite `P`, or generate new
 space maps. Search Space / `Neighbor` / `LegalNeighbor`
 (**v0.4.5**, [`search-space.md`](design/search-space.md)) are the
-next design objects; a search algorithm is later. `Neighbor`
-generates in `F` and does not imply `R`.
+next design objects. The walk contract
+(**v0.4.6**, [`search-algorithm-contract.md`](design/search-algorithm-contract.md))
+names State, Generated/Accepted, termination, score cache, tie
+preservation, and next-state policy. `Neighbor` generates in `F`
+and does not imply `R`. No `--s2c2-search` yet.
 
 ## Phase 2C — Compute frontend (optional)
 
