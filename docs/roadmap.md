@@ -138,6 +138,21 @@ Pareto(R) over (T_HB, C_contention, C_capacity)
 Selects among frozen `R`. Does not rewrite `P`, add HB, or treat `π`
 as a decision variable. Does not change v0.1–v0.3 scores.
 
+## Realization Enumerator (v0.4.2)
+
+**Frozen.** Design: [`realization-enumerator.md`](design/realization-enumerator.md).
+
+```text
+Enum_F    = R(P, D) ∩ F
+ArgMin_F  = argmin_{M ∈ Enum_F} Score_3(M).total
+Pareto_F  = Pareto(Enum_F)
+```
+
+`ArgMin_F` is not, in general, `ArgMin_R ∩ F`. Lists members of frozen
+`R` inside a declared finite family. Does not pick a unique `M*`,
+rewrite `P`, or generate new space maps. Heuristic searcher and
+placement remain later.
+
 ## Phase 2C — Compute frontend (optional)
 
 ```text

@@ -10,6 +10,7 @@ not HB refinement. Search / Pareto is
 v0.3  CanonicalRealizationCost(P, D, HB, π)    FROZEN
 v0.4.0  R(P, D) = legal realization set        FROZEN (this document)
 v0.4.1  Search / Pareto over R                 FROZEN in search-pareto.md
+v0.4.2  Realization Enumerator                 FROZEN in realization-enumerator.md
 ```
 
 ```text

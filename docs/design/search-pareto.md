@@ -8,7 +8,8 @@ remain frozen.
 ```text
 v0.4.0  R(P, D)                                FROZEN
 v0.4.1  Search / Pareto over R                 FROZEN (this document)
-v0.4.2+ placement / IR rewrite / new Cost      later
+v0.4.2  Realization Enumerator                 FROZEN in realization-enumerator.md
+v0.4.3+ heuristic searcher / placement         later
 ```
 
 ```text
