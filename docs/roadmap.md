@@ -114,6 +114,17 @@ v0.1 is **frozen**. HB-aware pair credit is
 [`cost-resource-model-v03.md`](design/cost-resource-model-v03.md)
 (`--s2c2-cost-cp`), also **frozen**: still score-only, not search.
 
+## Realization Space (v0.4.0)
+
+Design: [`realization-space.md`](design/realization-space.md).
+
+```text
+R(P, D) = { M | IsLegal(P, D, M) ∧ HB_source ⊆ HB_M }
+```
+
+Enumerates legal mappings (`sched`, `spaceMap`, `device`). Does not
+`argmin`. Search / Pareto over `R` is later.
+
 ## Phase 2C — Compute frontend (optional)
 
 ```text
