@@ -213,9 +213,10 @@ v0.1 and v0.2 stay frozen. Design:
 
 ## Realization Enumerator listing (v0.4.3)
 
-`--s2c2-enumerate`. Design:
+**Frozen.** `--s2c2-enumerate`. Design:
 [`realization-enumerator-pass.md`](realization-enumerator-pass.md).
-Contract: `Output = R ∩ F`. No ArgMin / Search / rewrite.
+Contract: `Output = R ∩ F` via `isLegalRealization`. No ArgMin /
+Search / rewrite.
 
 | ID | File | Checks |
 | -- | ---- | ------ |

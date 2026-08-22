@@ -1,7 +1,8 @@
 # Realization Enumerator listing pass (v0.4.3)
 
-Status: **implementation of frozen v0.4.2**. Prints `Enum_F`. Does not
-pick `M*`, rewrite `P`, or change Cost / HB / `π`.
+Status: **v0.4.3 frozen**. Prints `Enum_F = R ∩ F` via shared
+`isLegalRealization`. Does not pick `M*`, rewrite `P`, or change
+Cost / HB / `π`.
 
 ```text
 Output(M) = 1  iff  M ∈ R(P, D) ∩ F

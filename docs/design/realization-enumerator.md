@@ -9,7 +9,7 @@ v0.1–v0.3 remain frozen.
 v0.4.0  R(P, D)                                FROZEN
 v0.4.1  ArgMin / Pareto over R                 FROZEN
 v0.4.2  Realization Enumerator                 FROZEN (this document)
-v0.4.3  listing pass `--s2c2-enumerate`        realization-enumerator-pass.md
+v0.4.3  listing pass `--s2c2-enumerate`        FROZEN in realization-enumerator-pass.md
 v0.4.4+ heuristic searcher / placement         later
 ```
 
