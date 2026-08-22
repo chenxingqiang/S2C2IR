@@ -48,7 +48,7 @@ F                               finite family (this layer)
     ↓
 Enum(P, D; F) = R(P, D) ∩ F
     ↓
-ArgMin / Pareto                 frozen, applied to Enum
+ArgMin_F / Pareto_F             restricted to Enum, not ArgMin_R ∩ F
     ↓
 placement / rewrite             later
 ```
@@ -134,16 +134,33 @@ weighted / sampled / beam candidates
 
 ## 4. Relation to ArgMin / Pareto
 
-Enumerator outputs a set. It does not minimize.
+Enumerator outputs a set. It does not minimize. Write `Enum_F` for
+`Enum(P, D; F)`. Frozen global ArgMin stays:
 
 ```text
-ArgMin(P, D) ∩ F  =  argmin_{M ∈ Enum(P, D; F)} Score_3(M).total
-Pareto(R ∩ F)     =  { M ∈ Enum | no M' ∈ Enum : M' ≺ M }
+ArgMin_R(P, D) = argmin_{M ∈ R(P, D)} Score_3(M).total
 ```
+
+Restricted objectives after enumeration are:
+
+```text
+ArgMin_F(P, D) = argmin_{M ∈ Enum_F} Score_3(M).total
+               = ArgMin(Enum_F)
+Pareto_F(P, D) = { M ∈ Enum_F | no M' ∈ Enum_F : M' ≺ M }
+               = Pareto(Enum_F)
+```
+
+`ArgMin_F` is ArgMin restricted to the finite candidate family `F`.
+It is **not**, in general, `ArgMin_R ∩ F`. The latter can be empty
+even when `Enum_F` is nonempty. They coincide only when
+`F ⊇ ArgMin_R` (the family covers every global minimum).
+
+Counterexample (N8): `R={A,B,C}` with costs `1,2,3` and `F={B,C}`
+gives `ArgMin_R ∩ F = ∅` but `ArgMin_F = {B}`.
 
 On today's Score_3, only `device` changes the number, so members that
 differ only by `sched` / `spaceMap` stay ties. That is a frozen Cost
-fact, not an excuse to drop those members from `Enum`.
+fact, not an excuse to drop those members from `Enum_F`.
 
 ---
 
@@ -175,4 +192,5 @@ Design claims over existing witnesses. No enumerator pass in this PR.
 | N4 | Concurrent → Pipeline ∉ `F` and ∉ `Enum` |
 | N5 | `π` is not a component of any emitted `M` |
 | N6 | S1/S2 keep `Dev_F = D_test={cpu,gpu}`; they do not require `Dev_F0` |
-| N7 | Enumerator does not apply ArgMin; C6 equal totals remain two members |
+| N7 | `Enum_F` keeps every legal member; C6 equal totals stay two members, then `ArgMin_F` may keep both |
+| N8 | `R={A,B,C}` costs `1,2,3`, `F={B,C}`: `ArgMin_R ∩ F = ∅` and `ArgMin_F = {B}` |

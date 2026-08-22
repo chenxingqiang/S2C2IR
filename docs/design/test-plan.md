@@ -208,4 +208,5 @@ Design only. Completeness is `R ∩ F`, not `R`. Design:
 | N4 | R5 | Concurrent → Pipeline ∉ F and ∉ Enum |
 | N5 | C9 / R6 | `π` is not an enumerated component |
 | N6 | S1 / S2 | `Dev_F = D_test={cpu,gpu}` |
-| N7 | C6 | equal totals stay two Enum members; no ArgMin here |
+| N7 | C6 | `Enum_F` keeps both equal-total members; `ArgMin_F` may keep both |
+| N8 | design claim | `ArgMin_R ∩ F = ∅` ⇏ `ArgMin_F = ∅`; see enumerator §4 counterexample |
