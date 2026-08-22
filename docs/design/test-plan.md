@@ -282,7 +282,7 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 
 ## StartPolicy / RestartPolicy (v0.4.7)
 
-**Design.** No `--s2c2-search`. Design:
+**Frozen.** No `--s2c2-search`. Design:
 [`search-start-policy.md`](search-start-policy.md). Does not freeze
 `StartFirst` or `StartBest` as *the* algorithm.
 

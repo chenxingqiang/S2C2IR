@@ -1,6 +1,6 @@
 # StartPolicy and RestartPolicy (v0.4.7)
 
-Status: **v0.4.7 design**. Names how a walk *enters* `X` and how it
+Status: **v0.4.7 frozen**. Names how a walk *enters* `X` and how it
 *re-enters* after `LocalStop`. Does not pick beam / hill-climbing /
 first-of-`F_0` / global-best as *the* algorithm, and does not add
 `--s2c2-search`. Search Algorithm Contract v0.4.6 remains frozen.
