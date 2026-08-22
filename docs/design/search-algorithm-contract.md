@@ -11,7 +11,8 @@ v0.4.4  listing `--s2c2-argmin`                FROZEN
 v0.4.5  Search Space / Neighbor / Legality     FROZEN in search-space.md
 v0.4.6  Search Algorithm Contract              this document
 v0.4.7  StartPolicy / RestartPolicy            in search-start-policy.md
-v0.4.8+ algorithm pass / rewrite generators    later
+v0.4.8  Algorithm = (N, S, Rst, Nxt, Acc)      in search-algorithm.md
+v0.4.9+ Hamming-1 walk / later algorithms      later
 ```
 
 ```text

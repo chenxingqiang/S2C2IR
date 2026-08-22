@@ -296,3 +296,19 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | U6 | design claim | `RestartPolicy(Unused) ∈ Unused`; keep `Checked` / `Cache` |
 | U7 | T6 / T7 | restarts to `Unused=∅` ⇒ Complete; one LocalStop ⇏ `ArgMin_F` |
 | U8 | A1–A3 | `--s2c2-argmin` does not use `StartPolicy` |
+
+## Algorithm object (v0.4.8)
+
+**Frozen.** No inhabitant, no `--s2c2-search`. Design:
+[`search-algorithm.md`](search-algorithm.md).
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| V1 | design claim | `A = (N, S, Rst, Nxt, Acc)` |
+| V2 | design claim | `Nxt ∈ LegalNeighbor ∪ {⊥}` |
+| V3 | design claim | `Nxt = ⊥ ⇔ Frontier = ∅` |
+| V4 | design claim | `Acc` only when `M = Nxt ≠ ⊥`; `current' = M` |
+| V5 | U3 | `Install ≠ Acc`; start/restart still `Install` |
+| V6 | T9 | invariants hold after `Install` and `Acc` |
+| V7 | T7 | `⊥` is segment LocalStop, not Complete |
+| V8 | design claim | no hill-climbing / beam chosen |

@@ -53,7 +53,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/realization-argmin-pass.md`](docs/design/realization-argmin-pass.md),
 [`docs/design/search-space.md`](docs/design/search-space.md),
 [`docs/design/search-algorithm-contract.md`](docs/design/search-algorithm-contract.md),
-[`docs/design/search-start-policy.md`](docs/design/search-start-policy.md)
+[`docs/design/search-start-policy.md`](docs/design/search-start-policy.md),
+[`docs/design/search-algorithm.md`](docs/design/search-algorithm.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
@@ -66,7 +67,8 @@ declared finite family `F`; `--s2c2-enumerate` prints that set.
 Search Space / `Neighbor` (v0.4.5) generate candidates in `F` and
 accept only `R ∩ F`. The Search Algorithm Contract (v0.4.6) names
 the walk objects. StartPolicy / RestartPolicy (v0.4.7) name how a
-walk enters `X`; they do not pick beam or global-best start. It is
+walk enters `X`. The Algorithm object (v0.4.8) is
+`A = (N, S, Rst, Nxt, Acc)` and is not yet inhabited. It is
 not a heuristic searcher.
 
 ## Requirements

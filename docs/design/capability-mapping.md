@@ -134,6 +134,8 @@ The walk contract is
 [`search-algorithm-contract.md`](search-algorithm-contract.md)
 (v0.4.6). Start / restart are
 [`search-start-policy.md`](search-start-policy.md) (v0.4.7).
+The Algorithm object is
+[`search-algorithm.md`](search-algorithm.md) (v0.4.8).
 These layers do not redefine HB.
 
 ---
