@@ -4,8 +4,8 @@
 // RUN: s2c2-opt %s --s2c2-enumerate | FileCheck %s --check-prefix=IR
 
 // Realization Enumerator listing: Output(M)=1 iff M ∈ R ∩ F.
+// IsLegal is T1/T2/T3 profile pairing, not F-membership.
 // Does not rewrite, score, or apply ArgMin / Pareto / Search.
-// π is not an enumerated field. Concurrent → Pipeline is not a sched label.
 module {
   func.func @r4_same_program(%t: tensor<8xf32>) {
     %obj = stor.object : !stor.object<tensor<8xf32>>
@@ -28,43 +28,33 @@ module {
   }
 }
 
-// N1 / N2: |F_0|=24, every member listed, F_0 product order.
-// F0: s2c2-enumerate func=r4_same_program count=24
+// N10: R ∩ F_0 is the legal T1/T2/T3 pairings, F_0 product order.
+// |F_0|=24 but count = |R ∩ F_0| = 8.
+// F0: s2c2-enumerate func=r4_same_program count=8
 // F0-NEXT: s2c2-enumerate func=r4_same_program sched=cpu-seq map=default device=cpu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=cpu-seq map=default device=gpu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=cpu-seq map=default device=npu
 // F0-NEXT: s2c2-enumerate func=r4_same_program sched=cpu-seq map=default device=cim
 // F0-NEXT: s2c2-enumerate func=r4_same_program sched=cpu-seq map=t5 device=cpu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=cpu-seq map=t5 device=gpu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=cpu-seq map=t5 device=npu
 // F0-NEXT: s2c2-enumerate func=r4_same_program sched=cpu-seq map=t5 device=cim
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=gpu-async map=default device=cpu
 // F0-NEXT: s2c2-enumerate func=r4_same_program sched=gpu-async map=default device=gpu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=gpu-async map=default device=npu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=gpu-async map=default device=cim
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=gpu-async map=t5 device=cpu
 // F0-NEXT: s2c2-enumerate func=r4_same_program sched=gpu-async map=t5 device=gpu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=gpu-async map=t5 device=npu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=gpu-async map=t5 device=cim
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=npu-staged-dma map=default device=cpu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=npu-staged-dma map=default device=gpu
 // F0-NEXT: s2c2-enumerate func=r4_same_program sched=npu-staged-dma map=default device=npu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=npu-staged-dma map=default device=cim
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=npu-staged-dma map=t5 device=cpu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=npu-staged-dma map=t5 device=gpu
 // F0-NEXT: s2c2-enumerate func=r4_same_program sched=npu-staged-dma map=t5 device=npu
-// F0-NEXT: s2c2-enumerate func=r4_same_program sched=npu-staged-dma map=t5 device=cim
-// N3 witnesses are in the F_0 product above (R1 / R2 / R3 labels).
+// N9: members in F_0 that fail IsLegal are not emitted.
+// F0-NOT: sched=cpu-seq map=default device=gpu
+// F0-NOT: sched=gpu-async map=default device=cpu
+// F0-NOT: sched=gpu-async map=default device=cim
+// F0-NOT: sched=npu-staged-dma map=default device=cim
+// F0-NOT: sched=npu-staged-dma map=t5 device=cim
 // N4 / N5: no rewrite label, no π, no ArgMin / score.
 // F0-NOT: sched=pipeline
 // F0-NOT: pi=
 // F0-NOT: argmin
 // F0-NOT: total=
 
-// N6 / N7: D_test={cpu,gpu} is 3×2×2=12; both devices kept (no dedup).
-// DTEST: s2c2-enumerate func=r4_same_program count=12
-// DTEST: device=cpu
-// DTEST: device=gpu
+// N6: D_test={cpu,gpu} ∩ IsLegal = 4 (cpu-seq×{default,t5}×cpu + gpu-async×{default,t5}×gpu).
+// DTEST: s2c2-enumerate func=r4_same_program count=4
+// DTEST: sched=cpu-seq map=default device=cpu
+// DTEST: sched=gpu-async map=default device=gpu
 // DTEST-NOT: device=npu
 // DTEST-NOT: device=cim
 // DTEST-NOT: argmin

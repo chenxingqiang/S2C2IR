@@ -100,7 +100,8 @@ Enum(P, D; F) =
   { M ∈ F | IsLegal(P, D, M) ∧ HB_M = HB_source }
 ```
 
-`IsLegal` is the frozen capability predicate. `HB_source` means
+`IsLegal` is the frozen capability predicate
+(`isLegalRealization`). `M ∈ F` is not sufficient. `HB_source` means
 `HB(P)`. Concurrent → Pipeline is not in `F` (it is not a `sched`
 label) and is not in `R` (`HB_M ≠ HB_source`).
 

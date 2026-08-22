@@ -219,7 +219,9 @@ Contract: `Output = R ∩ F`. No ArgMin / Search / rewrite.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
-| L1 | `test/Analysis/realization-enumerate.mlir` F0 | `count=24`, F_0 product order |
+| L1 | `test/Analysis/realization-enumerate.mlir` F0 | `count=8` = `|R ∩ F_0|`, legal T1/T2/T3 order |
 | L2 | same | R1/R2/R3 labels present; no `sched=pipeline`, `pi=`, `argmin`, `total=` |
-| L3 | same DTEST | `devices=cpu,gpu` ⇒ `count=12`; both devices; no npu/cim |
+| L3 | same DTEST | `D_test={cpu,gpu}` ⇒ `count=4`; no npu/cim |
 | L4 | same IR | module still has `sched.concurrent` |
+| N9 | same F0 | illegal-in-F skipped (`npu-staged-dma`+`cim`, `gpu-async`+`cpu`, …) |
+| N10 | same F0 | every legal member emitted |
