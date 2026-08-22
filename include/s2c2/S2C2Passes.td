@@ -252,7 +252,9 @@ def S2C2Enumerate : Pass<"s2c2-enumerate", "::mlir::ModuleOp"> {
     `t5` is the T5 witness ssd=100,dram=2,hbm=9. Empty option fields
     use F_0. Requested labels are filtered to F_0 order.
     Because this pass does not rewrite P, HB_M = HB_source for every
-    emitted M. IsLegal is membership in the declared axes.
+    emitted M. IsLegal is the shared capability oracle
+    (`isLegalRealization`), not F-membership. Illegal members of F
+    are skipped.
   }];
   let options = [
     Option<"scheds", "scheds", "std::string", /*default=*/"\"\"",

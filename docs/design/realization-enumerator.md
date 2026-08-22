@@ -9,7 +9,7 @@ v0.1–v0.3 remain frozen.
 v0.4.0  R(P, D)                                FROZEN
 v0.4.1  ArgMin / Pareto over R                 FROZEN
 v0.4.2  Realization Enumerator                 FROZEN (this document)
-v0.4.3  listing pass `--s2c2-enumerate`        realization-enumerator-pass.md
+v0.4.3  listing pass `--s2c2-enumerate`        FROZEN in realization-enumerator-pass.md
 v0.4.4+ heuristic searcher / placement         later
 ```
 
@@ -100,7 +100,8 @@ Enum(P, D; F) =
   { M ∈ F | IsLegal(P, D, M) ∧ HB_M = HB_source }
 ```
 
-`IsLegal` is the frozen capability predicate. `HB_source` means
+`IsLegal` is the frozen capability predicate
+(`isLegalRealization`). `M ∈ F` is not sufficient. `HB_source` means
 `HB(P)`. Concurrent → Pipeline is not in `F` (it is not a `sched`
 label) and is not in `R` (`HB_M ≠ HB_source`).
 

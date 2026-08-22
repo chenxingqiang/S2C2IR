@@ -142,3 +142,19 @@ Search / Pareto over that set is [`search-pareto.md`](search-pareto.md)
 T2 FileCheck includes `CHECK-NOT: async.await` between S2 sibling
 launches (same Concurrent invariant as X1). T4 is implied by T1/T2:
 two objects, four allocations, copies SSD↔HBM.
+
+### IsLegal(P, D, M) on F_0 axes
+
+`M = (sched, spaceMap, device)`. Shared oracle:
+`isLegalRealization` in [`S2C2Legality.h`](../../include/s2c2/S2C2Legality.h).
+Does not redefine HB. T1/T2/T3 pairing:
+
+```text
+cpu-seq          ↔  cpu, cim
+gpu-async        ↔  gpu
+npu-staged-dma   ↔  npu
+default, t5      legal maps
+```
+
+`M ∈ F` is not `IsLegal`. Enumerator / Search / Placement must call
+this predicate; they must not grow a second matrix.

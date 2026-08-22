@@ -9,6 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "s2c2/S2C2Legality.h"
 #include "s2c2/S2C2Passes.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -17,6 +18,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <tuple>
 
 namespace mlir::s2c2 {
 #define GEN_PASS_DEF_S2C2ENUMERATE
@@ -86,17 +89,20 @@ struct S2C2Enumerate : impl::S2C2EnumerateBase<S2C2Enumerate> {
     for (auto func : getOperation().getOps<func::FuncOp>()) {
       if (func.getBody().empty())
         continue;
-      // No rewrite ⇒ HB_M = HB_source. M ∈ F is IsLegal for declared axes.
-      int64_t count = static_cast<int64_t>(schedF.size() * mapF.size() *
-                                           devF.size());
-      llvm::errs() << "s2c2-enumerate func=" << func.getName()
-                   << " count=" << count << "\n";
+      // No rewrite ⇒ HB_M = HB_source. IsLegal is the capability oracle,
+      // not F-membership.
+      SmallVector<std::tuple<StringRef, StringRef, StringRef>, 16> legal;
       for (StringRef s : schedF)
         for (StringRef m : mapF)
           for (StringRef d : devF)
-            llvm::errs() << "s2c2-enumerate func=" << func.getName()
-                         << " sched=" << s << " map=" << m << " device=" << d
-                         << "\n";
+            if (isLegalRealization(func, s, m, d))
+              legal.emplace_back(s, m, d);
+      llvm::errs() << "s2c2-enumerate func=" << func.getName()
+                   << " count=" << legal.size() << "\n";
+      for (auto [s, m, d] : legal)
+        llvm::errs() << "s2c2-enumerate func=" << func.getName()
+                     << " sched=" << s << " map=" << m << " device=" << d
+                     << "\n";
     }
   }
 };
