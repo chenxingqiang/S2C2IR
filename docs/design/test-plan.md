@@ -124,3 +124,14 @@ Does not change Token / Concurrent / Pipeline. Design:
 | T2 | same, three async passes | gpu-async / npu staged-DMA shape: prefetch SW, StageOrder, `CHECK-NOT: async.await` between S2 siblings |
 | T5 | same `--s2c2-lower=space-map=...` | ssd/hbm integers from the target map |
 | T5b | `@ssd_dram_hbm_hops` | SSD→DRAM→HBM Token chain |
+
+## Cost / resource model (v0.1)
+
+Score-only. Design: [`cost-resource-model.md`](cost-resource-model.md).
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| K1 | `test/Analysis/s2c2-cost.mlir` | concurrent IR: CPU `overlap=0`, GPU `overlap>0` |
+| K2 | same | sequential IR: `overlap=0` on CPU and GPU |
+| K3 | same | pipeline stages: GPU `overlap=0` (StageOrder ≠ overlap) |
+| K4 | same | `sched.wait` counts in `synchronization` |

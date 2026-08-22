@@ -97,6 +97,18 @@ it must not redefine Token, Concurrent, or Pipeline.
 Design: [`capability-mapping.md`](design/capability-mapping.md). v0.1 is
 a verification matrix over existing passes, not a new dialect.
 
+## Cost / resource model (v0.1)
+
+Design: [`cost-resource-model.md`](design/cost-resource-model.md).
+
+```text
+Cost = C_compute + C_storage + C_communication + C_synchronization − C_overlap
+```
+
+Scores semantic IR against a device capability table (`--s2c2-cost`).
+Does not search, place, or redefine Token / Concurrent / Pipeline.
+`C_overlap` requires unordered siblings **and** `canOverlap`.
+
 ## Phase 2C — Compute frontend (optional)
 
 ```text
