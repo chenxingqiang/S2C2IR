@@ -163,7 +163,10 @@ and does not imply `R`. Start / restart
 (**v0.4.7**, [`search-start-policy.md`](design/search-start-policy.md))
 name how a walk enters `X` and re-enters after `LocalStop`. No
 `--s2c2-search` yet. `StartFirst` is a witness kind, not the
-algorithm.
+algorithm. The Algorithm object
+(**v0.4.8**, [`search-algorithm.md`](design/search-algorithm.md))
+is `A = (N, S, Rst, Nxt, Acc)` with
+`Nxt : State → LegalNeighbor ∪ {⊥}`. No inhabitant yet.
 
 ## Phase 2C — Compute frontend (optional)
 
