@@ -52,7 +52,48 @@ without the extra compute-path copy.
 
 ---
 
-## 3. Out of scope
+## 3. One RTX 4090 sweep (not V3)
+
+Median `cudaEvent`, CUDA 12.8 / driver 570. Do not FileCheck.
+
+**provisioned=0** (original stand-in, two HtoD on B):
+
+| N | k | A | B | C |
+| - | - | - | - | - |
+| 4M | 1 | 693 | 1339 | 1339 |
+| 16M | 1 | 2742 | 5331 | 5314 |
+| 64M | 1 | 11185 | 21268 | 21834 |
+
+**provisioned=1** (first HtoD excluded):
+
+| N | k | A (SiLU) | B (SiLU ∥ HtoD) | C (SiLU + DtoH) |
+| - | - | -------- | --------------- | --------------- |
+| 4M | 1 | 20 | 677 | 667 |
+| 16M | 1 | 70 | 2681 | 2631 |
+| 64M | 1 | 544 | 10664 | 11206 |
+| 16M | 8 | 558 | 2702 | 3122 |
+| 64M | 8 | 4618 | 10736 | 15280 |
+
+Fair overlap probe at N=16M, k=1:
+
+```text
+A provisioned=0   HtoD then SiLU     2742 μs
+B provisioned=1   SiLU ∥ HtoD        2681 μs
+```
+
+Compute is ~70 μs; the copy is ~2.6 ms. Overlap hides the
+kernel, not the copy. Cost's 128 vs 130 is a 2-point gap on
+a 130-scale — the same *order* as this ~2% wall-clock gap.
+The original two-HtoD stand-in hid that.
+
+```text
+V3  still not claimed
+C_overlap  not rewritten
+```
+
+---
+
+## 4. Out of scope
 
 ```text
 changing C_overlap / Score_3
