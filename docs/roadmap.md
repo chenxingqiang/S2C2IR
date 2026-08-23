@@ -170,9 +170,11 @@ is `A = (N, S, Rst, Nxt, Acc)` with
 (**v0.4.9 frozen**, [`search-walk-n1.md`](design/search-walk-n1.md)) is the
 Hamming-1 inhabitant (`StartFirst` / `StartUnused` / `first(Best)`).
 Restart / Complete coverage
-(**v0.4.10**, [`search-restart-complete.md`](design/search-restart-complete.md))
+(**v0.4.10 frozen**, [`search-restart-complete.md`](design/search-restart-complete.md))
 witnesses `LocalStop ⇏ ArgMin_F` via `--s2c2-walk=restart=false`
-without a new algorithm.
+without a new algorithm. Pareto-aware Next
+(**v0.4.11**, [`search-pareto-nxt.md`](design/search-pareto-nxt.md))
+is `Nxt = first(Pareto(Frontier))`; default `nxt=scalar` is unchanged.
 
 ## Phase 2C — Compute frontend (optional)
 

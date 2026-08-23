@@ -38,16 +38,6 @@ struct Member {
   Score3 score;
 };
 
-/// M' strictly dominates M when every objective is ≤ and at least one is <.
-/// Objectives are (T_HB, C_contention, C_capacity). total is not a fourth axis.
-static bool strictlyDominates(const Score3 &a, const Score3 &b) {
-  bool le = a.criticalPath <= b.criticalPath && a.contention <= b.contention &&
-            a.capacity <= b.capacity;
-  bool lt = a.criticalPath < b.criticalPath || a.contention < b.contention ||
-            a.capacity < b.capacity;
-  return le && lt;
-}
-
 struct S2C2ArgMin : impl::S2C2ArgMinBase<S2C2ArgMin> {
   using impl::S2C2ArgMinBase<S2C2ArgMin>::S2C2ArgMinBase;
 

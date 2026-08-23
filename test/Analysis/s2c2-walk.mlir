@@ -3,8 +3,10 @@
 // RUN: s2c2-opt %s --s2c2-walk=devices=cpu,gpu 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=DTEST
 // RUN: s2c2-opt %s --s2c2-walk=restart=false 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=STOP
 // RUN: s2c2-opt %s --s2c2-walk="devices=cpu,gpu restart=false" 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=STOPD
+// RUN: s2c2-opt %s --s2c2-walk=nxt=pareto 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=PARETO
+// RUN: s2c2-opt %s --s2c2-walk="nxt=pareto restart=false" 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=PSTOP
 // RUN: s2c2-opt %s --s2c2-walk | FileCheck %s --check-prefix=IR
-// RUN: s2c2-opt %s --s2c2-argmin 2>&1 | grep 'argmin count\|argmin sched' | FileCheck %s --check-prefix=AMIN
+// RUN: s2c2-opt %s --s2c2-argmin 2>&1 | grep 'argmin count\|argmin sched\|pareto count' | FileCheck %s --check-prefix=AMIN
 
 // Hamming-1 inhabitant: N=N_1, S=StartFirst, Rst=StartUnused, Nxt=first(Best).
 // Nxt is total: F0-NEXT locks every decision as step or localstop.
@@ -70,6 +72,54 @@ module {
 
 // AMIN: argmin count=4
 // AMIN: argmin sched=gpu-async map=default device=gpu total=128
+// AMIN: pareto count=4
+
+// Nxt_P = first(Pareto(Frontier)). On F_0/@r4, Cost⃗ is contention-monotone
+// so the path equals W1; Complete Pareto matches --s2c2-argmin.
+// PARETO: s2c2-walk nxt=pareto
+// PARETO-NEXT: s2c2-walk nxt-oracle incomparable first(Best)!=first(Pareto)
+// PARETO-NEXT: s2c2-walk func=r4_same_program start sched=cpu-seq map=default device=cpu
+// PARETO-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=default device=cim total=129
+// PARETO-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=t5 device=cim total=129
+// PARETO-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=t5 device=cpu total=136
+// PARETO-NEXT: s2c2-walk func=r4_same_program localstop accepted=4
+// PARETO-NEXT: s2c2-walk func=r4_same_program restart sched=gpu-async map=default device=gpu
+// PARETO-NEXT: s2c2-walk func=r4_same_program step sched=gpu-async map=t5 device=gpu total=128
+// PARETO-NEXT: s2c2-walk func=r4_same_program localstop accepted=6
+// PARETO-NEXT: s2c2-walk func=r4_same_program restart sched=npu-staged-dma map=default device=npu
+// PARETO-NEXT: s2c2-walk func=r4_same_program step sched=npu-staged-dma map=t5 device=npu total=128
+// PARETO-NEXT: s2c2-walk func=r4_same_program complete accepted=8
+// PARETO-NEXT: s2c2-walk func=r4_same_program argmin count=4
+// PARETO-NEXT: s2c2-walk func=r4_same_program argmin sched=gpu-async map=default device=gpu total=128
+// PARETO-NEXT: s2c2-walk func=r4_same_program argmin sched=gpu-async map=t5 device=gpu total=128
+// PARETO-NEXT: s2c2-walk func=r4_same_program argmin sched=npu-staged-dma map=default device=npu total=128
+// PARETO-NEXT: s2c2-walk func=r4_same_program argmin sched=npu-staged-dma map=t5 device=npu total=128
+// PARETO-NEXT: s2c2-walk func=r4_same_program pareto count=4
+// PARETO-NEXT: s2c2-walk func=r4_same_program pareto sched=gpu-async map=default device=gpu critical_path=64 contention=0 capacity=64
+// PARETO-NEXT: s2c2-walk func=r4_same_program pareto sched=gpu-async map=t5 device=gpu critical_path=64 contention=0 capacity=64
+// PARETO-NEXT: s2c2-walk func=r4_same_program pareto sched=npu-staged-dma map=default device=npu critical_path=64 contention=0 capacity=64
+// PARETO-NEXT: s2c2-walk func=r4_same_program pareto sched=npu-staged-dma map=t5 device=npu critical_path=64 contention=0 capacity=64
+// PARETO-NOT: winner=
+// PARETO-NOT: pi=
+
+// PSTOP: s2c2-walk nxt=pareto
+// PSTOP-NEXT: s2c2-walk nxt-oracle incomparable first(Best)!=first(Pareto)
+// PSTOP-NEXT: s2c2-walk func=r4_same_program start sched=cpu-seq map=default device=cpu
+// PSTOP-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=default device=cim total=129
+// PSTOP-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=t5 device=cim total=129
+// PSTOP-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=t5 device=cpu total=136
+// PSTOP-NEXT: s2c2-walk func=r4_same_program localstop accepted=4
+// PSTOP-NEXT: s2c2-walk func=r4_same_program argmin count=2
+// PSTOP-NEXT: s2c2-walk func=r4_same_program argmin sched=cpu-seq map=default device=cim total=129
+// PSTOP-NEXT: s2c2-walk func=r4_same_program argmin sched=cpu-seq map=t5 device=cim total=129
+// PSTOP-NEXT: s2c2-walk func=r4_same_program pareto count=2
+// PSTOP-NEXT: s2c2-walk func=r4_same_program pareto sched=cpu-seq map=default device=cim critical_path=64 contention=1 capacity=64
+// PSTOP-NEXT: s2c2-walk func=r4_same_program pareto sched=cpu-seq map=t5 device=cim critical_path=64 contention=1 capacity=64
+// PSTOP-NOT: complete
+// PSTOP-NOT: restart
+// PSTOP-NOT: gpu-async
+// PSTOP-NOT: winner=
+// PSTOP-NOT: pi=
 
 // One Hamming-1 segment: ArgMin(Accepted)=129 ≠ ArgMin_F=128.
 // STOP: s2c2-walk func=r4_same_program start sched=cpu-seq map=default device=cpu
