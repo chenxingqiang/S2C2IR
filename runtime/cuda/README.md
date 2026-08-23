@@ -20,6 +20,7 @@ S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cap.sh ./s2c2-cuda-ru
 # --matched does not change A/B/C bodies or Score_3
 # 4090 records: docs/design/v3-dataset/v3-matched.jsonl
 # calibration:  docs/design/v3-dataset/v3-matched-calibration.csv
+# capability:   docs/design/v3-dataset/v3-cap.jsonl
 ```
 
 Do not commit hostnames, accounts, or passwords.

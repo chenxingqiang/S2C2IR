@@ -1,9 +1,9 @@
 # V3 4090 Resource / Capability Matrix (v0.1)
 
-Status: **measurement campaign**. Not Cost v0.4. Does **not**
+Status: **4090 evidence recorded**. Not Cost v0.4. Does **not**
 change Cost, HB, `R`, Search, Transformation, Pilot IR, A/B/C
 bodies, or the frozen matched calibration table. Baseline:
-`4baecc8` (`#54`).
+`4baecc8` (`#54`). Dataset: `f363684` (`#55`).
 
 ```text
 Capability matrix  ≠  a Cost axiom
@@ -178,24 +178,122 @@ intensity              3 N reduce + 3 dim GEMM  =  6
 | `runtime/cuda/s2c2_cuda_adapter.cu` | `--cap=` |
 | `tools/s2c2-cuda-adapter/` | host `--dry-run --cap` |
 | `runtime/cuda/record_v3.py` | `--cap-sweep` / `--analyze-cap` |
-| `docs/design/v3-dataset/` | 4090 records after the run |
+| `docs/design/v3-dataset/v3-cap.jsonl` | 60-point 4090 records |
 
 Do not FileCheck microseconds. Do not FileCheck a Cost v0.4
 rewrite.
 
 ---
 
-## 6. Target matrix (fill after 4090)
+## 6. RTX 4090 results (60 points)
+
+Hardware snapshot (not a lock):
+
+```text
+gpu_model        NVIDIA GeForce RTX 4090
+gpu_memory       24564
+driver_version   570.124.06
+cuda_runtime     12080
+nvcc_version     release 12.8, V12.8.61
+power_mode       limit_w=450.00
+clock_state      pre-sweep snapshot (idle P8 on this run)
+```
+
+Records: [`v3-dataset/v3-cap.jsonl`](v3-dataset/v3-cap.jsonl)
+(60 points). Derived pairs:
+[`v3-dataset/v3-cap-pairs.csv`](v3-dataset/v3-cap-pairs.csv).
+`score3` empty. No host / password fields.
+
+### 6.1 Capability_4090
 
 ```text
 Capability_4090 =
-  C  ∥ HtoD     #51  parallel (re-measure as cap-compute-htod)
-  C  ∥ DtoH     pending
-  HtoD ∥ HtoD   #52  serial   (re-measure as cap-htod-htod-par)
-  DtoH ∥ DtoH   pending
-  HtoD ∥ DtoH   pending
-  C  ∥ C        pending
+  C    ∥ HtoD     parallel     (confirms #51)
+  C    ∥ DtoH     parallel     (new)
+  HtoD ∥ HtoD     serial       (confirms #52)
+  DtoH ∥ DtoH     serial       (new)
+  HtoD ∥ DtoH     mixed        (new; not max, not sum)
+  C    ∥ C        serial       (new; 16M degraded)
 ```
 
-Plus `BW(size)`, `T_launch`, `T_sync`. This is calibration
-evidence, not a Cost patch.
+| Pair | 4M | 16M | 64M |
+| ---- | -- | --- | --- |
+| C ∥ HtoD | parallel (1.105 / 0.740) | parallel (1.031 / 0.555) | parallel (1.016 / 0.646) |
+| C ∥ DtoH | parallel (1.111 / 0.734) | parallel (1.042 / 0.550) | parallel (1.015 / 0.655) |
+| HtoD ∥ HtoD | serial (1.988 / 0.994) | serial (1.992 / 0.996) | serial (2.037 / 1.019) |
+| DtoH ∥ DtoH | serial (1.987 / 0.994) | serial (1.996 / 0.998) | serial (1.999 / 0.999) |
+| HtoD ∥ DtoH | mixed (1.453 / 0.742) | mixed (1.467 / 0.749) | mixed (1.468 / 0.749) |
+| C ∥ C | serial (1.800 / 0.900) | serial (4.042 / 2.021) | serial (2.002 / 1.001) |
+
+Cells are `par/max` / `par/sum`. `canOverlap=true` is not a
+device-wide boolean.
+
+### 6.2 Bidirectional communication
+
+At every N:
+
+```text
+T(HtoD ∥ DtoH)  ≈  1.47 · max(T_HtoD, T_DtoH)
+T(HtoD ∥ DtoH)  ≈  0.75 · (T_HtoD + T_DtoH)
+```
+
+So `sched.concurrent` on opposite-direction copies is **partial
+duplex**, not `max` and not `sum`. Same-direction copies stay
+`≈ sum`.
+
+HtoD → event → DtoH versus HtoD → DtoH: delta 2–8 µs. The
+explicit wait is real and small next to MB-scale copies.
+
+### 6.3 Size curve / launch + bandwidth
+
+Fit on sizes ≥ 1MB:
+
+```text
+T_htod ≈  9.41 µs  +  bytes / 25.25 GB/s
+T_dtoh ≈  8.67 µs  +  bytes / 26.31 GB/s
+```
+
+1KB is ~5.2 µs (~0.20 GB/s). `Bytes/BW` without `T_launch`
+misses the small-copy floor. Large pinned HtoD/DtoH on this
+machine is ~25–26 GB/s (PCIe-class, not HBM).
+
+### 6.4 Synchronization
+
+Idle-stream inner-loop median:
+
+```text
+T_event    ≈  5.5 µs
+T_stream   ≈  0.2 µs
+T_device   ≈  0.4 µs
+```
+
+`C_synchronization` is a measurable host/device wait, on the
+order of microseconds, not a copy-sized term.
+
+### 6.5 Compute intensity (stand-in)
+
+```text
+SiLU k=32     4M / 16M / 64M :  332 / 2293 / 18588 µs
+reduction     4M / 16M / 64M :   21 /  103 /   349 µs
+matmul dim    256 / 512 / 1024:  15 /   52 /   343 µs
+```
+
+Elementwise and reduction stay memory-side. Tiled GEMM at
+dim=1024 is the compute-side stand-in (~6 TFLOP/s, far below
+4090 peak; not a cuBLAS claim). MLP / gated_mlp stay later.
+
+C ∥ C at 16M was re-run and stayed ~4× one compute. That is
+contention / degradation, not overlap. Do not turn it into a
+Cost axiom in this increment.
+
+### 6.6 What this is not
+
+```text
+Capability_4090  ≠  Cost v0.4
+mixed HtoD∥DtoH  ≠  a new C_overlap formula
+T_launch         ≠  a Score_3 rewrite
+V3               ≠  claimed
+```
+
+A later Cost may consume this matrix. This layer only records
+it.

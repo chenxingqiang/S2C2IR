@@ -14,3 +14,7 @@ unchanged from `40f8a2b`. `clock_state` is a pre-sweep
 
 `cuda_runtime` is `cudaRuntimeGetVersion()` from the
 measurement binary, not the `nvidia-smi` CUDA Version banner.
+
+Capability-matrix records (`v3-cap.jsonl`, 60 points) reuse the
+same columns. `score3` is empty. Derived pair table:
+`v3-cap-pairs.csv`. Not Cost v0.4.
