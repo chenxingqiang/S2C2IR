@@ -1,9 +1,10 @@
 # V3 Matched-Workload Overlap Control (v0.1)
 
-Status: **measurement experiment**. Not Cost v0.4. Does **not**
-change Cost, HB, `R`, Search, Transformation, Pilot IR, or the
-frozen A/B/C timed bodies. Baseline: `b10087c` (`#49`).
-Companion analysis of the 36-point A/B/C grid: `#50`.
+Status: **calibration evidence frozen** after `#51`
+(`d07f849`). See [`v3-matched-calibration.md`](v3-matched-calibration.md).
+Not Cost v0.4. Does **not** change Cost, HB, `R`, Search,
+Transformation, Pilot IR, or the frozen A/B/C timed bodies.
+Baseline: `b10087c` (`#49`). Companion A/B/C ranks: `#50`.
 
 ```text
 Matched remaining work  ≠  a new Pilot func

@@ -46,6 +46,20 @@ PROVS = (0, 1)
 MATCHED_KS = (1, 8, 32, 64)
 MATCHED_ARMS = ("matched-seq", "matched-ovl", "matched-copy", "matched-compute")
 MATCHED_FUNCS = set(MATCHED_ARMS)
+CAL_FIELDS = (
+    "N",
+    "k",
+    "T_seq_us",
+    "T_ovl_us",
+    "T_copy_us",
+    "T_compute_us",
+    "ratio",
+    "gain_us",
+    "ideal_us",
+    "hidden_frac",
+    "seq_over_sum",
+    "ovl_over_max",
+)
 LINE_RE = re.compile(
     r"s2c2-cuda-adapter func=(?P<func>\S+) .* n=(?P<n>\d+) "
     r"provisioned=(?P<prov>\d+) k=(?P<k>\d+) score3_total=(?P<score>\d+) "
@@ -374,6 +388,90 @@ def _safe_div(num: float, den: float) -> float:
     return num / den
 
 
+def matched_slices(rows: list[dict[str, Any]]) -> list[dict[str, float | int]]:
+    out: list[dict[str, float | int]] = []
+    for n in NS:
+        for k in MATCHED_KS:
+            slice_rows = [r for r in rows if r["N"] == n and r["k"] == k]
+            by_case = {r["case"]: r for r in slice_rows}
+            if not MATCHED_FUNCS.issubset(by_case):
+                continue
+            seq = float(by_case["matched-seq"]["latency_us"])
+            ovl = float(by_case["matched-ovl"]["latency_us"])
+            copy = float(by_case["matched-copy"]["latency_us"])
+            compute = float(by_case["matched-compute"]["latency_us"])
+            out.append(
+                {
+                    "N": n,
+                    "k": k,
+                    "T_seq_us": seq,
+                    "T_ovl_us": ovl,
+                    "T_copy_us": copy,
+                    "T_compute_us": compute,
+                    "ratio": _safe_div(compute, copy),
+                    "gain_us": seq - ovl,
+                    "ideal_us": min(copy, compute),
+                    "hidden_frac": _safe_div(seq - ovl, min(copy, compute)),
+                    "seq_over_sum": _safe_div(seq, copy + compute),
+                    "ovl_over_max": _safe_div(ovl, max(copy, compute)),
+                }
+            )
+    return out
+
+
+def print_calibration_schema() -> int:
+    print(",".join(CAL_FIELDS))
+    print("map (N,k)->(T_copy,T_compute,T_seq,T_ovl,hidden_frac)")
+    print("overlap-semantics direction-validated")
+    print("score3 not-validated")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def calibrate(jsonl: Path, out: Path | None) -> int:
+    rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line]
+    slices = matched_slices(rows)
+    print("v3-calibration v3=not-claimed cost=unchanged")
+    print("\t".join(CAL_FIELDS))
+    for s in slices:
+        print(
+            f"{s['N']}\t{s['k']}\t{s['T_seq_us']:.1f}\t{s['T_ovl_us']:.1f}\t"
+            f"{s['T_copy_us']:.1f}\t{s['T_compute_us']:.1f}\t{s['ratio']:.3f}\t"
+            f"{s['gain_us']:.1f}\t{s['ideal_us']:.1f}\t{s['hidden_frac']:.3f}\t"
+            f"{s['seq_over_sum']:.3f}\t{s['ovl_over_max']:.3f}"
+        )
+    if slices:
+        hiddens = [float(s["hidden_frac"]) for s in slices if s["hidden_frac"] == s["hidden_frac"]]
+        mean = sum(hiddens) / len(hiddens) if hiddens else float("nan")
+        print(f"summary slices={len(slices)} mean_hidden_frac={mean:.3f} "
+              f"overlap-semantics=direction-validated score3=not-validated "
+              f"v3=not-claimed")
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=CAL_FIELDS)
+            w.writeheader()
+            for s in slices:
+                row = {
+                    "N": s["N"],
+                    "k": s["k"],
+                    "T_seq_us": f"{s['T_seq_us']:.1f}",
+                    "T_ovl_us": f"{s['T_ovl_us']:.1f}",
+                    "T_copy_us": f"{s['T_copy_us']:.1f}",
+                    "T_compute_us": f"{s['T_compute_us']:.1f}",
+                    "ratio": f"{s['ratio']:.3f}",
+                    "gain_us": f"{s['gain_us']:.1f}",
+                    "ideal_us": f"{s['ideal_us']:.1f}",
+                    "hidden_frac": f"{s['hidden_frac']:.3f}",
+                    "seq_over_sum": f"{s['seq_over_sum']:.3f}",
+                    "ovl_over_max": f"{s['ovl_over_max']:.3f}",
+                }
+                w.writerow(row)
+        print(f"record_v3 wrote {out} count={len(slices)} calibration v3=not-claimed")
+    return 0
+
+
 def analyze_matched(jsonl: Path) -> int:
     rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line]
     print("v3-matched v3=not-claimed cost=unchanged")
@@ -464,12 +562,14 @@ def main() -> int:
     p = argparse.ArgumentParser(description="V3 metadata recorder")
     p.add_argument("--print-schema", action="store_true")
     p.add_argument("--print-matched-schema", action="store_true")
+    p.add_argument("--print-calibration-schema", action="store_true")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
     p.add_argument("--out", type=Path)
     p.add_argument("--analyze", type=Path)
     p.add_argument("--analyze-matched", type=Path)
+    p.add_argument("--calibrate", type=Path)
     p.add_argument("--warmup", type=int, default=5)
     p.add_argument("--reps", type=int, default=21)
     p.add_argument("--git-commit")
@@ -478,10 +578,14 @@ def main() -> int:
         return print_schema(args.format)
     if args.print_matched_schema:
         return print_matched_schema()
+    if args.print_calibration_schema:
+        return print_calibration_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
         return analyze_matched(args.analyze_matched)
+    if args.calibrate:
+        return calibrate(args.calibrate, args.out)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
