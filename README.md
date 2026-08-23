@@ -59,7 +59,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/search-restart-complete.md`](docs/design/search-restart-complete.md),
 [`docs/design/search-pareto-nxt.md`](docs/design/search-pareto-nxt.md),
 [`docs/design/search-verification.md`](docs/design/search-verification.md),
-[`docs/design/realization-transform.md`](docs/design/realization-transform.md)
+[`docs/design/realization-transform.md`](docs/design/realization-transform.md),
+[`docs/design/realization-transform-reorder.md`](docs/design/realization-transform-reorder.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
@@ -79,7 +80,9 @@ adds `Nxt = first(Pareto(Frontier))` without changing Cost / HB /
 `R` / Neighbor / Start / Restart. v0.4.12 verifies those
 inhabitants (`--s2c2-walk=verify`). v0.5.0 (**frozen**) opens
 `T : P → P'` with `HB(P') = HB(P)` and rebuilt `X'`
-(`--s2c2-xform=kind=id`). It is not a heuristic searcher.
+(`--s2c2-xform=kind=id`). v0.5.1 adds
+`--s2c2-xform=kind=concurrent-reorder` (HB-independent sibling
+swap; executable HB equality). It is not a heuristic searcher.
 
 ## Requirements
 
