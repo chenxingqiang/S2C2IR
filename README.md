@@ -83,7 +83,7 @@ inhabitants (`--s2c2-walk=verify`). v0.5.0 (**frozen**) opens
 `T : P → P' ∪ {⊥}` with `HB(P') = HB(P)` only when `T(P) ≠ ⊥`,
 and rebuilt `X'` (`--s2c2-xform=kind=id`). v0.5.1 (**frozen**) adds
 `--s2c2-xform=kind=concurrent-reorder` (HB-independent sibling
-swap; executable HB equality). v0.5.2 is the docs-only
+swap; executable HB equality). v0.5.2 (**frozen**) is the docs-only
 composition contract `(T_b ∘ T_a)`: each step re-proves
 `HB(P_i) = HB(P_0)` and rebuilds `X_i`. It is not a heuristic
 searcher.
