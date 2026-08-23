@@ -469,6 +469,6 @@ No FileCheck of microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
-| VM1 | `test/Pilot/s2c2-v3-metadata-protocol.mlir` | required fields present |
+| VM1 | `test/Pilot/s2c2-v3-metadata-protocol.mlir` | required fields present; runtime source is `cudaRuntimeGetVersion` |
 | VM2 | same CSV | header matches the frozen column list |
 | VM3 | paper | 36 GPU points; no credentials in records |

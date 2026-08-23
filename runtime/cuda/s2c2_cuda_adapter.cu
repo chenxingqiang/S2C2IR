@@ -283,6 +283,17 @@ static double timeCpu(Workload w, int n, int warmup, int reps, bool provisioned,
   return medianUs(samples);
 }
 
+// Loaded libcudart version. Not nvidia-smi "CUDA Version" and not nvcc.
+static void printCudaRuntimeVersion() {
+  int v = 0;
+  cudaError_t err = cudaRuntimeGetVersion(&v);
+  if (err != cudaSuccess) {
+    std::fprintf(stderr, "s2c2-cuda-adapter cuda_runtime_version=unavailable\n");
+    return;
+  }
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda_runtime_version=%d\n", v);
+}
+
 static void printResult(const s2c2::cuda_adapter::PilotBind &p, const char *dev,
                         int n, bool provisioned, int k, double us) {
   std::fprintf(stderr,
@@ -316,10 +327,15 @@ int main(int argc, char **argv) {
       k = std::atoi(argv[i] + 4);
     else if (a == "--provisioned")
       provisioned = true;
+    else if (a == "--print-meta") {
+      printCudaRuntimeVersion();
+      return 0;
+    }
     else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
                    "s2c2-cuda-run --func=all|a|b|c --device=gpu|cpu "
-                   "--n=N --k=K --provisioned --warmup=W --reps=R\n");
+                   "--n=N --k=K --provisioned --warmup=W --reps=R\n"
+                   "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
       std::fprintf(stderr, "s2c2-cuda-run: unknown arg %s\n", argv[i]);

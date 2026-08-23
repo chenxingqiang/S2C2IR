@@ -23,6 +23,9 @@ module {
 // CHECK: statistic
 // CHECK: latency_us
 // CHECK: score3
+// CHECK: source driver_version=nvidia-smi
+// CHECK: source nvcc_version=nvcc
+// CHECK: source cuda_runtime=cudaRuntimeGetVersion
 // CHECK: v3=not-claimed
 // CHECK-NOT: password
 // CHECK-NOT: ssh

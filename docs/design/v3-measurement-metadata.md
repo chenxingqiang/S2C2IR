@@ -34,9 +34,17 @@ before the 4090 rerun.
 | `timestamp` | UTC ISO-8601 |
 | `gpu_model` | `nvidia-smi` name |
 | `gpu_memory` | total MiB |
-| `driver_version` | driver |
-| `cuda_runtime` | CUDA runtime string if available |
+| `driver_version` | `nvidia-smi` driver |
+| `cuda_runtime` | `cudaRuntimeGetVersion()` from the measurement binary |
 | `nvcc_version` | `nvcc --version` |
+
+```text
+Driver Version  ≠  NVCC Version  ≠  CUDA Runtime Version
+```
+
+`cuda_runtime` is the loaded **libcudart** API integer
+(e.g. `12080`). It is **not** the `nvidia-smi` `CUDA Version:`
+banner (driver compatibility) and not `nvcc`.
 | `clock_state` | pstate + SM/mem clocks when readable |
 | `power_mode` | power limit when readable |
 | `case` | `a` / `b` / `c` |
@@ -101,7 +109,7 @@ Hardware snapshot (not a lock):
 gpu_model        NVIDIA GeForce RTX 4090
 gpu_memory       24564
 driver_version   570.124.06
-cuda_runtime     12.8
+cuda_runtime     12080   (cudaRuntimeGetVersion; not smi banner 12.8)
 nvcc_version     release 12.8, V12.8.61
 power_mode       limit_w=450.00
 clock_state      pre-sweep snapshot (idle P8 on this run)

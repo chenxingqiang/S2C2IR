@@ -83,18 +83,32 @@ def nvcc_version() -> str:
     return out.splitlines()[-1]
 
 
-def cuda_from_smi_banner() -> str:
-    out = run_cmd(["nvidia-smi"])
-    for line in out.splitlines():
-        if "CUDA Version:" in line:
-            return line.split("CUDA Version:")[-1].split()[0]
-    return unavailable()
+RUNTIME_RE = re.compile(r"cuda_runtime_version=(\S+)")
+
+
+def run_cmd_all(args: list[str]) -> str:
+    try:
+        proc = subprocess.run(
+            args, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+        return (proc.stdout or "").strip()
+    except OSError:
+        return ""
+
+
+def cuda_runtime_from_bin(bin_path: str) -> str:
+    """Loaded libcudart via cudaRuntimeGetVersion. Not nvidia-smi / nvcc."""
+    out = run_cmd_all([bin_path, "--print-meta"])
+    m = RUNTIME_RE.search(out)
+    if not m:
+        return unavailable()
+    return m.group(1)
 
 
 def collect_gpu() -> dict[str, str]:
     q = (
         "name,memory.total,driver_version,clocks.current.sm,"
-        "clocks.current.memory,pstate,power.limit,cuda_version"
+        "clocks.current.memory,pstate,power.limit"
     )
     raw = run_cmd(
         [
@@ -112,36 +126,9 @@ def collect_gpu() -> dict[str, str]:
         "power_mode": unavailable(),
     }
     if not raw:
-        # Older drivers may reject cuda_version.
-        q2 = (
-            "name,memory.total,driver_version,clocks.current.sm,"
-            "clocks.current.memory,pstate,power.limit"
-        )
-        raw = run_cmd(
-            [
-                "nvidia-smi",
-                f"--query-gpu={q2}",
-                "--format=csv,noheader,nounits",
-            ]
-        )
-        if not raw:
-            return meta
-        parts = [p.strip() for p in raw.split(",")]
-        if len(parts) >= 7:
-            meta.update(
-                {
-                    "gpu_model": parts[0],
-                    "gpu_memory": parts[1],
-                    "driver_version": parts[2],
-                    "clock_state": f"pstate={parts[5]} sm={parts[3]} mem={parts[4]}",
-                    "power_mode": f"limit_w={parts[6]}",
-                }
-            )
-        if meta["cuda_runtime"] == unavailable():
-            meta["cuda_runtime"] = cuda_from_smi_banner()
         return meta
     parts = [p.strip() for p in raw.split(",")]
-    if len(parts) >= 8:
+    if len(parts) >= 7:
         meta.update(
             {
                 "gpu_model": parts[0],
@@ -149,11 +136,8 @@ def collect_gpu() -> dict[str, str]:
                 "driver_version": parts[2],
                 "clock_state": f"pstate={parts[5]} sm={parts[3]} mem={parts[4]}",
                 "power_mode": f"limit_w={parts[6]}",
-                "cuda_runtime": parts[7],
             }
         )
-    if meta["cuda_runtime"] == unavailable():
-        meta["cuda_runtime"] = cuda_from_smi_banner()
     return meta
 
 
@@ -163,6 +147,9 @@ def print_schema(fmt: str) -> int:
     else:
         for name in FIELDS:
             print(name)
+        print("source driver_version=nvidia-smi")
+        print("source nvcc_version=nvcc")
+        print("source cuda_runtime=cudaRuntimeGetVersion")
         print("v3=not-claimed")
     return 0
 
@@ -213,6 +200,7 @@ def write_outputs(rows: list[dict[str, Any]], out_prefix: Path) -> None:
 
 def sweep(bin_path: str, out_prefix: Path, warmup: int, reps: int, commit: str) -> int:
     gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
     rows: list[dict[str, Any]] = []
     for n in NS:
         for k in KS:
