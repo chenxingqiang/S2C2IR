@@ -224,6 +224,13 @@ adapter HtoD). Still does not claim V3.
 Fixes the JSONL/CSV record before a 4090 rerun. Adapter
 semantics unchanged.
 
+## V3 Ranking Analysis (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-ranking-analysis.md`](design/v3-ranking-analysis.md).
+Asks whether Score_3 vs latency mismatch is stable or a
+stand-in artifact. Does not rewrite `C_overlap`.
+
 ## Phase 2C — Compute frontend (optional)
 
 ```text

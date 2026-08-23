@@ -472,3 +472,15 @@ No FileCheck of microseconds.
 | VM1 | `test/Pilot/s2c2-v3-metadata-protocol.mlir` | required fields present; runtime source is `cudaRuntimeGetVersion` |
 | VM2 | same CSV | header matches the frozen column list |
 | VM3 | paper | 36 GPU points; no credentials in records |
+
+## V3 Ranking Analysis (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-ranking-analysis.md`](v3-ranking-analysis.md). Uses the
+frozen #49 dataset. No new sweep.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| VA1 | paper | B<A agreement 0/12 is stable on this grid |
+| VA2 | paper | mismatch is stand-in comparison, not a Cost patch |
+| VA3 | paper | V3 not claimed; Cost v0.4 not opened |
