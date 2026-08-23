@@ -328,3 +328,19 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | W5 | same IR | `sched.concurrent` unchanged |
 | W6 | same | no `winner=`, no `pi=` |
 | W7 | same F0 | `Nxt` is total: every decision is `step` or `localstop` (`F0-NEXT`); never error / undefined / outside `X` |
+
+## Restart / Complete coverage (v0.4.10)
+
+**Executable.** `--s2c2-walk=restart=false`. Design:
+[`search-restart-complete.md`](search-restart-complete.md). Same
+inhabitant as v0.4.9; `Rst` withheld after the first LocalStop.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| R1 | `test/Analysis/s2c2-walk.mlir` STOP | one segment: localstop accepted=4; argmin count=2 total=129 (both cim) |
+| R2 | same STOP | no `complete`, no `restart`, no gpu/npu in the LocalStop output |
+| R3 | same AMIN | `--s2c2-argmin` still count=4 total=128 |
+| R4 | R1 vs R3 | `ArgMin(Accepted)=129` ≠ `ArgMin_F=128` |
+| R5 | same F0 | default restart still Complete accepted=8 and ArgMin_F |
+| R6 | same STOPD | `D_test={cpu,gpu}`: localstop accepted=2 argmin cpu 136; no gpu |
+| R7 | same STOP | no `winner=`, no `pi=` |

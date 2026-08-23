@@ -9,7 +9,9 @@
 //   S   = StartFirst
 //   Rst = StartUnused
 //   Nxt = first(Best) on Frontier
-// Does not rewrite IR, pick a unique M* as output, or redefine HB / Cost.
+// restart=false (v0.4.10): one segment; LocalStop output is
+// ArgMin(Accepted), not ArgMin_F. Acc stays inline (not a shared
+// helper). Does not rewrite IR, pick a unique M*, or redefine HB / Cost.
 //
 //===----------------------------------------------------------------------===//
 
@@ -136,21 +138,25 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
         break;
       llvm::errs() << "s2c2-walk func=" << func.getName()
                    << " localstop accepted=" << accepted.size() << "\n";
-      Triple restart;
+      Triple restartCand;
       bool found = false;
       for (const Triple &t : x) {
         if (!accepted.contains(t.key())) {
-          restart = t;
+          restartCand = t;
           found = true;
           break;
         }
       }
       if (!found)
         break;
-      if (failed(install(func, restart, generated, checked, legalChecked,
+      if (!this->restart) {
+        printArgmin(func, x, accepted, scoreOf);
+        return success();
+      }
+      if (failed(install(func, restartCand, generated, checked, legalChecked,
                          scored, accepted, cache, scoreOf)))
         return failure();
-      current = restart;
+      current = restartCand;
       llvm::errs() << "s2c2-walk func=" << func.getName() << " restart sched="
                    << current.sched << " map=" << current.map
                    << " device=" << current.device << "\n";
@@ -159,7 +165,13 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
 
     llvm::errs() << "s2c2-walk func=" << func.getName()
                  << " complete accepted=" << accepted.size() << "\n";
+    printArgmin(func, x, accepted, scoreOf);
+    return success();
+  }
 
+  void printArgmin(func::FuncOp func, ArrayRef<Triple> x,
+                   const llvm::StringSet<> &accepted,
+                   const llvm::StringMap<Score3> &scoreOf) {
     int64_t best = -1;
     SmallVector<Triple, 8> argmin;
     for (const Triple &t : x) {
@@ -180,7 +192,6 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
       llvm::errs() << "s2c2-walk func=" << func.getName()
                    << " argmin sched=" << t.sched << " map=" << t.map
                    << " device=" << t.device << " total=" << best << "\n";
-    return success();
   }
 
   LogicalResult install(func::FuncOp func, const Triple &m,

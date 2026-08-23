@@ -305,10 +305,12 @@ def S2C2Walk : Pass<"s2c2-walk", "::mlir::ModuleOp"> {
       Nxt = first(Best) on Frontier (scalar total)
 
     Does not rewrite IR, pick a unique M* as the output set, or
-    redefine HB / Cost / π. Restarts until Accepted = X (Complete).
-    A segment LocalStop is printed when Frontier is empty and
-    Unused is still nonempty. Output ArgMin is the set over
-    Accepted; after Complete it equals ArgMin_F.
+    redefine HB / Cost / π. Default `restart=true` restarts until
+    Accepted = X (Complete). `restart=false` is the v0.4.10
+    witness: stop at the first LocalStop and emit ArgMin(Accepted),
+    which is not ArgMin_F when the first Hamming-1 component is a
+    proper subset of X. A segment LocalStop is printed when
+    Frontier is empty and Unused is still nonempty.
 
     Same F flags as `--s2c2-enumerate`. Empty = F_0.
     This is not `--s2c2-search` and not beam / Pareto / rewrite.
@@ -319,7 +321,9 @@ def S2C2Walk : Pass<"s2c2-walk", "::mlir::ModuleOp"> {
     Option<"maps", "maps", "std::string", /*default=*/"\"\"",
            "Comma-separated space-map labels; empty = F_0">,
     Option<"devices", "devices", "std::string", /*default=*/"\"\"",
-           "Comma-separated device labels; empty = F_0">
+           "Comma-separated device labels; empty = F_0">,
+    Option<"restart", "restart", "bool", /*default=*/"true",
+           "If false, stop at first LocalStop and emit ArgMin(Accepted)">
   ];
 }
 
