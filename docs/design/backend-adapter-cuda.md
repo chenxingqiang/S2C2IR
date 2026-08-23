@@ -1,4 +1,4 @@
-# S²C² CUDA Backend Adapter (v0.1)
+# S²C² CUDA Measurement Adapter (v0.1)
 
 Status: **measurement adapter frozen**. Not an S²C² CUDA
 backend. Not v0.5.x. Does **not** add a `T` kind, Search,
