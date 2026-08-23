@@ -44,6 +44,16 @@ static const s2c2::cuda_adapter::PilotBind *findPilot(const char *name) {
   return nullptr;
 }
 
+static void printContend() {
+  std::fprintf(stderr, "s2c2-cuda-adapter contend=one remaining=1xHtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter contend=seq remaining=2xHtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter contend=par remaining=2xHtoD\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter contend=par-split remaining=2xHtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter contend score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter contend cost=unchanged\n");
+}
+
 static void printMatched() {
   std::fprintf(stderr,
                "s2c2-cuda-adapter matched=seq remaining=1xHtoD+kxSiLU\n");
@@ -59,6 +69,7 @@ static void printMatched() {
 int main(int argc, char **argv) {
   bool dryRun = false;
   bool matched = false;
+  bool contend = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -66,11 +77,14 @@ int main(int argc, char **argv) {
       dryRun = true;
     } else if (a == "--matched") {
       matched = true;
+    } else if (a == "--contend") {
+      contend = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
-                   "s2c2-cuda-adapter --dry-run [--func=<id|name>] [--matched]\n"
+                   "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
+                   "[--matched] [--contend]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -87,6 +101,11 @@ int main(int argc, char **argv) {
   }
 
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
+  if (contend) {
+    printContend();
+    printMaps();
+    return 0;
+  }
   if (matched) {
     printMatched();
     printMaps();

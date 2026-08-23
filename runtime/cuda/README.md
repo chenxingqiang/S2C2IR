@@ -12,6 +12,7 @@ nvcc -O2 -std=c++17 runtime/cuda/s2c2_cuda_adapter.cu -o s2c2-cuda-run
 ./s2c2-cuda-run --func=all --device=cpu --n=16777216
 ./s2c2-cuda-run --func=all --n=16777216 --k=8 --provisioned
 ./s2c2-cuda-run --matched=all --device=gpu --n=16777216 --k=32
+./s2c2-cuda-run --contend=all --device=gpu --n=16777216
 S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep.sh ./s2c2-cuda-run ./v3-rerun
 S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_matched.sh ./s2c2-cuda-run ./v3-matched
 # writes JSONL/CSV; no host/password fields
