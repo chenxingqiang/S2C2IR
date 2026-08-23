@@ -13,8 +13,8 @@ v0.4.6  Generate → Validate → [Score] → Select → Accept
                                                FROZEN in search-algorithm-contract.md
 v0.4.7  StartPolicy / RestartPolicy            FROZEN in search-start-policy.md
 v0.4.8  Algorithm = (N, S, R, Nxt, Acc)        this document
-v0.4.9  Hamming-1 walk                         in search-walk-n1.md
-v0.4.10 Restart / Complete                     later
+v0.4.9  Hamming-1 walk                         FROZEN in search-walk-n1.md
+v0.4.10 Restart / Complete                     in search-restart-complete.md
 v0.4.11 Pareto-aware search                    later
 v0.4.12 Search verification                    later
 v0.5    Realization transformation             later

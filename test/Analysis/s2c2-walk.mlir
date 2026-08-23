@@ -1,6 +1,8 @@
 // RUN: s2c2-opt %s --check-s2c2-execution
 // RUN: s2c2-opt %s --s2c2-walk 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=F0
 // RUN: s2c2-opt %s --s2c2-walk=devices=cpu,gpu 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=DTEST
+// RUN: s2c2-opt %s --s2c2-walk=restart=false 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=STOP
+// RUN: s2c2-opt %s --s2c2-walk="devices=cpu,gpu restart=false" 2>&1 | grep s2c2-walk | FileCheck %s --check-prefix=STOPD
 // RUN: s2c2-opt %s --s2c2-walk | FileCheck %s --check-prefix=IR
 // RUN: s2c2-opt %s --s2c2-argmin 2>&1 | grep 'argmin count\|argmin sched' | FileCheck %s --check-prefix=AMIN
 
@@ -68,3 +70,31 @@ module {
 
 // AMIN: argmin count=4
 // AMIN: argmin sched=gpu-async map=default device=gpu total=128
+
+// One Hamming-1 segment: ArgMin(Accepted)=129 ≠ ArgMin_F=128.
+// STOP: s2c2-walk func=r4_same_program start sched=cpu-seq map=default device=cpu
+// STOP-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=default device=cim total=129
+// STOP-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=t5 device=cim total=129
+// STOP-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=t5 device=cpu total=136
+// STOP-NEXT: s2c2-walk func=r4_same_program localstop accepted=4
+// STOP-NEXT: s2c2-walk func=r4_same_program argmin count=2
+// STOP-NEXT: s2c2-walk func=r4_same_program argmin sched=cpu-seq map=default device=cim total=129
+// STOP-NEXT: s2c2-walk func=r4_same_program argmin sched=cpu-seq map=t5 device=cim total=129
+// STOP-NOT: complete
+// STOP-NOT: restart
+// STOP-NOT: gpu-async
+// STOP-NOT: npu-staged-dma
+// STOP-NOT: winner=
+// STOP-NOT: pi=
+
+// STOPD: s2c2-walk func=r4_same_program start sched=cpu-seq map=default device=cpu
+// STOPD-NEXT: s2c2-walk func=r4_same_program step sched=cpu-seq map=t5 device=cpu total=136
+// STOPD-NEXT: s2c2-walk func=r4_same_program localstop accepted=2
+// STOPD-NEXT: s2c2-walk func=r4_same_program argmin count=2
+// STOPD-NEXT: s2c2-walk func=r4_same_program argmin sched=cpu-seq map=default device=cpu total=136
+// STOPD-NEXT: s2c2-walk func=r4_same_program argmin sched=cpu-seq map=t5 device=cpu total=136
+// STOPD-NOT: complete
+// STOPD-NOT: restart
+// STOPD-NOT: gpu-async
+// STOPD-NOT: winner=
+// STOPD-NOT: pi=

@@ -1,6 +1,6 @@
 # Hamming-1 walk inhabitant (v0.4.9)
 
-Status: **v0.4.9 design**. First executable inhabitant of frozen
+Status: **v0.4.9 frozen**. First executable inhabitant of frozen
 `A = (N, S, Rst, Nxt, Acc)`:
 
 ```text
@@ -11,8 +11,9 @@ Nxt = first(Best)          // scalar Score_3.total; F_0 WalkTieBreak
 ```
 
 Does not add `--s2c2-search`, beam, Pareto Next, or `P ↦ P'`.
-v0.4.5–v0.4.8, Cost, HB, and `R` remain frozen. Baseline:
-`0ad2dd4` (`#32`).
+v0.4.5–v0.4.8, Cost, HB, and `R` remain frozen. Merged as
+`ed14368` (`#33`). Coverage / `LocalStop ≠ ArgMin_F` is
+[`search-restart-complete.md`](search-restart-complete.md) (v0.4.10).
 
 ```text
 --s2c2-walk
