@@ -1,8 +1,8 @@
 # Realization Transformation (v0.5.0)
 
-Status: **v0.5.0 design**. Opens `P ↦ P'` as a **program** map,
+Status: **v0.5.0 frozen**. Opens `P ↦ P'` as a **program** map,
 not a new search inhabitant. Search (v0.4.5–v0.4.12), Cost, HB
-axioms, and `R` remain frozen. Baseline: `90e3087` (`#36`).
+axioms, and `R` remain frozen. Merged as `40589a1` (`#37`).
 
 ```text
 T : P → P' ∪ {⊥}

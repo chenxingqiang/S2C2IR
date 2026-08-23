@@ -379,7 +379,7 @@ document; IDs here are SV1–SV8 (not v0.4.1 S1–S6).
 
 ## Realization Transformation (v0.5.0)
 
-**Executable.** `--s2c2-xform=kind=id`. Design:
+**Frozen.** `--s2c2-xform=kind=id`. Design:
 [`realization-transform.md`](realization-transform.md). Identity
 only; rebuilds `X'`. Not Search.
 
