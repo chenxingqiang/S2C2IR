@@ -193,12 +193,14 @@ is docs-only: `(T_b ∘ T_a)` is one `T`; each step re-proves
 
 ## Pilot / Research Validation
 
-**Not v0.5.x.** Design:
+**V1–V2 frozen.** Not v0.5.x. Design:
 [`pilot-benchmark.md`](design/pilot-benchmark.md).
 Three stand-in workloads (SSD→HBM→Compute, Compute∥Comm,
 Pipeline) run frozen Enum / ArgMin / Cost / HB-preserving
-reorder. Architecture expansion pauses here. Real-latency
-correlation (V3) needs a backend; it is not this section.
+reorder. Architecture expansion pauses here; do not open
+v0.5.4. Real-latency correlation (V3) needs a backend; it
+is not this section. The next valuable layer is one small
+real backend adapter, not another `T` kind.
 
 ## Phase 2C — Compute frontend (optional)
 

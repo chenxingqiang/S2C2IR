@@ -8,7 +8,9 @@ is [`realization-transform.md`](realization-transform.md)
 [`realization-transform-reorder.md`](realization-transform-reorder.md)
 (**v0.5.1 frozen**). Composition of `T` is
 [`realization-transform-compose.md`](realization-transform-compose.md)
-(**v0.5.2 frozen**).
+(**v0.5.2 frozen**). Pilot V1–V2 is
+[`pilot-benchmark.md`](pilot-benchmark.md) (**frozen**); it is
+the research-validation entry, not a new kind.
 
 ```text
 N        = N_1

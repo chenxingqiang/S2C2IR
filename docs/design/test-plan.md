@@ -422,7 +422,7 @@ First `P' ≠ P` inhabitant. Accept iff `HB(P') = HB(P)`. Rebuild
 
 ## Pilot / Research Validation
 
-**Executable V1–V2.** Not v0.5.x. Design:
+**Frozen V1–V2.** Not v0.5.x. Design:
 [`pilot-benchmark.md`](pilot-benchmark.md). Three stand-in
 workloads. V3/V4 (real latency) need a backend.
 
