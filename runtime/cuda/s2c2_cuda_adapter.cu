@@ -77,6 +77,9 @@ enum class Workload { A, B, C };
 // Remaining work on seq and ovl: 1×HtoD(H) + k×SiLU(D), D ≠ H.
 enum class MatchedArm { Off, Seq, Ovl, Copy, Compute };
 
+// Two-HtoD contention probe. Not a Pilot func and not Score_3.
+enum class ContendArm { Off, One, Seq, Par, ParSplit };
+
 static Workload parseWork(const char *name) {
   if (std::strcmp(name, "a") == 0 ||
       std::strcmp(name, "pilot_a_ssd_hbm_compute") == 0)
@@ -97,6 +100,7 @@ static const s2c2::cuda_adapter::PilotBind &bindOf(Workload w) {
 
 struct GpuBuf {
   float *ssd = nullptr; // pinned host
+  float *ssd2 = nullptr; // optional second pinned host (contend only)
   float *hbm = nullptr; // device
   float *scratch = nullptr;
   int n = 0;
@@ -106,7 +110,7 @@ struct GpuBuf {
   cudaEvent_t start = nullptr;
   cudaEvent_t stop = nullptr;
 
-  void alloc(int n_) {
+  void alloc(int n_, bool twoHost = false) {
     n = n_;
     CUDA_OK(cudaHostAlloc(&ssd, sizeof(float) * n, cudaHostAllocDefault));
     CUDA_OK(cudaMalloc(&hbm, sizeof(float) * n));
@@ -117,6 +121,10 @@ struct GpuBuf {
     CUDA_OK(cudaEventCreate(&start));
     CUDA_OK(cudaEventCreate(&stop));
     fillHost(ssd, n, 1);
+    if (twoHost) {
+      CUDA_OK(cudaHostAlloc(&ssd2, sizeof(float) * n, cudaHostAllocDefault));
+      fillHost(ssd2, n, 3);
+    }
   }
 
   void freeAll() {
@@ -127,6 +135,8 @@ struct GpuBuf {
     cudaStreamDestroy(s0);
     cudaFree(scratch);
     cudaFree(hbm);
+    if (ssd2)
+      cudaFreeHost(ssd2);
     cudaFreeHost(ssd);
   }
 };
@@ -386,6 +396,102 @@ static void printMatched(MatchedArm arm, const char *dev, int n, int k,
                matchedFunc(arm), kSched, kMap, dev, n, k, us);
 }
 
+static void runContendOne(GpuBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+static void runContendSeq(GpuBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s0));
+  CUDA_OK(cudaMemcpyAsync(b.scratch, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+static void runContendPar(GpuBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s0));
+  CUDA_OK(cudaMemcpyAsync(b.scratch, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s1));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s1));
+}
+
+static void runContendParSplit(GpuBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s0));
+  CUDA_OK(cudaMemcpyAsync(b.scratch, b.ssd2, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s1));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s1));
+}
+
+static void runContend(GpuBuf &b, ContendArm arm) {
+  switch (arm) {
+  case ContendArm::One:
+    runContendOne(b);
+    break;
+  case ContendArm::Seq:
+    runContendSeq(b);
+    break;
+  case ContendArm::Par:
+    runContendPar(b);
+    break;
+  case ContendArm::ParSplit:
+    runContendParSplit(b);
+    break;
+  case ContendArm::Off:
+    break;
+  }
+}
+
+static const char *contendFunc(ContendArm arm) {
+  switch (arm) {
+  case ContendArm::One:
+    return "contend-one";
+  case ContendArm::Seq:
+    return "contend-seq";
+  case ContendArm::Par:
+    return "contend-par";
+  case ContendArm::ParSplit:
+    return "contend-par-split";
+  case ContendArm::Off:
+    return "contend-off";
+  }
+  return "contend-off";
+}
+
+static void printContend(ContendArm arm, const char *dev, int n, double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=1 score3_total=0 latency_us=%.1f\n",
+               contendFunc(arm), kSched, kMap, dev, n, us);
+}
+
+static double timeContendArm(GpuBuf &b, ContendArm arm, int warmup, int reps) {
+  auto body = [&]() { runContend(b, arm); };
+  for (int i = 0; i < warmup; ++i)
+    body();
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    fillHost(b.ssd, b.n, i + 2);
+    if (b.ssd2)
+      fillHost(b.ssd2, b.n, i + 5);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f);
+  }
+  return medianUs(samples);
+}
+
 static double timeMatchedArm(GpuBuf &b, MatchedArm arm, int warmup, int reps,
                              int k) {
   auto body = [&]() { runMatched(b, arm, k); };
@@ -410,6 +516,23 @@ static double timeMatchedArm(GpuBuf &b, MatchedArm arm, int warmup, int reps,
   return medianUs(samples);
 }
 
+static ContendArm parseContend(const char *name) {
+  if (std::strcmp(name, "off") == 0)
+    return ContendArm::Off;
+  if (std::strcmp(name, "one") == 0)
+    return ContendArm::One;
+  if (std::strcmp(name, "seq") == 0)
+    return ContendArm::Seq;
+  if (std::strcmp(name, "par") == 0)
+    return ContendArm::Par;
+  if (std::strcmp(name, "par-split") == 0)
+    return ContendArm::ParSplit;
+  if (std::strcmp(name, "all") == 0)
+    return ContendArm::Off;
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --contend %s\n", name);
+  std::exit(1);
+}
+
 static MatchedArm parseMatched(const char *name) {
   if (std::strcmp(name, "off") == 0)
     return MatchedArm::Off;
@@ -431,6 +554,7 @@ int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
   const char *matchedArg = "off";
+  const char *contendArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
@@ -452,6 +576,8 @@ int main(int argc, char **argv) {
       k = std::atoi(argv[i] + 4);
     else if (a.rfind("--matched=", 0) == 0)
       matchedArg = argv[i] + 10;
+    else if (a.rfind("--contend=", 0) == 0)
+      contendArg = argv[i] + 10;
     else if (a == "--provisioned")
       provisioned = true;
     else if (a == "--print-meta") {
@@ -464,6 +590,8 @@ int main(int argc, char **argv) {
                    "--n=N --k=K --provisioned --warmup=W --reps=R\n"
                    "s2c2-cuda-run --matched=off|seq|ovl|copy|compute|all "
                    "--device=gpu --n=N --k=K\n"
+                   "s2c2-cuda-run --contend=off|one|seq|par|par-split|all "
+                   "--device=gpu --n=N\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -481,6 +609,37 @@ int main(int argc, char **argv) {
   if (!gpu && !cpu) {
     std::fprintf(stderr, "s2c2-cuda-run: device must be gpu or cpu\n");
     return 1;
+  }
+
+  bool contendAll = std::strcmp(contendArg, "all") == 0;
+  ContendArm contend = parseContend(contendArg);
+  if (contendAll || contend != ContendArm::Off) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --contend is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    std::vector<ContendArm> arms;
+    if (contendAll) {
+      arms = {ContendArm::One, ContendArm::Seq, ContendArm::Par,
+              ContendArm::ParSplit};
+    } else {
+      arms = {contend};
+    }
+    GpuBuf b;
+    b.alloc(n, true);
+    for (ContendArm arm : arms) {
+      double us = timeContendArm(b, arm, warmup, reps);
+      printContend(arm, "gpu", n, us);
+    }
+    b.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
   }
 
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;

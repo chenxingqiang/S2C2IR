@@ -46,6 +46,8 @@ PROVS = (0, 1)
 MATCHED_KS = (1, 8, 32, 64)
 MATCHED_ARMS = ("matched-seq", "matched-ovl", "matched-copy", "matched-compute")
 MATCHED_FUNCS = set(MATCHED_ARMS)
+CONTEND_ARMS = ("contend-one", "contend-seq", "contend-par", "contend-par-split")
+CONTEND_FUNCS = set(CONTEND_ARMS)
 CAL_FIELDS = (
     "N",
     "k",
@@ -217,6 +219,35 @@ def parse_matched_line(line: str) -> dict[str, Any] | None:
         "score3": "",
         "latency_us": float(m.group("us")),
     }
+
+
+def parse_contend_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in CONTEND_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": 1,
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
+def print_contend_schema() -> int:
+    print("contend-arm one seq par par-split")
+    print("remaining-work 2xHtoD")
+    print("score3 not-applicable")
+    print("source driver_version=nvidia-smi")
+    print("source nvcc_version=nvcc")
+    print("source cuda_runtime=cudaRuntimeGetVersion")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
 
 
 def print_matched_schema() -> int:
@@ -548,6 +579,93 @@ def analyze_ratio(path: Path) -> int:
     return 0
 
 
+def contend_sweep(bin_path: str, out_prefix: Path, warmup: int, reps: int,
+                  commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    for n in NS:
+        args = [
+            bin_path,
+            "--contend=all",
+            "--device=gpu",
+            f"--n={n}",
+            f"--warmup={warmup}",
+            f"--reps={reps}",
+        ]
+        print(f"=== contend n={n} ===", file=sys.stderr)
+        try:
+            proc = subprocess.run(
+                args, check=True, text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            )
+            text = proc.stdout
+        except (OSError, subprocess.CalledProcessError) as exc:
+            print(f"record_v3: contend run failed: {exc}", file=sys.stderr)
+            return 2
+        print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+        found = 0
+        for line in text.splitlines():
+            parsed = parse_contend_line(line)
+            if not parsed:
+                continue
+            rec = base_record(commit, gpu, warmup, reps)
+            rec["case"] = parsed["case"]
+            rec["N"] = parsed["N"]
+            rec["k"] = parsed["k"]
+            rec["provisioned"] = parsed["provisioned"]
+            rec["score3"] = parsed["score3"]
+            rec["latency_us"] = parsed["latency_us"]
+            rows.append({key: rec[key] for key in FIELDS})
+            found += 1
+        if found != 4:
+            print(f"record_v3: expected 4 contend arms, got {found}",
+                  file=sys.stderr)
+            return 4
+    if len(rows) != 12:
+        print(f"record_v3: expected 12 contend rows, got {len(rows)}",
+              file=sys.stderr)
+        return 5
+    write_outputs(rows, out_prefix)
+    print(f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+          f"count=12 contend v3=not-claimed")
+    return 0
+
+
+def analyze_contend(jsonl: Path) -> int:
+    rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line]
+    print("v3-contend v3=not-claimed cost=unchanged")
+    print("slice\tN\tone\tseq\tpar\tpar_split\tseq_over_2one\tpar_over_seq\t"
+          "par_over_one\tserialize\tsplit_over_one")
+    serials = []
+    for n in NS:
+        slice_rows = [r for r in rows if r["N"] == n]
+        by_case = {r["case"]: r for r in slice_rows}
+        if not CONTEND_FUNCS.issubset(by_case):
+            if not slice_rows:
+                continue
+            print(f"record_v3: incomplete contend slice N={n}", file=sys.stderr)
+            return 6
+        one = float(by_case["contend-one"]["latency_us"])
+        seq = float(by_case["contend-seq"]["latency_us"])
+        par = float(by_case["contend-par"]["latency_us"])
+        split = float(by_case["contend-par-split"]["latency_us"])
+        serialize = _safe_div(par - one, one)
+        serials.append(serialize)
+        print(
+            f"slice\t{n}\t{one:.1f}\t{seq:.1f}\t{par:.1f}\t{split:.1f}\t"
+            f"{_safe_div(seq, 2 * one):.3f}\t{_safe_div(par, seq):.3f}\t"
+            f"{_safe_div(par, one):.3f}\t{serialize:.3f}\t"
+            f"{_safe_div(split, one):.3f}"
+        )
+    if serials:
+        finite = [s for s in serials if s == s]
+        mean = sum(finite) / len(finite) if finite else float("nan")
+        print(f"summary slices={len(serials)} mean_serialize_frac={mean:.3f} "
+              f"v3=not-claimed")
+    return 0
+
+
 def analyze_matched(jsonl: Path) -> int:
     rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line]
     print("v3-matched v3=not-claimed cost=unchanged")
@@ -640,14 +758,17 @@ def main() -> int:
     p.add_argument("--print-matched-schema", action="store_true")
     p.add_argument("--print-calibration-schema", action="store_true")
     p.add_argument("--print-ratio-schema", action="store_true")
+    p.add_argument("--print-contend-schema", action="store_true")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
+    p.add_argument("--contend-sweep", metavar="BIN")
     p.add_argument("--out", type=Path)
     p.add_argument("--analyze", type=Path)
     p.add_argument("--analyze-matched", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
+    p.add_argument("--analyze-contend", type=Path)
     p.add_argument("--warmup", type=int, default=5)
     p.add_argument("--reps", type=int, default=21)
     p.add_argument("--git-commit")
@@ -660,6 +781,8 @@ def main() -> int:
         return print_calibration_schema()
     if args.print_ratio_schema:
         return print_ratio_schema()
+    if args.print_contend_schema:
+        return print_contend_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
@@ -668,6 +791,8 @@ def main() -> int:
         return calibrate(args.calibrate, args.out)
     if args.analyze_ratio:
         return analyze_ratio(args.analyze_ratio)
+    if args.analyze_contend:
+        return analyze_contend(args.analyze_contend)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -681,9 +806,18 @@ def main() -> int:
             args.matched_sweep, args.out, args.warmup, args.reps,
             git_commit(args.git_commit)
         )
+    if args.contend_sweep:
+        if not args.out:
+            print("record_v3: --out required with --contend-sweep", file=sys.stderr)
+            return 1
+        return contend_sweep(
+            args.contend_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
-          "--sweep, --matched-sweep, --analyze, --analyze-matched, "
+          "--print-contend-schema, --sweep, --matched-sweep, --contend-sweep, "
+          "--analyze, --analyze-matched, --analyze-contend, "
           "--calibrate, or --analyze-ratio",
           file=sys.stderr)
     return 1
