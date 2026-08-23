@@ -8,7 +8,9 @@ is [`realization-transform.md`](realization-transform.md)
 [`realization-transform-reorder.md`](realization-transform-reorder.md)
 (**v0.5.1 frozen**). Composition of `T` is
 [`realization-transform-compose.md`](realization-transform-compose.md)
-(**v0.5.2 frozen**).
+(**v0.5.2 frozen**). Coincidence witnesses are
+[`realization-transform-compose-witness.md`](realization-transform-compose-witness.md)
+(v0.5.3).
 
 ```text
 N        = N_1

@@ -61,7 +61,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/search-verification.md`](docs/design/search-verification.md),
 [`docs/design/realization-transform.md`](docs/design/realization-transform.md),
 [`docs/design/realization-transform-reorder.md`](docs/design/realization-transform-reorder.md),
-[`docs/design/realization-transform-compose.md`](docs/design/realization-transform-compose.md)
+[`docs/design/realization-transform-compose.md`](docs/design/realization-transform-compose.md),
+[`docs/design/realization-transform-compose-witness.md`](docs/design/realization-transform-compose-witness.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
@@ -85,8 +86,9 @@ and rebuilt `X'` (`--s2c2-xform=kind=id`). v0.5.1 (**frozen**) adds
 `--s2c2-xform=kind=concurrent-reorder` (HB-independent sibling
 swap; executable HB equality). v0.5.2 (**frozen**) is the docs-only
 composition contract `(T_b ∘ T_a)`: each step re-proves
-`HB(P_i) = HB(P_0)` and rebuilds `X_i`. It is not a heuristic
-searcher.
+`HB(P_i) = HB(P_0)` and rebuilds `X_i`. v0.5.3 FileCheck-witnesses
+two existing `--s2c2-xform` applies only where sequential Apply
+coincides with compose. It is not a heuristic searcher.
 
 ## Requirements
 

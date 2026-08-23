@@ -111,6 +111,9 @@ T_reorder(wait_sib)   = ⊥     ⇒  any composite with that step is ⊥
 ```
 
 These are paper witnesses. They are not a new pass.
+Coincidence FileCheck (both succeed, or `T_a = ⊥`) is
+[`realization-transform-compose-witness.md`](realization-transform-compose-witness.md)
+(v0.5.3). That is not a compose implementation.
 
 ---
 
