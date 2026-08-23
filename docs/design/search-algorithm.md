@@ -15,8 +15,8 @@ v0.4.7  StartPolicy / RestartPolicy            FROZEN in search-start-policy.md
 v0.4.8  Algorithm = (N, S, R, Nxt, Acc)        this document
 v0.4.9  Hamming-1 walk                         FROZEN in search-walk-n1.md
 v0.4.10 Restart / Complete                     FROZEN in search-restart-complete.md
-v0.4.11 Pareto-aware Next                      in search-pareto-nxt.md
-v0.4.12 Search verification                    later
+v0.4.11 Pareto-aware Next                      FROZEN in search-pareto-nxt.md
+v0.4.12 Search verification                    in search-verification.md
 v0.5    Realization transformation             later
 ```
 

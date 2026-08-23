@@ -359,3 +359,20 @@ inhabitant as v0.4.9; `Rst` withheld after the first LocalStop.
 | P4 | same PARETO | no `winner=`, no `pi=` |
 | P5 | same IR | `sched.concurrent` unchanged |
 | P6 | same PSTOP | `restart=false` still LocalStop argmin 129 ≠ ArgMin_F 128 |
+
+## Search Verification (v0.4.12)
+
+**Executable.** `--s2c2-walk=verify`. Design:
+[`search-verification.md`](search-verification.md). S1–S8 of that
+document; IDs here are SV1–SV8 (not v0.4.1 S1–S6).
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| SV1 | `test/Analysis/s2c2-search-verify.mlir` S1 | `verify nxt-total=1`; decisions are step or localstop |
+| SV2 | same | two `--s2c2-walk=verify` traces `diff` equal |
+| SV3 | same S3 / AMIN | `complete accepted=8 \|X\|=8`; argmin count=4 |
+| SV4 | same S4 | LocalStop accepted=4 argmin 129; no complete / 128 |
+| SV5 | same S5 | accepted grows 4 → 6 → 8; restart between |
+| SV6 | same S6 | `verify ok=1` State invariants; no `ok=0` |
+| SV7 | same S7 | `nxt=pareto` oracle + complete + pareto count=4 |
+| SV8 | same S8 | `sched.concurrent`; no `memref.copy` / `winner=` / `pi=` |

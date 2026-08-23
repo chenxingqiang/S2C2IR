@@ -1,8 +1,10 @@
 # Pareto-aware Next (v0.4.11)
 
-Status: **v0.4.11 design**. A second inhabitant of frozen `A` that
+Status: **v0.4.11 frozen**. A second inhabitant of frozen `A` that
 changes **only** `Nxt`. `N`, `S`, `Rst`, `Acc`, Neighbor, Cost, HB,
-and `R` stay as in v0.4.5–v0.4.10. Baseline: `727f0a3` (`#34`).
+and `R` stay as in v0.4.5–v0.4.10. Merged as `6240f61` (`#35`).
+Search Verification is
+[`search-verification.md`](search-verification.md) (v0.4.12).
 
 ```text
 N        = N_1                 // unchanged
