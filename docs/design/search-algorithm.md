@@ -18,6 +18,7 @@ v0.4.10 Restart / Complete                     FROZEN in search-restart-complete
 v0.4.11 Pareto-aware Next                      FROZEN in search-pareto-nxt.md
 v0.4.12 Search verification                    FROZEN in search-verification.md
 v0.5.0  Realization transformation             FROZEN in realization-transform.md
+v0.5.1  Concurrent sibling reorder             in realization-transform-reorder.md
 ```
 
 ```text

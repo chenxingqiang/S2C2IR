@@ -357,22 +357,24 @@ def S2C2CostCP : Pass<"s2c2-cost-cp", "::mlir::ModuleOp"> {
 }
 
 def S2C2XForm : Pass<"s2c2-xform", "::mlir::ModuleOp"> {
-  let summary = "Realization transformation T : P → P' (v0.5.0)";
+  let summary = "Realization transformation T : P → P' (v0.5.1)";
   let description = [{
     Opens P ↦ P' as a program map, not a search inhabitant.
 
       T(P) ≠ ⊥  ⇒  HB(P') = HB(P)
       X' = Enum_F(P', D)   (rebuilt; old Enum_F discarded)
 
-    kind=id is the only inhabitant: P' = P, so HB equality holds
-    by construction. Does not rewrite Token / Concurrent / Pipeline,
-    does not apply Neighbor / Nxt, and is not --s2c2-search.
+    kind=id: T_id(P) = P; HB equality by construction.
+    kind=concurrent-reorder: swap the first HB-independent adjacent
+    concurrent sibling pair; accept only if the rebuilt HB edge sets
+    are equal. Does not apply Neighbor / Nxt, and is not
+    --s2c2-search. Concurrent → Pipeline is not a kind.
 
     Same F flags as `--s2c2-enumerate`. Empty = F_0.
   }];
   let options = [
     Option<"kind", "kind", "std::string", /*default=*/"\"id\"",
-           "Transform inhabitant: id only in v0.5.0">,
+           "Transform inhabitant: id or concurrent-reorder">,
     Option<"scheds", "scheds", "std::string", /*default=*/"\"\"",
            "Comma-separated sched labels; empty = F_0">,
     Option<"maps", "maps", "std::string", /*default=*/"\"\"",

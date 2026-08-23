@@ -389,3 +389,17 @@ only; rebuilds `X'`. Not Search.
 | X2 | same ID / ENUM | `x-rebuilt count=8` matches `--s2c2-enumerate` |
 | X3 | same IR | `sched.concurrent`; no `sched.pipeline` / `memref.copy` |
 | X4 | same ID | no `winner=`, `pi=`, `s2c2-walk`, `s2c2-search` |
+
+## Concurrent sibling reorder (v0.5.1)
+
+**Executable.** `--s2c2-xform=kind=concurrent-reorder`. Design:
+[`realization-transform-reorder.md`](realization-transform-reorder.md).
+First `P' ≠ P` inhabitant. Accept iff `HB(P') = HB(P)`. Rebuild
+`X'`. Not Search.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| XR1 | `test/Analysis/s2c2-xform-reorder.mlir` OUT | r4 `accepted=1`; `hb-eq=1` |
+| XR2 | same OUT | `wait_sibling` `accepted=0`; wait still after producer |
+| XR3 | same OUT | r4 `hb-eq=1` after actual graph compare |
+| XR4 | same ENUM | `x-rebuilt count=8` matches `--s2c2-enumerate` on `P` and `P'` |

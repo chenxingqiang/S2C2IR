@@ -19,10 +19,11 @@ or Token / Concurrent / Pipeline rewrite.
 --s2c2-xform=kind=id
 ```
 
-`kind=id` is the only inhabitant: `P' = P`. Then `HB(P') = HB(P)`
+`kind=id` is the v0.5.0 inhabitant: `P' = P`. Then `HB(P') = HB(P)`
 holds by construction, and `X'` is re-enumerated with the same
-`isLegalRealization` oracle. Later kinds must *re-prove* HB
-equality; they are not this PR.
+`isLegalRealization` oracle. The first non-identity inhabitant is
+[`realization-transform-reorder.md`](realization-transform-reorder.md)
+(v0.5.1) and must *re-prove* HB equality.
 
 ---
 
@@ -94,7 +95,7 @@ redefined.
 
 ```text
 --s2c2-search
-kind ≠ id
+kinds other than id / concurrent-reorder
 Concurrent → Pipeline
 Token / StageOrder / SoftPipe rewrites
 residency placement

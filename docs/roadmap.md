@@ -180,8 +180,13 @@ Search Verification
 asserts inhabitant invariants via `--s2c2-walk=verify` (S1–S8).
 No third `Nxt`. Realization Transformation
 (**v0.5.0 frozen**, [`realization-transform.md`](design/realization-transform.md))
-opens `T : P → P'` with `HB(P') = HB(P)` and rebuilt `X'`.
+opens `T : P → P' ∪ {⊥}` with `HB(P') = HB(P)` only when
+`T(P) ≠ ⊥`, and rebuilt `X'`.
 `--s2c2-xform=kind=id` is the identity witness, not a searcher.
+Concurrent sibling reorder
+(**v0.5.1**, [`realization-transform-reorder.md`](design/realization-transform-reorder.md))
+is the first `P' ≠ P` inhabitant; it accepts only when the
+rebuilt HB graphs are equal.
 
 ## Phase 2C — Compute frontend (optional)
 
