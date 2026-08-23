@@ -17,6 +17,7 @@ S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_matched.sh ./s2c2-cud
 # writes JSONL/CSV; no host/password fields
 # --matched does not change A/B/C bodies or Score_3
 # 4090 records: docs/design/v3-dataset/v3-matched.jsonl
+# calibration:  docs/design/v3-dataset/v3-matched-calibration.csv
 ```
 
 Do not commit hostnames, accounts, or passwords.
