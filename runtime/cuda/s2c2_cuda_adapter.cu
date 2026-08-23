@@ -73,6 +73,10 @@ static double medianUs(std::vector<float> &samples) {
 
 enum class Workload { A, B, C };
 
+// Matched-workload overlap probe. Not a Pilot func and not Score_3.
+// Remaining work on seq and ovl: 1×HtoD(H) + k×SiLU(D), D ≠ H.
+enum class MatchedArm { Off, Seq, Ovl, Copy, Compute };
+
 static Workload parseWork(const char *name) {
   if (std::strcmp(name, "a") == 0 ||
       std::strcmp(name, "pilot_a_ssd_hbm_compute") == 0)
@@ -173,6 +177,75 @@ static void provisionGpu(GpuBuf &b, Workload w) {
   CUDA_OK(cudaMemcpyAsync(w == Workload::B ? b.scratch : b.hbm, b.ssd,
                           sizeof(float) * b.n, cudaMemcpyHostToDevice, b.s0));
   CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+static void provisionMatched(GpuBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.scratch, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+// seq: HtoD(H) then SiLU×k(D) on one stream.
+static void runMatchedSeq(GpuBuf &b, int k) {
+  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s0));
+  siluLaunch(b.scratch, b.n, b.s0, k);
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+// ovl: SiLU×k(D) ∥ HtoD(H). No event between streams.
+static void runMatchedOvl(GpuBuf &b, int k) {
+  siluLaunch(b.scratch, b.n, b.s0, k);
+  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s1));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s1));
+}
+
+static void runMatchedCopy(GpuBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+static void runMatchedCompute(GpuBuf &b, int k) {
+  siluLaunch(b.scratch, b.n, b.s0, k);
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+static void runMatched(GpuBuf &b, MatchedArm arm, int k) {
+  switch (arm) {
+  case MatchedArm::Seq:
+    runMatchedSeq(b, k);
+    break;
+  case MatchedArm::Ovl:
+    runMatchedOvl(b, k);
+    break;
+  case MatchedArm::Copy:
+    runMatchedCopy(b);
+    break;
+  case MatchedArm::Compute:
+    runMatchedCompute(b, k);
+    break;
+  case MatchedArm::Off:
+    break;
+  }
+}
+
+static const char *matchedFunc(MatchedArm arm) {
+  switch (arm) {
+  case MatchedArm::Seq:
+    return "matched-seq";
+  case MatchedArm::Ovl:
+    return "matched-ovl";
+  case MatchedArm::Copy:
+    return "matched-copy";
+  case MatchedArm::Compute:
+    return "matched-compute";
+  case MatchedArm::Off:
+    return "matched-off";
+  }
+  return "matched-off";
 }
 
 static double timeGpu(Workload w, int n, int warmup, int reps, bool provisioned,
@@ -303,9 +376,61 @@ static void printResult(const s2c2::cuda_adapter::PilotBind &p, const char *dev,
                p.score3Total, us);
 }
 
+// score3_total=0 is a wire placeholder. Matched records store an
+// empty score3; they are not a Score_3 case.
+static void printMatched(MatchedArm arm, const char *dev, int n, int k,
+                         double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f\n",
+               matchedFunc(arm), kSched, kMap, dev, n, k, us);
+}
+
+static double timeMatchedArm(GpuBuf &b, MatchedArm arm, int warmup, int reps,
+                             int k) {
+  auto body = [&]() { runMatched(b, arm, k); };
+  for (int i = 0; i < warmup; ++i) {
+    provisionMatched(b);
+    body();
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    fillHost(b.ssd, b.n, i + 2);
+    provisionMatched(b);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f);
+  }
+  return medianUs(samples);
+}
+
+static MatchedArm parseMatched(const char *name) {
+  if (std::strcmp(name, "off") == 0)
+    return MatchedArm::Off;
+  if (std::strcmp(name, "seq") == 0)
+    return MatchedArm::Seq;
+  if (std::strcmp(name, "ovl") == 0)
+    return MatchedArm::Ovl;
+  if (std::strcmp(name, "copy") == 0)
+    return MatchedArm::Copy;
+  if (std::strcmp(name, "compute") == 0)
+    return MatchedArm::Compute;
+  if (std::strcmp(name, "all") == 0)
+    return MatchedArm::Off; // handled as a list in main
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --matched %s\n", name);
+  std::exit(1);
+}
+
 int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
+  const char *matchedArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
@@ -325,6 +450,8 @@ int main(int argc, char **argv) {
       reps = std::atoi(argv[i] + 7);
     else if (a.rfind("--k=", 0) == 0)
       k = std::atoi(argv[i] + 4);
+    else if (a.rfind("--matched=", 0) == 0)
+      matchedArg = argv[i] + 10;
     else if (a == "--provisioned")
       provisioned = true;
     else if (a == "--print-meta") {
@@ -335,6 +462,8 @@ int main(int argc, char **argv) {
       std::fprintf(stderr,
                    "s2c2-cuda-run --func=all|a|b|c --device=gpu|cpu "
                    "--n=N --k=K --provisioned --warmup=W --reps=R\n"
+                   "s2c2-cuda-run --matched=off|seq|ovl|copy|compute|all "
+                   "--device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -347,6 +476,44 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  bool gpu = std::strcmp(device, "gpu") == 0;
+  bool cpu = std::strcmp(device, "cpu") == 0;
+  if (!gpu && !cpu) {
+    std::fprintf(stderr, "s2c2-cuda-run: device must be gpu or cpu\n");
+    return 1;
+  }
+
+  bool matchedAll = std::strcmp(matchedArg, "all") == 0;
+  MatchedArm matched = parseMatched(matchedArg);
+  if (matchedAll || matched != MatchedArm::Off) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --matched is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    std::vector<MatchedArm> arms;
+    if (matchedAll) {
+      arms = {MatchedArm::Seq, MatchedArm::Ovl, MatchedArm::Copy,
+              MatchedArm::Compute};
+    } else {
+      arms = {matched};
+    }
+    GpuBuf b;
+    b.alloc(n);
+    for (MatchedArm arm : arms) {
+      double us = timeMatchedArm(b, arm, warmup, reps, k);
+      printMatched(arm, "gpu", n, k, us);
+    }
+    b.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
+  }
+
   std::vector<Workload> works;
   if (std::strcmp(func, "all") == 0) {
     works = {Workload::A, Workload::B, Workload::C};
@@ -354,12 +521,6 @@ int main(int argc, char **argv) {
     works = {parseWork(func)};
   }
 
-  bool gpu = std::strcmp(device, "gpu") == 0;
-  bool cpu = std::strcmp(device, "cpu") == 0;
-  if (!gpu && !cpu) {
-    std::fprintf(stderr, "s2c2-cuda-run: device must be gpu or cpu\n");
-    return 1;
-  }
   if (gpu) {
     int count = 0;
     CUDA_OK(cudaGetDeviceCount(&count));

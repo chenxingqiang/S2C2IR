@@ -11,8 +11,12 @@ nvcc -O2 -std=c++17 runtime/cuda/s2c2_cuda_adapter.cu -o s2c2-cuda-run
 ./s2c2-cuda-run --func=all --device=gpu --n=16777216
 ./s2c2-cuda-run --func=all --device=cpu --n=16777216
 ./s2c2-cuda-run --func=all --n=16777216 --k=8 --provisioned
+./s2c2-cuda-run --matched=all --device=gpu --n=16777216 --k=32
 S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep.sh ./s2c2-cuda-run ./v3-rerun
-# writes v3-rerun.jsonl and v3-rerun.csv; no host/password fields
+S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_matched.sh ./s2c2-cuda-run ./v3-matched
+# writes JSONL/CSV; no host/password fields
+# --matched does not change A/B/C bodies or Score_3
+# 4090 records: docs/design/v3-dataset/v3-matched.jsonl
 ```
 
 Do not commit hostnames, accounts, or passwords.
