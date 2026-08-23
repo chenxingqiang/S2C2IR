@@ -201,13 +201,14 @@ reorder. Architecture expansion pauses here; do not open
 v0.5.4. Real-latency correlation (V3) needs a backend; it
 is not this section.
 
-## CUDA Backend Adapter (v0.1)
+## CUDA measurement adapter (v0.1)
 
-**Not v0.5.x.** Design:
+**Frozen stand-in.** Not a CUDA backend. Not v0.5.x. Design:
 [`backend-adapter-cuda.md`](design/backend-adapter-cuda.md).
 Binds the three Pilot shapes to one legal `M`
 (`gpu-async` / `gpu`) and times a CUDA stand-in. Does not
-parse IR, change Cost / HB / `R`, or claim V3.
+parse IR, change Cost / HB / `R`, or claim V3. B's two HtoD
+copies are adapter provisioning, not a Cost axiom.
 
 ## Phase 2C — Compute frontend (optional)
 

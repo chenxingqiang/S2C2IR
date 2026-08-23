@@ -1,9 +1,11 @@
 # S²C² CUDA Backend Adapter (v0.1)
 
-Status: **adapter design**. Not v0.5.x. Does **not** add a `T`
-kind, Search, Cost axiom, or HB/`R` change. Architecture
-v0.5.0–v0.5.2 and Pilot V1–V2 stay frozen at `e69bf69`
-(`#45`). This layer opens one measurable chain:
+Status: **measurement adapter frozen**. Not an S²C² CUDA
+backend. Not v0.5.x. Does **not** add a `T` kind, Search,
+Cost axiom, or HB/`R` change. Architecture v0.5.0–v0.5.2 and
+Pilot V1–V2 stay frozen at `e69bf69` (`#45`). Adapter merged
+as `090b247` (`#46`). This layer is the fixed CUDA
+measurement entry:
 
 ```text
 S²C² Pilot  →  one legal M  →  CUDA stand-in  →  latency
@@ -100,6 +102,13 @@ sibling wait on B, or drop StageOrder on C.
 
 A / B / C stay distinct programs. `T_reorder` is not applied.
 
+B's timed body issues **two HostToDevice copies** (compute
+path: HtoD→scratch + SiLU; comm path: HtoD→hbm). That is
+adapter-specific **data provisioning**, not a second IR
+`comm.stream`. Later V3 must time IR semantic work separately
+from this provisioning. Do not treat the current B/A latency
+ratio as a Cost axiom.
+
 ---
 
 ## 5. Frozen Score_3 (compiler side)
@@ -169,11 +178,13 @@ Workload rank does **not**: Cost picks B; measured A is
 copies on B and they contend.
 
 ```text
-V3  not claimed
+V3  observation / calibration probe
+    not validated, not a Cost revision
 ```
 
-This is why the adapter exists: Score_3 overlap credit is a
-compiler regression, not yet a hardware ranking.
+`C_overlap` looks optimistic on this stand-in (copy-engine
+contention). Do **not** change Cost v0.1–v0.3 from `n=3`.
+Next layer is a measurement campaign, not Cost v0.4.
 
 ---
 

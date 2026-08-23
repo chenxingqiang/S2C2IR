@@ -90,10 +90,10 @@ composition contract `(T_b ∘ T_a)`: each step re-proves
 `HB(P_i) = HB(P_0)` and rebuilds `X_i`. The Pilot
 ([`pilot-benchmark.md`](docs/design/pilot-benchmark.md)) is the
 **frozen V1–V2** validation entry: three stand-in workloads on
-that stack. It is not a new Search or Transform kind. A CUDA
-adapter ([`backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md))
-binds those shapes to one legal `M` for measurement; V3 is
-not claimed.
+that stack. It is not a new Search or Transform kind. A CUDA measurement adapter
+([`backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md))
+binds those shapes to one legal `M`; it is a stand-in, not a
+CUDA backend. V3 is a calibration probe, not claimed.
 
 ## Requirements
 

@@ -435,7 +435,8 @@ workloads. V3/V4 (real latency) need a backend.
 
 ## CUDA Backend Adapter (v0.1)
 
-**Protocol only in CI.** Not v0.5.x. Design:
+**Frozen protocol in CI.** Measurement stand-in, not a
+backend. Not v0.5.x. Design:
 [`backend-adapter-cuda.md`](backend-adapter-cuda.md). Timed
 CUDA lives in `runtime/cuda/` and is not part of `check-s2c2`.
 V3 is not claimed.
