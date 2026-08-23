@@ -79,8 +79,8 @@ inhabitant. v0.4.10 witnesses `LocalStop ⇏ ArgMin_F`. v0.4.11
 adds `Nxt = first(Pareto(Frontier))` without changing Cost / HB /
 `R` / Neighbor / Start / Restart. v0.4.12 verifies those
 inhabitants (`--s2c2-walk=verify`). v0.5.0 (**frozen**) opens
-`T : P → P'` with `HB(P') = HB(P)` and rebuilt `X'`
-(`--s2c2-xform=kind=id`). v0.5.1 adds
+`T : P → P' ∪ {⊥}` with `HB(P') = HB(P)` only when `T(P) ≠ ⊥`,
+and rebuilt `X'` (`--s2c2-xform=kind=id`). v0.5.1 adds
 `--s2c2-xform=kind=concurrent-reorder` (HB-independent sibling
 swap; executable HB equality). It is not a heuristic searcher.
 
