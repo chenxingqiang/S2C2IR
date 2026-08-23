@@ -43,6 +43,9 @@ CASES = (
 NS = (4194304, 16777216, 67108864)
 KS = (1, 8)
 PROVS = (0, 1)
+MATCHED_KS = (1, 8, 32, 64)
+MATCHED_ARMS = ("matched-seq", "matched-ovl", "matched-copy", "matched-compute")
+MATCHED_FUNCS = set(MATCHED_ARMS)
 LINE_RE = re.compile(
     r"s2c2-cuda-adapter func=(?P<func>\S+) .* n=(?P<n>\d+) "
     r"provisioned=(?P<prov>\d+) k=(?P<k>\d+) score3_total=(?P<score>\d+) "
@@ -185,6 +188,35 @@ def parse_adapter_line(line: str) -> dict[str, Any] | None:
     }
 
 
+def parse_matched_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in MATCHED_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": int(m.group("k")),
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
+def print_matched_schema() -> int:
+    print("matched-arm seq ovl copy compute")
+    print("remaining-work 1xHtoD+kxSiLU")
+    print("score3 not-applicable")
+    print("source driver_version=nvidia-smi")
+    print("source nvcc_version=nvcc")
+    print("source cuda_runtime=cudaRuntimeGetVersion")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
 def write_outputs(rows: list[dict[str, Any]], out_prefix: Path) -> None:
     out_prefix.parent.mkdir(parents=True, exist_ok=True)
     jsonl = out_prefix.with_suffix(".jsonl")
@@ -281,6 +313,108 @@ def spearman(xs: list[float], ys: list[float]) -> float:
     return num / (dx * dy) ** 0.5
 
 
+def matched_sweep(bin_path: str, out_prefix: Path, warmup: int, reps: int,
+                  commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    for n in NS:
+        for k in MATCHED_KS:
+            args = [
+                bin_path,
+                "--matched=all",
+                "--device=gpu",
+                f"--n={n}",
+                f"--k={k}",
+                f"--warmup={warmup}",
+                f"--reps={reps}",
+            ]
+            print(f"=== matched n={n} k={k} ===", file=sys.stderr)
+            try:
+                proc = subprocess.run(
+                    args, check=True, text=True,
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+                )
+                text = proc.stdout
+            except (OSError, subprocess.CalledProcessError) as exc:
+                print(f"record_v3: matched run failed: {exc}", file=sys.stderr)
+                return 2
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            found = 0
+            for line in text.splitlines():
+                parsed = parse_matched_line(line)
+                if not parsed:
+                    continue
+                rec = base_record(commit, gpu, warmup, reps)
+                rec["case"] = parsed["case"]
+                rec["N"] = parsed["N"]
+                rec["k"] = parsed["k"]
+                rec["provisioned"] = parsed["provisioned"]
+                rec["score3"] = parsed["score3"]
+                rec["latency_us"] = parsed["latency_us"]
+                rows.append({key: rec[key] for key in FIELDS})
+                found += 1
+            if found != 4:
+                print(f"record_v3: expected 4 matched arms, got {found}",
+                      file=sys.stderr)
+                return 4
+    if len(rows) != 48:
+        print(f"record_v3: expected 48 matched rows, got {len(rows)}",
+              file=sys.stderr)
+        return 5
+    write_outputs(rows, out_prefix)
+    print(f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+          f"count=48 matched v3=not-claimed")
+    return 0
+
+
+def _safe_div(num: float, den: float) -> float:
+    if den == 0:
+        return float("nan")
+    return num / den
+
+
+def analyze_matched(jsonl: Path) -> int:
+    rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line]
+    print("v3-matched v3=not-claimed cost=unchanged")
+    print("slice\tN\tk\tseq\tovl\tcopy\tcompute\tratio\tgain\tideal\thidden\t"
+          "seq_over_sum\tovl_over_max")
+    hiddens = []
+    for n in NS:
+        for k in MATCHED_KS:
+            slice_rows = [r for r in rows if r["N"] == n and r["k"] == k]
+            by_case = {r["case"]: r for r in slice_rows}
+            if not MATCHED_FUNCS.issubset(by_case):
+                # Allow a fixture with a subset of N/k as long as each
+                # present slice is complete.
+                if not slice_rows:
+                    continue
+                print(f"record_v3: incomplete matched slice N={n} k={k}",
+                      file=sys.stderr)
+                return 6
+            seq = float(by_case["matched-seq"]["latency_us"])
+            ovl = float(by_case["matched-ovl"]["latency_us"])
+            copy = float(by_case["matched-copy"]["latency_us"])
+            compute = float(by_case["matched-compute"]["latency_us"])
+            ratio = _safe_div(compute, copy)
+            gain = seq - ovl
+            ideal = min(copy, compute)
+            hidden = _safe_div(gain, ideal)
+            hiddens.append(hidden)
+            print(
+                f"slice\t{n}\t{k}\t{seq:.1f}\t{ovl:.1f}\t{copy:.1f}\t"
+                f"{compute:.1f}\t{ratio:.3f}\t{gain:.1f}\t{ideal:.1f}\t"
+                f"{hidden:.3f}\t{_safe_div(seq, copy + compute):.3f}\t"
+                f"{_safe_div(ovl, max(copy, compute)):.3f}"
+            )
+    if hiddens:
+        finite = [h for h in hiddens if h == h]
+        mean = sum(finite) / len(finite) if finite else float("nan")
+        print(f"summary slices={len(hiddens)} mean_hidden_frac={mean:.3f} "
+              f"v3=not-claimed")
+    return 0
+
+
 def analyze(jsonl: Path) -> int:
     rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line]
     print("v3-analysis v3=not-claimed")
@@ -329,24 +463,41 @@ def analyze(jsonl: Path) -> int:
 def main() -> int:
     p = argparse.ArgumentParser(description="V3 metadata recorder")
     p.add_argument("--print-schema", action="store_true")
+    p.add_argument("--print-matched-schema", action="store_true")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
+    p.add_argument("--matched-sweep", metavar="BIN")
     p.add_argument("--out", type=Path)
     p.add_argument("--analyze", type=Path)
+    p.add_argument("--analyze-matched", type=Path)
     p.add_argument("--warmup", type=int, default=5)
     p.add_argument("--reps", type=int, default=21)
     p.add_argument("--git-commit")
     args = p.parse_args()
     if args.print_schema:
         return print_schema(args.format)
+    if args.print_matched_schema:
+        return print_matched_schema()
     if args.analyze:
         return analyze(args.analyze)
+    if args.analyze_matched:
+        return analyze_matched(args.analyze_matched)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
             return 1
         return sweep(args.sweep, args.out, args.warmup, args.reps, git_commit(args.git_commit))
-    print("record_v3: use --print-schema, --sweep, or --analyze", file=sys.stderr)
+    if args.matched_sweep:
+        if not args.out:
+            print("record_v3: --out required with --matched-sweep", file=sys.stderr)
+            return 1
+        return matched_sweep(
+            args.matched_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
+    print("record_v3: use --print-schema, --print-matched-schema, "
+          "--sweep, --matched-sweep, --analyze, or --analyze-matched",
+          file=sys.stderr)
     return 1
 
 
