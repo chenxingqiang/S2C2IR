@@ -446,3 +446,16 @@ V3 is not claimed.
 | CA1 | `test/Pilot/s2c2-cuda-adapter-protocol.mlir` | `--dry-run` binds `gpu-async`/`gpu` |
 | CA2 | same | Score_3 A=130 B=128 C=163 |
 | CA3 | same | construct map; `v3=not-claimed` |
+
+## V3 Measurement Campaign (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-measurement-campaign.md`](v3-measurement-campaign.md).
+Timed sweep is optional `runtime/cuda/sweep.sh`. No FileCheck
+of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| VC1 | paper | `provisioned=1` on B times SiLU ∥ HtoD, not two HtoD |
+| VC2 | paper | Score_3 stays 130 / 128 / 163 |
+| VC3 | paper | `v3=not-claimed`; no Cost rewrite |

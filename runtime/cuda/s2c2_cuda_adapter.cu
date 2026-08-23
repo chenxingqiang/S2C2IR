@@ -45,16 +45,19 @@ __global__ void siluKernel(float *x, int n) {
   }
 }
 
-static void siluLaunch(float *x, int n, cudaStream_t stream) {
+static void siluLaunch(float *x, int n, cudaStream_t stream, int k) {
   int block = 256;
   int grid = (n + block - 1) / block;
-  siluKernel<<<grid, block, 0, stream>>>(x, n);
+  for (int i = 0; i < k; ++i)
+    siluKernel<<<grid, block, 0, stream>>>(x, n);
 }
 
-static void siluHost(float *x, int n) {
-  for (int i = 0; i < n; ++i) {
-    float v = x[i];
-    x[i] = v / (1.f + expf(-v));
+static void siluHost(float *x, int n, int k) {
+  for (int r = 0; r < k; ++r) {
+    for (int i = 0; i < n; ++i) {
+      float v = x[i];
+      x[i] = v / (1.f + expf(-v));
+    }
   }
 }
 
@@ -125,20 +128,25 @@ struct GpuBuf {
 };
 
 // A: pack SSD → stream → wait → unpack HBM → compute
-static void runA(GpuBuf &b) {
-  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
-                          cudaMemcpyHostToDevice, b.s0));
-  CUDA_OK(cudaEventRecord(b.ev, b.s0));
-  CUDA_OK(cudaEventSynchronize(b.ev));
-  siluLaunch(b.hbm, b.n, b.s0);
+static void runA(GpuBuf &b, bool provisioned, int k) {
+  if (!provisioned) {
+    CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                            cudaMemcpyHostToDevice, b.s0));
+    CUDA_OK(cudaEventRecord(b.ev, b.s0));
+    CUDA_OK(cudaEventSynchronize(b.ev));
+  }
+  siluLaunch(b.hbm, b.n, b.s0, k);
   CUDA_OK(cudaStreamSynchronize(b.s0));
 }
 
 // B: Concurrent compute ∥ SSD→HBM. No event between streams.
-static void runB(GpuBuf &b) {
-  CUDA_OK(cudaMemcpyAsync(b.scratch, b.ssd, sizeof(float) * b.n,
-                          cudaMemcpyHostToDevice, b.s0));
-  siluLaunch(b.scratch, b.n, b.s0);
+// provisioned: scratch is already on device; timed body is SiLU ∥ HtoD.
+static void runB(GpuBuf &b, bool provisioned, int k) {
+  if (!provisioned) {
+    CUDA_OK(cudaMemcpyAsync(b.scratch, b.ssd, sizeof(float) * b.n,
+                            cudaMemcpyHostToDevice, b.s0));
+  }
+  siluLaunch(b.scratch, b.n, b.s0, k);
   CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
                           cudaMemcpyHostToDevice, b.s1));
   CUDA_OK(cudaStreamSynchronize(b.s0));
@@ -146,12 +154,14 @@ static void runB(GpuBuf &b) {
 }
 
 // C: StageOrder prefetch → compute → writeback
-static void runC(GpuBuf &b) {
-  CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
-                          cudaMemcpyHostToDevice, b.s0));
-  CUDA_OK(cudaEventRecord(b.ev, b.s0));
-  CUDA_OK(cudaEventSynchronize(b.ev));
-  siluLaunch(b.hbm, b.n, b.s0);
+static void runC(GpuBuf &b, bool provisioned, int k) {
+  if (!provisioned) {
+    CUDA_OK(cudaMemcpyAsync(b.hbm, b.ssd, sizeof(float) * b.n,
+                            cudaMemcpyHostToDevice, b.s0));
+    CUDA_OK(cudaEventRecord(b.ev, b.s0));
+    CUDA_OK(cudaEventSynchronize(b.ev));
+  }
+  siluLaunch(b.hbm, b.n, b.s0, k);
   CUDA_OK(cudaEventRecord(b.ev, b.s0));
   CUDA_OK(cudaEventSynchronize(b.ev));
   CUDA_OK(cudaMemcpyAsync(b.ssd, b.hbm, sizeof(float) * b.n,
@@ -159,28 +169,40 @@ static void runC(GpuBuf &b) {
   CUDA_OK(cudaStreamSynchronize(b.s0));
 }
 
-static double timeGpu(Workload w, int n, int warmup, int reps) {
+static void provisionGpu(GpuBuf &b, Workload w) {
+  CUDA_OK(cudaMemcpyAsync(w == Workload::B ? b.scratch : b.hbm, b.ssd,
+                          sizeof(float) * b.n, cudaMemcpyHostToDevice, b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+static double timeGpu(Workload w, int n, int warmup, int reps, bool provisioned,
+                      int k) {
   GpuBuf b;
   b.alloc(n);
   auto body = [&]() {
     switch (w) {
     case Workload::A:
-      runA(b);
+      runA(b, provisioned, k);
       break;
     case Workload::B:
-      runB(b);
+      runB(b, provisioned, k);
       break;
     case Workload::C:
-      runC(b);
+      runC(b, provisioned, k);
       break;
     }
   };
-  for (int i = 0; i < warmup; ++i)
+  for (int i = 0; i < warmup; ++i) {
+    if (provisioned)
+      provisionGpu(b, w);
     body();
+  }
   std::vector<float> samples;
   samples.reserve(reps);
   for (int i = 0; i < reps; ++i) {
     fillHost(b.ssd, n, i + 2);
+    if (provisioned)
+      provisionGpu(b, w);
     CUDA_OK(cudaDeviceSynchronize());
     CUDA_OK(cudaEventRecord(b.start));
     body();
@@ -194,49 +216,65 @@ static double timeGpu(Workload w, int n, int warmup, int reps) {
   return medianUs(samples);
 }
 
-static void runAHost(float *ssd, float *hbm, int n) {
-  std::memcpy(hbm, ssd, sizeof(float) * n);
-  siluHost(hbm, n);
+static void runAHost(float *ssd, float *hbm, int n, bool provisioned, int k) {
+  if (!provisioned)
+    std::memcpy(hbm, ssd, sizeof(float) * n);
+  siluHost(hbm, n, k);
 }
 
-static void runBHost(float *ssd, float *hbm, float *scratch, int n) {
+static void runBHost(float *ssd, float *hbm, float *scratch, int n,
+                     bool provisioned, int k) {
   std::thread compute([&]() {
-    std::memcpy(scratch, ssd, sizeof(float) * n);
-    siluHost(scratch, n);
+    if (!provisioned)
+      std::memcpy(scratch, ssd, sizeof(float) * n);
+    siluHost(scratch, n, k);
   });
   std::thread comm([&]() { std::memcpy(hbm, ssd, sizeof(float) * n); });
   compute.join();
   comm.join();
 }
 
-static void runCHost(float *ssd, float *hbm, int n) {
-  std::memcpy(hbm, ssd, sizeof(float) * n);
-  siluHost(hbm, n);
+static void runCHost(float *ssd, float *hbm, int n, bool provisioned, int k) {
+  if (!provisioned)
+    std::memcpy(hbm, ssd, sizeof(float) * n);
+  siluHost(hbm, n, k);
   std::memcpy(ssd, hbm, sizeof(float) * n);
 }
 
-static double timeCpu(Workload w, int n, int warmup, int reps) {
+static double timeCpu(Workload w, int n, int warmup, int reps, bool provisioned,
+                      int k) {
   std::vector<float> ssd(n), hbm(n), scratch(n);
   fillHost(ssd.data(), n, 1);
   auto body = [&]() {
     switch (w) {
     case Workload::A:
-      runAHost(ssd.data(), hbm.data(), n);
+      runAHost(ssd.data(), hbm.data(), n, provisioned, k);
       break;
     case Workload::B:
-      runBHost(ssd.data(), hbm.data(), scratch.data(), n);
+      runBHost(ssd.data(), hbm.data(), scratch.data(), n, provisioned, k);
       break;
     case Workload::C:
-      runCHost(ssd.data(), hbm.data(), n);
+      runCHost(ssd.data(), hbm.data(), n, provisioned, k);
       break;
     }
   };
-  for (int i = 0; i < warmup; ++i)
+  auto provision = [&]() {
+    if (w == Workload::B)
+      std::memcpy(scratch.data(), ssd.data(), sizeof(float) * n);
+    else
+      std::memcpy(hbm.data(), ssd.data(), sizeof(float) * n);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    if (provisioned)
+      provision();
     body();
+  }
   std::vector<float> samples;
   samples.reserve(reps);
   for (int i = 0; i < reps; ++i) {
     fillHost(ssd.data(), n, i + 2);
+    if (provisioned)
+      provision();
     auto t0 = std::chrono::steady_clock::now();
     body();
     auto t1 = std::chrono::steady_clock::now();
@@ -246,11 +284,12 @@ static double timeCpu(Workload w, int n, int warmup, int reps) {
 }
 
 static void printResult(const s2c2::cuda_adapter::PilotBind &p, const char *dev,
-                        int n, double us) {
+                        int n, bool provisioned, int k, double us) {
   std::fprintf(stderr,
                "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
-               "n=%d score3_total=%d latency_us=%.1f\n",
-               p.func, kSched, kMap, dev, n, p.score3Total, us);
+               "n=%d provisioned=%d k=%d score3_total=%d latency_us=%.1f\n",
+               p.func, kSched, kMap, dev, n, provisioned ? 1 : 0, k,
+               p.score3Total, us);
 }
 
 int main(int argc, char **argv) {
@@ -259,6 +298,8 @@ int main(int argc, char **argv) {
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
+  int k = 1;
+  bool provisioned = false;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     if (a.rfind("--func=", 0) == 0)
@@ -271,17 +312,21 @@ int main(int argc, char **argv) {
       warmup = std::atoi(argv[i] + 9);
     else if (a.rfind("--reps=", 0) == 0)
       reps = std::atoi(argv[i] + 7);
+    else if (a.rfind("--k=", 0) == 0)
+      k = std::atoi(argv[i] + 4);
+    else if (a == "--provisioned")
+      provisioned = true;
     else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
                    "s2c2-cuda-run --func=all|a|b|c --device=gpu|cpu "
-                   "--n=N --warmup=W --reps=R\n");
+                   "--n=N --k=K --provisioned --warmup=W --reps=R\n");
       return 0;
     } else {
       std::fprintf(stderr, "s2c2-cuda-run: unknown arg %s\n", argv[i]);
       return 1;
     }
   }
-  if (n <= 0 || warmup < 0 || reps <= 0) {
+  if (n <= 0 || warmup < 0 || reps <= 0 || k <= 0) {
     std::fprintf(stderr, "s2c2-cuda-run: bad numeric arg\n");
     return 1;
   }
@@ -310,8 +355,9 @@ int main(int argc, char **argv) {
 
   for (Workload w : works) {
     const auto &p = bindOf(w);
-    double us = gpu ? timeGpu(w, n, warmup, reps) : timeCpu(w, n, warmup, reps);
-    printResult(p, gpu ? "gpu" : "cpu", n, us);
+    double us = gpu ? timeGpu(w, n, warmup, reps, provisioned, k)
+                    : timeCpu(w, n, warmup, reps, provisioned, k);
+    printResult(p, gpu ? "gpu" : "cpu", n, provisioned, k, us);
   }
   std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
   return 0;
