@@ -1,0 +1,13 @@
+git_commit,timestamp,gpu_model,gpu_memory,driver_version,cuda_runtime,nvcc_version,clock_state,power_mode,case,N,k,provisioned,warmup,reps,statistic,latency_us,score3
+fec1cb5,2026-08-23T04:55:37Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-one,4194304,1,1,5,21,median,674.8,
+fec1cb5,2026-08-23T04:55:37Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-seq,4194304,1,1,5,21,median,1340.4,
+fec1cb5,2026-08-23T04:55:37Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-par,4194304,1,1,5,21,median,1340.4,
+fec1cb5,2026-08-23T04:55:37Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-par-split,4194304,1,1,5,21,median,1340.4,
+fec1cb5,2026-08-23T04:55:41Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-one,16777216,1,1,5,21,median,2668.7,
+fec1cb5,2026-08-23T04:55:41Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-seq,16777216,1,1,5,21,median,5324.8,
+fec1cb5,2026-08-23T04:55:41Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-par,16777216,1,1,5,21,median,5326.8,
+fec1cb5,2026-08-23T04:55:41Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-par-split,16777216,1,1,5,21,median,5327.0,
+fec1cb5,2026-08-23T04:55:55Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-one,67108864,1,1,5,21,median,10632.2,
+fec1cb5,2026-08-23T04:55:55Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-seq,67108864,1,1,5,21,median,21267.5,
+fec1cb5,2026-08-23T04:55:55Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-par,67108864,1,1,5,21,median,21259.3,
+fec1cb5,2026-08-23T04:55:55Z,NVIDIA GeForce RTX 4090,24564,570.124.06,12080,"Cuda compilation tools, release 12.8, V12.8.61",pstate=P8 sm=2520 mem=10501,limit_w=450.00,contend-par-split,67108864,1,1,5,21,median,21821.4,

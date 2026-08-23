@@ -119,13 +119,66 @@ Cost v0.4    still not opened
 | `tools/s2c2-cuda-adapter/` | host `--dry-run --contend` |
 | `runtime/cuda/record_v3.py` | `--contend-sweep` / `--analyze-contend` |
 | `test/Pilot/s2c2-v3-copy-contention.mlir` | protocol FileCheck |
-| `docs/design/v3-dataset/` | later 4090 records, if collected |
+| [`v3-dataset/v3-contend.jsonl`](v3-dataset/v3-contend.jsonl) | 12-point 4090 records |
 
 Do not FileCheck microseconds.
 
 ---
 
-## 7. Out of scope
+## 7. One RTX 4090 contention sweep (12 points, not V3)
+
+Files: [`v3-dataset/v3-contend.{jsonl,csv}`](v3-dataset/).
+Median of 21 timed reps, warmup 5. Binary `fec1cb5`.
+`score3` is empty. A/B/C and `--matched` were not run.
+
+Hardware snapshot (not a lock):
+
+```text
+gpu_model        NVIDIA GeForce RTX 4090
+gpu_memory       24564
+driver_version   570.124.06
+cuda_runtime     12080
+nvcc_version     release 12.8, V12.8.61
+power_mode       limit_w=450.00
+clock_state      pre-sweep snapshot
+```
+
+| N | one | seq | par | par-split | seq/2one | par/seq | serialize |
+| - | --: | --: | --: | --------: | -------: | ------: | --------: |
+| 4M | 675 | 1340 | 1340 | 1340 | 0.993 | 1.000 | 0.986 |
+| 16M | 2669 | 5325 | 5327 | 5327 | 0.998 | 1.000 | 0.996 |
+| 64M | 10632 | 21268 | 21259 | 21821 | 1.000 | 1.000 | 1.000 |
+
+```text
+slices                 3
+mean serialize_frac    0.994
+T_par ≈ T_seq ≈ 2 · T_one
+T_par-split ≈ 2 · T_one
+```
+
+This is reading **1** of §5: two HtoDs share one copy path.
+Splitting the host buffer does not free the second copy, so
+the bottleneck is not the shared pinned pointer.
+
+Together with `#51`:
+
+```text
+Compute ∥ 1×HtoD     hidden_frac ≈ 1     (overlap is real)
+2×HtoD  ∥ each other serialize_frac ≈ 1  (copies are not free)
+```
+
+B's Score_3 credit is Compute∥IO. Hardware pays a second
+HtoD in the stand-in. That is **copy-engine occupancy**, not
+a reason to invert `C_overlap`.
+
+```text
+V3           not claimed
+Cost v0.4    not opened
+```
+
+---
+
+## 8. Out of scope
 
 ```text
 rewriting C_overlap / Score_3
