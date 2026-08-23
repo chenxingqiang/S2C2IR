@@ -1,10 +1,11 @@
 # S²C² Pilot / Research Validation
 
-Status: **pilot design**. Not v0.5.x. Does **not** add a kind,
+Status: **V1–V2 frozen**. Not v0.5.x. Does **not** add a kind,
 Search algorithm, Cost axiom, or backend. Architecture v0.5.0–
-v0.5.2 stay frozen at `c27f2fd` (`#42`). This layer asks whether
-the frozen stack is **empirically usable** on three stand-in
-workloads.
+v0.5.2 stay frozen at `c27f2fd` (`#42`). Pilot V1–V2 merged as
+`afc74b4` (`#44`). This layer is the fixed research-validation
+entry: three stand-in workloads exercise the frozen stack.
+V3/V4 still need a real backend.
 
 ```text
 Research Prototype  —  this document
@@ -65,8 +66,8 @@ have no HB-independent concurrent sibling pair (`accepted=0`).
 ## 3. Validation gates
 
 ```text
-V1  Semantic     --check-s2c2-execution   (this PR)
-V2  Enumeration  Output = R ∩ F, count=8  (this PR)
+V1  Semantic     --check-s2c2-execution   (frozen, #44)
+V2  Enumeration  Output = R ∩ F, count=8  (frozen, #44)
 V3  Cost rank    rank(Cost) ≈ rank(Latency)   NEEDS backend
 V4  Transform    HB-preserving T improves a measured metric
                  NEEDS executable + metric
@@ -80,7 +81,7 @@ FileCheck in this repo until a real target exists.
 ## 4. Out of scope
 
 ```text
-v0.5.3+ architecture
+v0.5.3+ / v0.5.4 architecture
 --s2c2-search / beam / more kinds
 real GPU / NPU / SSD runtime
 kernel generation

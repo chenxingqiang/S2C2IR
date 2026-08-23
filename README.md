@@ -87,9 +87,10 @@ and rebuilt `X'` (`--s2c2-xform=kind=id`). v0.5.1 (**frozen**) adds
 swap; executable HB equality). v0.5.2 (**frozen**) is the docs-only
 composition contract `(T_b ∘ T_a)`: each step re-proves
 `HB(P_i) = HB(P_0)` and rebuilds `X_i`. The Pilot
-([`pilot-benchmark.md`](docs/design/pilot-benchmark.md)) runs three
-stand-in workloads on that frozen stack; it is not a new Search
-or Transform kind.
+([`pilot-benchmark.md`](docs/design/pilot-benchmark.md)) is the
+**frozen V1–V2** validation entry: three stand-in workloads on
+that stack. It is not a new Search or Transform kind. V3/V4
+need a real backend.
 
 ## Requirements
 
