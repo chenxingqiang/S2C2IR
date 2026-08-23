@@ -10,7 +10,9 @@ is [`realization-transform.md`](realization-transform.md)
 [`realization-transform-compose.md`](realization-transform-compose.md)
 (**v0.5.2 frozen**). Pilot V1–V2 is
 [`pilot-benchmark.md`](pilot-benchmark.md) (**frozen**); it is
-the research-validation entry, not a new kind.
+the research-validation entry, not a new kind. The CUDA
+adapter is [`backend-adapter-cuda.md`](backend-adapter-cuda.md);
+it is a measurement stand-in, not a new kind.
 
 ```text
 N        = N_1

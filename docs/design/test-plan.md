@@ -432,3 +432,16 @@ workloads. V3/V4 (real latency) need a backend.
 | PA2 | same ENUM | each func `count=8` |
 | PA3 | same ARG / GPU | A argmin 130; B 128; C 163 (gpu-async) |
 | PA4 | same XF / IR | reorder accepts only B; C keeps pipeline |
+
+## CUDA Backend Adapter (v0.1)
+
+**Protocol only in CI.** Not v0.5.x. Design:
+[`backend-adapter-cuda.md`](backend-adapter-cuda.md). Timed
+CUDA lives in `runtime/cuda/` and is not part of `check-s2c2`.
+V3 is not claimed.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CA1 | `test/Pilot/s2c2-cuda-adapter-protocol.mlir` | `--dry-run` binds `gpu-async`/`gpu` |
+| CA2 | same | Score_3 A=130 B=128 C=163 |
+| CA3 | same | construct map; `v3=not-claimed` |

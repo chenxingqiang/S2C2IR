@@ -68,7 +68,7 @@ have no HB-independent concurrent sibling pair (`accepted=0`).
 ```text
 V1  Semantic     --check-s2c2-execution   (frozen, #44)
 V2  Enumeration  Output = R ∩ F, count=8  (frozen, #44)
-V3  Cost rank    rank(Cost) ≈ rank(Latency)   NEEDS backend
+V3  Cost rank    rank(Cost) ≈ rank(Latency)   adapter opened; not claimed
 V4  Transform    HB-preserving T improves a measured metric
                  NEEDS executable + metric
 ```
@@ -83,8 +83,8 @@ FileCheck in this repo until a real target exists.
 ```text
 v0.5.3+ / v0.5.4 architecture
 --s2c2-search / beam / more kinds
-real GPU / NPU / SSD runtime
-kernel generation
+IREE HAL / IR→NVVM codegen
+real SSD / NPU
 claiming hardware speedups
 changing Cost / HB / R
 ```
