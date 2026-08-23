@@ -23,7 +23,7 @@ or Token / Concurrent / Pipeline rewrite.
 holds by construction, and `X'` is re-enumerated with the same
 `isLegalRealization` oracle. The first non-identity inhabitant is
 [`realization-transform-reorder.md`](realization-transform-reorder.md)
-(v0.5.1) and must *re-prove* HB equality.
+(**v0.5.1 frozen**) and must *re-prove* HB equality.
 
 ---
 
