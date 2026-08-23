@@ -33,44 +33,44 @@ module {
   }
 }
 
-// S1: Nxt totality — every decision is step or localstop; nxt-total=1.
+// Totality (S1): every decision is step or localstop.
 // S1: verify nxt-total=1
 // S1: step
 // S1: localstop
 // S1-NOT: error
 // S1-NOT: undefined
 
-// S3: Complete ⇒ Accepted=X ⇒ ArgMin_F.
+// Complete (S3): Accepted=X implies ArgMin_F.
 // S3: verify complete accepted=8 |X|=8
 // S3: argmin count=4
 // AMIN: argmin count=4
 
-// S4: LocalStop ⇏ ArgMin_F.
+// LocalStop (S4) does not imply ArgMin_F.
 // S4: verify localstop accepted=4 |X|=8
 // S4: argmin count=2
 // S4: total=129
 // S4-NOT: complete
 // S4-NOT: total=128
 
-// S5: Restart ≠ Reset — accepted only grows.
+// Coverage (S5): Restart keeps Accepted; it only grows.
 // S5: localstop accepted=4
 // S5: restart
 // S5: localstop accepted=6
 // S5: restart
 // S5: complete accepted=8
 
-// S6: State invariants after Install and Acc.
+// Invariants (S6) after Install and Acc.
 // S6: verify current-in-X=1 accepted-subseteq-scored=1 scored-subseteq-legal=1 legal=checked-cap-X=1 ok=1
 // S6-NOT: verify {{.*}} ok=0
 
-// S7: two Nxt inhabitants; fixture path still completes.
+// Two Nxt inhabitants (S7); fixture path still completes.
 // S7: nxt=pareto
 // S7: nxt-oracle incomparable first(Best)!=first(Pareto)
 // S7: verify complete accepted=8 |X|=8
 // S7: pareto count=4
 // S7: verify ok=1
 
-// S8: still selection, not rewrite.
+// Selection only (S8): no rewrite.
 // S8-LABEL: func.func @r4_same_program
 // S8: sched.concurrent
 // S8-NOT: memref.copy
