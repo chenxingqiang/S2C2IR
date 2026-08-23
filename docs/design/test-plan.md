@@ -406,7 +406,7 @@ First `P' ≠ P` inhabitant. Accept iff `HB(P') = HB(P)`. Rebuild
 
 ## Transformation Composition / Legality (v0.5.2)
 
-**Design.** Docs-only. No compose pass, no new `kind`. Design:
+**Frozen.** Docs-only. No compose pass, no new `kind`. Design:
 [`realization-transform-compose.md`](realization-transform-compose.md).
 `(T_b ∘ T_a)` is one `T`. Each successful step re-proves
 `HB(P_i) = HB(P_0)` and rebuilds `X_i`. Failure restores `P_0`.

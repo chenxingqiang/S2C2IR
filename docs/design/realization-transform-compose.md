@@ -1,10 +1,10 @@
 # Transformation Composition / Legality (v0.5.2)
 
-Status: **v0.5.2 design**. Docs-only. Names how frozen `T` maps
+Status: **v0.5.2 frozen**. Docs-only. Names how frozen `T` maps
 compose. Does **not** add a kind, a compose pass, or
 `--s2c2-search`. Search (v0.4.5–v0.4.12), Cost, HB axioms, `R`,
-and Transformation v0.5.0–v0.5.1 remain frozen. Baseline:
-`37ded7c` (`#40`).
+and Transformation v0.5.0–v0.5.1 remain frozen. Merged as
+`27e832a` (`#41`).
 
 ```text
 T : P → P' ∪ {⊥}

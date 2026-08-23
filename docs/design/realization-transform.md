@@ -26,7 +26,7 @@ holds by construction, and `X'` is re-enumerated with the same
 (**v0.5.1 frozen**) and must *re-prove* HB equality. Binary
 composition of frozen `T` maps is
 [`realization-transform-compose.md`](realization-transform-compose.md)
-(v0.5.2).
+(**v0.5.2 frozen**).
 
 ---
 
