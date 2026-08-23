@@ -68,7 +68,7 @@ have no HB-independent concurrent sibling pair (`accepted=0`).
 ```text
 V1  Semantic     --check-s2c2-execution   (frozen, #44)
 V2  Enumeration  Output = R ∩ F, count=8  (frozen, #44)
-V3  Cost rank    rank(Cost) ≈ rank(Latency)   adapter opened; not claimed
+V3  Cost rank    rank(Cost) ≈ rank(Latency)   probe opened; not claimed
 V4  Transform    HB-preserving T improves a measured metric
                  NEEDS executable + metric
 ```

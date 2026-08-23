@@ -433,9 +433,10 @@ workloads. V3/V4 (real latency) need a backend.
 | PA3 | same ARG / GPU | A argmin 130; B 128; C 163 (gpu-async) |
 | PA4 | same XF / IR | reorder accepts only B; C keeps pipeline |
 
-## CUDA Backend Adapter (v0.1)
+## CUDA Measurement Adapter (v0.1)
 
-**Protocol only in CI.** Not v0.5.x. Design:
+**Frozen protocol in CI.** Measurement stand-in, not a
+backend. Not v0.5.x. Design:
 [`backend-adapter-cuda.md`](backend-adapter-cuda.md). Timed
 CUDA lives in `runtime/cuda/` and is not part of `check-s2c2`.
 V3 is not claimed.
