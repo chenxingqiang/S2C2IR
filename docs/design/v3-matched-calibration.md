@@ -78,6 +78,9 @@ With the table frozen, a later analysis may ask:
 hidden_frac  =  f(T_compute / T_copy)   ?
 ```
 
+That analysis is [`v3-hidden-frac-ratio.md`](v3-hidden-frac-ratio.md).
+It does not open Cost v0.4.
+
 If `T_ovl ≈ max(T_copy, T_compute)` stays stable across
 more devices, `C_overlap` can stay a “available parallelism”
 credit. If it depends on copy-engine occupancy, bandwidth,

@@ -472,6 +472,82 @@ def calibrate(jsonl: Path, out: Path | None) -> int:
     return 0
 
 
+def load_ratio_rows(path: Path) -> list[dict[str, float | int]]:
+    if path.suffix == ".csv":
+        with path.open(encoding="utf-8", newline="") as fh:
+            raw = list(csv.DictReader(fh))
+        rows: list[dict[str, float | int]] = []
+        for r in raw:
+            rows.append(
+                {
+                    "N": int(r["N"]),
+                    "k": int(r["k"]),
+                    "ratio": float(r["ratio"]),
+                    "hidden_frac": float(r["hidden_frac"]),
+                }
+            )
+        return rows
+    recs = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
+    return matched_slices(recs)
+
+
+def print_ratio_schema() -> int:
+    print("axis r=T_compute/T_copy")
+    print("metric hidden_frac")
+    print("outlier hidden_frac>1 measurement-noise")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_ratio(path: Path) -> int:
+    rows = load_ratio_rows(path)
+    if not rows:
+        print("record_v3: no ratio rows", file=sys.stderr)
+        return 6
+    print("v3-ratio v3=not-claimed cost=unchanged")
+    print("slice\tN\tk\tratio\thidden_frac\tflag")
+    outliers = []
+    clean = []
+    for s in rows:
+        hf = float(s["hidden_frac"])
+        flag = "measurement-noise" if hf > 1.0 else "ok"
+        if hf > 1.0:
+            outliers.append(s)
+        else:
+            clean.append(s)
+        print(f"slice\t{s['N']}\t{s['k']}\t{float(s['ratio']):.3f}\t{hf:.3f}\t{flag}")
+
+    def rho_of(group: list[dict[str, float | int]]) -> float:
+        if len(group) < 2:
+            return float("nan")
+        return spearman([float(s["ratio"]) for s in group],
+                        [float(s["hidden_frac"]) for s in group])
+
+    wc = [s for s in clean if 0.2 < float(s["ratio"]) < 4.0]
+    ordered = sorted(clean, key=lambda s: float(s["ratio"]))
+    inversions = 0
+    for a, b in zip(ordered, ordered[1:]):
+        if float(b["hidden_frac"]) + 1e-9 < float(a["hidden_frac"]):
+            inversions += 1
+    rho_all = rho_of(rows)
+    rho_clean = rho_of(clean)
+    rho_wc = rho_of(wc)
+    if rho_wc != rho_wc or abs(rho_wc) < 0.3:
+        verdict = "not-stable"
+    elif rho_wc >= 0.7 and inversions == 0:
+        verdict = "stable"
+    else:
+        verdict = "partial"
+    print(
+        f"summary slices={len(rows)} outliers={len(outliers)} "
+        f"rho_all={rho_all:.3f} rho_clean={rho_clean:.3f} "
+        f"rho_wellcond={rho_wc:.3f} inversions={inversions} "
+        f"f(r)={verdict} v3=not-claimed"
+    )
+    return 0
+
+
 def analyze_matched(jsonl: Path) -> int:
     rows = [json.loads(line) for line in jsonl.read_text(encoding="utf-8").splitlines() if line]
     print("v3-matched v3=not-claimed cost=unchanged")
@@ -563,6 +639,7 @@ def main() -> int:
     p.add_argument("--print-schema", action="store_true")
     p.add_argument("--print-matched-schema", action="store_true")
     p.add_argument("--print-calibration-schema", action="store_true")
+    p.add_argument("--print-ratio-schema", action="store_true")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
@@ -570,6 +647,7 @@ def main() -> int:
     p.add_argument("--analyze", type=Path)
     p.add_argument("--analyze-matched", type=Path)
     p.add_argument("--calibrate", type=Path)
+    p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
     p.add_argument("--reps", type=int, default=21)
     p.add_argument("--git-commit")
@@ -580,12 +658,16 @@ def main() -> int:
         return print_matched_schema()
     if args.print_calibration_schema:
         return print_calibration_schema()
+    if args.print_ratio_schema:
+        return print_ratio_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
         return analyze_matched(args.analyze_matched)
     if args.calibrate:
         return calibrate(args.calibrate, args.out)
+    if args.analyze_ratio:
+        return analyze_ratio(args.analyze_ratio)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -600,7 +682,9 @@ def main() -> int:
             git_commit(args.git_commit)
         )
     print("record_v3: use --print-schema, --print-matched-schema, "
-          "--sweep, --matched-sweep, --analyze, or --analyze-matched",
+          "--print-calibration-schema, --print-ratio-schema, "
+          "--sweep, --matched-sweep, --analyze, --analyze-matched, "
+          "--calibrate, or --analyze-ratio",
           file=sys.stderr)
     return 1
 
