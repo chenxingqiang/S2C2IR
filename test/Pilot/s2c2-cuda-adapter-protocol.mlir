@@ -1,5 +1,5 @@
-// RUN: s2c2-cuda-adapter --dry-run | FileCheck %s
-// RUN: s2c2-cuda-adapter --dry-run --func=pilot_b_compute_par_comm | FileCheck %s --check-prefix=B
+// RUN: s2c2-cuda-adapter --dry-run 2>&1 | FileCheck %s
+// RUN: s2c2-cuda-adapter --dry-run --func=pilot_b_compute_par_comm 2>&1 | FileCheck %s --check-prefix=B
 
 // Protocol witness for the CUDA adapter contract. No device, no
 // kernel launch. Score_3 numbers are the frozen Pilot GPU totals.

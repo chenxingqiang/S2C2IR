@@ -56,9 +56,40 @@ static void printMatched() {
   std::fprintf(stderr, "s2c2-cuda-adapter matched cost=unchanged\n");
 }
 
+static void printCap() {
+  std::fprintf(stderr, "s2c2-cuda-adapter cap=htod remaining=1xHtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap=dtoh remaining=1xDtoH\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=htod-dtoh-seq remaining=HtoD->DtoH\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=htod-dtoh-event remaining=HtoD->event->DtoH\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=htod-dtoh-par remaining=HtoD||DtoH\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=htod-htod-par remaining=HtoD||HtoD\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=dtoh-dtoh-par remaining=DtoH||DtoH\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap=compute remaining=kxSiLU\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=compute-htod remaining=kxSiLU||HtoD\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=compute-dtoh remaining=kxSiLU||DtoH\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=compute-compute remaining=kxSiLU||kxSiLU\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap=event-sync remaining=event\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap=stream-sync remaining=stream\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap=device-sync remaining=device\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap=reduction remaining=grid-reduce\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap=matmul remaining=tiled-gemm\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap cost=unchanged\n");
+}
+
 int main(int argc, char **argv) {
   bool dryRun = false;
   bool matched = false;
+  bool cap = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -66,11 +97,14 @@ int main(int argc, char **argv) {
       dryRun = true;
     } else if (a == "--matched") {
       matched = true;
+    } else if (a == "--cap") {
+      cap = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
-                   "s2c2-cuda-adapter --dry-run [--func=<id|name>] [--matched]\n"
+                   "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
+                   "[--matched] [--cap]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -87,8 +121,18 @@ int main(int argc, char **argv) {
   }
 
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
+  if (matched && cap) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-adapter: --cap and --matched cannot combine\n");
+    return 1;
+  }
   if (matched) {
     printMatched();
+    printMaps();
+    return 0;
+  }
+  if (cap) {
+    printCap();
     printMaps();
     return 0;
   }

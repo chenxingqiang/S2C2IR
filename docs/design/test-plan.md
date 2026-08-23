@@ -472,3 +472,15 @@ No FileCheck of microseconds.
 | VM1 | `test/Pilot/s2c2-v3-metadata-protocol.mlir` | required fields present; runtime source is `cudaRuntimeGetVersion` |
 | VM2 | same CSV | header matches the frozen column list |
 | VM3 | paper | 36 GPU points; no credentials in records |
+
+## V3 Capability Matrix (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-capability-matrix.md`](v3-capability-matrix.md). Schema
+and host protocol only in CI. No FileCheck of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| VX1 | `test/Pilot/s2c2-v3-capability-matrix.mlir` | `--dry-run --cap` lists arms; `score3=not-applicable` |
+| VX2 | same ABC | `--dry-run` without `--cap` stays A/B/C |
+| VX3 | same fixture | `--analyze-cap` prints verdicts; `v3=not-claimed` |
