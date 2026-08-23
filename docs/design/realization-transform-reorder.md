@@ -17,7 +17,9 @@ X' = Enum_F(P', D)            // rebuilt, never reused
 ```
 
 This is **not** a rewrite framework, not `--s2c2-search`, and not
-Concurrent → Pipeline.
+Concurrent → Pipeline. How two `T` maps compose is
+[`realization-transform-compose.md`](realization-transform-compose.md)
+(v0.5.2).
 
 ---
 

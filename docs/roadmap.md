@@ -186,7 +186,10 @@ opens `T : P → P' ∪ {⊥}` with `HB(P') = HB(P)` only when
 Concurrent sibling reorder
 (**v0.5.1 frozen**, [`realization-transform-reorder.md`](design/realization-transform-reorder.md))
 is the first `P' ≠ P` inhabitant; it accepts only when the
-rebuilt HB graphs are equal.
+rebuilt HB graphs are equal. Transformation composition
+(**v0.5.2**, [`realization-transform-compose.md`](design/realization-transform-compose.md))
+is docs-only: `(T_b ∘ T_a)` is one `T`; each step re-proves
+`HB(P_i) = HB(P_0)` and rebuilds `X_i`. Not a second kind.
 
 ## Phase 2C — Compute frontend (optional)
 

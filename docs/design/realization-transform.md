@@ -23,7 +23,10 @@ or Token / Concurrent / Pipeline rewrite.
 holds by construction, and `X'` is re-enumerated with the same
 `isLegalRealization` oracle. The first non-identity inhabitant is
 [`realization-transform-reorder.md`](realization-transform-reorder.md)
-(**v0.5.1 frozen**) and must *re-prove* HB equality.
+(**v0.5.1 frozen**) and must *re-prove* HB equality. Binary
+composition of frozen `T` maps is
+[`realization-transform-compose.md`](realization-transform-compose.md)
+(v0.5.2).
 
 ---
 
@@ -96,6 +99,7 @@ redefined.
 ```text
 --s2c2-search
 kinds other than id / concurrent-reorder
+compose CLI
 Concurrent → Pipeline
 Token / StageOrder / SoftPipe rewrites
 residency placement
