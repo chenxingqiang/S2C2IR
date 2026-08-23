@@ -56,7 +56,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/search-start-policy.md`](docs/design/search-start-policy.md),
 [`docs/design/search-algorithm.md`](docs/design/search-algorithm.md),
 [`docs/design/search-walk-n1.md`](docs/design/search-walk-n1.md),
-[`docs/design/search-restart-complete.md`](docs/design/search-restart-complete.md)
+[`docs/design/search-restart-complete.md`](docs/design/search-restart-complete.md),
+[`docs/design/search-pareto-nxt.md`](docs/design/search-pareto-nxt.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
@@ -71,8 +72,9 @@ accept only `R ∩ F`. The Search Algorithm Contract (v0.4.6) names
 the walk objects. StartPolicy / RestartPolicy (v0.4.7) name how a
 walk enters `X`. The Algorithm object (v0.4.8) is
 `A = (N, S, Rst, Nxt, Acc)`. `--s2c2-walk` (v0.4.9) is its first
-inhabitant. v0.4.10 witnesses `LocalStop ⇏ ArgMin_F` without a
-new algorithm. It is not a heuristic searcher.
+inhabitant. v0.4.10 witnesses `LocalStop ⇏ ArgMin_F`. v0.4.11
+adds `Nxt = first(Pareto(Frontier))` without changing Cost / HB /
+`R` / Neighbor / Start / Restart. It is not a heuristic searcher.
 
 ## Requirements
 

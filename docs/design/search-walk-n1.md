@@ -14,6 +14,8 @@ Does not add `--s2c2-search`, beam, Pareto Next, or `P ↦ P'`.
 v0.4.5–v0.4.8, Cost, HB, and `R` remain frozen. Merged as
 `ed14368` (`#33`). Coverage / `LocalStop ≠ ArgMin_F` is
 [`search-restart-complete.md`](search-restart-complete.md) (v0.4.10).
+Pareto-aware `Nxt` is [`search-pareto-nxt.md`](search-pareto-nxt.md)
+(v0.4.11); default `nxt=scalar` is this inhabitant.
 
 ```text
 --s2c2-walk

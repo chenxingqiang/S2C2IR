@@ -1,6 +1,6 @@
 # Restart / Complete coverage (v0.4.10)
 
-Status: **v0.4.10 design**. Does **not** inhabit a new `A`. Uses the
+Status: **v0.4.10 frozen**. Does **not** inhabit a new `A`. Uses the
 frozen v0.4.9 inhabitant as-is:
 
 ```text
@@ -23,8 +23,10 @@ Walk then Restart until Unused = ∅
   ⇒  Output = ArgMin_F
 ```
 
-v0.4.5–v0.4.9, Cost, HB, and `R` remain frozen. Baseline:
-`ed14368` (`#33`). No `--s2c2-search`, no beam / Pareto Next, no
+v0.4.5–v0.4.9, Cost, HB, and `R` remain frozen. Merged as
+`727f0a3` (`#34`). Pareto-aware `Nxt` is
+[`search-pareto-nxt.md`](search-pareto-nxt.md) (v0.4.11). No
+`--s2c2-search`, no beam / rewrite, no
 `P ↦ P'`, no shared `Acc` helper (still inline; later inhabitant).
 
 ```text

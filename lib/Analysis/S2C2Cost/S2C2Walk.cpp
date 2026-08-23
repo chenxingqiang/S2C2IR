@@ -4,11 +4,12 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
-// First executable inhabitant of A = (N, S, Rst, Nxt, Acc):
+// Inhabitant of A = (N, S, Rst, Nxt, Acc):
 //   N   = N_1
 //   S   = StartFirst
 //   Rst = StartUnused
-//   Nxt = first(Best) on Frontier
+//   Nxt = first(Best)            (nxt=scalar, v0.4.9 default)
+//         first(Pareto(Frontier)) (nxt=pareto, v0.4.11)
 // restart=false (v0.4.10): one segment; LocalStop output is
 // ArgMin(Accepted), not ArgMin_F. Acc stays inline (not a shared
 // helper). Does not rewrite IR, pick a unique M*, or redefine HB / Cost.
@@ -66,9 +67,16 @@ static bool earlier(const Triple &a, const Triple &b, ArrayRef<StringRef> schedF
 struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
   using impl::S2C2WalkBase<S2C2Walk>::S2C2WalkBase;
 
+  bool usePareto() const { return nxt == "pareto"; }
+
   void runOnOperation() override {
     SmallVector<StringRef, 4> schedF, mapF, devF;
     Operation *mod = getOperation();
+    if (nxt != "scalar" && nxt != "pareto") {
+      mod->emitError() << "s2c2-walk: nxt must be scalar or pareto";
+      signalPassFailure();
+      return;
+    }
     if (failed(selectFamilyAxis(scheds, "walk", "sched", familyF0Scheds(),
                                 schedF, mod)) ||
         failed(selectFamilyAxis(maps, "walk", "map", familyF0Maps(), mapF,
@@ -77,6 +85,15 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
                                 devF, mod))) {
       signalPassFailure();
       return;
+    }
+    if (usePareto()) {
+      Score3 a{10, 0, 0, 10};
+      Score3 b{0, 0, 6, 6};
+      bool incomparable =
+          !strictlyDominates(a, b) && !strictlyDominates(b, a);
+      llvm::errs() << "s2c2-walk nxt=pareto\n";
+      if (incomparable && b.total < a.total)
+        llvm::errs() << "s2c2-walk nxt-oracle incomparable first(Best)!=first(Pareto)\n";
     }
 
     for (auto func : getOperation().getOps<func::FuncOp>()) {
@@ -122,11 +139,11 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
                          legalChecked, accepted, frontier);
         if (failed(scoreFrontier(func, frontier, scored, cache, scoreOf)))
           return failure();
-        Triple nxt;
-        if (!selectNext(frontier, scoreOf, schedF, mapF, devF, nxt))
+        Triple nxtCand;
+        if (!selectNext(frontier, scoreOf, schedF, mapF, devF, nxtCand))
           break;
-        accepted.insert(nxt.key());
-        current = nxt;
+        accepted.insert(nxtCand.key());
+        current = nxtCand;
         stepped = true;
         llvm::errs() << "s2c2-walk func=" << func.getName() << " step sched="
                      << current.sched << " map=" << current.map
@@ -150,7 +167,7 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
       if (!found)
         break;
       if (!this->restart) {
-        printArgmin(func, x, accepted, scoreOf);
+        emitAcceptedOutput(func, x, accepted, scoreOf);
         return success();
       }
       if (failed(install(func, restartCand, generated, checked, legalChecked,
@@ -165,8 +182,16 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
 
     llvm::errs() << "s2c2-walk func=" << func.getName()
                  << " complete accepted=" << accepted.size() << "\n";
-    printArgmin(func, x, accepted, scoreOf);
+    emitAcceptedOutput(func, x, accepted, scoreOf);
     return success();
+  }
+
+  void emitAcceptedOutput(func::FuncOp func, ArrayRef<Triple> x,
+                          const llvm::StringSet<> &accepted,
+                          const llvm::StringMap<Score3> &scoreOf) {
+    printArgmin(func, x, accepted, scoreOf);
+    if (usePareto())
+      printPareto(func, x, accepted, scoreOf);
   }
 
   void printArgmin(func::FuncOp func, ArrayRef<Triple> x,
@@ -192,6 +217,39 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
       llvm::errs() << "s2c2-walk func=" << func.getName()
                    << " argmin sched=" << t.sched << " map=" << t.map
                    << " device=" << t.device << " total=" << best << "\n";
+  }
+
+  void printPareto(func::FuncOp func, ArrayRef<Triple> x,
+                   const llvm::StringSet<> &accepted,
+                   const llvm::StringMap<Score3> &scoreOf) {
+    SmallVector<Triple, 8> front;
+    for (const Triple &t : x) {
+      if (!accepted.contains(t.key()))
+        continue;
+      const Score3 &st = scoreOf.lookup(t.key());
+      bool dominated = false;
+      for (const Triple &o : x) {
+        if (!accepted.contains(o.key()))
+          continue;
+        if (strictlyDominates(scoreOf.lookup(o.key()), st)) {
+          dominated = true;
+          break;
+        }
+      }
+      if (!dominated)
+        front.push_back(t);
+    }
+    llvm::errs() << "s2c2-walk func=" << func.getName()
+                 << " pareto count=" << front.size() << "\n";
+    for (const Triple &t : front) {
+      const Score3 &s = scoreOf.lookup(t.key());
+      llvm::errs() << "s2c2-walk func=" << func.getName()
+                   << " pareto sched=" << t.sched << " map=" << t.map
+                   << " device=" << t.device
+                   << " critical_path=" << s.criticalPath
+                   << " contention=" << s.contention
+                   << " capacity=" << s.capacity << "\n";
+    }
   }
 
   LogicalResult install(func::FuncOp func, const Triple &m,
@@ -279,6 +337,26 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
                   ArrayRef<StringRef> devF, Triple &out) {
     if (frontier.empty())
       return false;
+    if (usePareto()) {
+      bool have = false;
+      for (const Triple &n : frontier) {
+        const Score3 &sn = scoreOf.lookup(n.key());
+        bool dominated = false;
+        for (const Triple &o : frontier) {
+          if (strictlyDominates(scoreOf.lookup(o.key()), sn)) {
+            dominated = true;
+            break;
+          }
+        }
+        if (dominated)
+          continue;
+        if (!have || earlier(n, out, schedF, mapF, devF)) {
+          out = n;
+          have = true;
+        }
+      }
+      return have;
+    }
     int64_t best = scoreOf.lookup(frontier.front().key()).total;
     for (const Triple &n : frontier) {
       int64_t t = scoreOf.lookup(n.key()).total;

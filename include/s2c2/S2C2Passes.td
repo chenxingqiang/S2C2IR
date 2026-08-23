@@ -302,7 +302,8 @@ def S2C2Walk : Pass<"s2c2-walk", "::mlir::ModuleOp"> {
       N   = N_1
       S   = StartFirst
       Rst = StartUnused
-      Nxt = first(Best) on Frontier (scalar total)
+      Nxt = first(Best) on Frontier (scalar total; default)
+            or first(Pareto(Frontier)) when nxt=pareto (v0.4.11)
 
     Does not rewrite IR, pick a unique M* as the output set, or
     redefine HB / Cost / π. Default `restart=true` restarts until
@@ -312,8 +313,11 @@ def S2C2Walk : Pass<"s2c2-walk", "::mlir::ModuleOp"> {
     proper subset of X. A segment LocalStop is printed when
     Frontier is empty and Unused is still nonempty.
 
+    `nxt=pareto` changes only Nxt. N / S / Rst / Acc stay as in
+    v0.4.9. Not ArgMin-then-filter.
+
     Same F flags as `--s2c2-enumerate`. Empty = F_0.
-    This is not `--s2c2-search` and not beam / Pareto / rewrite.
+    This is not `--s2c2-search` and not beam / rewrite.
   }];
   let options = [
     Option<"scheds", "scheds", "std::string", /*default=*/"\"\"",
@@ -323,7 +327,9 @@ def S2C2Walk : Pass<"s2c2-walk", "::mlir::ModuleOp"> {
     Option<"devices", "devices", "std::string", /*default=*/"\"\"",
            "Comma-separated device labels; empty = F_0">,
     Option<"restart", "restart", "bool", /*default=*/"true",
-           "If false, stop at first LocalStop and emit ArgMin(Accepted)">
+           "If false, stop at first LocalStop and emit ArgMin(Accepted)">,
+    Option<"nxt", "nxt", "std::string", /*default=*/"\"scalar\"",
+           "Next inhabitant: scalar (first(Best)) or pareto">
   ];
 }
 

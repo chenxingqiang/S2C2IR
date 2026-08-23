@@ -344,3 +344,18 @@ inhabitant as v0.4.9; `Rst` withheld after the first LocalStop.
 | R5 | same F0 | default restart still Complete accepted=8 and ArgMin_F |
 | R6 | same STOPD | `D_test={cpu,gpu}`: localstop accepted=2 argmin cpu 136; no gpu |
 | R7 | same STOP | no `winner=`, no `pi=` |
+
+## Pareto-aware Next (v0.4.11)
+
+**Executable.** `--s2c2-walk=nxt=pareto`. Design:
+[`search-pareto-nxt.md`](search-pareto-nxt.md). Same `N` / `S` /
+`Rst` / `Acc`; only `Nxt = first(Pareto(Frontier))`.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| P1 | `test/Analysis/s2c2-walk.mlir` PARETO | `nxt=pareto`; oracle `first(Best)!=first(Pareto)` on incomparable vectors |
+| P2 | same PARETO | `@r4` trajectory equals W1 (contention-monotone Score_3) |
+| P3 | same PARETO | after Complete, `pareto count=4` matches `--s2c2-argmin` |
+| P4 | same PARETO | no `winner=`, no `pi=` |
+| P5 | same IR | `sched.concurrent` unchanged |
+| P6 | same PSTOP | `restart=false` still LocalStop argmin 129 ≠ ArgMin_F 128 |

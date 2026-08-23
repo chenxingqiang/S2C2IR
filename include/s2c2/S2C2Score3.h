@@ -30,6 +30,16 @@ struct Score3 {
   int64_t total = 0;
 };
 
+/// Strict Pareto domination on Cost⃗ = (T_HB, C_contention, C_capacity).
+/// `total` is not a fourth axis. Shared by `--s2c2-argmin` and Nxt_P.
+inline bool strictlyDominates(const Score3 &a, const Score3 &b) {
+  bool le = a.criticalPath <= b.criticalPath && a.contention <= b.contention &&
+            a.capacity <= b.capacity;
+  bool lt = a.criticalPath < b.criticalPath || a.contention < b.contention ||
+            a.capacity < b.capacity;
+  return le && lt;
+}
+
 /// True for the frozen v0.3 device table: cpu, gpu, npu, cim.
 bool isKnownScore3Device(llvm::StringRef device);
 
