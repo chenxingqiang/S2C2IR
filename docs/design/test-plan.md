@@ -403,3 +403,19 @@ First `P' ≠ P` inhabitant. Accept iff `HB(P') = HB(P)`. Rebuild
 | XR2 | same OUT | `wait_sibling` `accepted=0`; wait still after producer |
 | XR3 | same OUT | r4 `hb-eq=1` after actual graph compare |
 | XR4 | same ENUM | `x-rebuilt count=8` matches `--s2c2-enumerate` on `P` and `P'` |
+
+## Transformation Composition / Legality (v0.5.2)
+
+**Design.** Docs-only. No compose pass, no new `kind`. Design:
+[`realization-transform-compose.md`](realization-transform-compose.md).
+`(T_b ∘ T_a)` is one `T`. Each successful step re-proves
+`HB(P_i) = HB(P_0)` and rebuilds `X_i`. Failure restores `P_0`.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| XC1 | paper | `T_id ∘ T_id = T_id`; origin HB holds |
+| XC2 | paper | `T_id ∘ T_reorder = T_reorder` when reorder accepts |
+| XC3 | paper | `T_b = ⊥` after `T_a` succeeds ⇒ composite `⊥`, `P_0` unchanged |
+| XC4 | paper | origin gate is a rebuilt edge-set compare, not transitivity |
+| XC5 | paper | `X_i = Enum_F(P_i)`; not `X_{i-1}` |
+| XC6 | paper | no `--s2c2-xform=compose`, no `s2c2-search`, no third kind |

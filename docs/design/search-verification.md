@@ -6,7 +6,9 @@ Status: **v0.4.12 frozen**. Verifies the frozen inhabitants of
 is [`realization-transform.md`](realization-transform.md)
 (**v0.5.0 frozen**). Concurrent sibling reorder is
 [`realization-transform-reorder.md`](realization-transform-reorder.md)
-(**v0.5.1 frozen**).
+(**v0.5.1 frozen**). Composition of `T` is
+[`realization-transform-compose.md`](realization-transform-compose.md)
+(v0.5.2).
 
 ```text
 N        = N_1
