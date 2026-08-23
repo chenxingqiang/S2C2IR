@@ -459,3 +459,16 @@ of microseconds.
 | VC1 | paper | `provisioned=1` on B times SiLU ∥ HtoD, not two HtoD |
 | VC2 | paper | Score_3 stays 130 / 128 / 163 |
 | VC3 | paper | `v3=not-claimed`; no Cost rewrite |
+
+## V3 Measurement Metadata (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-measurement-metadata.md`](v3-measurement-metadata.md).
+Schema only in CI. JSONL/CSV live in `runtime/cuda/record_v3.py`.
+No FileCheck of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| VM1 | `test/Pilot/s2c2-v3-metadata-protocol.mlir` | required fields present; runtime source is `cudaRuntimeGetVersion` |
+| VM2 | same CSV | header matches the frozen column list |
+| VM3 | paper | 36 GPU points; no credentials in records |

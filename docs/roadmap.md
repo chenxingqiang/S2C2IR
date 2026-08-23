@@ -217,6 +217,13 @@ copies are adapter provisioning, not a Cost axiom.
 Sweeps `N`, SiLU repeats `k`, and `provisioned` (IR work vs
 adapter HtoD). Still does not claim V3.
 
+## V3 Measurement Metadata (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-measurement-metadata.md`](design/v3-measurement-metadata.md).
+Fixes the JSONL/CSV record before a 4090 rerun. Adapter
+semantics unchanged.
+
 ## Phase 2C — Compute frontend (optional)
 
 ```text
