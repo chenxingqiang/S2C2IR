@@ -191,6 +191,15 @@ rebuilt HB graphs are equal. Transformation composition
 is docs-only: `(T_b ∘ T_a)` is one `T`; each step re-proves
 `HB(P_i) = HB(P_0)` and rebuilds `X_i`. Not a second kind.
 
+## Pilot / Research Validation
+
+**Not v0.5.x.** Design:
+[`pilot-benchmark.md`](design/pilot-benchmark.md).
+Three stand-in workloads (SSD→HBM→Compute, Compute∥Comm,
+Pipeline) run frozen Enum / ArgMin / Cost / HB-preserving
+reorder. Architecture expansion pauses here. Real-latency
+correlation (V3) needs a backend; it is not this section.
+
 ## Phase 2C — Compute frontend (optional)
 
 ```text

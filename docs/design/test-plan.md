@@ -419,3 +419,16 @@ First `P' ≠ P` inhabitant. Accept iff `HB(P') = HB(P)`. Rebuild
 | XC4 | paper | origin gate is a rebuilt edge-set compare, not transitivity |
 | XC5 | paper | `X_i = Enum_F(P_i)`; not `X_{i-1}` |
 | XC6 | paper | no `--s2c2-xform=compose`, no `s2c2-search`, no third kind |
+
+## Pilot / Research Validation
+
+**Executable V1–V2.** Not v0.5.x. Design:
+[`pilot-benchmark.md`](pilot-benchmark.md). Three stand-in
+workloads. V3/V4 (real latency) need a backend.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| PA1 | `test/Pilot/s2c2-pilot-workloads.mlir` | `--check-s2c2-execution` |
+| PA2 | same ENUM | each func `count=8` |
+| PA3 | same ARG / GPU | A argmin 130; B 128; C 163 (gpu-async) |
+| PA4 | same XF / IR | reorder accepts only B; C keeps pipeline |
