@@ -392,7 +392,7 @@ only; rebuilds `X'`. Not Search.
 
 ## Concurrent sibling reorder (v0.5.1)
 
-**Executable.** `--s2c2-xform=kind=concurrent-reorder`. Design:
+**Frozen.** `--s2c2-xform=kind=concurrent-reorder`. Design:
 [`realization-transform-reorder.md`](realization-transform-reorder.md).
 First `P' ≠ P` inhabitant. Accept iff `HB(P') = HB(P)`. Rebuild
 `X'`. Not Search.

@@ -184,7 +184,7 @@ opens `T : P → P' ∪ {⊥}` with `HB(P') = HB(P)` only when
 `T(P) ≠ ⊥`, and rebuilt `X'`.
 `--s2c2-xform=kind=id` is the identity witness, not a searcher.
 Concurrent sibling reorder
-(**v0.5.1**, [`realization-transform-reorder.md`](design/realization-transform-reorder.md))
+(**v0.5.1 frozen**, [`realization-transform-reorder.md`](design/realization-transform-reorder.md))
 is the first `P' ≠ P` inhabitant; it accepts only when the
 rebuilt HB graphs are equal.
 

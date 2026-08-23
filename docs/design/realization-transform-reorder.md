@@ -1,9 +1,9 @@
 # Concurrent sibling reorder (v0.5.1)
 
-Status: **v0.5.1 design**. First non-identity inhabitant of frozen
+Status: **v0.5.1 frozen**. First non-identity inhabitant of frozen
 `T : P → P' ∪ {⊥}`. Search (v0.4.5–v0.4.12), Cost, HB axioms,
-`R`, and Transformation v0.5.0 remain frozen. Baseline: `5977df1`
-(`#38`).
+`R`, and Transformation v0.5.0 remain frozen. Merged as `e49d5fe`
+(`#39`).
 
 ```text
 T_reorder(P) = Permute_C(P)   // one adjacent sibling swap, or ⊥
