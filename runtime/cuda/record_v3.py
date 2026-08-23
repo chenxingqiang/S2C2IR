@@ -83,6 +83,14 @@ def nvcc_version() -> str:
     return out.splitlines()[-1]
 
 
+def cuda_from_smi_banner() -> str:
+    out = run_cmd(["nvidia-smi"])
+    for line in out.splitlines():
+        if "CUDA Version:" in line:
+            return line.split("CUDA Version:")[-1].split()[0]
+    return unavailable()
+
+
 def collect_gpu() -> dict[str, str]:
     q = (
         "name,memory.total,driver_version,clocks.current.sm,"
@@ -129,6 +137,8 @@ def collect_gpu() -> dict[str, str]:
                     "power_mode": f"limit_w={parts[6]}",
                 }
             )
+        if meta["cuda_runtime"] == unavailable():
+            meta["cuda_runtime"] = cuda_from_smi_banner()
         return meta
     parts = [p.strip() for p in raw.split(",")]
     if len(parts) >= 8:
@@ -142,6 +152,8 @@ def collect_gpu() -> dict[str, str]:
                 "cuda_runtime": parts[7],
             }
         )
+    if meta["cuda_runtime"] == unavailable():
+        meta["cuda_runtime"] = cuda_from_smi_banner()
     return meta
 
 
