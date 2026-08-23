@@ -419,3 +419,18 @@ First `P' ≠ P` inhabitant. Accept iff `HB(P') = HB(P)`. Rebuild
 | XC4 | paper | origin gate is a rebuilt edge-set compare, not transitivity |
 | XC5 | paper | `X_i = Enum_F(P_i)`; not `X_{i-1}` |
 | XC6 | paper | no `--s2c2-xform=compose`, no `s2c2-search`, no third kind |
+
+## Composition coincidence witnesses (v0.5.3)
+
+**Executable.** Two existing `--s2c2-xform` applies. Design:
+[`realization-transform-compose-witness.md`](realization-transform-compose-witness.md).
+Locks IR only where sequential Apply coincides with compose.
+Not a compose pass. Rollback of `P_1 ≠ P_0` stays paper XC3.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| XW1 | `test/Analysis/s2c2-xform-compose-witness.mlir` RRIR | two reorders restore r4 unpack-then-stream |
+| XW2 | same IRID / RID | `T_id` then/after reorder equals one reorder |
+| XW3 | same RR | wait stays `accepted=0`; r4 each step `hb-eq=1` `x-rebuilt count=8` |
+| XW4 | same ENUM | enumerate count=8 after two reorders |
+| XW5 | same RR | no `compose`, `s2c2-search`, `winner=`, `pi=` |

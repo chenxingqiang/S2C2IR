@@ -190,6 +190,10 @@ rebuilt HB graphs are equal. Transformation composition
 (**v0.5.2 frozen**, [`realization-transform-compose.md`](design/realization-transform-compose.md))
 is docs-only: `(T_b ∘ T_a)` is one `T`; each step re-proves
 `HB(P_i) = HB(P_0)` and rebuilds `X_i`. Not a second kind.
+Coincidence witnesses
+(**v0.5.3**, [`realization-transform-compose-witness.md`](design/realization-transform-compose-witness.md))
+FileCheck two existing `--s2c2-xform` applies only where
+sequential Apply agrees with compose. Not a compose pass.
 
 ## Phase 2C — Compute frontend (optional)
 

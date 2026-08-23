@@ -20,6 +20,7 @@ v0.4.12 Search verification                    FROZEN in search-verification.md
 v0.5.0  Realization transformation             FROZEN in realization-transform.md
 v0.5.1  Concurrent sibling reorder             FROZEN in realization-transform-reorder.md
 v0.5.2  Transformation composition             FROZEN in realization-transform-compose.md
+v0.5.3  Composition coincidence witnesses      in realization-transform-compose-witness.md
 ```
 
 ```text
