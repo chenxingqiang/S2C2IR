@@ -150,7 +150,34 @@ claiming V3 pass
 
 ---
 
-## 8. Files
+## 8. One RTX 4090 observation (not V3)
+
+Median `cudaEvent` / host chrono, same binary, one machine
+(CUDA 12.8, driver 570). Payload is the measurement `N`, not
+IR `tensor<8xf32>`. Do not FileCheck these numbers.
+
+| N | A GPU μs | B GPU μs | C GPU μs | GPU latency rank | Cost rank |
+| - | -------- | -------- | -------- | ---------------- | --------- |
+| 4M | 696 | 1341 | 1342 | A < B ≈ C | B < A < C |
+| 16M | 2741 | 5487 | 5445 | A < C < B | B < A < C |
+| 64M | 11484 | 21734 | 22319 | A < B < C | B < A < C |
+
+CPU stand-in at N=16M: A 61936, B 71090, C 73300 μs.
+GPU < CPU on all three (device rank agrees with Cost).
+Workload rank does **not**: Cost picks B; measured A is
+~2× faster than B/C because this stand-in does two HostToDevice
+copies on B and they contend.
+
+```text
+V3  not claimed
+```
+
+This is why the adapter exists: Score_3 overlap credit is a
+compiler regression, not yet a hardware ranking.
+
+---
+
+## 9. Files
 
 | Path | Role |
 | ---- | ---- |

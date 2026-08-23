@@ -6,7 +6,7 @@ into `s2c2-opt`. Host protocol (`--dry-run`) is
 
 ```sh
 # on a machine with nvcc
-nvcc -O2 -std=c++17 runtime/cuda/s2c2_cuda_adapter.cu -o s2c2-cuda-run
+nvcc -O2 -std=c++17 -arch=sm_89 runtime/cuda/s2c2_cuda_adapter.cu -o s2c2-cuda-run
 ./s2c2-cuda-run --func=all --device=gpu --n=16777216
 ./s2c2-cuda-run --func=all --device=cpu --n=16777216
 ```
