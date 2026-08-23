@@ -66,9 +66,9 @@ module {
 // Two Nxt inhabitants (S7); fixture path still completes.
 // S7: nxt=pareto
 // S7: nxt-oracle incomparable first(Best)!=first(Pareto)
+// S7: verify ok=1
 // S7: verify complete accepted=8 |X|=8
 // S7: pareto count=4
-// S7: verify ok=1
 
 // Selection only (S8): no rewrite.
 // S8-LABEL: func.func @r4_same_program
