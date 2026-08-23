@@ -166,7 +166,9 @@ name how a walk enters `X` and re-enters after `LocalStop`. No
 algorithm. The Algorithm object
 (**v0.4.8**, [`search-algorithm.md`](design/search-algorithm.md))
 is `A = (N, S, Rst, Nxt, Acc)` with
-`Nxt : State → LegalNeighbor ∪ {⊥}`. No inhabitant yet.
+`Nxt : State → LegalNeighbor ∪ {⊥}`. `--s2c2-walk`
+(**v0.4.9**, [`search-walk-n1.md`](design/search-walk-n1.md)) is the
+Hamming-1 inhabitant (`StartFirst` / `StartUnused` / `first(Best)`).
 
 ## Phase 2C — Compute frontend (optional)
 

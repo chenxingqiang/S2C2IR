@@ -312,3 +312,19 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | V6 | T9 | invariants hold after `Install` and `Acc` |
 | V7 | T7 | `⊥` is segment LocalStop, not Complete |
 | V8 | design claim | no hill-climbing / beam chosen |
+
+## Hamming-1 walk (v0.4.9)
+
+**Executable.** `--s2c2-walk`. Design:
+[`search-walk-n1.md`](search-walk-n1.md). Inhabitant
+`N_1` / `StartFirst` / `StartUnused` / `first(Best)`.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| W1 | `test/Analysis/s2c2-walk.mlir` F0 | StartFirst = cpu-seq/default/cpu; N_1 steps as listed |
+| W2 | same F0 | LocalStop then Restart unused; Complete accepted=8 |
+| W3 | same F0 | after Complete, argmin count=4 matches `--s2c2-argmin` |
+| W4 | same DTEST | LocalStop accepted=2 then restart gpu; Complete=4 |
+| W5 | same IR | `sched.concurrent` unchanged |
+| W6 | same | no `winner=`, no `pi=` |
+| W7 | same F0 | `Nxt` is total: every decision is `step` or `localstop` (`F0-NEXT`); never error / undefined / outside `X` |

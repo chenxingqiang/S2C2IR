@@ -54,7 +54,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/search-space.md`](docs/design/search-space.md),
 [`docs/design/search-algorithm-contract.md`](docs/design/search-algorithm-contract.md),
 [`docs/design/search-start-policy.md`](docs/design/search-start-policy.md),
-[`docs/design/search-algorithm.md`](docs/design/search-algorithm.md)
+[`docs/design/search-algorithm.md`](docs/design/search-algorithm.md),
+[`docs/design/search-walk-n1.md`](docs/design/search-walk-n1.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
