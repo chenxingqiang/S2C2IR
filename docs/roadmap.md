@@ -210,6 +210,13 @@ Binds the three Pilot shapes to one legal `M`
 parse IR, change Cost / HB / `R`, or claim V3. B's two HtoD
 copies are adapter provisioning, not a Cost axiom.
 
+## V3 Measurement Campaign (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-measurement-campaign.md`](design/v3-measurement-campaign.md).
+Sweeps `N`, SiLU repeats `k`, and `provisioned` (IR work vs
+adapter HtoD). Still does not claim V3.
+
 ## Phase 2C — Compute frontend (optional)
 
 ```text

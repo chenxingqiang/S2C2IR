@@ -10,6 +10,8 @@ nvcc -O2 -std=c++17 runtime/cuda/s2c2_cuda_adapter.cu -o s2c2-cuda-run
 # RTX 4090 example: add -arch=sm_89
 ./s2c2-cuda-run --func=all --device=gpu --n=16777216
 ./s2c2-cuda-run --func=all --device=cpu --n=16777216
+./s2c2-cuda-run --func=all --n=16777216 --k=8 --provisioned
+./runtime/cuda/sweep.sh ./s2c2-cuda-run
 ```
 
 Do not commit hostnames, accounts, or passwords.
