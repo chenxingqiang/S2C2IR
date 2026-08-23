@@ -11,8 +11,9 @@
 //   Nxt = first(Best)            (nxt=scalar, v0.4.9 default)
 //         first(Pareto(Frontier)) (nxt=pareto, v0.4.11)
 // restart=false (v0.4.10): one segment; LocalStop output is
-// ArgMin(Accepted), not ArgMin_F. Acc stays inline (not a shared
-// helper). Does not rewrite IR, pick a unique M*, or redefine HB / Cost.
+// ArgMin(Accepted), not ArgMin_F. verify=true (v0.4.12) asserts
+// State invariants. Acc stays inline (not a shared helper).
+// Does not rewrite IR, pick a unique M*, or redefine HB / Cost.
 //
 //===----------------------------------------------------------------------===//
 
@@ -120,12 +121,17 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
       return success();
     }
 
-    llvm::StringSet<> generated, checked, legalChecked, scored, accepted;
+    llvm::StringSet<> generated, checked, legalChecked, scored, accepted, xKeys;
     llvm::StringMap<Score3> cache;
     llvm::StringMap<Score3> scoreOf;
+    for (const Triple &t : x)
+      xKeys.insert(t.key());
     Triple current = x.front();
     if (failed(install(func, current, generated, checked, legalChecked, scored,
                        accepted, cache, scoreOf)))
+      return failure();
+    if (failed(checkInvariants(func, current, xKeys, generated, checked,
+                               legalChecked, scored, accepted)))
       return failure();
     llvm::errs() << "s2c2-walk func=" << func.getName() << " start sched="
                  << current.sched << " map=" << current.map
@@ -140,11 +146,18 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
         if (failed(scoreFrontier(func, frontier, scored, cache, scoreOf)))
           return failure();
         Triple nxtCand;
-        if (!selectNext(frontier, scoreOf, schedF, mapF, devF, nxtCand))
+        bool haveNxt =
+            selectNext(frontier, scoreOf, schedF, mapF, devF, nxtCand);
+        if (failed(checkTotality(func, frontier, haveNxt)))
+          return failure();
+        if (!haveNxt)
           break;
         accepted.insert(nxtCand.key());
         current = nxtCand;
         stepped = true;
+        if (failed(checkInvariants(func, current, xKeys, generated, checked,
+                                   legalChecked, scored, accepted)))
+          return failure();
         llvm::errs() << "s2c2-walk func=" << func.getName() << " step sched="
                      << current.sched << " map=" << current.map
                      << " device=" << current.device
@@ -155,6 +168,10 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
         break;
       llvm::errs() << "s2c2-walk func=" << func.getName()
                    << " localstop accepted=" << accepted.size() << "\n";
+      if (verify)
+        llvm::errs() << "s2c2-walk func=" << func.getName()
+                     << " verify localstop accepted=" << accepted.size()
+                     << " |X|=" << x.size() << "\n";
       Triple restartCand;
       bool found = false;
       for (const Triple &t : x) {
@@ -174,6 +191,9 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
                          scored, accepted, cache, scoreOf)))
         return failure();
       current = restartCand;
+      if (failed(checkInvariants(func, current, xKeys, generated, checked,
+                                 legalChecked, scored, accepted)))
+        return failure();
       llvm::errs() << "s2c2-walk func=" << func.getName() << " restart sched="
                    << current.sched << " map=" << current.map
                    << " device=" << current.device << "\n";
@@ -182,7 +202,76 @@ struct S2C2Walk : impl::S2C2WalkBase<S2C2Walk> {
 
     llvm::errs() << "s2c2-walk func=" << func.getName()
                  << " complete accepted=" << accepted.size() << "\n";
+    if (verify)
+      llvm::errs() << "s2c2-walk func=" << func.getName()
+                   << " verify complete accepted=" << accepted.size()
+                   << " |X|=" << x.size() << "\n";
     emitAcceptedOutput(func, x, accepted, scoreOf);
+    return success();
+  }
+
+  LogicalResult checkTotality(func::FuncOp func, ArrayRef<Triple> frontier,
+                              bool haveNxt) {
+    if (!verify)
+      return success();
+    bool ok = frontier.empty() != haveNxt;
+    llvm::errs() << "s2c2-walk func=" << func.getName()
+                 << " verify nxt-total=" << (ok ? 1 : 0) << "\n";
+    if (!ok) {
+      func.emitError() << "s2c2-walk: Nxt totality failed";
+      return failure();
+    }
+    return success();
+  }
+
+  LogicalResult checkInvariants(func::FuncOp func, const Triple &current,
+                                const llvm::StringSet<> &xKeys,
+                                const llvm::StringSet<> &generated,
+                                const llvm::StringSet<> &checked,
+                                const llvm::StringSet<> &legalChecked,
+                                const llvm::StringSet<> &scored,
+                                const llvm::StringSet<> &accepted) {
+    if (!verify)
+      return success();
+    bool currentInX = xKeys.contains(current.key());
+    bool accSubScored = true;
+    for (const auto &e : accepted)
+      if (!scored.contains(e.getKey()))
+        accSubScored = false;
+    bool scoredSubLegal = true;
+    for (const auto &e : scored)
+      if (!legalChecked.contains(e.getKey()))
+        scoredSubLegal = false;
+    bool legalEqCheckedX = true;
+    for (const auto &e : checked) {
+      bool inX = xKeys.contains(e.getKey());
+      bool inL = legalChecked.contains(e.getKey());
+      if (inX != inL)
+        legalEqCheckedX = false;
+    }
+    for (const auto &e : legalChecked)
+      if (!xKeys.contains(e.getKey()))
+        legalEqCheckedX = false;
+    bool checkedSubGen = true;
+    for (const auto &e : checked)
+      if (!generated.contains(e.getKey()))
+        checkedSubGen = false;
+    bool accSubX = true;
+    for (const auto &e : accepted)
+      if (!xKeys.contains(e.getKey()))
+        accSubX = false;
+    bool ok = currentInX && accSubScored && scoredSubLegal && legalEqCheckedX &&
+              checkedSubGen && accSubX;
+    llvm::errs() << "s2c2-walk func=" << func.getName()
+                 << " verify current-in-X=" << (currentInX ? 1 : 0)
+                 << " accepted-subseteq-scored=" << (accSubScored ? 1 : 0)
+                 << " scored-subseteq-legal=" << (scoredSubLegal ? 1 : 0)
+                 << " legal=checked-cap-X=" << (legalEqCheckedX ? 1 : 0)
+                 << " ok=" << (ok ? 1 : 0) << "\n";
+    if (!ok) {
+      func.emitError() << "s2c2-walk: State invariant failed";
+      return failure();
+    }
     return success();
   }
 

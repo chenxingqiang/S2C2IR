@@ -173,8 +173,12 @@ Restart / Complete coverage
 (**v0.4.10 frozen**, [`search-restart-complete.md`](design/search-restart-complete.md))
 witnesses `LocalStop ⇏ ArgMin_F` via `--s2c2-walk=restart=false`
 without a new algorithm. Pareto-aware Next
-(**v0.4.11**, [`search-pareto-nxt.md`](design/search-pareto-nxt.md))
+(**v0.4.11 frozen**, [`search-pareto-nxt.md`](design/search-pareto-nxt.md))
 is `Nxt = first(Pareto(Frontier))`; default `nxt=scalar` is unchanged.
+Search Verification
+(**v0.4.12**, [`search-verification.md`](design/search-verification.md))
+asserts inhabitant invariants via `--s2c2-walk=verify` (S1–S8).
+No third `Nxt`.
 
 ## Phase 2C — Compute frontend (optional)
 

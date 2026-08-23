@@ -316,6 +316,9 @@ def S2C2Walk : Pass<"s2c2-walk", "::mlir::ModuleOp"> {
     `nxt=pareto` changes only Nxt. N / S / Rst / Acc stay as in
     v0.4.9. Not ArgMin-then-filter.
 
+    `verify=true` (v0.4.12) asserts State invariants after Install
+    and Acc. It is not a third Nxt.
+
     Same F flags as `--s2c2-enumerate`. Empty = F_0.
     This is not `--s2c2-search` and not beam / rewrite.
   }];
@@ -329,7 +332,9 @@ def S2C2Walk : Pass<"s2c2-walk", "::mlir::ModuleOp"> {
     Option<"restart", "restart", "bool", /*default=*/"true",
            "If false, stop at first LocalStop and emit ArgMin(Accepted)">,
     Option<"nxt", "nxt", "std::string", /*default=*/"\"scalar\"",
-           "Next inhabitant: scalar (first(Best)) or pareto">
+           "Next inhabitant: scalar (first(Best)) or pareto">,
+    Option<"verify", "verify", "bool", /*default=*/"false",
+           "Assert State invariants (v0.4.12); not a new algorithm">
   ];
 }
 
