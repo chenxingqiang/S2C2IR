@@ -62,7 +62,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/realization-transform.md`](docs/design/realization-transform.md),
 [`docs/design/realization-transform-reorder.md`](docs/design/realization-transform-reorder.md),
 [`docs/design/realization-transform-compose.md`](docs/design/realization-transform-compose.md),
-[`docs/design/pilot-benchmark.md`](docs/design/pilot-benchmark.md)
+[`docs/design/pilot-benchmark.md`](docs/design/pilot-benchmark.md),
+[`docs/design/backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
@@ -89,8 +90,10 @@ composition contract `(T_b ∘ T_a)`: each step re-proves
 `HB(P_i) = HB(P_0)` and rebuilds `X_i`. The Pilot
 ([`pilot-benchmark.md`](docs/design/pilot-benchmark.md)) is the
 **frozen V1–V2** validation entry: three stand-in workloads on
-that stack. It is not a new Search or Transform kind. V3/V4
-need a real backend.
+that stack. It is not a new Search or Transform kind. A CUDA
+adapter ([`backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md))
+binds those shapes to one legal `M` for measurement; V3 is
+not claimed.
 
 ## Requirements
 
@@ -129,6 +132,7 @@ the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 - `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E8 and Token+Concurrent+Pipeline composition; `--convert-s2c2-token-to-async` / `--convert-s2c2-concurrent-to-async` / `--convert-s2c2-pipeline-to-async` for HB-preserving event lowering; `--s2c2-cost` for frozen v0.1 scores; `--s2c2-cost-hb` for frozen v0.2 HB-aware pair credit; `--s2c2-cost-cp` for v0.3 critical-path scores)
 - `s2c2-translate` — translation driver (stub)
+- `s2c2-cuda-adapter` — host `--dry-run` protocol for the CUDA Pilot stand-in (`runtime/cuda/` is the timed binary; V3 not claimed)
 
 Round-trip an example:
 

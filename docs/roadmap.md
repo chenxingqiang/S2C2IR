@@ -199,8 +199,15 @@ Three stand-in workloads (SSD→HBM→Compute, Compute∥Comm,
 Pipeline) run frozen Enum / ArgMin / Cost / HB-preserving
 reorder. Architecture expansion pauses here; do not open
 v0.5.4. Real-latency correlation (V3) needs a backend; it
-is not this section. The next valuable layer is one small
-real backend adapter, not another `T` kind.
+is not this section.
+
+## CUDA Backend Adapter (v0.1)
+
+**Not v0.5.x.** Design:
+[`backend-adapter-cuda.md`](design/backend-adapter-cuda.md).
+Binds the three Pilot shapes to one legal `M`
+(`gpu-async` / `gpu`) and times a CUDA stand-in. Does not
+parse IR, change Cost / HB / `R`, or claim V3.
 
 ## Phase 2C — Compute frontend (optional)
 
