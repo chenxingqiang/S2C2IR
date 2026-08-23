@@ -376,3 +376,16 @@ document; IDs here are SV1–SV8 (not v0.4.1 S1–S6).
 | SV6 | same S6 | `verify ok=1` State invariants; no `ok=0` |
 | SV7 | same S7 | `nxt=pareto` oracle + complete + pareto count=4 |
 | SV8 | same S8 | `sched.concurrent`; no `memref.copy` / `winner=` / `pi=` |
+
+## Realization Transformation (v0.5.0)
+
+**Executable.** `--s2c2-xform=kind=id`. Design:
+[`realization-transform.md`](realization-transform.md). Identity
+only; rebuilds `X'`. Not Search.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| X1 | `test/Analysis/s2c2-xform.mlir` ID | `kind=id`; `hb-eq=1` |
+| X2 | same ID / ENUM | `x-rebuilt count=8` matches `--s2c2-enumerate` |
+| X3 | same IR | `sched.concurrent`; no `sched.pipeline` / `memref.copy` |
+| X4 | same ID | no `winner=`, `pi=`, `s2c2-walk`, `s2c2-search` |

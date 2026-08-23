@@ -8,6 +8,7 @@ add_mlir_library(S2C2Cost
   S2C2Enumerate.cpp
   S2C2ArgMin.cpp
   S2C2Walk.cpp
+  S2C2XForm.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/s2c2

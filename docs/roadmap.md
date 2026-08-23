@@ -176,9 +176,12 @@ without a new algorithm. Pareto-aware Next
 (**v0.4.11 frozen**, [`search-pareto-nxt.md`](design/search-pareto-nxt.md))
 is `Nxt = first(Pareto(Frontier))`; default `nxt=scalar` is unchanged.
 Search Verification
-(**v0.4.12**, [`search-verification.md`](design/search-verification.md))
+(**v0.4.12 frozen**, [`search-verification.md`](design/search-verification.md))
 asserts inhabitant invariants via `--s2c2-walk=verify` (S1–S8).
-No third `Nxt`.
+No third `Nxt`. Realization Transformation
+(**v0.5.0**, [`realization-transform.md`](design/realization-transform.md))
+opens `T : P → P'` with `HB(P') = HB(P)` and rebuilt `X'`.
+`--s2c2-xform=kind=id` is the identity witness, not a searcher.
 
 ## Phase 2C — Compute frontend (optional)
 
