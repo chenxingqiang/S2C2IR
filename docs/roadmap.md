@@ -179,7 +179,7 @@ Search Verification
 (**v0.4.12 frozen**, [`search-verification.md`](design/search-verification.md))
 asserts inhabitant invariants via `--s2c2-walk=verify` (S1–S8).
 No third `Nxt`. Realization Transformation
-(**v0.5.0**, [`realization-transform.md`](design/realization-transform.md))
+(**v0.5.0 frozen**, [`realization-transform.md`](design/realization-transform.md))
 opens `T : P → P'` with `HB(P') = HB(P)` and rebuilt `X'`.
 `--s2c2-xform=kind=id` is the identity witness, not a searcher.
 

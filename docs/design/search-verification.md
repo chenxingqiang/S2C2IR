@@ -3,7 +3,8 @@
 Status: **v0.4.12 frozen**. Verifies the frozen inhabitants of
 `A`. Does **not** add a third `Nxt`, beam, `--s2c2-search`, or
 `P ↦ P'`. Merged as `90e3087` (`#36`). Realization transformation
-is [`realization-transform.md`](realization-transform.md) (v0.5.0).
+is [`realization-transform.md`](realization-transform.md)
+(**v0.5.0 frozen**).
 
 ```text
 N        = N_1

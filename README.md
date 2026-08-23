@@ -77,9 +77,9 @@ walk enters `X`. The Algorithm object (v0.4.8) is
 inhabitant. v0.4.10 witnesses `LocalStop ⇏ ArgMin_F`. v0.4.11
 adds `Nxt = first(Pareto(Frontier))` without changing Cost / HB /
 `R` / Neighbor / Start / Restart. v0.4.12 verifies those
-inhabitants (`--s2c2-walk=verify`). v0.5.0 opens `T : P → P'`
-with `HB(P') = HB(P)` and rebuilt `X'` (`--s2c2-xform=kind=id`).
-It is not a heuristic searcher.
+inhabitants (`--s2c2-walk=verify`). v0.5.0 (**frozen**) opens
+`T : P → P'` with `HB(P') = HB(P)` and rebuilt `X'`
+(`--s2c2-xform=kind=id`). It is not a heuristic searcher.
 
 ## Requirements
 
