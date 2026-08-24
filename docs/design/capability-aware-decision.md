@@ -91,9 +91,11 @@ Candidate A:  C || HtoD
 Candidate B:  SiLU || GEMM
   4090 named             → pair_relation = serial
                           observed_constraint = resource_contention
+                          confidence = arm_specific
   → semantically legal concurrent
-  → no expected overlap benefit
-  → optimizer may select a serial realization
+  → query returns the evidence with applicable = false
+  → Phase 3A does not serialize: arm_specific is not a global rule
+  → Phase 3C may use it once shape / footprint / Cost exist
 
 Candidate C:  C || HtoD on legacy default
   → extra_hb = legacy-default

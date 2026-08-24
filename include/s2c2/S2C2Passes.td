@@ -366,7 +366,9 @@ def S2C2CapabilityQuery : Pass<"s2c2-capability-query", "::mlir::ModuleOp"> {
     MVP pairs: C||HtoD, C||DtoH, HtoD||DtoH, C||C, C_silu||C_gemm.
     Optional `producer` / `consumer` query the catalog without IR.
     Walking `sched.concurrent` (2 tasks) and `sched.overlap` prints
-    the same JSON for each classified pair.
+    the same JSON for each classified pair, including `applicable`.
+    `arm_specific` / `inferred` evidence is queryable and is not a
+    global compiler rule.
   }];
   let options = [
     Option<"device", "device", "std::string", /*default=*/"\"rtx4090\"",
@@ -388,8 +390,10 @@ def S2C2CapabilitySchedule : Pass<"s2c2-capability-schedule", "::mlir::ModuleOp"
     dependency and does not rank by Cost.
 
       pair_relation = parallel | mixed | underdetermined  → keep concurrent
-      pair_relation = serial → unbundle 2-task concurrent into parent
-                               IR order (NoOrderingRequirement)
+      pair_relation = serial AND applicable=yes → unbundle 2-task
+                               concurrent into parent IR order
+      serial but arm_specific / inferred / unknown / size mismatch
+                               → keep (evidence is not a global rule)
 
     Serializing concurrent siblings is a valid realization, not a new
     `sched.serial` op and not a sibling `sched.wait`. Pipeline

@@ -88,11 +88,13 @@ module {
 // Q1: "pair_relation": "parallel"
 // Q1: "observed_constraint": "none"
 // Q1: "confidence": "measured"
+// Q1: "applicable": "unknown"
 
 // Q2: "pair": "C_silu||C_gemm"
 // Q2: "pair_relation": "serial"
 // Q2: "observed_constraint": "resource_contention"
 // Q2: "confidence": "arm_specific"
+// Q2: "applicable": false
 
 // OLD: cap-arm pairs sync size intensity
 // OLD: v3=not-claimed

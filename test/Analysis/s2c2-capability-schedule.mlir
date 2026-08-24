@@ -4,13 +4,20 @@
 // RUN: s2c2-opt %s --s2c2-capability-schedule=device=npu-demo --check-s2c2-execution | FileCheck %s --check-prefix=NPU
 
 // Same S²C² IR, two CapabilityProfiles, two legal schedules.
+// Destructive serialize requires applicable=yes AND relation=serial.
+// arm_specific evidence is queryable and is not a global rule.
 // Concurrent → parent IR order is allowed. No invented sibling wait.
 // Pipeline StageOrder is preserved. Not Cost v0.4.
 
 // GPU-LOG: pair=C||HtoD relation=parallel
+// GPU-LOG: applicable=no
 // GPU-LOG: decision=keep
 // GPU-LOG: pair=C_silu||C_gemm relation=serial
-// GPU-LOG: observed_constraint=resource_contention
+// GPU-LOG: confidence=arm_specific
+// GPU-LOG: applicable=no
+// GPU-LOG: decision=keep
+// GPU-LOG: pair=C||C relation=serial
+// GPU-LOG: applicable=yes
 // GPU-LOG: decision=serialize
 // GPU-LOG: semantics=unchanged
 // GPU-LOG: v3=not-claimed
@@ -19,6 +26,10 @@
 // NPU-LOG: pair=C||HtoD relation=parallel
 // NPU-LOG: decision=keep
 // NPU-LOG: pair=C_silu||C_gemm relation=parallel
+// NPU-LOG: applicable=no
+// NPU-LOG: decision=keep
+// NPU-LOG: pair=C||C relation=parallel
+// NPU-LOG: applicable=no
 // NPU-LOG: decision=keep
 // NPU-LOG: semantics=unchanged
 // NPU-LOG: cost=unchanged
@@ -52,13 +63,12 @@ module {
     return
   }
 
+  // arm_specific SiLU||GEMM stays concurrent on both profiles.
   // GPU-LABEL: func.func @silu_par_gemm
   // NPU-LABEL: func.func @silu_par_gemm
-  // GPU: sched.task
+  // GPU: sched.concurrent
   // GPU: comp.elemwise
-  // GPU: sched.task
   // GPU: comp.matmul
-  // GPU-NOT: sched.concurrent
   // GPU-NOT: sched.wait
   // NPU: sched.concurrent
   // NPU: comp.elemwise
@@ -67,6 +77,32 @@ module {
     sched.concurrent {
       %ta = sched.task {
         %y = comp.elemwise %x {kind = #comp.elemwise<silu>} : tensor<8xf32> -> tensor<8xf32>
+        sched.yield
+      }
+      %tb = sched.task {
+        %z = comp.matmul %x, %w : tensor<8xf32>, tensor<8x8xf32> -> tensor<8xf32>
+        sched.yield
+      }
+      sched.yield
+    }
+    return
+  }
+
+  // Measured C||C is applicable: 4090 serializes, npu-demo keeps.
+  // GPU-LABEL: func.func @gemm_par_gemm
+  // NPU-LABEL: func.func @gemm_par_gemm
+  // GPU: sched.task
+  // GPU: comp.matmul
+  // GPU: sched.task
+  // GPU: comp.matmul
+  // GPU-NOT: sched.concurrent
+  // GPU-NOT: sched.wait
+  // NPU: sched.concurrent
+  // NPU: comp.matmul
+  func.func @gemm_par_gemm(%x: tensor<8xf32>, %w: tensor<8x8xf32>) {
+    sched.concurrent {
+      %ta = sched.task {
+        %y = comp.matmul %x, %w : tensor<8xf32>, tensor<8x8xf32> -> tensor<8xf32>
         sched.yield
       }
       %tb = sched.task {

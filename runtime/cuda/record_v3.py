@@ -1722,6 +1722,60 @@ def project_cap_schema_v1(out: Path | None = None) -> int:
     return 0
 
 
+def cap_applicability(
+    rec: dict[str, Any],
+    size_bytes: int | None = None,
+    sync: str = "named-nonblocking",
+) -> bool | str:
+    """Evidence → Applicability. arm_specific/inferred are not global rules."""
+    conf = str(rec.get("confidence", "unknown"))
+    if conf != "measured":
+        return False
+
+    def _norm_sync(s: str) -> str:
+        t = s.strip().lower()
+        if t in {"", "n/a", "none", "unmeasured"}:
+            return "n/a"
+        return t
+
+    rec_sync = _norm_sync(str(rec.get("synchronization", "n/a")))
+    if rec_sync != "n/a" and rec_sync != _norm_sync(sync):
+        return False
+
+    raw = str(rec.get("size_range", "n/a")).strip()
+    if raw.lower() in {"n/a", "none", "unmeasured", ""}:
+        return True
+    if ".." not in raw:
+        return "unknown"
+
+    def _bytes(tok: str) -> int | None:
+        t = tok.strip().lower()
+        mul = 1
+        if t.endswith("mib"):
+            mul = 1024 * 1024
+            t = t[:-3].strip()
+        elif t.endswith("mb"):
+            mul = 1000 * 1000
+            t = t[:-2].strip()
+        elif t.endswith("kib"):
+            mul = 1024
+            t = t[:-3].strip()
+        elif t.endswith("bytes"):
+            t = t[:-5].strip()
+        try:
+            return int(t) * mul
+        except ValueError:
+            return None
+
+    left, right = raw.split("..", 1)
+    lo, hi = _bytes(left), _bytes(right)
+    if lo is None or hi is None:
+        return "unknown"
+    if size_bytes is None:
+        return "unknown"
+    return lo <= size_bytes <= hi
+
+
 def query_cap_schema(
     pair: str,
     catalog: Path | None = None,
@@ -1757,6 +1811,7 @@ def query_cap_schema(
             "pair_relation": "underdetermined",
             "observed_constraint": "none",
             "confidence": "unknown",
+            "applicable": False,
         }
         print(json.dumps(payload, ensure_ascii=True))
         return 0
@@ -1766,7 +1821,11 @@ def query_cap_schema(
         "pair_relation": rec["pair_relation"],
         "observed_constraint": rec["observed_constraint"],
         "confidence": rec["confidence"],
+        "regime": rec.get("regime", "underdetermined"),
+        "size_range": rec.get("size_range", "n/a"),
+        "synchronization": rec.get("synchronization", "n/a"),
         "hardware_id": rec["hardware_id"],
+        "applicable": cap_applicability(rec),
     }
     print(json.dumps(payload, ensure_ascii=True))
     return 0

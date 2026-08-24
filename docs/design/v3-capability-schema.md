@@ -79,9 +79,14 @@ The catalog is a **decision input**, not an archive. See
 `docs/design/capability-aware-decision.md` and the
 `--s2c2-capability-schedule` pass.
 
+A record is not a global rule. `--s2c2-capability-query` returns the
+cell plus `applicable`. The scheduler rewrites only when
+`applicable = yes` and `pair_relation = serial`. `arm_specific` and
+`inferred` stay queryable.
+
 Phase 3A does **not** pick the fastest schedule. It filters candidates
-that Capability says are not worthwhile to overlap (`serial` /
-`resource_contention`).
+that Capability says are not worthwhile to overlap **and** that the
+record actually applies to.
 
 ## Machine checks
 

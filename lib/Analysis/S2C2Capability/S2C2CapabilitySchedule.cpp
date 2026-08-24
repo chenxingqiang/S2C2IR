@@ -1,8 +1,10 @@
 //===- S2C2CapabilitySchedule.cpp - Capability → schedule ---------*- C++ -*-===//
 //
 // Phase 3A. CapabilityProfile is compiler decision input, not an archive.
-// Query prints pair cells. Schedule keeps or serializes 2-task concurrent
-// groups. Does not invent sibling HB, break StageOrder, or change Cost.
+// Query prints pair cells plus applicability. Schedule serializes only
+// when applicable=yes and pair_relation=serial. Does not invent sibling
+// HB, break StageOrder, promote arm_specific evidence to a global rule,
+// or change Cost.
 //
 //===----------------------------------------------------------------------===//
 
@@ -17,6 +19,7 @@
 #include "s2c2/Storage/StorageTypes.h"
 
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Visitors.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -25,6 +28,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <utility>
@@ -48,10 +52,20 @@ using stor::BufferType;
 using stor::Space;
 
 namespace {
+enum class Applicability { Yes, No, Unknown };
+
 struct CapCell {
   std::string relation = "underdetermined";
   std::string constraint = "none";
   std::string confidence = "unknown";
+  std::string regime = "underdetermined";
+  std::string sizeRange = "n/a";
+  std::string synchronization = "named-nonblocking";
+};
+
+struct QueryContext {
+  std::string synchronization = "named-nonblocking";
+  std::optional<int64_t> sizeBytes;
 };
 
 struct CapCatalog {
@@ -76,31 +90,46 @@ static std::optional<Space> bufferSpace(Value value) {
 }
 
 static void addCell(CapCatalog &cat, StringRef pair, StringRef relation,
-                    StringRef constraint, StringRef confidence) {
+                    StringRef constraint, StringRef confidence, StringRef regime,
+                    StringRef sizeRange, StringRef synchronization) {
   CapCell cell;
   cell.relation = relation.str();
   cell.constraint = constraint.str();
   cell.confidence = confidence.str();
+  cell.regime = regime.str();
+  cell.sizeRange = sizeRange.str();
+  cell.synchronization = synchronization.str();
   cat.pairs[pair] = std::move(cell);
 }
 
 static void loadBuiltinRtx4090(CapCatalog &cat) {
-  addCell(cat, "C||HtoD", "parallel", "none", "measured");
-  addCell(cat, "C||DtoH", "parallel", "none", "measured");
-  addCell(cat, "HtoD||DtoH", "mixed", "none", "measured");
-  addCell(cat, "HtoD||HtoD", "serial", "copy_engine_contention", "measured");
-  addCell(cat, "DtoH||DtoH", "serial", "copy_engine_contention", "measured");
-  addCell(cat, "C||C", "serial", "resource_contention", "measured");
-  addCell(cat, "C_silu||C_gemm", "serial", "resource_contention",
-          "arm_specific");
+  addCell(cat, "C||HtoD", "parallel", "none", "measured", "bandwidth",
+          "16MiB..256MiB", "named-nonblocking");
+  addCell(cat, "C||DtoH", "parallel", "none", "measured", "bandwidth",
+          "16MiB..256MiB", "named-nonblocking");
+  addCell(cat, "HtoD||DtoH", "mixed", "none", "measured", "bandwidth",
+          "16MiB..256MiB", "named-nonblocking");
+  addCell(cat, "HtoD||HtoD", "serial", "copy_engine_contention", "measured",
+          "bandwidth", "16MiB..256MiB", "named-nonblocking");
+  addCell(cat, "DtoH||DtoH", "serial", "copy_engine_contention", "measured",
+          "bandwidth", "16MiB..256MiB", "named-nonblocking");
+  addCell(cat, "C||C", "serial", "resource_contention", "measured", "occupancy",
+          "n/a", "named-nonblocking");
+  addCell(cat, "C_silu||C_gemm", "serial", "resource_contention", "arm_specific",
+          "occupancy", "n/a", "named-nonblocking");
 }
 
 static void loadBuiltinNpuDemo(CapCatalog &cat) {
-  addCell(cat, "C||HtoD", "parallel", "none", "inferred");
-  addCell(cat, "C||DtoH", "parallel", "none", "inferred");
-  addCell(cat, "HtoD||DtoH", "serial", "copy_engine_contention", "inferred");
-  addCell(cat, "C||C", "parallel", "none", "inferred");
-  addCell(cat, "C_silu||C_gemm", "parallel", "none", "inferred");
+  addCell(cat, "C||HtoD", "parallel", "none", "inferred", "bandwidth",
+          "synthetic", "named-nonblocking");
+  addCell(cat, "C||DtoH", "parallel", "none", "inferred", "bandwidth",
+          "synthetic", "named-nonblocking");
+  addCell(cat, "HtoD||DtoH", "serial", "copy_engine_contention", "inferred",
+          "bandwidth", "synthetic", "named-nonblocking");
+  addCell(cat, "C||C", "parallel", "none", "inferred", "occupancy", "synthetic",
+          "named-nonblocking");
+  addCell(cat, "C_silu||C_gemm", "parallel", "none", "inferred", "occupancy",
+          "synthetic", "named-nonblocking");
 }
 
 static StringRef canonicalDevice(StringRef device) {
@@ -159,6 +188,12 @@ static LogicalResult loadJsonl(StringRef path, StringRef device,
       cell.constraint = c->str();
     if (auto c = obj->getString("confidence"))
       cell.confidence = c->str();
+    if (auto c = obj->getString("regime"))
+      cell.regime = c->str();
+    if (auto c = obj->getString("size_range"))
+      cell.sizeRange = c->str();
+    if (auto c = obj->getString("synchronization"))
+      cell.synchronization = c->str();
     cat.pairs[*pair] = std::move(cell);
   }
   return success();
@@ -180,11 +215,6 @@ static CapCell lookupPair(const CapCatalog &cat, StringRef pair) {
   auto it = cat.pairs.find(pair);
   if (it != cat.pairs.end())
     return it->second;
-  if (pair == "C_silu||C_gemm") {
-    auto fallback = cat.pairs.find("C||C");
-    if (fallback != cat.pairs.end())
-      return fallback->second;
-  }
   return CapCell{};
 }
 
@@ -305,21 +335,177 @@ static std::string classifyPair(Region &a, Region &b) {
   return pairFromRoles(roleOf(classifyRegion(a)), roleOf(classifyRegion(b)));
 }
 
+static std::optional<int64_t> payloadBytes(Type type) {
+  auto shaped = dyn_cast<ShapedType>(type);
+  if (!shaped || !shaped.hasStaticShape())
+    return std::nullopt;
+  Type elem = shaped.getElementType();
+  if (!elem.isIntOrFloat())
+    return std::nullopt;
+  return shaped.getNumElements() * (int64_t)(elem.getIntOrFloatBitWidth() / 8);
+}
+
+static void accumulateSizes(Region &region, std::optional<int64_t> &xferBytes,
+                            std::optional<int64_t> &computeBytes) {
+  auto takeMax = [](std::optional<int64_t> &slot, std::optional<int64_t> bytes) {
+    if (!bytes)
+      return;
+    slot = slot ? std::max(*slot, *bytes) : bytes;
+  };
+  region.walk([&](Operation *op) {
+    if (auto copy = dyn_cast<CopyOp>(op)) {
+      if (auto ty = dyn_cast<BufferType>(copy.getSrc().getType()))
+        takeMax(xferBytes, payloadBytes(ty.getSourceType()));
+    } else if (auto stream = dyn_cast<StreamOp>(op)) {
+      if (auto ty = dyn_cast<BufferType>(stream.getSrc().getType()))
+        takeMax(xferBytes, payloadBytes(ty.getSourceType()));
+    }
+    if (isa<ElemwiseOp, MatmulOp, GatedMLPOp>(op)) {
+      for (Type t : op->getOperandTypes())
+        takeMax(computeBytes, payloadBytes(t));
+      for (Type t : op->getResultTypes())
+        takeMax(computeBytes, payloadBytes(t));
+    }
+  });
+}
+
+static QueryContext contextFromRegions(Region &a, Region &b, StringRef pair) {
+  QueryContext ctx;
+  std::optional<int64_t> xfer, compute;
+  accumulateSizes(a, xfer, compute);
+  accumulateSizes(b, xfer, compute);
+  bool transferPair = pair.contains("HtoD") || pair.contains("DtoH");
+  ctx.sizeBytes = transferPair ? xfer : compute;
+  return ctx;
+}
+
+static bool syncMatches(StringRef recordSync, StringRef ctxSync) {
+  auto norm = [](StringRef s) {
+    s = s.trim();
+    if (s.equals_insensitive("n/a") || s.equals_insensitive("none") ||
+        s.equals_insensitive("unmeasured") || s.empty())
+      return StringRef("n/a");
+    return s;
+  };
+  StringRef rec = norm(recordSync);
+  StringRef ctx = norm(ctxSync);
+  if (rec == "n/a")
+    return true;
+  return rec.equals_insensitive(ctx);
+}
+
+static std::optional<int64_t> parseByteToken(StringRef tok) {
+  tok = tok.trim();
+  int64_t mul = 1;
+  if (tok.ends_with_insensitive("mib")) {
+    mul = 1024LL * 1024LL;
+    tok = tok.drop_back(3).trim();
+  } else if (tok.ends_with_insensitive("mb")) {
+    mul = 1000LL * 1000LL;
+    tok = tok.drop_back(2).trim();
+  } else if (tok.ends_with_insensitive("kib")) {
+    mul = 1024LL;
+    tok = tok.drop_back(3).trim();
+  } else if (tok.ends_with_insensitive("bytes")) {
+    tok = tok.drop_back(5).trim();
+  }
+  int64_t n = 0;
+  if (tok.getAsInteger(10, n) || n < 0)
+    return std::nullopt;
+  return n * mul;
+}
+
+enum class SizeSpecKind { Unconstrained, Range, Unparsed };
+
+struct SizeSpec {
+  SizeSpecKind kind = SizeSpecKind::Unparsed;
+  int64_t lo = 0;
+  int64_t hi = 0;
+};
+
+static SizeSpec parseSizeRange(StringRef raw) {
+  SizeSpec spec;
+  StringRef s = raw.trim();
+  if (s.equals_insensitive("n/a") || s.equals_insensitive("none") ||
+      s.equals_insensitive("unmeasured") || s.empty()) {
+    spec.kind = SizeSpecKind::Unconstrained;
+    return spec;
+  }
+  auto [left, right] = s.split("..");
+  if (right.empty())
+    return spec;
+  auto lo = parseByteToken(left);
+  auto hi = parseByteToken(right);
+  if (!lo || !hi)
+    return spec;
+  spec.kind = SizeSpecKind::Range;
+  spec.lo = *lo;
+  spec.hi = *hi;
+  return spec;
+}
+
+static Applicability isApplicable(const CapCell &cell, const QueryContext &ctx) {
+  // Destructive decisions require measured evidence. arm_specific / inferred
+  // remain queryable but are not global compiler rules.
+  if (!StringRef(cell.confidence).equals_insensitive("measured"))
+    return Applicability::No;
+  if (!syncMatches(cell.synchronization, ctx.synchronization))
+    return Applicability::No;
+  SizeSpec spec = parseSizeRange(cell.sizeRange);
+  if (spec.kind == SizeSpecKind::Unconstrained)
+    return Applicability::Yes;
+  if (spec.kind == SizeSpecKind::Unparsed || !ctx.sizeBytes)
+    return Applicability::Unknown;
+  if (*ctx.sizeBytes >= spec.lo && *ctx.sizeBytes <= spec.hi)
+    return Applicability::Yes;
+  return Applicability::No;
+}
+
+static StringRef applicabilityStr(Applicability app) {
+  switch (app) {
+  case Applicability::Yes:
+    return "yes";
+  case Applicability::No:
+    return "no";
+  case Applicability::Unknown:
+    return "unknown";
+  }
+  return "unknown";
+}
+
+static void setApplicableJson(llvm::json::Object &obj, Applicability app) {
+  switch (app) {
+  case Applicability::Yes:
+    obj["applicable"] = true;
+    break;
+  case Applicability::No:
+    obj["applicable"] = false;
+    break;
+  case Applicability::Unknown:
+    obj["applicable"] = "unknown";
+    break;
+  }
+}
+
 static void printQueryJson(StringRef device, StringRef pair, const CapCell &cell,
-                           StringRef via) {
+                           StringRef via, Applicability app) {
   llvm::json::Object obj;
+  setApplicableJson(obj, app);
   obj["device"] = device.str();
   obj["pair"] = pair.str();
   obj["pair_relation"] = cell.relation;
   obj["observed_constraint"] = cell.constraint;
   obj["confidence"] = cell.confidence;
+  obj["regime"] = cell.regime;
+  obj["size_range"] = cell.sizeRange;
+  obj["synchronization"] = cell.synchronization;
   obj["via"] = via.str();
   llvm::json::Value value(std::move(obj));
   llvm::errs() << "capability-query " << value << "\n";
 }
 
-static bool shouldSerialize(const CapCell &cell) {
-  return cell.relation == "serial";
+static bool shouldSerialize(const CapCell &cell, Applicability app) {
+  return app == Applicability::Yes && cell.relation == "serial";
 }
 
 static void flattenConcurrent(ConcurrentOp conc) {
@@ -365,13 +551,19 @@ static void walkAndQuery(ModuleOp module, StringRef device,
     std::string pair = classifyPair(tasks[0].getBody(), tasks[1].getBody());
     if (pair.empty())
       return;
-    printQueryJson(device, pair, lookupPair(cat, pair), "concurrent");
+    CapCell cell = lookupPair(cat, pair);
+    QueryContext ctx = contextFromRegions(tasks[0].getBody(), tasks[1].getBody(),
+                                          pair);
+    printQueryJson(device, pair, cell, "concurrent", isApplicable(cell, ctx));
   });
   module.walk([&](OverlapOp ov) {
     std::string pair = classifyPair(ov.getCompute(), ov.getCommunicate());
     if (pair.empty())
       return;
-    printQueryJson(device, pair, lookupPair(cat, pair), "overlap");
+    CapCell cell = lookupPair(cat, pair);
+    QueryContext ctx =
+        contextFromRegions(ov.getCompute(), ov.getCommunicate(), pair);
+    printQueryJson(device, pair, cell, "overlap", isApplicable(cell, ctx));
   });
 }
 
@@ -387,10 +579,15 @@ static void applySchedule(ModuleOp module, StringRef device,
     if (pair.empty())
       continue;
     CapCell cell = lookupPair(cat, pair);
-    bool serialize = shouldSerialize(cell);
+    QueryContext ctx = contextFromRegions(tasks[0].getBody(), tasks[1].getBody(),
+                                          pair);
+    Applicability app = isApplicable(cell, ctx);
+    bool serialize = shouldSerialize(cell, app);
     llvm::errs() << "capability-schedule device=" << device << " pair=" << pair
                  << " relation=" << cell.relation
                  << " observed_constraint=" << cell.constraint
+                 << " confidence=" << cell.confidence
+                 << " applicable=" << applicabilityStr(app)
                  << " decision=" << (serialize ? "serialize" : "keep") << "\n";
     if (serialize)
       flattenConcurrent(conc);
@@ -403,10 +600,15 @@ static void applySchedule(ModuleOp module, StringRef device,
     if (pair.empty())
       continue;
     CapCell cell = lookupPair(cat, pair);
-    bool serialize = shouldSerialize(cell);
+    QueryContext ctx =
+        contextFromRegions(ov.getCompute(), ov.getCommunicate(), pair);
+    Applicability app = isApplicable(cell, ctx);
+    bool serialize = shouldSerialize(cell, app);
     llvm::errs() << "capability-schedule device=" << device << " pair=" << pair
                  << " relation=" << cell.relation
                  << " observed_constraint=" << cell.constraint
+                 << " confidence=" << cell.confidence
+                 << " applicable=" << applicabilityStr(app)
                  << " decision=" << (serialize ? "serialize" : "keep") << "\n";
     if (serialize)
       flattenOverlap(ov);
@@ -433,7 +635,9 @@ struct S2C2CapabilityQuery
         signalPassFailure();
         return;
       }
-      printQueryJson(device, pair, lookupPair(cat, pair), "catalog");
+      CapCell cell = lookupPair(cat, pair);
+      printQueryJson(device, pair, cell, "catalog",
+                     isApplicable(cell, QueryContext{}));
     }
     walkAndQuery(getOperation(), device, cat);
   }

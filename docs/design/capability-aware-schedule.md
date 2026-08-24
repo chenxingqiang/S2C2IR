@@ -19,6 +19,8 @@ Capability Matrix is **compiler decision input**, not a dataset archive.
 ```text
 CapabilityRecord schema     docs/design/v3-capability-schema.md
         ↓
+Applicability               measured ∧ sync ∧ size_range
+        ↓
 Capability Query            --s2c2-capability-query
         ↓
 CapabilityFilter            --s2c2-capability-schedule
@@ -47,12 +49,15 @@ s2c2-opt --s2c2-capability-query="device=rtx4090 producer=comp.silu consumer=com
   "pair": "C||HtoD",
   "pair_relation": "parallel",
   "observed_constraint": "none",
-  "confidence": "measured"
+  "confidence": "measured",
+  "applicable": "unknown"
 }
 ```
 
+Catalog query has no payload size, so a ranged cell is `unknown`.
+
 ```text
-producer=comp.silu,consumer=comp.gemm
+producer=comp.silu consumer=comp.gemm
 ```
 
 4090:
@@ -62,7 +67,8 @@ producer=comp.silu,consumer=comp.gemm
   "pair": "C_silu||C_gemm",
   "pair_relation": "serial",
   "observed_constraint": "resource_contention",
-  "confidence": "arm_specific"
+  "confidence": "arm_specific",
+  "applicable": false
 }
 ```
 
@@ -95,24 +101,41 @@ order is one legal total order of `NoOrderingRequirement`.
 
 ```text
 pair_relation = parallel | mixed | underdetermined  → keep
-pair_relation = serial                              → flatten
+pair_relation = serial AND applicable = yes         → flatten
+otherwise                                           → keep
+```
+
+Applicability (Phase 3A conservative):
+
+```text
+confidence = measured
+AND synchronization matches (default named-nonblocking)
+AND size_range is n/a or the static payload is inside the range
+```
+
+Not used for destructive rewrite:
+
+```text
+confidence = arm_specific | inferred | unknown
+size_range present but payload unknown or outside the range
 ```
 
 4090:
 
 ```text
-C || HtoD     parallel   keep sched.concurrent
-SiLU || GEMM  serial     flatten tasks; do not insert sched.wait
+C || HtoD     parallel   keep (and tiny IR is outside 16MiB..256MiB)
+SiLU || GEMM  serial     keep: arm_specific evidence, not a global rule
+C || C        serial     flatten measured occupancy cell (size_range n/a)
 ```
 
-Synthetic `npu-demo` (not measured):
+Synthetic `npu-demo` (not measured, `inferred`):
 
 ```text
-C || HtoD     parallel   keep
-SiLU || GEMM  parallel   keep
+all pairs     keep       inferred is not production evidence
 ```
 
-Same IR, different profile, different schedule.
+Same IR, different profile, different schedule on the **applicable**
+measured cell (`C||C`), not by promoting `arm_specific` to ∀ programs.
 
 ---
 
@@ -140,4 +163,6 @@ D2D / P2P as the next CUDA arm
 second real hardware (prefer ROCm after this lands)
 breaking StageOrder
 changing Concurrent = NoOrderingRequirement
+letting arm_specific evidence rewrite IR
+using npu-demo inferred cells as production evidence
 ```

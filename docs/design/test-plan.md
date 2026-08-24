@@ -607,8 +607,8 @@ Same IR + different CapabilityProfile → different legal schedule.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
-| CQ1 | `test/Analysis/s2c2-capability-query.mlir` | catalog query C\|\|HtoD parallel; SiLU\|\|GEMM serial on 4090, parallel on npu-demo |
-| CQ2 | `test/Analysis/s2c2-capability-schedule.mlir` | 4090 keeps C\|\|HtoD concurrent; serializes SiLU\|\|GEMM; pipeline StageOrder kept |
-| CQ3 | same | npu-demo keeps both concurrent |
+| CQ1 | `test/Analysis/s2c2-capability-query.mlir` | catalog query C\|\|HtoD parallel + applicable unknown; SiLU\|\|GEMM serial + applicable false |
+| CQ2 | `test/Analysis/s2c2-capability-schedule.mlir` | 4090 keeps C\|\|HtoD and arm_specific SiLU\|\|GEMM; serializes measured C\|\|C; pipeline StageOrder kept |
+| CQ3 | same | npu-demo inferred keeps all concurrent |
 | CQ4 | `test/Integration/capability-schedule-stream.mlir` | gated-MLP / SSD stream e2e; JSONL profile load |
 
