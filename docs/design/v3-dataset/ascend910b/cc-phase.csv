@@ -1,0 +1,16 @@
+N,k1,k2,r_target,r_achieved,pair_relation,observed_constraint,par_over_max,par_over_sum
+4194304,16,32,0.500,0.527,mixed,none,1.291,0.845
+4194304,24,32,0.750,0.762,mixed,none,1.424,0.808
+4194304,32,32,1.000,1.000,mixed,none,1.515,0.758
+4194304,48,32,1.500,1.465,mixed,none,1.269,0.754
+4194304,64,32,2.000,1.921,mixed,none,1.220,0.803
+16777216,16,32,0.500,0.522,serial,resource_contention,1.632,1.072
+16777216,24,32,0.750,0.755,serial,resource_contention,1.907,1.086
+16777216,32,32,1.000,1.000,serial,resource_contention,2.165,1.083
+16777216,48,32,1.500,1.460,serial,resource_contention,1.818,1.079
+16777216,64,32,2.000,1.951,serial,resource_contention,1.607,1.063
+67108864,16,32,0.500,0.501,serial,resource_contention,1.577,1.051
+67108864,24,32,0.750,0.752,serial,resource_contention,1.838,1.049
+67108864,32,32,1.000,1.000,serial,resource_contention,2.103,1.052
+67108864,48,32,1.500,1.492,serial,resource_contention,1.737,1.040
+67108864,64,32,2.000,1.973,serial,resource_contention,1.562,1.037

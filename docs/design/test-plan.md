@@ -671,4 +671,5 @@ PR-R3 stays closed. No FileCheck of microseconds.
 | AP2 | same | exclusive vs `--mem`; `--pairs` unchanged |
 | AP3 | same fixture | `--analyze-cc-phase` `unique=no`; `r3-gate=closed` |
 | AP4 | same | `#69` `--query-cap C||C` still `underdetermined` |
+| AP5 | same HW log | measured `unique=no`; `relations=mixed,serial`; no μs |
 

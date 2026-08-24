@@ -98,3 +98,33 @@ D2D / P2P
 full 3-pair re-sweep
 opening PR-R3
 ```
+
+## 910B result
+
+`correctness=1`. `unique=no`. `#69` `C||C` stays `underdetermined`.
+PR-R3 stays closed.
+
+```text
+          r=0.5    0.75     1.0      1.5      2.0
+4M        mixed    mixed    mixed    mixed    mixed
+16M       serial   serial   serial   serial   serial
+64M       serial   serial   serial   serial   serial
+```
+
+No parallel cell on this first-cut `r` grid. 4M stays mixed for
+every `r`. 16M and 64M stay serial with
+`observed_constraint=resource_contention` for every `r`.
+
+So on this regime:
+
+```text
+Capability_910B(C, C, r, N)
+  ≈  f(N)
+  not f(r) for r ∈ [0.5, 2]
+```
+
+That is still not a single applicable pair_relation. Do not
+majority-vote `serial`. Do not invent `parallel`.
+
+Files: `docs/design/v3-dataset/ascend910b/cc-phase.log`,
+`cc-phase.csv`. Do not FileCheck microseconds.

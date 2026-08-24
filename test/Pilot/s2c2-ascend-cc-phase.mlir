@@ -3,6 +3,7 @@
 // RUN: not s2c2-ascend-adapter --dry-run --mem --cc-phase 2>&1 | FileCheck %s --check-prefix=EXCL
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --print-cc-phase-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-cc-phase %S/ascend-cc-phase-fixture.log | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-cc-phase %S/../../docs/design/v3-dataset/ascend910b/cc-phase.log | FileCheck %s --check-prefix=HW
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --query-cap 'C||C' --cap-catalog %S/../../docs/design/v3-dataset/ascend910b/capability.jsonl | FileCheck %s --check-prefix=QC
 
 // Host protocol for 910B C||C r-sweep. No microseconds FileCheck.
@@ -42,6 +43,17 @@ module {
 // AN-NOT: unique=yes
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 910B surface only. Do not FileCheck microseconds.
+// HW: v3-ascend-cc-phase pair=C||C r3-gate=closed
+// HW: relations=mixed,serial
+// HW: unique=no
+// HW: r3-gate=closed
+// HW: note catalog-untouched
+// HW: v3=not-claimed
+// HW-NOT: unique=yes
+// HW-NOT: Cost v0.4
+// HW-NOT: password
 
 // #69 C||C stays underdetermined until a unique applicable cell exists.
 // QC: "pair":"C||C"

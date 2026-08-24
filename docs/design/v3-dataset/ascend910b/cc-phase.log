@@ -1,0 +1,63 @@
+sweep_cc_phase n=4194304 k_ref=32 r=0.5,0.75,1,1.5,2
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=4194304 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=0.500 r_achieved=0.527 k1=16 k2=32 pair_relation=mixed observed_constraint=none n=4194304
+s2c2-ascend-run cc-phase timing a=394.9 b=749.8 par=967.6 par_over_max=1.291 par_over_sum=0.845
+s2c2-ascend-run cc-phase slice r_target=0.750 r_achieved=0.762 k1=24 k2=32 pair_relation=mixed observed_constraint=none n=4194304
+s2c2-ascend-run cc-phase timing a=571.6 b=749.8 par=1067.9 par_over_max=1.424 par_over_sum=0.808
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=mixed observed_constraint=none n=4194304
+s2c2-ascend-run cc-phase timing a=749.8 b=749.8 par=1136.0 par_over_max=1.515 par_over_sum=0.758
+s2c2-ascend-run cc-phase slice r_target=1.500 r_achieved=1.465 k1=48 k2=32 pair_relation=mixed observed_constraint=none n=4194304
+s2c2-ascend-run cc-phase timing a=1098.6 b=749.8 par=1394.0 par_over_max=1.269 par_over_sum=0.754
+s2c2-ascend-run cc-phase slice r_target=2.000 r_achieved=1.921 k1=64 k2=32 pair_relation=mixed observed_constraint=none n=4194304
+s2c2-ascend-run cc-phase timing a=1440.5 b=749.8 par=1757.9 par_over_max=1.220 par_over_sum=0.803
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
+sweep_cc_phase n=16777216 k_ref=32 r=0.5,0.75,1,1.5,2
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=16777216 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=0.500 r_achieved=0.522 k1=16 k2=32 pair_relation=serial observed_constraint=resource_contention n=16777216
+s2c2-ascend-run cc-phase timing a=932.1 b=1785.2 par=2912.6 par_over_max=1.632 par_over_sum=1.072
+s2c2-ascend-run cc-phase slice r_target=0.750 r_achieved=0.755 k1=24 k2=32 pair_relation=serial observed_constraint=resource_contention n=16777216
+s2c2-ascend-run cc-phase timing a=1348.2 b=1785.2 par=3404.2 par_over_max=1.907 par_over_sum=1.086
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=16777216
+s2c2-ascend-run cc-phase timing a=1785.2 b=1785.2 par=3865.6 par_over_max=2.165 par_over_sum=1.083
+s2c2-ascend-run cc-phase slice r_target=1.500 r_achieved=1.460 k1=48 k2=32 pair_relation=serial observed_constraint=resource_contention n=16777216
+s2c2-ascend-run cc-phase timing a=2607.2 b=1785.2 par=4738.7 par_over_max=1.818 par_over_sum=1.079
+s2c2-ascend-run cc-phase slice r_target=2.000 r_achieved=1.951 k1=64 k2=32 pair_relation=serial observed_constraint=resource_contention n=16777216
+s2c2-ascend-run cc-phase timing a=3482.4 b=1785.2 par=5597.7 par_over_max=1.607 par_over_sum=1.063
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
+sweep_cc_phase n=67108864 k_ref=32 r=0.5,0.75,1,1.5,2
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=67108864 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=0.500 r_achieved=0.501 k1=16 k2=32 pair_relation=serial observed_constraint=resource_contention n=67108864
+s2c2-ascend-run cc-phase timing a=13329.3 b=26619.0 par=41982.7 par_over_max=1.577 par_over_sum=1.051
+s2c2-ascend-run cc-phase slice r_target=0.750 r_achieved=0.752 k1=24 k2=32 pair_relation=serial observed_constraint=resource_contention n=67108864
+s2c2-ascend-run cc-phase timing a=20019.7 b=26619.0 par=48925.2 par_over_max=1.838 par_over_sum=1.049
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=67108864
+s2c2-ascend-run cc-phase timing a=26619.0 b=26619.0 par=55992.4 par_over_max=2.103 par_over_sum=1.052
+s2c2-ascend-run cc-phase slice r_target=1.500 r_achieved=1.492 k1=48 k2=32 pair_relation=serial observed_constraint=resource_contention n=67108864
+s2c2-ascend-run cc-phase timing a=39703.3 b=26619.0 par=68959.2 par_over_max=1.737 par_over_sum=1.040
+s2c2-ascend-run cc-phase slice r_target=2.000 r_achieved=1.973 k1=64 k2=32 pair_relation=serial observed_constraint=resource_contention n=67108864
+s2c2-ascend-run cc-phase timing a=52516.0 b=26619.0 par=82035.2 par_over_max=1.562 par_over_sum=1.037
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
