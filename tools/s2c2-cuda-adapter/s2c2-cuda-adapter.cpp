@@ -96,6 +96,38 @@ static void printPipeTiles() {
   std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles cost=unchanged\n");
 }
 
+static void printCapSchema() {
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema=v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=compute_domain\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=transfer_domain\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=direction\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=source_memory_class\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=destination_memory_class\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=pair_relation\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=size_range\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=regime\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=synchronization\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=pipeline_depth_evidence\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=confidence\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema hardware=unfilled\n");
+  std::fprintf(
+      stderr,
+      "s2c2-cuda-adapter cap-schema pair_relation="
+      "parallel|serial|mixed|underdetermined|unmeasured\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema depth-star=not-a-law\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema semantics=unchanged\n");
+}
+
 static void printCap() {
   std::fprintf(stderr, "s2c2-cuda-adapter cap=htod remaining=1xHtoD\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cap=dtoh remaining=1xDtoH\n");
@@ -189,6 +221,7 @@ int main(int argc, char **argv) {
   bool pipeTiles = false;
   bool cudaVal = false;
   bool cudaValMem = false;
+  bool capSchema = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -208,13 +241,15 @@ int main(int argc, char **argv) {
       cudaValMem = true;
     } else if (a == "--cuda-val") {
       cudaVal = true;
+    } else if (a == "--cap-schema") {
+      capSchema = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
-                   "[--cuda-val] [--cuda-val-mem]\n"
+                   "[--cuda-val] [--cuda-val-mem] [--cap-schema]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -232,11 +267,12 @@ int main(int argc, char **argv) {
 
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
-              (int)pipeTiles + (int)cudaVal + (int)cudaValMem;
+              (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
+              (int)capSchema;
   if (modes > 1) {
     std::fprintf(stderr,
-                 "s2c2-cuda-adapter: --cuda-val-mem/--cuda-val/--pipe-tiles/"
-                 "--pipe/--phase/--cap/--matched cannot combine\n");
+                 "s2c2-cuda-adapter: --cap-schema/--cuda-val-mem/--cuda-val/"
+                 "--pipe-tiles/--pipe/--phase/--cap/--matched cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -271,6 +307,11 @@ int main(int argc, char **argv) {
   }
   if (cudaValMem) {
     printCudaValMem();
+    printMaps();
+    return 0;
+  }
+  if (capSchema) {
+    printCapSchema();
     printMaps();
     return 0;
   }

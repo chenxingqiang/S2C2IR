@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://s2c2.local/v3-capability-schema.v1.json",
+  "title": "S2C2 Capability Schema v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "record_kind",
+    "hardware_id",
+    "compute_domain",
+    "transfer_domain",
+    "direction",
+    "source_memory_class",
+    "destination_memory_class",
+    "pair_relation",
+    "size_range",
+    "regime",
+    "synchronization",
+    "pipeline_depth_evidence",
+    "confidence",
+    "v3",
+    "cost",
+    "semantics"
+  ],
+  "properties": {
+    "schema_version": { "const": "v1" },
+    "record_kind": {
+      "enum": ["pair", "transfer", "sync", "phase", "pipeline"]
+    },
+    "hardware_id": { "type": "string", "minLength": 1 },
+    "compute_domain": {
+      "enum": ["elementwise_silu", "reduction", "matmul", "none"]
+    },
+    "transfer_domain": {
+      "enum": [
+        "host_to_device",
+        "device_to_host",
+        "device_to_device",
+        "host_to_host",
+        "device_to_local",
+        "device_to_array",
+        "device_to_remote",
+        "remote_to_device",
+        "none"
+      ]
+    },
+    "direction": {
+      "enum": [
+        "host_to_device",
+        "device_to_host",
+        "device_to_device",
+        "bidirectional",
+        "none"
+      ]
+    },
+    "source_memory_class": {
+      "enum": [
+        "pinned_host",
+        "pageable_host",
+        "managed_host",
+        "device_memory",
+        "global_memory",
+        "local_buffer",
+        "dram",
+        "cim_sram",
+        "cim_array",
+        "bram",
+        "none"
+      ]
+    },
+    "destination_memory_class": {
+      "enum": [
+        "pinned_host",
+        "pageable_host",
+        "managed_host",
+        "device_memory",
+        "global_memory",
+        "local_buffer",
+        "dram",
+        "cim_sram",
+        "cim_array",
+        "bram",
+        "none"
+      ]
+    },
+    "pair_relation": {
+      "enum": ["parallel", "serial", "mixed", "underdetermined", "unmeasured"]
+    },
+    "size_range": { "type": "string", "minLength": 1 },
+    "regime": {
+      "enum": [
+        "pair_matrix",
+        "size_curve",
+        "idle_sync",
+        "phase_r_N",
+        "pipe_depth_tiles",
+        "unmeasured"
+      ]
+    },
+    "synchronization": { "type": "string", "minLength": 1 },
+    "pipeline_depth_evidence": { "type": "string", "minLength": 1 },
+    "confidence": {
+      "enum": ["measured", "arm_specific", "projected", "unmeasured"]
+    },
+    "v3": { "const": "not-claimed" },
+    "cost": { "const": "unchanged" },
+    "semantics": { "const": "unchanged" }
+  }
+}
