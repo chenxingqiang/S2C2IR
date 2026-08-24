@@ -65,6 +65,7 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/pilot-benchmark.md`](docs/design/pilot-benchmark.md),
 [`docs/design/backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md),
 [`docs/design/backend-adapter-ascend.md`](docs/design/backend-adapter-ascend.md),
+[`docs/design/v3-ascend-catalog.md`](docs/design/v3-ascend-catalog.md),
 [`docs/design/v3-capability-schema.md`](docs/design/v3-capability-schema.md),
 [`docs/design/capability-aware-schedule.md`](docs/design/capability-aware-schedule.md)
 
@@ -99,8 +100,9 @@ binds those shapes to one legal `M`; it is a stand-in, not a
 CUDA backend. An Ascend 910B capability adapter
 ([`backend-adapter-ascend.md`](docs/design/backend-adapter-ascend.md))
 fills the same Capability Schema for three pairs; it does not
-change the scheduler or Cost. V3 is a calibration probe, not
-claimed.
+change the scheduler or Cost. Measured 910B cells live in
+[`v3-ascend-catalog.md`](docs/design/v3-ascend-catalog.md). V3 is a
+calibration probe, not claimed.
 
 ## Requirements
 

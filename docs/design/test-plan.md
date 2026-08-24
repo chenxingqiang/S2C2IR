@@ -633,3 +633,15 @@ ROCm `#67` stays parked. Pinned vs pageable (R4) is later.
 | AS2 | same | extra `acl_*` key rejected |
 | AS3 | same | `--check-schema-identity` against `v3-capability-schema.v1.json` |
 
+## Ascend 910B measured catalog (Phase 3B / PR-R2)
+
+**Not Cost v0.4.** Design: [`v3-ascend-catalog.md`](v3-ascend-catalog.md).
+Three measured pair cells. No microseconds FileCheck. No scheduler
+change. `HtoD||DtoH` keeps the Schema v1 direction convention.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| AC1 | `test/Pilot/s2c2-ascend-catalog.mlir` | catalog has 3 pairs, `confidence=measured`, Schema v1 |
+| AC2 | same | `--query-cap` for R1–R3; no 4090 `hardware_id` |
+| AC3 | same | extra-key still rejected; no μs FileCheck |
+

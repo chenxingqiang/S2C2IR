@@ -45,8 +45,8 @@ JSON Schema: `docs/design/v3-capability-schema.v1.json`.
 
 CUDA 4090 catalog: `docs/design/v3-dataset/v3-cap-schema-4090.jsonl`.  
 Ascend 910B fills the same record type (`compute_domain` value
-`ascend_ai_core`). Measured 910B cells are a later projection (PR-R2),
-not this schema.
+`ascend_ai_core`). Measured 910B cells: `v3-dataset/ascend910b/`
+(PR-R2). Topology only.
 Synthetic NPU demo catalog (not measured):
 `docs/design/v3-dataset/v3-cap-schema-npu-demo.jsonl`.
 

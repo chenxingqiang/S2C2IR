@@ -4,13 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
+import re
 import sys
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCHEMA_PATH = _REPO_ROOT / "docs/design/v3-capability-schema.v1.json"
+_CATALOG_PATH = _REPO_ROOT / "docs/design/v3-dataset/ascend910b/capability.jsonl"
 
 CAP_SCHEMA_VERSION = "1"
 CAP_SCHEMA_KINDS = ("pair", "depth", "memory", "sync")
@@ -298,6 +302,233 @@ def accept_hardware(hid: str) -> int:
     return 0
 
 
+_PAIR_RE = re.compile(
+    r"s2c2-ascend-run pair=(\S+) pair_relation=(\S+) "
+    r"observed_constraint=(\S+) confidence=(\S+)"
+)
+_TIMING_RE = re.compile(
+    r"s2c2-ascend-run timing pair=(\S+) a=([0-9.]+) b=([0-9.]+) "
+    r"par=([0-9.]+) par_over_max=([0-9.]+) par_over_sum=([0-9.]+) "
+    r"n=(\d+) k=(\d+)"
+)
+
+
+def _mib(n: int) -> int:
+    return (n * 4) // (1024 * 1024)
+
+
+def parse_pair_log(log: Path) -> list[dict[str, Any]]:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    rows: list[dict[str, Any]] = []
+    pending: dict[str, dict[str, Any]] = {}
+    for line in text.splitlines():
+        m = _PAIR_RE.search(line)
+        if m:
+            pending[m.group(1)] = {
+                "pair": m.group(1),
+                "pair_relation": m.group(2),
+                "observed_constraint": m.group(3),
+                "confidence": m.group(4),
+            }
+            continue
+        m = _TIMING_RE.search(line)
+        if m:
+            pair = m.group(1)
+            rec = pending.get(pair, {"pair": pair})
+            rec.update(
+                {
+                    "A_us": float(m.group(2)),
+                    "B_us": float(m.group(3)),
+                    "par_us": float(m.group(4)),
+                    "par_over_max": float(m.group(5)),
+                    "par_over_sum": float(m.group(6)),
+                    "N": int(m.group(7)),
+                    "k": int(m.group(8)),
+                }
+            )
+            rows.append(rec)
+            continue
+        if line.startswith("{") and '"record_kind":"pair"' in line:
+            rec = json.loads(line)
+            # JSON is printed after timing; attach to last matching row.
+            for row in reversed(rows):
+                if row["pair"] == rec.get("pair") and "json" not in row:
+                    row["json"] = rec
+                    break
+    return rows
+
+
+def project_pairs(log: Path, out_dir: Path) -> int:
+    rows = parse_pair_log(log)
+    if not rows:
+        print("record_ascend: no pair rows in log", file=sys.stderr)
+        return 4
+    out_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = out_dir / "pairs.csv"
+    jsonl_path = out_dir / "capability.jsonl"
+    fields = [
+        "N",
+        "k",
+        "pair",
+        "A_us",
+        "B_us",
+        "par_us",
+        "par_over_max",
+        "par_over_sum",
+        "verdict",
+        "observed_constraint",
+    ]
+    with csv_path.open("w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=fields)
+        w.writeheader()
+        for row in rows:
+            w.writerow(
+                {
+                    "N": row.get("N", ""),
+                    "k": row.get("k", ""),
+                    "pair": row["pair"],
+                    "A_us": f"{row.get('A_us', 0):.1f}",
+                    "B_us": f"{row.get('B_us', 0):.1f}",
+                    "par_us": f"{row.get('par_us', 0):.1f}",
+                    "par_over_max": f"{row.get('par_over_max', 0):.3f}",
+                    "par_over_sum": f"{row.get('par_over_sum', 0):.3f}",
+                    "verdict": row.get("pair_relation", ""),
+                    "observed_constraint": row.get("observed_constraint", ""),
+                }
+            )
+
+    by_pair: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        by_pair[row["pair"]].append(row)
+
+    projected: list[dict[str, Any]] = []
+    for pair in PAIRS:
+        group = by_pair.get(pair, [])
+        if not group:
+            print(f"record_ascend: missing pair {pair}", file=sys.stderr)
+            return 4
+        rels = {r["pair_relation"] for r in group}
+        ns = sorted(int(r["N"]) for r in group if "N" in r)
+        lo, hi = _mib(ns[0]), _mib(ns[-1])
+        size = f"{lo}MiB" if lo == hi else f"{lo}MiB..{hi}MiB"
+        template = dict(group[-1].get("json") or blank_cap_record(pair))
+        if len(rels) == 1:
+            relation = next(iter(rels))
+            constraint = group[-1]["observed_constraint"]
+            note = (
+                "Ascend 910B measured pair; topology only. "
+                "Do not compare microseconds to 4090."
+            )
+        else:
+            relation = "underdetermined"
+            constraint = "none"
+            note = (
+                "Ascend 910B sizes disagree on pair_relation "
+                f"({', '.join(sorted(rels))}); topology underdetermined."
+            )
+        template.update(
+            {
+                "hardware_id": "ascend910b:ascend",
+                "pair": pair,
+                "pair_relation": relation,
+                "observed_constraint": constraint,
+                "confidence": "measured",
+                "size_range": size,
+                "note": note,
+                "evidence_refs": "backend-adapter-ascend.md,v3-dataset/ascend910b",
+                "v3": "not-claimed",
+                "cost": "unchanged",
+                "semantics": "unchanged",
+            }
+        )
+        errors = validate_cap_schema_v1(template)
+        if errors:
+            print(f"record_ascend: invalid projection {pair} {errors}", file=sys.stderr)
+            return 4
+        projected.append(template)
+
+    with jsonl_path.open("w", encoding="utf-8") as fh:
+        for rec in projected:
+            fh.write(json.dumps(rec, ensure_ascii=True, separators=(",", ":")) + "\n")
+
+    print(f"record_ascend project-pairs rows={len(rows)} cells={len(projected)}")
+    for rec in projected:
+        print(
+            f"pair\t{rec['pair']}\t{rec['pair_relation']}\t"
+            f"{rec['observed_constraint']}\t{rec['confidence']}\t"
+            f"{rec['size_range']}"
+        )
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    print("note topology-only")
+    return 0
+
+
+def query_cap(pair: str, catalog: Path, hardware: str | None) -> int:
+    if pair not in PAIRS:
+        print(f"record_ascend: unknown pair {pair}", file=sys.stderr)
+        return 2
+    if not catalog.is_file():
+        print(f"record_ascend: missing {catalog}", file=sys.stderr)
+        return 4
+    rows = [
+        json.loads(line)
+        for line in catalog.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    hits = []
+    for rec in rows:
+        errors = validate_cap_schema_v1(rec)
+        if errors:
+            print(f"record_ascend: invalid cap-schema {errors}", file=sys.stderr)
+            return 4
+        if rec.get("record_kind") != "pair" or rec.get("pair") != pair:
+            continue
+        hid = str(rec.get("hardware_id", ""))
+        if hardware and hardware not in hid:
+            continue
+        hits.append(rec)
+    if not hits:
+        print(
+            json.dumps(
+                {
+                    "pair": pair,
+                    "pair_relation": "underdetermined",
+                    "observed_constraint": "none",
+                    "confidence": "unknown",
+                    "applicable": False,
+                },
+                ensure_ascii=True,
+            )
+        )
+        return 0
+    rec = hits[0]
+    print(
+        json.dumps(
+            {
+                "pair": rec["pair"],
+                "pair_relation": rec["pair_relation"],
+                "observed_constraint": rec["observed_constraint"],
+                "confidence": rec["confidence"],
+                "regime": rec.get("regime", "underdetermined"),
+                "size_range": rec.get("size_range", "n/a"),
+                "synchronization": rec.get("synchronization", "n/a"),
+                "hardware_id": rec["hardware_id"],
+                "applicable": rec.get("confidence") == "measured"
+                and rec.get("pair_relation") in ("serial", "parallel", "mixed"),
+            },
+            ensure_ascii=True,
+            separators=(",", ":"),
+        )
+    )
+    print(
+        f"record_ascend query-cap pair={pair} "
+        f"pair_relation={rec['pair_relation']} "
+        f"confidence={rec['confidence']}"
+    )
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Ascend CapabilityRecord host tools")
     p.add_argument("--print-cap-schema-v1", action="store_true")
@@ -307,7 +538,73 @@ def main() -> int:
     p.add_argument("--emit-record", metavar="PAIR")
     p.add_argument("--classify", metavar="TA:TB:TPAR")
     p.add_argument("--accept-hardware", metavar="ID")
+    p.add_argument("--project-pairs", type=Path)
+    p.add_argument("--out", type=Path, default=_CATALOG_PATH.parent)
+    p.add_argument("--query-cap", metavar="PAIR")
+    p.add_argument("--cap-catalog", type=Path, default=_CATALOG_PATH)
+    p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
+    n = sum(
+        bool(x)
+        for x in (
+            args.print_cap_schema_v1,
+            args.print_workload_contract,
+            args.check_schema_identity,
+            args.analyze_cap_schema,
+            args.emit_record,
+            args.classify,
+            args.accept_hardware,
+            args.project_pairs,
+            args.query_cap,
+        )
+    )
+    if n != 1:
+        print(
+            "record_ascend: choose one of --print-cap-schema-v1, "
+            "--print-workload-contract, --check-schema-identity, "
+            "--analyze-cap-schema, --emit-record, --classify, "
+            "--accept-hardware, --project-pairs, --query-cap",
+            file=sys.stderr,
+        )
+        return 2
+    if args.print_cap_schema_v1:
+        return print_cap_schema_v1()
+    if args.print_workload_contract:
+        return print_workload_contract()
+    if args.check_schema_identity:
+        return check_schema_identity()
+    if args.analyze_cap_schema:
+        return analyze_records(args.analyze_cap_schema)
+    if args.emit_record:
+        if args.emit_record not in PAIRS:
+            print(f"record_ascend: unknown pair {args.emit_record}", file=sys.stderr)
+            return 2
+        rec = blank_cap_record(args.emit_record)
+        errors = validate_cap_schema_v1(rec)
+        if errors:
+            print(f"record_ascend: invalid emit {errors}", file=sys.stderr)
+            return 4
+        print(json.dumps(rec, ensure_ascii=True, separators=(",", ":")))
+        print(
+            f"record_ascend emit-record pair={args.emit_record} "
+            "confidence=unknown pair_relation=underdetermined"
+        )
+        return 0
+    if args.classify:
+        parts = args.classify.split(":")
+        if len(parts) != 3:
+            print("record_ascend: classify wants ta:tb:tpar", file=sys.stderr)
+            return 2
+        ta, tb, tpar = (float(x) for x in parts)
+        rel = classify(ta, tb, tpar)
+        print(f"record_ascend classify pair_relation={rel}")
+        print("record_ascend classify cost=unchanged")
+        return 0
+    if args.project_pairs:
+        return project_pairs(args.project_pairs, args.out)
+    if args.query_cap:
+        return query_cap(args.query_cap, args.cap_catalog, args.hardware)
+    return accept_hardware(args.accept_hardware)
     n = sum(
         bool(x)
         for x in (

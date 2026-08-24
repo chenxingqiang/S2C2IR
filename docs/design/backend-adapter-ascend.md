@@ -205,7 +205,8 @@ Named streams are the default synchronization context
 increment. Do not use Graph Engine / MindSpore / torch_npu /
 `aclgraph`. Concurrent compute arms use **separate** device
 buffers and **per-stream** aclnn workspace; a shared workspace
-would be a false `C||C` serializer.
+would be a false `C||C` serializer. Prime aclnn executors on both
+streams before timed samples so compile is not `T_compute`.
 
 ### Timing contract
 
@@ -260,9 +261,9 @@ FileChecked. Measured cells belong in PR-R2.
 
 | ID | Work | Gate |
 | -- | ---- | ---- |
-| PR-R2 | `docs/design/v3-dataset/ascend910b/` measured cells | real sweep, not tiny-N |
-| R4 | pinned vs pageable host residency | after R1; may share a PR with R2 or follow it |
-| PR-R3 | same IR, two profiles, different legal schedule | only if measured cells differ |
+| PR-R2 | `docs/design/v3-dataset/ascend910b/` measured cells | this increment |
+| R4 | pinned vs pageable host residency | later |
+| PR-R3 | same IR, two profiles, different legal schedule | not licensed by underdetermined `C\|\|C` |
 
 R4 is Storage Residency → Communication Capability, not a copy
 benchmark. CANN: page-locked host `aclrtMemcpyAsync` may return

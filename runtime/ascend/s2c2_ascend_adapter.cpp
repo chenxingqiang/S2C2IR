@@ -378,7 +378,7 @@ static double timeArm(Buf &b, Arm arm, int warmup, int reps, int k) {
 }
 
 static void printRecord(const char *pair, const char *relation,
-                        const char *constraint) {
+                        const char *constraint, const char *sizeRange) {
   const char *compute = "none";
   const char *transfer = "none";
   const char *direction = "none";
@@ -411,15 +411,15 @@ static void printRecord(const char *pair, const char *relation,
                "\"source_memory_class\":\"%s\","
                "\"destination_memory_class\":\"%s\",\"pair\":\"%s\","
                "\"pair_relation\":\"%s\",\"regime\":\"%s\","
-               "\"size_range\":\"n/a\",\"synchronization\":\"%s\","
+               "\"size_range\":\"%s\",\"synchronization\":\"%s\","
                "\"pipeline_depth_evidence\":\"n/a\","
                "\"observed_constraint\":\"%s\",\"confidence\":\"measured\","
                "\"note\":\"Ascend 910B pair measurement; topology only\","
-               "\"evidence_refs\":\"backend-adapter-ascend.md\","
+               "\"evidence_refs\":\"backend-adapter-ascend.md,v3-dataset/ascend910b\","
                "\"v3\":\"not-claimed\",\"cost\":\"unchanged\","
                "\"semantics\":\"unchanged\"}\n",
                kHardwareId, compute, transfer, direction, src, dst, pair,
-               relation, regime, kSync, constraint);
+               relation, regime, sizeRange, kSync, constraint);
 }
 
 static void usage() {
@@ -480,9 +480,20 @@ int main(int argc, char **argv) {
                "s2c2-ascend-run note workload-semantic-ne-kernel-backend\n");
   std::fprintf(stderr, "s2c2-ascend-run timing=host-wall-clock\n");
   std::fprintf(stderr, "s2c2-ascend-run timing completion=s0,s1\n");
+  std::fprintf(stderr, "s2c2-ascend-run n=%d k=%d bytes=%zu\n", n, k,
+               sizeof(float) * static_cast<size_t>(n));
 
   Buf b;
   b.alloc(n);
+  fillHost(b.host0, b.n, 1);
+  fillHost(b.host1, b.n, 2);
+  provision(b, Arm::Compute);
+  // Prime aclnn executors on both streams so timed samples are not compile.
+  elemwiseLaunch(b, b.dev0, b.dev2, 1, b.s0);
+  elemwiseLaunch(b, b.dev1, b.dev3, 1, b.s1);
+  ACL_OK(aclrtSynchronizeStream(b.s0));
+  ACL_OK(aclrtSynchronizeStream(b.s1));
+  b.reapStaleWorkspace();
   double tC = timeArm(b, Arm::Compute, warmup, reps, k);
   double tH = timeArm(b, Arm::HtoD, warmup, reps, k);
   double tD = timeArm(b, Arm::DtoH, warmup, reps, k);
@@ -502,6 +513,14 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-ascend-run correctness=1\n");
   std::fprintf(stderr, "s2c2-ascend-run score3=not-applicable cost=unchanged "
                        "semantics=unchanged v3=not-claimed\n");
+  char sizeRange[32];
+  int mib = static_cast<int>((sizeof(float) * static_cast<size_t>(n)) /
+                             (1024u * 1024u));
+  if (mib <= 0)
+    std::snprintf(sizeRange, sizeof(sizeRange), "%zuB",
+                  sizeof(float) * static_cast<size_t>(n));
+  else
+    std::snprintf(sizeRange, sizeof(sizeRange), "%dMiB", mib);
   for (const auto &c : cells) {
     double mx = c.a > c.b ? c.a : c.b;
     double sum = c.a + c.b;
@@ -515,9 +534,9 @@ int main(int argc, char **argv) {
                  c.pair, rel, cons);
     std::fprintf(stderr,
                  "s2c2-ascend-run timing pair=%s a=%.1f b=%.1f par=%.1f "
-                 "par_over_max=%.3f par_over_sum=%.3f\n",
-                 c.pair, c.a, c.b, c.par, pmax, psum);
-    printRecord(c.pair, rel, cons);
+                 "par_over_max=%.3f par_over_sum=%.3f n=%d k=%d\n",
+                 c.pair, c.a, c.b, c.par, pmax, psum, n, k);
+    printRecord(c.pair, rel, cons, sizeRange);
   }
 
   aclrtDestroyContext(ctx);
