@@ -52,6 +52,62 @@ static void siluLaunch(float *x, int n, cudaStream_t stream, int k) {
     siluKernel<<<grid, block, 0, stream>>>(x, n);
 }
 
+// Grid-stride block reduce. Memory-bound stand-in; not a Cost op.
+__global__ void reduceKernel(const float *x, float *partial, int n) {
+  __shared__ float s[256];
+  float v = 0.f;
+  for (int j = blockIdx.x * blockDim.x + threadIdx.x; j < n;
+       j += blockDim.x * gridDim.x)
+    v += x[j];
+  s[threadIdx.x] = v;
+  __syncthreads();
+  for (int stride = 128; stride > 0; stride >>= 1) {
+    if (threadIdx.x < stride)
+      s[threadIdx.x] += s[threadIdx.x + stride];
+    __syncthreads();
+  }
+  if (threadIdx.x == 0)
+    partial[blockIdx.x] = s[0];
+}
+
+#define S2C2_TILE 16
+
+// Tiled GEMM stand-in. N is the matrix dimension.
+__global__ void matmulKernel(const float *a, const float *b, float *c, int n) {
+  __shared__ float as[S2C2_TILE][S2C2_TILE];
+  __shared__ float bs[S2C2_TILE][S2C2_TILE];
+  int row = blockIdx.y * S2C2_TILE + threadIdx.y;
+  int col = blockIdx.x * S2C2_TILE + threadIdx.x;
+  float acc = 0.f;
+  for (int t = 0; t < n; t += S2C2_TILE) {
+    as[threadIdx.y][threadIdx.x] =
+        (row < n && t + threadIdx.x < n) ? a[row * n + t + threadIdx.x] : 0.f;
+    bs[threadIdx.y][threadIdx.x] =
+        (t + threadIdx.y < n && col < n) ? b[(t + threadIdx.y) * n + col] : 0.f;
+    __syncthreads();
+    for (int k = 0; k < S2C2_TILE; ++k)
+      acc += as[threadIdx.y][k] * bs[k][threadIdx.x];
+    __syncthreads();
+  }
+  if (row < n && col < n)
+    c[row * n + col] = acc;
+}
+
+static void reduceLaunch(float *x, float *partial, int n, cudaStream_t stream) {
+  int block = 256;
+  int grid = 256;
+  reduceKernel<<<grid, block, 0, stream>>>(x, partial, n);
+  reduceKernel<<<1, block, 0, stream>>>(partial, x, grid);
+}
+
+static void matmulLaunch(float *a, float *b, float *c, int n,
+                         cudaStream_t stream) {
+  dim3 block(S2C2_TILE, S2C2_TILE);
+  dim3 grid((n + S2C2_TILE - 1) / S2C2_TILE,
+            (n + S2C2_TILE - 1) / S2C2_TILE);
+  matmulKernel<<<grid, block, 0, stream>>>(a, b, c, n);
+}
+
 static void siluHost(float *x, int n, int k) {
   for (int r = 0; r < k; ++r) {
     for (int i = 0; i < n; ++i) {
@@ -76,6 +132,27 @@ enum class Workload { A, B, C };
 // Matched-workload overlap probe. Not a Pilot func and not Score_3.
 // Remaining work on seq and ovl: 1×HtoD(H) + k×SiLU(D), D ≠ H.
 enum class MatchedArm { Off, Seq, Ovl, Copy, Compute };
+
+// 4090 capability matrix. Not a Pilot func and not Score_3.
+enum class CapArm {
+  Off,
+  HtoD,
+  DtoH,
+  HtoDDtoHSeq,
+  HtoDDtoHEvent,
+  HtoDDtoHPar,
+  HtoDHtoDPar,
+  DtoHDtoHPar,
+  Compute,
+  ComputeHtoD,
+  ComputeDtoH,
+  ComputeCompute,
+  EventSync,
+  StreamSync,
+  DeviceSync,
+  Reduction,
+  Matmul
+};
 
 static Workload parseWork(const char *name) {
   if (std::strcmp(name, "a") == 0 ||
@@ -427,10 +504,348 @@ static MatchedArm parseMatched(const char *name) {
   std::exit(1);
 }
 
+struct CapBuf {
+  float *host0 = nullptr;
+  float *host1 = nullptr;
+  float *host2 = nullptr;
+  float *dev0 = nullptr;
+  float *dev1 = nullptr;
+  float *dev2 = nullptr;
+  int n = 0;
+  size_t elems = 0;
+  cudaStream_t s0 = nullptr;
+  cudaStream_t s1 = nullptr;
+  cudaEvent_t ev = nullptr;
+  cudaEvent_t start = nullptr;
+  cudaEvent_t stop = nullptr;
+
+  void alloc(int n_, bool matmul) {
+    n = n_;
+    elems = matmul ? static_cast<size_t>(n) * static_cast<size_t>(n)
+                   : static_cast<size_t>(n);
+    size_t bytes = sizeof(float) * elems;
+    CUDA_OK(cudaHostAlloc(&host0, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&host1, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&host2, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaMalloc(&dev0, bytes));
+    CUDA_OK(cudaMalloc(&dev1, bytes));
+    CUDA_OK(cudaMalloc(&dev2, bytes));
+    CUDA_OK(cudaStreamCreate(&s0));
+    CUDA_OK(cudaStreamCreate(&s1));
+    CUDA_OK(cudaEventCreate(&ev));
+    CUDA_OK(cudaEventCreate(&start));
+    CUDA_OK(cudaEventCreate(&stop));
+    if (matmul) {
+      for (size_t i = 0; i < elems; ++i)
+        host0[i] = 0.001f * static_cast<float>((i + 1) % 1000);
+    } else {
+      fillHost(host0, n, 1);
+    }
+  }
+
+  void freeAll() {
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(ev);
+    cudaStreamDestroy(s1);
+    cudaStreamDestroy(s0);
+    cudaFree(dev2);
+    cudaFree(dev1);
+    cudaFree(dev0);
+    cudaFreeHost(host2);
+    cudaFreeHost(host1);
+    cudaFreeHost(host0);
+  }
+
+  size_t bytes() const { return sizeof(float) * elems; }
+};
+
+static const char *capFunc(CapArm arm) {
+  switch (arm) {
+  case CapArm::HtoD:
+    return "cap-htod";
+  case CapArm::DtoH:
+    return "cap-dtoh";
+  case CapArm::HtoDDtoHSeq:
+    return "cap-htod-dtoh-seq";
+  case CapArm::HtoDDtoHEvent:
+    return "cap-htod-dtoh-event";
+  case CapArm::HtoDDtoHPar:
+    return "cap-htod-dtoh-par";
+  case CapArm::HtoDHtoDPar:
+    return "cap-htod-htod-par";
+  case CapArm::DtoHDtoHPar:
+    return "cap-dtoh-dtoh-par";
+  case CapArm::Compute:
+    return "cap-compute";
+  case CapArm::ComputeHtoD:
+    return "cap-compute-htod";
+  case CapArm::ComputeDtoH:
+    return "cap-compute-dtoh";
+  case CapArm::ComputeCompute:
+    return "cap-compute-compute";
+  case CapArm::EventSync:
+    return "cap-event-sync";
+  case CapArm::StreamSync:
+    return "cap-stream-sync";
+  case CapArm::DeviceSync:
+    return "cap-device-sync";
+  case CapArm::Reduction:
+    return "cap-reduction";
+  case CapArm::Matmul:
+    return "cap-matmul";
+  case CapArm::Off:
+    return "cap-off";
+  }
+  return "cap-off";
+}
+
+static bool capIsSync(CapArm arm) {
+  return arm == CapArm::EventSync || arm == CapArm::StreamSync ||
+         arm == CapArm::DeviceSync;
+}
+
+static bool capIsCompute(CapArm arm) {
+  return arm == CapArm::Compute || arm == CapArm::ComputeHtoD ||
+         arm == CapArm::ComputeDtoH || arm == CapArm::ComputeCompute ||
+         arm == CapArm::Reduction || arm == CapArm::Matmul;
+}
+
+static int capInner(CapArm arm, int n) {
+  if (capIsSync(arm))
+    return 200;
+  if (capIsCompute(arm))
+    return 1;
+  size_t bytes = sizeof(float) * static_cast<size_t>(n);
+  if (bytes <= 4 * 1024)
+    return 200;
+  if (bytes <= 64 * 1024)
+    return 50;
+  if (bytes <= 1024 * 1024)
+    return 10;
+  return 1;
+}
+
+static void provisionCap(CapBuf &b, CapArm arm) {
+  if (arm == CapArm::Matmul) {
+    CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, b.bytes(),
+                            cudaMemcpyHostToDevice, b.s0));
+    CUDA_OK(cudaMemcpyAsync(b.dev1, b.host0, b.bytes(),
+                            cudaMemcpyHostToDevice, b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    return;
+  }
+  if (capIsSync(arm) || arm == CapArm::HtoD || arm == CapArm::HtoDHtoDPar)
+    return;
+  CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, b.bytes(), cudaMemcpyHostToDevice,
+                          b.s0));
+  CUDA_OK(cudaMemcpyAsync(b.dev1, b.host0, b.bytes(), cudaMemcpyHostToDevice,
+                          b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+static void runCap(CapBuf &b, CapArm arm, int k) {
+  size_t bytes = b.bytes();
+  switch (arm) {
+  case CapArm::HtoD:
+    CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, bytes, cudaMemcpyHostToDevice,
+                            b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    break;
+  case CapArm::DtoH:
+    CUDA_OK(cudaMemcpyAsync(b.host1, b.dev0, bytes, cudaMemcpyDeviceToHost,
+                            b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    break;
+  case CapArm::HtoDDtoHSeq:
+    CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, bytes, cudaMemcpyHostToDevice,
+                            b.s0));
+    CUDA_OK(cudaMemcpyAsync(b.host1, b.dev1, bytes, cudaMemcpyDeviceToHost,
+                            b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    break;
+  case CapArm::HtoDDtoHEvent:
+    CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, bytes, cudaMemcpyHostToDevice,
+                            b.s0));
+    CUDA_OK(cudaEventRecord(b.ev, b.s0));
+    CUDA_OK(cudaStreamWaitEvent(b.s1, b.ev, 0));
+    CUDA_OK(cudaMemcpyAsync(b.host1, b.dev1, bytes, cudaMemcpyDeviceToHost,
+                            b.s1));
+    CUDA_OK(cudaStreamSynchronize(b.s1));
+    break;
+  case CapArm::HtoDDtoHPar:
+    CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, bytes, cudaMemcpyHostToDevice,
+                            b.s0));
+    CUDA_OK(cudaMemcpyAsync(b.host1, b.dev1, bytes, cudaMemcpyDeviceToHost,
+                            b.s1));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s1));
+    break;
+  case CapArm::HtoDHtoDPar:
+    CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, bytes, cudaMemcpyHostToDevice,
+                            b.s0));
+    CUDA_OK(cudaMemcpyAsync(b.dev1, b.host0, bytes, cudaMemcpyHostToDevice,
+                            b.s1));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s1));
+    break;
+  case CapArm::DtoHDtoHPar:
+    CUDA_OK(cudaMemcpyAsync(b.host1, b.dev0, bytes, cudaMemcpyDeviceToHost,
+                            b.s0));
+    CUDA_OK(cudaMemcpyAsync(b.host2, b.dev1, bytes, cudaMemcpyDeviceToHost,
+                            b.s1));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s1));
+    break;
+  case CapArm::Compute:
+    siluLaunch(b.dev0, b.n, b.s0, k);
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    break;
+  case CapArm::ComputeHtoD:
+    siluLaunch(b.dev1, b.n, b.s0, k);
+    CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, bytes, cudaMemcpyHostToDevice,
+                            b.s1));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s1));
+    break;
+  case CapArm::ComputeDtoH:
+    siluLaunch(b.dev1, b.n, b.s0, k);
+    CUDA_OK(cudaMemcpyAsync(b.host1, b.dev0, bytes, cudaMemcpyDeviceToHost,
+                            b.s1));
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s1));
+    break;
+  case CapArm::ComputeCompute:
+    siluLaunch(b.dev0, b.n, b.s0, k);
+    siluLaunch(b.dev1, b.n, b.s1, k);
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    CUDA_OK(cudaStreamSynchronize(b.s1));
+    break;
+  case CapArm::EventSync:
+    CUDA_OK(cudaEventRecord(b.ev, b.s0));
+    CUDA_OK(cudaEventSynchronize(b.ev));
+    break;
+  case CapArm::StreamSync:
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    break;
+  case CapArm::DeviceSync:
+    CUDA_OK(cudaDeviceSynchronize());
+    break;
+  case CapArm::Reduction:
+    reduceLaunch(b.dev0, b.dev1, b.n, b.s0);
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    break;
+  case CapArm::Matmul:
+    matmulLaunch(b.dev0, b.dev1, b.dev2, b.n, b.s0);
+    CUDA_OK(cudaStreamSynchronize(b.s0));
+    break;
+  case CapArm::Off:
+    break;
+  }
+}
+
+static void printCap(CapArm arm, const char *dev, int n, int k, double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f\n",
+               capFunc(arm), kSched, kMap, dev, n, k, us);
+}
+
+static double timeCapArm(CapBuf &b, CapArm arm, int warmup, int reps, int k) {
+  int inner = capInner(arm, b.n);
+  auto body = [&]() {
+    for (int j = 0; j < inner; ++j)
+      runCap(b, arm, k);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    provisionCap(b, arm);
+    body();
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    if (arm == CapArm::Matmul) {
+      for (size_t j = 0; j < b.elems; ++j)
+        b.host0[j] = 0.001f * static_cast<float>((j + i + 2) % 1000);
+    } else if (!capIsSync(arm)) {
+      fillHost(b.host0, b.n, i + 2);
+    }
+    provisionCap(b, arm);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f / static_cast<float>(inner));
+  }
+  return medianUs(samples);
+}
+
+static CapArm parseOneCap(const char *name) {
+  if (std::strcmp(name, "htod") == 0)
+    return CapArm::HtoD;
+  if (std::strcmp(name, "dtoh") == 0)
+    return CapArm::DtoH;
+  if (std::strcmp(name, "htod-dtoh-seq") == 0)
+    return CapArm::HtoDDtoHSeq;
+  if (std::strcmp(name, "htod-dtoh-event") == 0)
+    return CapArm::HtoDDtoHEvent;
+  if (std::strcmp(name, "htod-dtoh-par") == 0)
+    return CapArm::HtoDDtoHPar;
+  if (std::strcmp(name, "htod-htod-par") == 0)
+    return CapArm::HtoDHtoDPar;
+  if (std::strcmp(name, "dtoh-dtoh-par") == 0)
+    return CapArm::DtoHDtoHPar;
+  if (std::strcmp(name, "compute") == 0)
+    return CapArm::Compute;
+  if (std::strcmp(name, "compute-htod") == 0)
+    return CapArm::ComputeHtoD;
+  if (std::strcmp(name, "compute-dtoh") == 0)
+    return CapArm::ComputeDtoH;
+  if (std::strcmp(name, "compute-compute") == 0)
+    return CapArm::ComputeCompute;
+  if (std::strcmp(name, "event-sync") == 0)
+    return CapArm::EventSync;
+  if (std::strcmp(name, "stream-sync") == 0)
+    return CapArm::StreamSync;
+  if (std::strcmp(name, "device-sync") == 0)
+    return CapArm::DeviceSync;
+  if (std::strcmp(name, "reduction") == 0)
+    return CapArm::Reduction;
+  if (std::strcmp(name, "matmul") == 0)
+    return CapArm::Matmul;
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --cap %s\n", name);
+  std::exit(1);
+}
+
+static std::vector<CapArm> parseCapList(const char *name) {
+  if (std::strcmp(name, "off") == 0)
+    return {};
+  if (std::strcmp(name, "pairs") == 0)
+    return {CapArm::HtoD,         CapArm::DtoH,          CapArm::HtoDDtoHSeq,
+            CapArm::HtoDDtoHEvent, CapArm::HtoDDtoHPar, CapArm::HtoDHtoDPar,
+            CapArm::DtoHDtoHPar, CapArm::Compute,       CapArm::ComputeHtoD,
+            CapArm::ComputeDtoH, CapArm::ComputeCompute};
+  if (std::strcmp(name, "sync") == 0)
+    return {CapArm::EventSync, CapArm::StreamSync, CapArm::DeviceSync};
+  if (std::strcmp(name, "intensity") == 0)
+    return {CapArm::Compute, CapArm::Reduction};
+  if (std::strcmp(name, "all") == 0) {
+    auto arms = parseCapList("pairs");
+    auto sync = parseCapList("sync");
+    arms.insert(arms.end(), sync.begin(), sync.end());
+    return arms;
+  }
+  return {parseOneCap(name)};
+}
+
 int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
   const char *matchedArg = "off";
+  const char *capArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
@@ -452,6 +867,8 @@ int main(int argc, char **argv) {
       k = std::atoi(argv[i] + 4);
     else if (a.rfind("--matched=", 0) == 0)
       matchedArg = argv[i] + 10;
+    else if (a.rfind("--cap=", 0) == 0)
+      capArg = argv[i] + 6;
     else if (a == "--provisioned")
       provisioned = true;
     else if (a == "--print-meta") {
@@ -463,6 +880,8 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-run --func=all|a|b|c --device=gpu|cpu "
                    "--n=N --k=K --provisioned --warmup=W --reps=R\n"
                    "s2c2-cuda-run --matched=off|seq|ovl|copy|compute|all "
+                   "--device=gpu --n=N --k=K\n"
+                   "s2c2-cuda-run --cap=htod|dtoh|pairs|sync|intensity|all "
                    "--device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
@@ -483,8 +902,53 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  std::vector<CapArm> capArms = parseCapList(capArg);
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;
   MatchedArm matched = parseMatched(matchedArg);
+  if (!capArms.empty() && (matchedAll || matched != MatchedArm::Off)) {
+    std::fprintf(stderr, "s2c2-cuda-run: --cap and --matched cannot combine\n");
+    return 1;
+  }
+  if (!capArms.empty()) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --cap is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    bool needMatmul = false;
+    bool needVec = false;
+    for (CapArm arm : capArms) {
+      if (arm == CapArm::Matmul)
+        needMatmul = true;
+      else
+        needVec = true;
+    }
+    if (needVec) {
+      CapBuf b;
+      b.alloc(n, false);
+      for (CapArm arm : capArms) {
+        if (arm == CapArm::Matmul)
+          continue;
+        double us = timeCapArm(b, arm, warmup, reps, k);
+        printCap(arm, "gpu", n, k, us);
+      }
+      b.freeAll();
+    }
+    if (needMatmul) {
+      CapBuf b;
+      b.alloc(n, true);
+      double us = timeCapArm(b, CapArm::Matmul, warmup, reps, k);
+      printCap(CapArm::Matmul, "gpu", n, k, us);
+      b.freeAll();
+    }
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
+  }
   if (matchedAll || matched != MatchedArm::Off) {
     if (!gpu) {
       std::fprintf(stderr, "s2c2-cuda-run: --matched is gpu only\n");

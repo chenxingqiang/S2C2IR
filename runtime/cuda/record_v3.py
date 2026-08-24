@@ -46,6 +46,45 @@ PROVS = (0, 1)
 MATCHED_KS = (1, 8, 32, 64)
 MATCHED_ARMS = ("matched-seq", "matched-ovl", "matched-copy", "matched-compute")
 MATCHED_FUNCS = set(MATCHED_ARMS)
+CAP_PAIR_ARMS = (
+    "cap-htod",
+    "cap-dtoh",
+    "cap-htod-dtoh-seq",
+    "cap-htod-dtoh-event",
+    "cap-htod-dtoh-par",
+    "cap-htod-htod-par",
+    "cap-dtoh-dtoh-par",
+    "cap-compute",
+    "cap-compute-htod",
+    "cap-compute-dtoh",
+    "cap-compute-compute",
+)
+CAP_SYNC_ARMS = ("cap-event-sync", "cap-stream-sync", "cap-device-sync")
+CAP_SIZE_BYTES = (
+    1024,
+    4 * 1024,
+    16 * 1024,
+    64 * 1024,
+    1024 * 1024,
+    4 * 1024 * 1024,
+    16 * 1024 * 1024,
+    64 * 1024 * 1024,
+    256 * 1024 * 1024,
+)
+CAP_MATMUL_DIMS = (256, 512, 1024)
+CAP_K = 32
+CAP_FUNCS = set(CAP_PAIR_ARMS) | set(CAP_SYNC_ARMS) | {
+    "cap-reduction",
+    "cap-matmul",
+}
+CAP_PAIRS = (
+    ("HtoD||DtoH", "cap-htod", "cap-dtoh", "cap-htod-dtoh-par"),
+    ("HtoD||HtoD", "cap-htod", "cap-htod", "cap-htod-htod-par"),
+    ("DtoH||DtoH", "cap-dtoh", "cap-dtoh", "cap-dtoh-dtoh-par"),
+    ("C||HtoD", "cap-compute", "cap-htod", "cap-compute-htod"),
+    ("C||DtoH", "cap-compute", "cap-dtoh", "cap-compute-dtoh"),
+    ("C||C", "cap-compute", "cap-compute", "cap-compute-compute"),
+)
 CAL_FIELDS = (
     "N",
     "k",
@@ -202,6 +241,23 @@ def parse_adapter_line(line: str) -> dict[str, Any] | None:
     }
 
 
+def parse_cap_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in CAP_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": int(m.group("k")),
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
 def parse_matched_line(line: str) -> dict[str, Any] | None:
     m = LINE_RE.search(line)
     if not m:
@@ -217,6 +273,17 @@ def parse_matched_line(line: str) -> dict[str, Any] | None:
         "score3": "",
         "latency_us": float(m.group("us")),
     }
+
+
+def print_cap_schema() -> int:
+    print("cap-arm pairs sync size intensity")
+    print("score3 not-applicable")
+    print("source driver_version=nvidia-smi")
+    print("source nvcc_version=nvcc")
+    print("source cuda_runtime=cudaRuntimeGetVersion")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
 
 
 def print_matched_schema() -> int:
@@ -634,18 +701,272 @@ def analyze(jsonl: Path) -> int:
     return 0
 
 
+def _run_adapter(bin_path: str, extra: list[str], warmup: int, reps: int) -> str:
+    args = [
+        bin_path,
+        "--device=gpu",
+        f"--warmup={warmup}",
+        f"--reps={reps}",
+        *extra,
+    ]
+    proc = subprocess.run(
+        args, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+    )
+    return proc.stdout or ""
+
+
+def _collect_cap_rows(
+    text: str, gpu: dict[str, str], warmup: int, reps: int, commit: str
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parsed = parse_cap_line(line)
+        if not parsed:
+            continue
+        rec = base_record(commit, gpu, warmup, reps)
+        rec["case"] = parsed["case"]
+        rec["N"] = parsed["N"]
+        rec["k"] = parsed["k"]
+        rec["provisioned"] = parsed["provisioned"]
+        rec["score3"] = parsed["score3"]
+        rec["latency_us"] = parsed["latency_us"]
+        rows.append({key: rec[key] for key in FIELDS})
+    return rows
+
+
+def cap_sweep(bin_path: str, out_prefix: Path, warmup: int, reps: int,
+              commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    try:
+        for n in NS:
+            print(f"=== cap pairs n={n} k={CAP_K} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                [f"--cap=pairs", f"--n={n}", f"--k={CAP_K}"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            got = _collect_cap_rows(text, gpu, warmup, reps, commit)
+            if len(got) != len(CAP_PAIR_ARMS):
+                print(
+                    f"record_v3: expected {len(CAP_PAIR_ARMS)} pair arms, "
+                    f"got {len(got)}",
+                    file=sys.stderr,
+                )
+                return 4
+            rows.extend(got)
+        for nbytes in CAP_SIZE_BYTES:
+            n = nbytes // 4
+            print(f"=== cap size bytes={nbytes} n={n} ===", file=sys.stderr)
+            for arm in ("htod", "dtoh"):
+                text = _run_adapter(
+                    bin_path,
+                    [f"--cap={arm}", f"--n={n}", "--k=1"],
+                    warmup,
+                    reps,
+                )
+                print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+                got = _collect_cap_rows(text, gpu, warmup, reps, commit)
+                if len(got) != 1:
+                    print(f"record_v3: expected 1 size arm, got {len(got)}",
+                          file=sys.stderr)
+                    return 4
+                rows.extend(got)
+        print("=== cap sync ===", file=sys.stderr)
+        text = _run_adapter(
+            bin_path, ["--cap=sync", "--n=256", "--k=1"], warmup, reps
+        )
+        print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+        got = _collect_cap_rows(text, gpu, warmup, reps, commit)
+        if len(got) != len(CAP_SYNC_ARMS):
+            print(
+                f"record_v3: expected {len(CAP_SYNC_ARMS)} sync arms, "
+                f"got {len(got)}",
+                file=sys.stderr,
+            )
+            return 4
+        rows.extend(got)
+        for n in NS:
+            print(f"=== cap reduction n={n} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path, ["--cap=reduction", f"--n={n}", "--k=1"], warmup, reps
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            got = _collect_cap_rows(text, gpu, warmup, reps, commit)
+            if len(got) != 1:
+                print(f"record_v3: expected 1 reduction, got {len(got)}",
+                      file=sys.stderr)
+                return 4
+            rows.extend(got)
+        for dim in CAP_MATMUL_DIMS:
+            print(f"=== cap matmul dim={dim} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path, ["--cap=matmul", f"--n={dim}", "--k=1"], warmup, reps
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            got = _collect_cap_rows(text, gpu, warmup, reps, commit)
+            if len(got) != 1:
+                print(f"record_v3: expected 1 matmul, got {len(got)}",
+                      file=sys.stderr)
+                return 4
+            rows.extend(got)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"record_v3: cap run failed: {exc}", file=sys.stderr)
+        return 2
+    expected = (
+        len(NS) * len(CAP_PAIR_ARMS)
+        + len(CAP_SIZE_BYTES) * 2
+        + len(CAP_SYNC_ARMS)
+        + len(NS)
+        + len(CAP_MATMUL_DIMS)
+    )
+    if len(rows) != expected:
+        print(f"record_v3: expected {expected} cap rows, got {len(rows)}",
+              file=sys.stderr)
+        return 5
+    write_outputs(rows, out_prefix)
+    print(
+        f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+        f"count={len(rows)} cap v3=not-claimed"
+    )
+    return 0
+
+
+def _verdict(par_over_max: float, par_over_sum: float) -> str:
+    if par_over_sum >= 0.90:
+        return "serial"
+    if par_over_max <= 1.15 and par_over_sum <= 0.75:
+        return "parallel"
+    return "mixed"
+
+
+def _fit_launch_bw(points: list[tuple[float, float]]) -> tuple[float, float]:
+    """Least squares T_us = a + b * bytes. Returns (T_launch_us, BW_GBps)."""
+    if len(points) < 2:
+        return float("nan"), float("nan")
+    n = float(len(points))
+    sx = sum(b for b, _ in points)
+    sy = sum(t for _, t in points)
+    sxx = sum(b * b for b, _ in points)
+    sxy = sum(b * t for b, t in points)
+    den = n * sxx - sx * sx
+    if den == 0:
+        return float("nan"), float("nan")
+    b = (n * sxy - sx * sy) / den
+    a = (sy - b * sx) / n
+    bw = 0.001 / b if b > 0 else float("nan")
+    return a, bw
+
+
+def analyze_cap(jsonl: Path) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    print("v3-cap v3=not-claimed cost=unchanged")
+    print("pair\tname\tN\tA\tB\tpar\tpar/max\tpar/sum\tverdict")
+    for n in NS:
+        slice_rows = [
+            r
+            for r in rows
+            if r["N"] == n and str(r["case"]).startswith("cap-") and r["k"] == CAP_K
+        ]
+        by_case = {r["case"]: r for r in slice_rows}
+        for name, a_key, b_key, p_key in CAP_PAIRS:
+            if a_key not in by_case or b_key not in by_case or p_key not in by_case:
+                continue
+            a = float(by_case[a_key]["latency_us"])
+            b = float(by_case[b_key]["latency_us"])
+            par = float(by_case[p_key]["latency_us"])
+            pmax = _safe_div(par, max(a, b))
+            psum = _safe_div(par, a + b)
+            print(
+                f"pair\t{name}\t{n}\t{a:.1f}\t{b:.1f}\t{par:.1f}\t"
+                f"{pmax:.3f}\t{psum:.3f}\t{_verdict(pmax, psum)}"
+            )
+        if "cap-htod-dtoh-seq" in by_case and "cap-htod-dtoh-par" in by_case:
+            seq = float(by_case["cap-htod-dtoh-seq"]["latency_us"])
+            par = float(by_case["cap-htod-dtoh-par"]["latency_us"])
+            print(
+                f"bidir\tHtoD||DtoH\t{n}\tseq={seq:.1f}\tpar={par:.1f}\t"
+                f"par/seq={_safe_div(par, seq):.3f}"
+            )
+        if "cap-htod-dtoh-seq" in by_case and "cap-htod-dtoh-event" in by_case:
+            seq = float(by_case["cap-htod-dtoh-seq"]["latency_us"])
+            ev = float(by_case["cap-htod-dtoh-event"]["latency_us"])
+            print(
+                f"event-path\t{n}\tseq={seq:.1f}\tevent={ev:.1f}\t"
+                f"delta={ev - seq:.1f}"
+            )
+
+    print("size\tdir\tbytes\tN\tT_us\tGB/s")
+    size_ns = {nbytes // 4: nbytes for nbytes in CAP_SIZE_BYTES}
+    htod_fit: list[tuple[float, float]] = []
+    dtoh_fit: list[tuple[float, float]] = []
+    for r in rows:
+        if r["case"] not in ("cap-htod", "cap-dtoh"):
+            continue
+        n = int(r["N"])
+        if n not in size_ns:
+            continue
+        # Pair-matrix copies also use 4M/16M/64M; keep size-curve
+        # rows as k=1 and matrix rows as k=CAP_K.
+        if int(r["k"]) != 1:
+            continue
+        nbytes = size_ns[n]
+        t = float(r["latency_us"])
+        gbs = _safe_div(nbytes, t) * 1e-3
+        print(f"size\t{r['case'][4:]}\t{nbytes}\t{n}\t{t:.1f}\t{gbs:.2f}")
+        if nbytes >= 1024 * 1024:
+            if r["case"] == "cap-htod":
+                htod_fit.append((float(nbytes), t))
+            else:
+                dtoh_fit.append((float(nbytes), t))
+    a_h, bw_h = _fit_launch_bw(htod_fit)
+    a_d, bw_d = _fit_launch_bw(dtoh_fit)
+    print(f"fit\thtod\tT_launch={a_h:.2f}\tBW_GBps={bw_h:.2f}")
+    print(f"fit\tdtoh\tT_launch={a_d:.2f}\tBW_GBps={bw_d:.2f}")
+
+    print("sync\tarm\tT_us")
+    for r in rows:
+        if r["case"] in CAP_SYNC_ARMS:
+            print(f"sync\t{r['case']}\t{float(r['latency_us']):.3f}")
+
+    print("intensity\tkind\tN\tT_us")
+    for r in rows:
+        if r["case"] in ("cap-reduction", "cap-matmul"):
+            print(
+                f"intensity\t{r['case'][4:]}\t{r['N']}\t"
+                f"{float(r['latency_us']):.1f}"
+            )
+        if r["case"] == "cap-compute" and int(r["k"]) == CAP_K:
+            print(
+                f"intensity\telementwise\t{r['N']}\t"
+                f"{float(r['latency_us']):.1f}"
+            )
+    print("v3-cap summary v3=not-claimed cost=unchanged")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="V3 metadata recorder")
     p.add_argument("--print-schema", action="store_true")
     p.add_argument("--print-matched-schema", action="store_true")
     p.add_argument("--print-calibration-schema", action="store_true")
     p.add_argument("--print-ratio-schema", action="store_true")
+    p.add_argument("--print-cap-schema", action="store_true")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
+    p.add_argument("--cap-sweep", metavar="BIN")
     p.add_argument("--out", type=Path)
     p.add_argument("--analyze", type=Path)
     p.add_argument("--analyze-matched", type=Path)
+    p.add_argument("--analyze-cap", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
@@ -660,6 +981,8 @@ def main() -> int:
         return print_calibration_schema()
     if args.print_ratio_schema:
         return print_ratio_schema()
+    if args.print_cap_schema:
+        return print_cap_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
@@ -668,6 +991,8 @@ def main() -> int:
         return calibrate(args.calibrate, args.out)
     if args.analyze_ratio:
         return analyze_ratio(args.analyze_ratio)
+    if args.analyze_cap:
+        return analyze_cap(args.analyze_cap)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -681,9 +1006,18 @@ def main() -> int:
             args.matched_sweep, args.out, args.warmup, args.reps,
             git_commit(args.git_commit)
         )
+    if args.cap_sweep:
+        if not args.out:
+            print("record_v3: --out required with --cap-sweep", file=sys.stderr)
+            return 1
+        return cap_sweep(
+            args.cap_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
-          "--sweep, --matched-sweep, --analyze, --analyze-matched, "
+          "--print-cap-schema, --sweep, --matched-sweep, --cap-sweep, "
+          "--analyze, --analyze-matched, --analyze-cap, "
           "--calibrate, or --analyze-ratio",
           file=sys.stderr)
     return 1
