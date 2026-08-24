@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -651,12 +652,143 @@ static int runMemP0(int n, int kReq, int warmup, int reps) {
   return 0;
 }
 
+static void runCC(Buf &b, int k0, int k1) {
+  elemwiseLaunch(b, b.dev0, b.dev2, k0, b.s0);
+  elemwiseLaunch(b, b.dev1, b.dev3, k1, b.s1);
+}
+
+static bool checkCC(Buf &b, int k0, int k1) {
+  size_t bytes = b.bytes();
+  ACL_OK(aclrtMemcpy(b.check, bytes, b.dev2, bytes, ACL_MEMCPY_DEVICE_TO_HOST));
+  for (int i = 0; i < b.n; ++i) {
+    if (!closeEnough(b.check[i], hostElemwise(b.host0[i], k0)))
+      return false;
+  }
+  ACL_OK(aclrtMemcpy(b.check, bytes, b.dev3, bytes, ACL_MEMCPY_DEVICE_TO_HOST));
+  for (int i = 0; i < b.n; ++i) {
+    if (!closeEnough(b.check[i], hostElemwise(b.host1[i], k1)))
+      return false;
+  }
+  return true;
+}
+
+static double timeCC(Buf &b, int k0, int k1, int warmup, int reps) {
+  auto body = [&]() { runCC(b, k0, k1); };
+  for (int i = 0; i < warmup; ++i) {
+    fillHost(b.host0, b.n, i + 3);
+    fillHost(b.host1, b.n, i + 7);
+    provision(b, Arm::ComputeCompute);
+    body();
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    b.reapStaleWorkspace();
+  }
+  std::vector<double> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    fillHost(b.host0, b.n, i + 11);
+    fillHost(b.host1, b.n, i + 19);
+    provision(b, Arm::ComputeCompute);
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    auto start = std::chrono::steady_clock::now();
+    body();
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    auto stop = std::chrono::steady_clock::now();
+    b.reapStaleWorkspace();
+    samples.push_back(
+        std::chrono::duration<double, std::micro>(stop - start).count());
+    if (!checkCC(b, k0, k1)) {
+      std::fprintf(stderr, "s2c2-ascend-run correctness=0 arm=cc-phase\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static std::vector<double> parseRList(const char *raw) {
+  std::vector<double> out;
+  const char *p = raw;
+  while (*p) {
+    char *end = nullptr;
+    double v = std::strtod(p, &end);
+    if (end == p)
+      break;
+    if (v > 0.0)
+      out.push_back(v);
+    p = end;
+    if (*p == ',')
+      ++p;
+  }
+  return out;
+}
+
+static int runCCPhase(int n, int kRef, const std::vector<double> &rs,
+                      int warmup, int reps) {
+  Buf b;
+  b.alloc(n);
+  fillHost(b.host0, b.n, 1);
+  fillHost(b.host1, b.n, 2);
+  provision(b, Arm::ComputeCompute);
+  elemwiseLaunch(b, b.dev0, b.dev2, 1, b.s0);
+  elemwiseLaunch(b, b.dev1, b.dev3, 1, b.s1);
+  ACL_OK(aclrtSynchronizeStream(b.s0));
+  ACL_OK(aclrtSynchronizeStream(b.s1));
+  b.reapStaleWorkspace();
+
+  std::map<int, double> solo;
+  auto timeSolo = [&](int kk) {
+    auto it = solo.find(kk);
+    if (it != solo.end())
+      return it->second;
+    double t = timeArm(b, Arm::Compute, warmup, reps, kk);
+    solo[kk] = t;
+    return t;
+  };
+
+  std::fprintf(stderr, "s2c2-ascend-run cc-phase=1 pair=C||C\n");
+  std::fprintf(stderr, "s2c2-ascend-run cc-phase n=%d k_ref=%d\n", n, kRef);
+  for (double rTarget : rs) {
+    int k2 = kRef;
+    int k1 = static_cast<int>(std::llround(rTarget * static_cast<double>(k2)));
+    if (k1 < 1)
+      k1 = 1;
+    double t1 = timeSolo(k1);
+    double t2 = timeSolo(k2);
+    double tpar = timeCC(b, k1, k2, warmup, reps);
+    double mx = t1 > t2 ? t1 : t2;
+    double sum = t1 + t2;
+    double pmax = mx > 0 ? tpar / mx : 0;
+    double psum = sum > 0 ? tpar / sum : 0;
+    double rAch = t2 > 0 ? t1 / t2 : 0;
+    const char *rel = classifyPair(pmax, psum);
+    const char *cons = inferConstraint("C||C", rel);
+    std::fprintf(stderr,
+                 "s2c2-ascend-run cc-phase slice r_target=%.3f "
+                 "r_achieved=%.3f k1=%d k2=%d pair_relation=%s "
+                 "observed_constraint=%s n=%d\n",
+                 rTarget, rAch, k1, k2, rel, cons, n);
+    std::fprintf(stderr,
+                 "s2c2-ascend-run cc-phase timing a=%.1f b=%.1f par=%.1f "
+                 "par_over_max=%.3f par_over_sum=%.3f\n",
+                 t1, t2, tpar, pmax, psum);
+  }
+  b.freeAll();
+  std::fprintf(stderr, "s2c2-ascend-run cc-phase correctness=1 "
+                       "cost=unchanged semantics=unchanged v3=not-claimed\n");
+  std::fprintf(stderr, "s2c2-ascend-run cc-phase r3-gate=closed "
+                       "note catalog-untouched\n");
+  return 0;
+}
+
 static void usage() {
   std::fprintf(
       stderr,
-      "s2c2-ascend-run --pairs|--mem [--n=N] [--k=K|--k=0] "
-      "[--warmup=W] [--reps=R]\n"
-      "--k=0 calibrates k from pinned HtoD / compute(k=1). "
+      "s2c2-ascend-run --pairs|--mem|--cc-phase [--n=N] [--k=K|--k=0] "
+      "[--r=r1,r2,...] [--warmup=W] [--reps=R]\n"
+      "--k=0 calibrates k from pinned HtoD / compute(k=1) (mem only). "
+      "--cc-phase uses k as k_ref for C2. "
       "Do not FileCheck microseconds.\n");
 }
 
@@ -667,16 +799,24 @@ int main(int argc, char **argv) {
   int reps = 3;
   bool pairs = false;
   bool mem = false;
+  bool ccPhase = false;
+  std::vector<double> rs = {0.5, 0.75, 1.0, 1.5, 2.0};
+  bool rsSet = false;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     if (a == "--pairs") {
       pairs = true;
     } else if (a == "--mem" || a == "--mem=p0") {
       mem = true;
+    } else if (a == "--cc-phase") {
+      ccPhase = true;
     } else if (a.rfind("--n=", 0) == 0) {
       n = std::atoi(argv[i] + 4);
     } else if (a.rfind("--k=", 0) == 0) {
       k = std::atoi(argv[i] + 4);
+    } else if (a.rfind("--r=", 0) == 0) {
+      rs = parseRList(argv[i] + 4);
+      rsSet = true;
     } else if (a.rfind("--warmup=", 0) == 0) {
       warmup = std::atoi(argv[i] + 9);
     } else if (a.rfind("--reps=", 0) == 0) {
@@ -689,18 +829,24 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
-  if (pairs == mem) {
+  int modes = (int)pairs + (int)mem + (int)ccPhase;
+  if (modes != 1) {
     usage();
     return 1;
   }
-  if (pairs && k <= 0) {
-    std::fprintf(stderr, "s2c2-ascend-run: --pairs needs k > 0\n");
+  if ((pairs || ccPhase) && k <= 0) {
+    std::fprintf(stderr, "s2c2-ascend-run: --pairs/--cc-phase needs k > 0\n");
+    return 1;
+  }
+  if (ccPhase && rs.empty()) {
+    std::fprintf(stderr, "s2c2-ascend-run: --cc-phase needs r > 0\n");
     return 1;
   }
   if (n <= 0 || k < 0) {
     std::fprintf(stderr, "s2c2-ascend-run: n must be positive; k >= 0\n");
     return 1;
   }
+  (void)rsSet;
 
   ACL_OK(aclInit(nullptr));
   ACL_OK(aclrtSetDevice(0));
@@ -723,6 +869,8 @@ int main(int argc, char **argv) {
   if (mem) {
     std::fprintf(stderr, "s2c2-ascend-run mem=r4\n");
     rc = runMemP0(n, k, warmup, reps);
+  } else if (ccPhase) {
+    rc = runCCPhase(n, k, rs, warmup, reps);
   } else {
   std::fprintf(stderr, "s2c2-ascend-run n=%d k=%d bytes=%zu\n", n, k,
                sizeof(float) * static_cast<size_t>(n));

@@ -263,6 +263,7 @@ FileChecked. Measured cells belong in PR-R2.
 | -- | ---- | ---- |
 | PR-R2 | `docs/design/v3-dataset/ascend910b/` measured cells | this increment |
 | R4 | pinned vs pageable host residency | this increment |
+| C\|\|C phase | `r = T_C1/T_C2` on 910B only | not a 3-pair re-matrix |
 | PR-R3 | same IR, two profiles, different legal schedule | not licensed by underdetermined `C\|\|C` |
 
 R4 is Storage Residency → Communication Capability, not a copy

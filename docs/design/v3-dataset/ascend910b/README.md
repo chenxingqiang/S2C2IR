@@ -50,3 +50,7 @@ that is not a Schedule rewrite. Memory records use
 `size_range=4MiB..64MiB` (`measured sizes = 4MiB,16MiB,64MiB`).
 Cross-vendor schedule (PR-R3) is not this catalog: `C||C` is not
 a single parallel cell.
+
+`C||C` r-sweep: `cc-phase.log`, `cc-phase.csv`.
+`unique=no` (`mixed` at 4M, `serial` at 16M/64M for every
+`r ∈ {0.5,0.75,1,1.5,2}`). Pair catalog unchanged.

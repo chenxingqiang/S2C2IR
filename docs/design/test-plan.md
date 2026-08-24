@@ -659,3 +659,17 @@ on a pinned-parallel → pageable-serial flip.
 | AM3 | same fixture | `--analyze-mem` extra-hb protocol; `v3=not-claimed` |
 | AM4 | same | `mem.jsonl` `size_range=4MiB..64MiB`; `measured sizes = 4MiB,16MiB,64MiB` |
 
+## Ascend 910B C∥C phase sweep
+
+**Not Cost v0.4.** Design: [`v3-ascend-cc-phase.md`](v3-ascend-cc-phase.md).
+`C||C` only. `r = T_C1/T_C2`. Does not overwrite the #69 pair catalog.
+PR-R3 stays closed. No FileCheck of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| AP1 | `test/Pilot/s2c2-ascend-cc-phase.mlir` | `--dry-run --cc-phase` lists r-axis |
+| AP2 | same | exclusive vs `--mem`; `--pairs` unchanged |
+| AP3 | same fixture | `--analyze-cc-phase` `unique=no`; `r3-gate=closed` |
+| AP4 | same | `#69` `--query-cap C||C` still `underdetermined` |
+| AP5 | same HW log | measured `unique=no`; `relations=mixed,serial`; no μs |
+

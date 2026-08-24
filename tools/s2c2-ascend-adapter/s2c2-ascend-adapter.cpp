@@ -96,6 +96,22 @@ static void printMem() {
   std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
 }
 
+static void printCCPhase() {
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase pair=C||C\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase r=T_C1/T_C2\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase r_target=0.5,0.75,1,1.5,2\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase n=4M,16M,64M\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase k_ref=C2\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase timing=host-wall-clock\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase completion=s0,s1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase r3-gate=closed\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase note catalog-untouched\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-phase semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
+}
+
 static void printCapSchema() {
   std::fprintf(stderr, "s2c2-ascend-adapter cap-schema=v1\n");
   std::fprintf(stderr,
@@ -213,7 +229,7 @@ static int emitRecord(const char *pair) {
 static void usage() {
   std::fprintf(stderr,
                "s2c2-ascend-adapter --dry-run [--pairs] [--workload] "
-               "[--cap-schema] [--mem] [--classify=ta:tb:tpar] "
+               "[--cap-schema] [--mem] [--cc-phase] [--classify=ta:tb:tpar] "
                "[--emit-record=<pair>] [--accept-hardware=<id>]\n"
                "Host protocol only. Timed AscendCL: runtime/ascend/\n");
 }
@@ -224,6 +240,7 @@ int main(int argc, char **argv) {
   bool workload = false;
   bool capSchema = false;
   bool mem = false;
+  bool ccPhase = false;
   const char *classify = nullptr;
   const char *emit = nullptr;
   const char *acceptHw = nullptr;
@@ -239,6 +256,8 @@ int main(int argc, char **argv) {
       capSchema = true;
     } else if (a == "--mem") {
       mem = true;
+    } else if (a == "--cc-phase") {
+      ccPhase = true;
     } else if (a.rfind("--classify=", 0) == 0) {
       classify = argv[i] + 11;
     } else if (a.rfind("--emit-record=", 0) == 0) {
@@ -263,12 +282,13 @@ int main(int argc, char **argv) {
 
   std::fprintf(stderr, "s2c2-ascend-adapter dry-run=1\n");
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
-              (int)(classify != nullptr) + (int)(emit != nullptr) +
-              (int)(acceptHw != nullptr);
+              (int)ccPhase + (int)(classify != nullptr) +
+              (int)(emit != nullptr) + (int)(acceptHw != nullptr);
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
-                 "--classify/--emit-record/--accept-hardware cannot combine\n");
+                 "--cc-phase/--classify/--emit-record/--accept-hardware "
+                 "cannot combine\n");
     return 1;
   }
 
@@ -302,6 +322,10 @@ int main(int argc, char **argv) {
 
   if (mem) {
     printMem();
+    return 0;
+  }
+  if (ccPhase) {
+    printCCPhase();
     return 0;
   }
   if (capSchema) {
