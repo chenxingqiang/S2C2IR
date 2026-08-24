@@ -680,6 +680,64 @@ def analyze_mem(log: Path) -> int:
     return 0
 
 
+_CC_SLICE_RE = re.compile(
+    r"s2c2-ascend-run cc-phase slice r_target=(\S+) r_achieved=(\S+) "
+    r"k1=(\d+) k2=(\d+) pair_relation=(\S+) observed_constraint=(\S+) n=(\d+)"
+)
+
+
+def print_cc_phase_schema() -> int:
+    print("ascend-cc-phase pair=C||C")
+    print("r=T_C1/T_C2")
+    print("r_target=0.5,0.75,1,1.5,2")
+    print("n=4M,16M,64M")
+    print("r3-gate=closed")
+    print("note catalog-untouched")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_cc_phase(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    slices: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        m = _CC_SLICE_RE.search(line)
+        if not m:
+            continue
+        slices.append(
+            {
+                "r_target": float(m.group(1)),
+                "r_achieved": float(m.group(2)),
+                "k1": int(m.group(3)),
+                "k2": int(m.group(4)),
+                "pair_relation": m.group(5),
+                "observed_constraint": m.group(6),
+                "N": int(m.group(7)),
+            }
+        )
+    if not slices:
+        print("record_ascend: no cc-phase slices in log", file=sys.stderr)
+        return 4
+    rels = sorted({s["pair_relation"] for s in slices})
+    unique = "yes" if len(rels) == 1 else "no"
+    print(
+        "v3-ascend-cc-phase pair=C||C r3-gate=closed "
+        "note catalog-untouched semantics=unchanged "
+        "v3=not-claimed cost=unchanged"
+    )
+    print(f"relations={','.join(rels)}")
+    print(f"unique={unique}")
+    print(f"slices={len(slices)}")
+    print("r3-gate=closed")
+    print("note catalog-untouched")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Ascend CapabilityRecord host tools")
     p.add_argument("--print-cap-schema-v1", action="store_true")
@@ -695,6 +753,8 @@ def main() -> int:
     p.add_argument("--cap-catalog", type=Path, default=_CATALOG_PATH)
     p.add_argument("--print-mem-schema", action="store_true")
     p.add_argument("--analyze-mem", type=Path)
+    p.add_argument("--print-cc-phase-schema", action="store_true")
+    p.add_argument("--analyze-cc-phase", type=Path)
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -711,6 +771,8 @@ def main() -> int:
             args.query_cap,
             args.print_mem_schema,
             args.analyze_mem,
+            args.print_cc_phase_schema,
+            args.analyze_cc_phase,
         )
     )
     if n != 1:
@@ -719,7 +781,8 @@ def main() -> int:
             "--print-workload-contract, --check-schema-identity, "
             "--analyze-cap-schema, --emit-record, --classify, "
             "--accept-hardware, --project-pairs, --query-cap, "
-            "--print-mem-schema, --analyze-mem",
+            "--print-mem-schema, --analyze-mem, "
+            "--print-cc-phase-schema, --analyze-cc-phase",
             file=sys.stderr,
         )
         return 2
@@ -764,6 +827,10 @@ def main() -> int:
         return print_mem_schema()
     if args.analyze_mem:
         return analyze_mem(args.analyze_mem)
+    if args.print_cc_phase_schema:
+        return print_cc_phase_schema()
+    if args.analyze_cc_phase:
+        return analyze_cc_phase(args.analyze_cc_phase)
     return accept_hardware(args.accept_hardware)
 
 

@@ -1,0 +1,8 @@
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=4194304 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=0.500 r_achieved=0.510 k1=16 k2=32 pair_relation=parallel observed_constraint=none n=4194304
+s2c2-ascend-run cc-phase timing a=100.0 b=196.0 par=110.0 par_over_max=1.100 par_over_sum=0.372
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=4194304
+s2c2-ascend-run cc-phase timing a=200.0 b=200.0 par=390.0 par_over_max=1.950 par_over_sum=0.975
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
