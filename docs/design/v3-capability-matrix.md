@@ -297,3 +297,6 @@ V3               ≠  claimed
 
 A later Cost may consume this matrix. This layer only records
 it.
+
+Hardware-agnostic record that can host this table and a
+second device: [`v3-capability-schema.md`](v3-capability-schema.md).

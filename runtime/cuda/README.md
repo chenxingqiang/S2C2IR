@@ -31,6 +31,9 @@ S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val_mem.sh ./s2c
 # phase:        docs/design/v3-dataset/v3-phase.jsonl
 # pipeline:     docs/design/v3-dataset/v3-pipe.jsonl
 # pipe tiles:   docs/design/v3-dataset/v3-pipe-tiles.jsonl
+# cap schema:   docs/design/v3-dataset/v3-cap-schema-4090.jsonl
+# python3 runtime/cuda/record_v3.py --print-cap-schema-v1
+# python3 runtime/cuda/record_v3.py --project-cap-schema-v1 --out docs/design/v3-dataset/v3-cap-schema-4090.jsonl
 ```
 
 Do not commit hostnames, accounts, or passwords.

@@ -551,3 +551,17 @@ microseconds. Semantics unchanged.
 | CM2 | same V1 | `--dry-run --cuda-val` stays V1 |
 | CM3 | same ABC | `--dry-run` without flags stays A/B/C |
 | CM4 | same fixture | `--analyze-cuda-val-mem` prints extra-hb; `v3=not-claimed` |
+
+## V3 Capability Schema v1
+
+**Not Cost v0.4.** Design:
+[`v3-capability-schema.md`](v3-capability-schema.md).
+Hardware-agnostic record. 4090 is one projection, not a new
+sweep. No FileCheck of microseconds. Semantics unchanged.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CS1 | `test/Pilot/s2c2-v3-capability-schema.mlir` | `--dry-run --cap-schema` lists v1 fields |
+| CS2 | same ABC | `--dry-run` without `--cap-schema` stays A/B/C |
+| CS3 | same | `--dry-run --cap` still lists `#55` arms |
+| CS4 | same fixture / 4090 catalog | `--analyze-cap-schema`; `depth-star=not-a-law` |

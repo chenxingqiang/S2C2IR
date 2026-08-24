@@ -147,6 +147,60 @@ VAL_MEM_FIELDS = (
     "verdict",
     "extra_hb",
 )
+CAP_SCHEMA_VERSION = "v1"
+CAP_SCHEMA_KINDS = ("pair", "transfer", "sync", "phase", "pipeline")
+CAP_SCHEMA_COMPUTE = ("elementwise_silu", "reduction", "matmul", "none")
+CAP_SCHEMA_TRANSFER = ("pinned_htod", "pinned_dtoh", "pinned_both", "none")
+CAP_SCHEMA_DIRECTION = (
+    "HtoD",
+    "DtoH",
+    "bidirectional",
+    "same_HtoD",
+    "same_DtoH",
+    "none",
+)
+CAP_SCHEMA_RELATION = (
+    "parallel",
+    "serial",
+    "mixed",
+    "underdetermined",
+    "unmeasured",
+)
+CAP_SCHEMA_REGIME = (
+    "pair_matrix",
+    "size_curve",
+    "idle_sync",
+    "phase_r_N",
+    "pipe_depth_tiles",
+    "unmeasured",
+)
+CAP_SCHEMA_CONFIDENCE = ("measured", "arm_specific", "projected", "unmeasured")
+CAP_SCHEMA_FIELDS = (
+    "schema_version",
+    "record_kind",
+    "hardware_id",
+    "compute_domain",
+    "transfer_domain",
+    "direction",
+    "pair_relation",
+    "size_range",
+    "regime",
+    "synchronization",
+    "pipeline_depth_evidence",
+    "confidence",
+    "v3",
+    "cost",
+    "semantics",
+)
+CAP_SCHEMA_PAIR_META = {
+    "C||HtoD": ("elementwise_silu", "pinned_htod", "HtoD", "measured"),
+    "C||DtoH": ("elementwise_silu", "pinned_dtoh", "DtoH", "measured"),
+    "HtoD||HtoD": ("none", "pinned_htod", "same_HtoD", "measured"),
+    "DtoH||DtoH": ("none", "pinned_dtoh", "same_DtoH", "measured"),
+    "HtoD||DtoH": ("none", "pinned_both", "bidirectional", "measured"),
+    "C||C": ("elementwise_silu", "none", "none", "arm_specific"),
+}
+DATASET_DIR = Path(__file__).resolve().parents[2] / "docs/design/v3-dataset"
 PIPE_FIELDS = (
     "N",
     "k",
@@ -937,6 +991,254 @@ def print_cap_schema() -> int:
     print("source driver_version=nvidia-smi")
     print("source nvcc_version=nvcc")
     print("source cuda_runtime=cudaRuntimeGetVersion")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def print_cap_schema_v1() -> int:
+    print("cap-schema v1")
+    print(
+        "field compute_domain transfer_domain direction pair_relation "
+        "size_range regime synchronization pipeline_depth_evidence confidence"
+    )
+    print("pair_relation parallel serial mixed underdetermined unmeasured")
+    print("confidence measured arm_specific projected unmeasured")
+    print("hardware unfilled")
+    print("depth-star not-a-law")
+    print("semantics unchanged")
+    print("score3 not-applicable")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def blank_cap_record(
+    kind: str = "pair",
+    hardware_id: str = "unfilled",
+    pair: str = "C||HtoD",
+) -> dict[str, Any]:
+    return {
+        "schema_version": CAP_SCHEMA_VERSION,
+        "record_kind": kind,
+        "hardware_id": hardware_id,
+        "compute_domain": "none",
+        "transfer_domain": "none",
+        "direction": "none",
+        "pair_relation": "unmeasured",
+        "size_range": "unmeasured",
+        "regime": "unmeasured",
+        "synchronization": "unmeasured",
+        "pipeline_depth_evidence": "unmeasured",
+        "confidence": "unmeasured",
+        "pair": pair,
+        "v3": "not-claimed",
+        "cost": "unchanged",
+        "semantics": "unchanged",
+    }
+
+
+def validate_cap_schema_v1(rec: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for key in CAP_SCHEMA_FIELDS:
+        if key not in rec:
+            errors.append(f"missing {key}")
+    if rec.get("schema_version") != CAP_SCHEMA_VERSION:
+        errors.append("schema_version")
+    if rec.get("record_kind") not in CAP_SCHEMA_KINDS:
+        errors.append("record_kind")
+    if rec.get("compute_domain") not in CAP_SCHEMA_COMPUTE:
+        errors.append("compute_domain")
+    if rec.get("transfer_domain") not in CAP_SCHEMA_TRANSFER:
+        errors.append("transfer_domain")
+    if rec.get("direction") not in CAP_SCHEMA_DIRECTION:
+        errors.append("direction")
+    if rec.get("pair_relation") not in CAP_SCHEMA_RELATION:
+        errors.append("pair_relation")
+    if rec.get("regime") not in CAP_SCHEMA_REGIME:
+        errors.append("regime")
+    if rec.get("confidence") not in CAP_SCHEMA_CONFIDENCE:
+        errors.append("confidence")
+    if rec.get("v3") != "not-claimed":
+        errors.append("v3")
+    if rec.get("cost") != "unchanged":
+        errors.append("cost")
+    if rec.get("semantics") != "unchanged":
+        errors.append("semantics")
+    hid = str(rec.get("hardware_id", ""))
+    if not hid or hid.lower() in {"password", "localhost"}:
+        errors.append("hardware_id")
+    blob = json.dumps(rec, ensure_ascii=True)
+    if "password" in blob.lower():
+        errors.append("password")
+    return errors
+
+
+def _read_csv_dicts(path: Path) -> list[dict[str, str]]:
+    with path.open(encoding="utf-8", newline="") as fh:
+        return list(csv.DictReader(fh))
+
+
+def project_cap_schema_v1(out: Path | None = None) -> int:
+    pairs_path = DATASET_DIR / "v3-cap-pairs.csv"
+    phase_path = DATASET_DIR / "v3-phase-slices.csv"
+    tiles_path = DATASET_DIR / "v3-pipe-tiles-slices.csv"
+    for path in (pairs_path, phase_path, tiles_path):
+        if not path.is_file():
+            print(f"record_v3: missing {path}", file=sys.stderr)
+            return 4
+    by_pair: dict[str, set[str]] = {}
+    for row in _read_csv_dicts(pairs_path):
+        by_pair.setdefault(row["pair"], set()).add(row["verdict"])
+    records: list[dict[str, Any]] = []
+    for pair, (comp, xfer, direction, conf) in CAP_SCHEMA_PAIR_META.items():
+        verdicts = by_pair.get(pair, set())
+        if len(verdicts) != 1:
+            print(f"record_v3: pair {pair} verdicts={verdicts}", file=sys.stderr)
+            return 4
+        relation = next(iter(verdicts))
+        rec = blank_cap_record("pair", "rtx4090", pair)
+        rec["compute_domain"] = comp
+        rec["transfer_domain"] = xfer
+        rec["direction"] = direction
+        rec["pair_relation"] = relation
+        rec["size_range"] = "N=4M,16M,64M"
+        rec["regime"] = "pair_matrix"
+        rec["confidence"] = conf
+        rec["evidence_refs"] = ["#55", "v3-cap-pairs.csv"]
+        rec["note"] = (
+            "this SiLU arm; canOverlap is not device-wide"
+            if pair == "C||C"
+            else "pair cell under hid_short=1.15 near_sum=0.90 policy"
+        )
+        records.append(rec)
+    for direction, domain, label in (
+        ("HtoD", "pinned_htod", "htod"),
+        ("DtoH", "pinned_dtoh", "dtoh"),
+    ):
+        rec = blank_cap_record("transfer", "rtx4090", label)
+        rec["transfer_domain"] = domain
+        rec["direction"] = direction
+        rec["size_range"] = "bytes=1KB..256MB"
+        rec["regime"] = "size_curve"
+        rec["confidence"] = "measured"
+        rec["evidence_refs"] = ["#55", "v3-capability-matrix.md"]
+        rec["note"] = "T = T_fixed + bytes/BW; small-copy floor; PCIe-class"
+        records.append(rec)
+    sync = blank_cap_record("sync", "rtx4090", "idle-sync")
+    sync["regime"] = "idle_sync"
+    sync["synchronization"] = "event>stream; device>stream; microsecond_scale"
+    sync["confidence"] = "measured"
+    sync["evidence_refs"] = ["#55"]
+    sync["note"] = "idle-stream inner-loop slot; not a copy-sized Cost term"
+    records.append(sync)
+    phase_rows = _read_csv_dicts(phase_path)
+    overlaps = sorted({row["overlap"] for row in phase_rows})
+    if "serial" in overlaps or "mixed" in overlaps:
+        print(f"record_v3: unexpected phase overlap {overlaps}", file=sys.stderr)
+        return 4
+    phase = blank_cap_record("phase", "rtx4090", "C||HtoD")
+    phase["compute_domain"] = "elementwise_silu"
+    phase["transfer_domain"] = "pinned_htod"
+    phase["direction"] = "HtoD"
+    phase["pair_relation"] = "parallel"
+    phase["size_range"] = "N=4M,16M,64M"
+    phase["regime"] = "phase_r_N"
+    phase["confidence"] = "measured"
+    phase["evidence_refs"] = ["#56", "v3-phase-slices.csv"]
+    phase["note"] = (
+        "T_ovl ≈ max on this pair; overlap in {"
+        + ",".join(overlaps)
+        + "}; 0 serial; 0 mixed; hidden_frac still N-dependent"
+    )
+    records.append(phase)
+    tile_rows = _read_csv_dicts(tiles_path)
+    sats = [float(row["sat_d4_over_d2"]) for row in tile_rows]
+    tiles = sorted({int(row["tiles"]) for row in tile_rows})
+    pipe = blank_cap_record("pipeline", "rtx4090", "C||HtoD")
+    pipe["compute_domain"] = "elementwise_silu"
+    pipe["transfer_domain"] = "pinned_htod"
+    pipe["direction"] = "HtoD"
+    pipe["pair_relation"] = "parallel"
+    pipe["size_range"] = "N=4M,16M,64M"
+    pipe["regime"] = "pipe_depth_tiles"
+    pipe["pipeline_depth_evidence"] = (
+        "saturated_at=2; depths=1,2,3,4; tiles="
+        + ",".join(str(t) for t in tiles)
+        + "; not-a-law"
+    )
+    pipe["confidence"] = "measured"
+    pipe["evidence_refs"] = ["#57", "#58", "v3-pipe-tiles-slices.csv"]
+    pipe["note"] = (
+        "no measurable gain from depth>2 under this tested regime; "
+        f"sat_band=[{min(sats):.3f},{max(sats):.3f}]"
+    )
+    records.append(pipe)
+    for rec in records:
+        errors = validate_cap_schema_v1(rec)
+        if errors:
+            print(f"record_v3: invalid projection {errors}", file=sys.stderr)
+            return 4
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8") as fh:
+            for rec in records:
+                fh.write(json.dumps(rec, ensure_ascii=True) + "\n")
+        print(
+            f"record_v3 wrote {out} count={len(records)} "
+            "cap-schema-v1 v3=not-claimed"
+        )
+    print(
+        f"v3-cap-schema project hardware=rtx4090 records={len(records)} "
+        "depth-star=not-a-law semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    return 0
+
+
+def analyze_cap_schema(jsonl: Path) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    if not rows:
+        print("record_v3: empty cap-schema", file=sys.stderr)
+        return 4
+    hardwares: list[str] = []
+    for rec in rows:
+        errors = validate_cap_schema_v1(rec)
+        if errors:
+            print(f"record_v3: invalid cap-schema {errors}", file=sys.stderr)
+            return 4
+        hid = str(rec["hardware_id"])
+        if hid not in hardwares:
+            hardwares.append(hid)
+    print(
+        f"v3-cap-schema v1 records={len(rows)} "
+        f"hardware={','.join(hardwares)} "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    for rec in rows:
+        kind = rec["record_kind"]
+        pair = rec.get("pair", "-")
+        if kind == "pair":
+            print(
+                f"pair\t{pair}\t{rec['pair_relation']}\t"
+                f"{rec['hardware_id']}\t{rec['confidence']}"
+            )
+        elif kind == "pipeline":
+            print(
+                f"pipeline\t{pair}\t{rec['pipeline_depth_evidence']}\t"
+                f"{rec['hardware_id']}"
+            )
+        elif kind == "phase":
+            print(f"phase\t{pair}\t{rec['regime']}\t{rec['pair_relation']}")
+        elif kind == "transfer":
+            print(f"transfer\t{rec['direction']}\t{rec['regime']}")
+        elif kind == "sync":
+            print(f"sync\t{rec['synchronization']}")
+    print("depth-star not-a-law")
+    print("semantics unchanged")
     print("v3=not-claimed")
     print("cost=unchanged")
     return 0
@@ -2317,6 +2619,8 @@ def main() -> int:
     p.add_argument("--print-calibration-schema", action="store_true")
     p.add_argument("--print-ratio-schema", action="store_true")
     p.add_argument("--print-cap-schema", action="store_true")
+    p.add_argument("--print-cap-schema-v1", action="store_true")
+    p.add_argument("--project-cap-schema-v1", action="store_true")
     p.add_argument("--print-phase-schema", action="store_true")
     p.add_argument("--print-pipe-schema", action="store_true")
     p.add_argument("--print-pipe-tiles-schema", action="store_true")
@@ -2340,6 +2644,7 @@ def main() -> int:
     p.add_argument("--analyze-pipe-tiles", type=Path)
     p.add_argument("--analyze-cuda-val", type=Path)
     p.add_argument("--analyze-cuda-val-mem", type=Path)
+    p.add_argument("--analyze-cap-schema", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
@@ -2356,6 +2661,10 @@ def main() -> int:
         return print_ratio_schema()
     if args.print_cap_schema:
         return print_cap_schema()
+    if args.print_cap_schema_v1:
+        return print_cap_schema_v1()
+    if args.project_cap_schema_v1:
+        return project_cap_schema_v1(args.out)
     if args.print_phase_schema:
         return print_phase_schema()
     if args.print_pipe_schema:
@@ -2386,6 +2695,8 @@ def main() -> int:
         return analyze_cuda_val(args.analyze_cuda_val, args.out)
     if args.analyze_cuda_val_mem:
         return analyze_cuda_val_mem(args.analyze_cuda_val_mem, args.out)
+    if args.analyze_cap_schema:
+        return analyze_cap_schema(args.analyze_cap_schema)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -2450,15 +2761,15 @@ def main() -> int:
         )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
-          "--print-cap-schema, --print-phase-schema, --print-pipe-schema, "
-          "--print-pipe-tiles-schema, --print-cuda-val-schema, "
-          "--print-cuda-val-mem-schema, --sweep, "
+          "--print-cap-schema, --print-cap-schema-v1, --print-phase-schema, "
+          "--print-pipe-schema, --print-pipe-tiles-schema, "
+          "--print-cuda-val-schema, --print-cuda-val-mem-schema, --sweep, "
           "--matched-sweep, --cap-sweep, --phase-sweep, --pipe-sweep, "
           "--pipe-tiles-sweep, --cuda-val-sweep, --cuda-val-mem-sweep, "
-          "--analyze, "
+          "--project-cap-schema-v1, --analyze, "
           "--analyze-matched, --analyze-cap, --analyze-phase, --analyze-pipe, "
           "--analyze-pipe-tiles, --analyze-cuda-val, --analyze-cuda-val-mem, "
-          "--calibrate, "
+          "--analyze-cap-schema, --calibrate, "
           "or --analyze-ratio",
           file=sys.stderr)
     return 1

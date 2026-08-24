@@ -38,3 +38,7 @@ CUDA Validation V2 P0 pinned vs pageable records
 (`v3-cuda-mem.jsonl`) reuse the same columns after the
 4090 sweep. Derived: `v3-cuda-mem-slices.csv`. Does not
 change V1 `--cuda-val` bodies. Not Cost v0.4.
+
+Capability Schema v1 projection (`v3-cap-schema-4090.jsonl`,
+11 records) is a hardware-agnostic catalog derived from the
+tables above. It is not a new GPU sweep and not Cost v0.4.
