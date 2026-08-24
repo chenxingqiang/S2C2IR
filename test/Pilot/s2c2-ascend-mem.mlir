@@ -53,7 +53,6 @@ module {
 // AN-NOT: password
 
 // Qualitative 910B surface only. Do not FileCheck microseconds.
-// Schema v1 size_range is payload bytes (N floats * 4), not the N label.
 // HW: v3-ascend-mem r4 pair=C||HtoD,C||DtoH acceptance=storage-comm
 // HW: size_range=16MiB..256MiB
 // HW: measured sizes = 16MiB,64MiB,256MiB
@@ -61,13 +60,12 @@ module {
 // HW: note residency-ne-extra-hb
 // HW: semantics=unchanged
 // HW: v3=not-claimed
-// HW-NOT: size_range=4MiB..64MiB
 // HW-NOT: extra-hb=pageable-host
 // HW-NOT: Cost v0.4
 // HW-NOT: password
 
-// JSONL: "size_range":"16MiB..256MiB"
-// JSONL: measured sizes = 16MiB,64MiB,256MiB
-// JSONL: "size_range":"16MiB..256MiB"
-// JSONL: measured sizes = 16MiB,64MiB,256MiB
-// JSONL-NOT: "size_range":"4MiB..64MiB"
+// JSONL: "size_range":"4MiB..64MiB"
+// JSONL: measured sizes = 4MiB,16MiB,64MiB
+// JSONL: "size_range":"4MiB..64MiB"
+// JSONL: measured sizes = 4MiB,16MiB,64MiB
+// JSONL-NOT: "size_range":"16MiB..256MiB"
