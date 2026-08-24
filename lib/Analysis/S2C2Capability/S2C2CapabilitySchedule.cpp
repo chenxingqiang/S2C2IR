@@ -315,9 +315,7 @@ static void printQueryJson(StringRef device, StringRef pair, const CapCell &cell
   obj["confidence"] = cell.confidence;
   obj["via"] = via.str();
   llvm::json::Value value(std::move(obj));
-  llvm::errs() << "capability-query ";
-  value.print(llvm::errs());
-  llvm::errs() << "\n";
+  llvm::errs() << "capability-query " << value << "\n";
 }
 
 static bool shouldSerialize(const CapCell &cell) {
@@ -381,7 +379,7 @@ static void applySchedule(ModuleOp module, StringRef device,
                           const CapCatalog &cat) {
   SmallVector<ConcurrentOp> concs;
   module.walk([&](ConcurrentOp conc) { concs.push_back(conc); });
-  for (ConcurrentOp conc : llvm::reverse(concs)) {
+  for (ConcurrentOp conc : concs) {
     SmallVector<TaskOp> tasks(conc.getBody().front().getOps<TaskOp>());
     if (tasks.size() != 2)
       continue;
@@ -400,7 +398,7 @@ static void applySchedule(ModuleOp module, StringRef device,
 
   SmallVector<OverlapOp> overlaps;
   module.walk([&](OverlapOp ov) { overlaps.push_back(ov); });
-  for (OverlapOp ov : llvm::reverse(overlaps)) {
+  for (OverlapOp ov : overlaps) {
     std::string pair = classifyPair(ov.getCompute(), ov.getCommunicate());
     if (pair.empty())
       continue;

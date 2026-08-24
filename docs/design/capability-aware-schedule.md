@@ -39,7 +39,7 @@ It does **not** ask which schedule is faster. Cost v0.4 is Phase 3C.
 ## 2. Query
 
 ```text
-s2c2-opt --s2c2-capability-query=device=rtx4090,producer=comp.silu,consumer=comm.htod
+s2c2-opt --s2c2-capability-query="device=rtx4090 producer=comp.silu consumer=comm.htod"
 ```
 
 ```json

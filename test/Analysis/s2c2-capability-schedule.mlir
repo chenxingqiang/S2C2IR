@@ -1,14 +1,29 @@
-// RUN: s2c2-opt %s --s2c2-capability-schedule=device=rtx4090 --check-s2c2-execution 2>&1 | FileCheck %s --check-prefix=GPU
-// RUN: s2c2-opt %s --s2c2-capability-schedule=device=npu-demo --check-s2c2-execution 2>&1 | FileCheck %s --check-prefix=NPU
+// RUN: s2c2-opt %s --s2c2-capability-schedule=device=rtx4090 --check-s2c2-execution 2>&1 | grep capability-schedule | FileCheck %s --check-prefix=GPU-LOG
+// RUN: s2c2-opt %s --s2c2-capability-schedule=device=npu-demo --check-s2c2-execution 2>&1 | grep capability-schedule | FileCheck %s --check-prefix=NPU-LOG
+// RUN: s2c2-opt %s --s2c2-capability-schedule=device=rtx4090 --check-s2c2-execution | FileCheck %s --check-prefix=GPU
+// RUN: s2c2-opt %s --s2c2-capability-schedule=device=npu-demo --check-s2c2-execution | FileCheck %s --check-prefix=NPU
 
 // Same S²C² IR, two CapabilityProfiles, two legal schedules.
 // Concurrent → parent IR order is allowed. No invented sibling wait.
 // Pipeline StageOrder is preserved. Not Cost v0.4.
+
+// GPU-LOG: pair=C||HtoD relation=parallel
+// GPU-LOG: decision=keep
+// GPU-LOG: pair=C_silu||C_gemm relation=serial
+// GPU-LOG: observed_constraint=resource_contention
+// GPU-LOG: decision=serialize
+// GPU-LOG: semantics=unchanged
+// GPU-LOG: v3=not-claimed
+// GPU-LOG: cost=unchanged
+
+// NPU-LOG: pair=C||HtoD relation=parallel
+// NPU-LOG: decision=keep
+// NPU-LOG: pair=C_silu||C_gemm relation=parallel
+// NPU-LOG: decision=keep
+// NPU-LOG: semantics=unchanged
+// NPU-LOG: cost=unchanged
+
 module {
-  // GPU: capability-schedule device=rtx4090 pair=C||HtoD relation=parallel
-  // GPU: decision=keep
-  // NPU: capability-schedule device=npu-demo pair=C||HtoD relation=parallel
-  // NPU: decision=keep
   // GPU-LABEL: func.func @compute_par_htod
   // NPU-LABEL: func.func @compute_par_htod
   // GPU: sched.concurrent
@@ -37,11 +52,6 @@ module {
     return
   }
 
-  // GPU: pair=C_silu||C_gemm relation=serial
-  // GPU: observed_constraint=resource_contention
-  // GPU: decision=serialize
-  // NPU: pair=C_silu||C_gemm relation=parallel
-  // NPU: decision=keep
   // GPU-LABEL: func.func @silu_par_gemm
   // NPU-LABEL: func.func @silu_par_gemm
   // GPU: sched.task
@@ -96,10 +106,4 @@ module {
     %out = stor.unpack %hbm : !stor.buffer<tensor<8xf32>, hbm> -> tensor<8xf32>
     return %out : tensor<8xf32>
   }
-
-  // GPU: semantics=unchanged
-  // GPU: v3=not-claimed
-  // GPU: cost=unchanged
-  // NPU: semantics=unchanged
-  // NPU: cost=unchanged
 }

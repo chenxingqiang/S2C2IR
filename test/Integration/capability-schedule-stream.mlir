@@ -1,10 +1,23 @@
-// RUN: s2c2-opt %s --s2c2-capability-schedule=device=rtx4090 --check-s2c2-execution 2>&1 | FileCheck %s --check-prefix=GPU
-// RUN: s2c2-opt %s --s2c2-capability-schedule=device=npu-demo --check-s2c2-execution 2>&1 | FileCheck %s --check-prefix=NPU
-// RUN: s2c2-opt %s --s2c2-capability-schedule=device=rtx4090 --profile=%S/../../docs/design/v3-dataset/v3-cap-schema-4090.jsonl --check-s2c2-execution 2>&1 | FileCheck %s --check-prefix=JSON
+// RUN: s2c2-opt %s --s2c2-capability-schedule=device=rtx4090 --check-s2c2-execution 2>&1 | grep capability-schedule | FileCheck %s --check-prefix=GPU-LOG
+// RUN: s2c2-opt %s --s2c2-capability-schedule=device=npu-demo --check-s2c2-execution 2>&1 | grep capability-schedule | FileCheck %s --check-prefix=NPU-LOG
+// RUN: s2c2-opt %s --s2c2-capability-schedule=device=rtx4090 --check-s2c2-execution | FileCheck %s --check-prefix=GPU
+// RUN: s2c2-opt %s --s2c2-capability-schedule=device=npu-demo --check-s2c2-execution | FileCheck %s --check-prefix=NPU
+// RUN: s2c2-opt %s --s2c2-capability-schedule="device=rtx4090 profile=%S/../../docs/design/v3-dataset/v3-cap-schema-4090.jsonl" --check-s2c2-execution | FileCheck %s --check-prefix=JSON
 
 // Gated-MLP / SSD streaming case: same IR, two profiles, two schedules.
 // 4090: keep load||compute; serialize SiLU||GEMM.
 // NPU demo: keep both concurrent. Not Cost. Semantics unchanged.
+
+// GPU-LOG: pair=C||HtoD relation=parallel
+// GPU-LOG: decision=keep
+// GPU-LOG: pair=C_silu||C_gemm relation=serial
+// GPU-LOG: decision=serialize
+
+// NPU-LOG: pair=C||HtoD relation=parallel
+// NPU-LOG: decision=keep
+// NPU-LOG: pair=C_silu||C_gemm relation=parallel
+// NPU-LOG: decision=keep
+
 module {
   // GPU-LABEL: func.func @ssd_stream_mlp
   // NPU-LABEL: func.func @ssd_stream_mlp
@@ -42,10 +55,6 @@ module {
     return %y : tensor<1x8xf32>
   }
 
-  // GPU: pair=C_silu||C_gemm
-  // GPU: decision=serialize
-  // NPU: pair=C_silu||C_gemm
-  // NPU: decision=keep
   // GPU-LABEL: func.func @silu_and_gemm
   // NPU-LABEL: func.func @silu_and_gemm
   // GPU: sched.task
