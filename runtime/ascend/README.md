@@ -29,4 +29,5 @@ Measured catalog: `docs/design/v3-dataset/ascend910b/`.
 `runtime/ascend/record_ascend.py --query-cap 'C||C'`
 Pinned vs pageable: `./s2c2-ascend-run --mem --n=4194304 --k=0`
 C||C r-sweep: `./s2c2-ascend-run --cc-phase --n=4194304 --k=32 --r=0.5,0.75,1,1.5,2`
+C||C size-boundary: `runtime/ascend/sweep_cc_size.sh`
 Does not overwrite the #69 catalog. PR-R3 stays closed.

@@ -738,6 +738,88 @@ def analyze_cc_phase(log: Path) -> int:
     return 0
 
 
+def _n_label(n: int) -> str:
+    if n % (1024 * 1024) == 0:
+        return f"{n // (1024 * 1024)}M"
+    return str(n)
+
+
+def print_cc_size_schema() -> int:
+    print("ascend-cc-size pair=C||C")
+    print("r=1")
+    print("n=4M,8M,12M,16M,32M,64M,128M")
+    print("note size-boundary")
+    print("r3-gate=closed")
+    print("note catalog-untouched")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_cc_size(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    slices: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        m = _CC_SLICE_RE.search(line)
+        if not m:
+            continue
+        slices.append(
+            {
+                "r_target": float(m.group(1)),
+                "pair_relation": m.group(5),
+                "observed_constraint": m.group(6),
+                "N": int(m.group(7)),
+            }
+        )
+    if not slices:
+        print("record_ascend: no cc-size slices in log", file=sys.stderr)
+        return 4
+    matched = [s for s in slices if abs(s["r_target"] - 1.0) <= 0.05]
+    if matched:
+        slices = matched
+    by_n: dict[int, str] = {}
+    for s in slices:
+        by_n[s["N"]] = s["pair_relation"]
+    ns = sorted(by_n)
+    rels = [by_n[n] for n in ns]
+    uniq = sorted(set(rels))
+    last_mixed = next((n for n in reversed(ns) if by_n[n] == "mixed"), None)
+    first_serial = next((n for n in ns if by_n[n] == "serial"), None)
+    saw_serial = False
+    nonmono = False
+    for rel in rels:
+        if rel == "serial":
+            saw_serial = True
+        elif saw_serial and rel != "serial":
+            nonmono = True
+    if nonmono:
+        trans = "underdetermined"
+    elif last_mixed is not None and first_serial is not None and last_mixed < first_serial:
+        trans = f"mixed-to-serial {_n_label(last_mixed)}..{_n_label(first_serial)}"
+    elif all(r == "mixed" for r in rels):
+        trans = "none-all-mixed"
+    elif all(r == "serial" for r in rels):
+        trans = "none-all-serial"
+    else:
+        trans = "underdetermined"
+    print(
+        "v3-ascend-cc-size pair=C||C r=1 r3-gate=closed "
+        "note catalog-untouched semantics=unchanged "
+        "v3=not-claimed cost=unchanged"
+    )
+    print(f"n-grid={','.join(_n_label(n) for n in ns)}")
+    print(f"relations={','.join(uniq)}")
+    print(f"transition={trans}")
+    print("r3-gate=closed")
+    print("note catalog-untouched")
+    print("note size-boundary")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Ascend CapabilityRecord host tools")
     p.add_argument("--print-cap-schema-v1", action="store_true")
@@ -755,6 +837,8 @@ def main() -> int:
     p.add_argument("--analyze-mem", type=Path)
     p.add_argument("--print-cc-phase-schema", action="store_true")
     p.add_argument("--analyze-cc-phase", type=Path)
+    p.add_argument("--print-cc-size-schema", action="store_true")
+    p.add_argument("--analyze-cc-size", type=Path)
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -773,6 +857,8 @@ def main() -> int:
             args.analyze_mem,
             args.print_cc_phase_schema,
             args.analyze_cc_phase,
+            args.print_cc_size_schema,
+            args.analyze_cc_size,
         )
     )
     if n != 1:
@@ -782,7 +868,8 @@ def main() -> int:
             "--analyze-cap-schema, --emit-record, --classify, "
             "--accept-hardware, --project-pairs, --query-cap, "
             "--print-mem-schema, --analyze-mem, "
-            "--print-cc-phase-schema, --analyze-cc-phase",
+            "--print-cc-phase-schema, --analyze-cc-phase, "
+            "--print-cc-size-schema, --analyze-cc-size",
             file=sys.stderr,
         )
         return 2
@@ -831,6 +918,10 @@ def main() -> int:
         return print_cc_phase_schema()
     if args.analyze_cc_phase:
         return analyze_cc_phase(args.analyze_cc_phase)
+    if args.print_cc_size_schema:
+        return print_cc_size_schema()
+    if args.analyze_cc_size:
+        return analyze_cc_size(args.analyze_cc_size)
     return accept_hardware(args.accept_hardware)
 
 

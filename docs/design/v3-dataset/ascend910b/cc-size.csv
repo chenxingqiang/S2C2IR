@@ -1,0 +1,8 @@
+N,k1,k2,r_target,r_achieved,pair_relation,observed_constraint,par_over_max,par_over_sum
+4194304,32,32,1.000,1.000,mixed,none,1.552,0.776
+8388608,32,32,1.000,1.000,mixed,none,1.645,0.822
+12582912,32,32,1.000,1.000,mixed,none,1.729,0.864
+16777216,32,32,1.000,1.000,mixed,none,1.734,0.867
+33554432,32,32,1.000,1.000,serial,resource_contention,7.070,3.535
+67108864,32,32,1.000,1.000,serial,resource_contention,2.351,1.175
+134217728,32,32,1.000,1.000,serial,resource_contention,1.985,0.992
