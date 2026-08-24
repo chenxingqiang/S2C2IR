@@ -207,7 +207,12 @@ static void printCudaValAsync() {
   std::fprintf(stderr,
                "s2c2-cuda-adapter cuda-val-async cell alloc-async\n");
   std::fprintf(stderr,
-               "s2c2-cuda-adapter cuda-val-async cell extra-hb=sync-alloc\n");
+               "s2c2-cuda-adapter cuda-val-async cell "
+               "observed-constraint=none|allocator_sync\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async cell extra-hb=not-applicable\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async note legal-wait-not-extra-hb\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async score3=not-applicable\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async cost=unchanged\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async semantics=unchanged\n");

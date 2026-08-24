@@ -582,4 +582,4 @@ bodies. No FileCheck of microseconds. Semantics unchanged.
 | CA1 | `test/Pilot/s2c2-v3-cuda-async.mlir` | `--dry-run --cuda-val-async` lists the chain |
 | CA2 | same V1 | `--dry-run --cuda-val` stays V1 |
 | CA3 | same V2 | `--dry-run --cuda-val-mem` stays V2 |
-| CA4 | same fixture | `--analyze-cuda-val-async`; `v3=not-claimed` |
+| CA4 | same fixture | `--analyze-cuda-val-async` prints `observed_constraint`; extra-HB not-applicable |

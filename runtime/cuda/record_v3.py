@@ -194,6 +194,7 @@ VAL_ASYNC_FIELDS = (
     "T_hb_us",
     "sync_over_async",
     "hb_over_async",
+    "observed_constraint",
     "extra_hb",
 )
 PIPE_FIELDS = (
@@ -1249,7 +1250,9 @@ def print_cuda_val_async_schema() -> int:
     print("chain materialize->write->event->wait->read->release")
     print("alloc cudaMalloc cudaMallocAsync")
     print("wait cudaStreamWaitEvent")
-    print("extra-hb none|sync-alloc")
+    print("observed-constraint none|allocator_sync")
+    print("extra-hb not-applicable")
+    print("legal-wait-not-extra-hb")
     print("score3 not-applicable")
     print("semantics unchanged")
     print("v3=not-claimed")
@@ -1368,7 +1371,9 @@ def cuda_val_async_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         hb = float(by_case["val-async-hb"]["latency_us"])
         sync_over = _safe_div(life_sync, life_async)
         hb_over = _safe_div(hb, life_async)
-        extra = "sync-alloc" if sync_over >= 1.15 else "none"
+        # Allocator rate is observed_constraint, not extra HB.
+        # Explicit wait matching async lifetime is legal HB.
+        constraint = "allocator_sync" if sync_over >= 1.15 else "none"
         out.append(
             {
                 "N": n,
@@ -1381,7 +1386,8 @@ def cuda_val_async_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "T_hb_us": hb,
                 "sync_over_async": sync_over,
                 "hb_over_async": hb_over,
-                "extra_hb": extra,
+                "observed_constraint": constraint,
+                "extra_hb": "not-applicable",
             }
         )
     return out
@@ -1396,11 +1402,11 @@ def analyze_cuda_val_async(jsonl: Path, out: Path | None = None) -> int:
     slices = cuda_val_async_slices(rows)
     print(
         "v3-cuda-val-async v2p1 chain=materialize-write-event-wait-read-release "
-        "semantics=unchanged v3=not-claimed cost=unchanged"
+        "legal-wait-not-extra-hb semantics=unchanged v3=not-claimed cost=unchanged"
     )
     print(
         "slice\tN\tk\tr\tcopy\tcompute\tlife_sync\tlife_async\thb\t"
-        "sync/async\thb/async\textra_hb"
+        "sync/async\thb/async\tobserved_constraint\textra_hb"
     )
     hits = 0
     for s in slices:
@@ -1409,17 +1415,19 @@ def analyze_cuda_val_async(jsonl: Path, out: Path | None = None) -> int:
             f"{s['T_copy_us']:.1f}\t{s['T_compute_us']:.1f}\t"
             f"{s['T_life_sync_us']:.1f}\t{s['T_life_async_us']:.1f}\t"
             f"{s['T_hb_us']:.1f}\t{s['sync_over_async']:.3f}\t"
-            f"{s['hb_over_async']:.3f}\t{s['extra_hb']}"
+            f"{s['hb_over_async']:.3f}\t{s['observed_constraint']}\t"
+            f"{s['extra_hb']}"
         )
-        if s["extra_hb"] == "sync-alloc":
+        if s["observed_constraint"] == "allocator_sync":
             hits += 1
             print(
-                f"counterexample\tN={s['N']}\t"
+                f"allocator-sync\tN={s['N']}\t"
                 f"sync/async={s['sync_over_async']:.3f}\t"
-                "extra-hb=sync-alloc"
+                "observed-constraint=allocator_sync extra-hb=not-applicable"
             )
     print(
-        f"summary slices={len(slices)} counterexamples={hits} "
+        f"summary slices={len(slices)} allocator-sync={hits} "
+        "extra-hb=not-applicable legal-wait-not-extra-hb "
         "semantics=unchanged v3=not-claimed cost=unchanged"
     )
     if out:
@@ -1440,6 +1448,7 @@ def analyze_cuda_val_async(jsonl: Path, out: Path | None = None) -> int:
                         "T_hb_us": f"{s['T_hb_us']:.1f}",
                         "sync_over_async": f"{s['sync_over_async']:.3f}",
                         "hb_over_async": f"{s['hb_over_async']:.3f}",
+                        "observed_constraint": s["observed_constraint"],
                         "extra_hb": s["extra_hb"],
                     }
                 )

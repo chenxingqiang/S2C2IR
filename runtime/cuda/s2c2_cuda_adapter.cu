@@ -1828,8 +1828,10 @@ static const char *valAsyncFunc(ValAsyncKind kind) {
   return "val-async-hb";
 }
 
-static const char *valAsyncExtraHb(ValAsyncKind kind) {
-  return kind == ValAsyncKind::LifeSync ? "sync-alloc" : "none";
+static const char *valAsyncObservedConstraint(ValAsyncKind kind) {
+  // Candidate label only. Analyzer decides from T_sync / T_async.
+  // Allocator rate is not extra HB (#60 reserved extra_hb).
+  return kind == ValAsyncKind::LifeSync ? "allocator_sync" : "none";
 }
 
 static void provisionValAsync(ValAsyncBuf &b) {
@@ -1902,9 +1904,9 @@ static void printValAsync(ValAsyncKind kind, const char *dev, int n, int k,
   std::fprintf(stderr,
                "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
                "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f "
-               "correct=1 extra_hb=%s\n",
+               "correct=1 observed_constraint=%s extra_hb=not-applicable\n",
                valAsyncFunc(kind), kSched, kMap, dev, n, k, us,
-               valAsyncExtraHb(kind));
+               valAsyncObservedConstraint(kind));
 }
 
 static double timeValAsyncArm(ValAsyncBuf &b, ValAsyncKind kind, int warmup,
