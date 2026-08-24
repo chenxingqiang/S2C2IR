@@ -645,3 +645,17 @@ change. `HtoD||DtoH` keeps the Schema v1 direction convention.
 | AC2 | same | `--query-cap` for R1–R3; no 4090 `hardware_id` |
 | AC3 | same | extra-key still rejected; no μs FileCheck |
 
+## Ascend 910B pinned vs pageable (R4)
+
+**Not Cost v0.4.** Design: [`v3-ascend-mem.md`](v3-ascend-mem.md).
+Same named streams; `aclrtMallocHost` vs `malloc`. Does not change
+the #69 pair catalog. No FileCheck of microseconds. Extra HB only
+on a pinned-parallel → pageable-serial flip.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| AM1 | `test/Pilot/s2c2-ascend-mem.mlir` | `--dry-run --mem` lists R4 map |
+| AM2 | same | `--dry-run --pairs` stays R1–R3 |
+| AM3 | same fixture | `--analyze-mem` extra-hb protocol; `v3=not-claimed` |
+| AM4 | same | `mem.jsonl` `size_range=4MiB..64MiB`; `measured sizes = 4MiB,16MiB,64MiB` |
+

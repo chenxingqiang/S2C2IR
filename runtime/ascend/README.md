@@ -27,3 +27,4 @@ Do not FileCheck microseconds.
 Do not use Graph Engine / MindSpore / torch_npu / aclgraph.
 Measured catalog: `docs/design/v3-dataset/ascend910b/`.
 `runtime/ascend/record_ascend.py --query-cap 'C||C'`
+Pinned vs pageable: `./s2c2-ascend-run --mem --n=4194304 --k=0`

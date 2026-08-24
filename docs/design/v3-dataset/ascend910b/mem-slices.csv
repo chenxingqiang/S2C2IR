@@ -1,0 +1,13 @@
+N,k,pair,residency,verdict,extra_hb,ovl_over_max,ovl_over_sum
+4194304,14,C||HtoD,pinned,mixed,none,1.214,0.823
+4194304,14,C||HtoD,pageable,mixed,none,1.018,0.781
+4194304,14,C||DtoH,pinned,mixed,none,1.169,0.796
+4194304,14,C||DtoH,pageable,mixed,none,1.046,0.793
+16777216,26,C||HtoD,pinned,parallel,none,1.054,0.699
+16777216,26,C||HtoD,pageable,parallel,none,1.020,0.695
+16777216,26,C||DtoH,pinned,parallel,none,1.087,0.719
+16777216,26,C||DtoH,pageable,parallel,none,1.068,0.738
+67108864,11,C||HtoD,pinned,parallel,none,1.041,0.521
+67108864,11,C||HtoD,pageable,mixed,none,1.481,0.740
+67108864,11,C||DtoH,pinned,parallel,none,1.039,0.522
+67108864,11,C||DtoH,pageable,mixed,none,1.302,0.730
