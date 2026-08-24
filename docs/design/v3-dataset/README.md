@@ -24,3 +24,8 @@ reuse the same columns. Derived slices: `v3-phase-slices.csv`.
 
 C∥HtoD pipeline-depth records (`v3-pipe.jsonl`, 18 points)
 reuse the same columns. Derived slices: `v3-pipe-slices.csv`.
+
+C∥HtoD pipeline-tiles sanity records (`v3-pipe-tiles.jsonl`,
+72 points) reuse the same columns. Case names carry the
+tiles count (`pipe-t{T}-*`). Derived slices:
+`v3-pipe-tiles-slices.csv`.

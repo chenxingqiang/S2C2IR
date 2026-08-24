@@ -5,6 +5,7 @@
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-pipe-tiles %S/pipe-tiles-fixture.jsonl | FileCheck %s --check-prefix=AN
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-pipe %S/pipe-tiles-fixture.jsonl | FileCheck %s --check-prefix=ISO
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-pipe %S/pipe-depth-fixture.jsonl | FileCheck %s --check-prefix=OLD
+// RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-pipe-tiles %S/../../docs/design/v3-dataset/v3-pipe-tiles.jsonl | FileCheck %s --check-prefix=HW
 
 // Host + recorder protocol for C||HtoD tiles sanity.
 // No device, no microseconds FileCheck, no Cost change.
@@ -60,3 +61,14 @@ module {
 // OLD: v3-pipe v3=not-claimed cost=unchanged pair=C||HtoD tiles=8
 // OLD: sat
 // OLD: v3=not-claimed
+
+// Qualitative 4090 surface only. Do not FileCheck microseconds.
+// HW: v3-pipe-tiles v3=not-claimed cost=unchanged pair=C||HtoD tiles=4,8,16,32
+// HW: sat
+// HW: slices=12
+// HW: mean_sat_d4/d2
+// HW: v3=not-claimed
+// HW: by-tiles tiles=4
+// HW: by-tiles tiles=32
+// HW-NOT: Cost v0.4
+// HW-NOT: password
