@@ -20,12 +20,16 @@ module {
 // CHECK: s2c2-cuda-adapter cuda-val-cc map sched.concurrent=named-nonblocking-streams
 // CHECK: s2c2-cuda-adapter cuda-val-cc cell same-kind=SiLU||SiLU
 // CHECK: s2c2-cuda-adapter cuda-val-cc cell mixed-kind=SiLU||GEMM
-// CHECK: s2c2-cuda-adapter cuda-val-cc cell extra-hb=mixed-kind-serial
+// CHECK: s2c2-cuda-adapter cuda-val-cc cell pair-relation=serial|parallel|mixed
+// CHECK: s2c2-cuda-adapter cuda-val-cc cell observed-constraint=none|resource_contention
+// CHECK: s2c2-cuda-adapter cuda-val-cc cell extra-hb=not-applicable
+// CHECK: s2c2-cuda-adapter cuda-val-cc note no-overlap-not-hb
 // CHECK: s2c2-cuda-adapter cuda-val-cc pair=C_light||C_heavy
 // CHECK: s2c2-cuda-adapter cuda-val-cc acceptance=compute-resource
 // CHECK: s2c2-cuda-adapter cuda-val-cc cost=unchanged
 // CHECK: s2c2-cuda-adapter cuda-val-cc semantics=unchanged
 // CHECK: s2c2-cuda-adapter v3=not-claimed
+// CHECK-NOT: mixed-kind-serial
 // CHECK-NOT: cuda-val-mem=v2
 // CHECK-NOT: cuda-val=v1
 // CHECK-NOT: password
@@ -51,33 +55,43 @@ module {
 // SCHEMA: pair C_light||C_heavy
 // SCHEMA: dim 1024
 // SCHEMA: acceptance compute-resource
-// SCHEMA: extra-hb none|mixed-kind-serial
+// SCHEMA: pair-relation parallel|serial|mixed
+// SCHEMA: observed-constraint none|resource_contention
+// SCHEMA: extra-hb not-applicable
+// SCHEMA: no-overlap-not-hb
 // SCHEMA: semantics unchanged
 // SCHEMA: v3=not-claimed
 // SCHEMA: cost=unchanged
 
 // AN: v3-cuda-val-cc p0 pair=C_light||C_heavy acceptance=compute-resource
-// AN: extra_hb
-// AN: mixed-kind-serial
+// AN: pair_relation
+// AN: observed_constraint
+// AN: resource_contention
 // AN: kind-specific
 // AN: control
-// AN: mixed-kind-serial=1
+// AN: resource-contention=1
 // AN: kind-specific=2
 // AN: still-serial=1
 // AN: unexpected-same-kind=0
+// AN: no-overlap-not-hb
 // AN: semantics=unchanged
 // AN: v3=not-claimed
+// AN-NOT: mixed-kind-serial
+// AN-NOT: extra_hb
 // AN-NOT: Cost v0.4
 // AN-NOT: password
 
 // Qualitative 4090 surface only. Do not FileCheck microseconds.
 // HW: v3-cuda-val-cc p0 pair=C_light||C_heavy acceptance=compute-resource
-// HW: mixed-kind-serial
+// HW: resource_contention
 // HW: still-serial
-// HW: mixed-kind-serial=3
+// HW: resource-contention=3
 // HW: kind-specific=0
 // HW: unexpected-same-kind=0
+// HW: no-overlap-not-hb
 // HW: semantics=unchanged
 // HW: v3=not-claimed
+// HW-NOT: mixed-kind-serial
+// HW-NOT: extra_hb
 // HW-NOT: Cost v0.4
 // HW-NOT: password

@@ -172,7 +172,8 @@ VAL_CC_FIELDS = (
     "ss_over_max",
     "ss_over_sum",
     "same_verdict",
-    "extra_hb",
+    "pair_relation",
+    "observed_constraint",
 )
 PIPE_FIELDS = (
     "N",
@@ -955,7 +956,10 @@ def print_cuda_val_cc_schema() -> int:
     print("dim 1024")
     print("stream named-nonblocking")
     print("acceptance compute-resource")
-    print("extra-hb none|mixed-kind-serial")
+    print("pair-relation parallel|serial|mixed")
+    print("observed-constraint none|resource_contention")
+    print("extra-hb not-applicable")
+    print("no-overlap-not-hb")
     print("score3 not-applicable")
     print("semantics unchanged")
     print("v3=not-claimed")
@@ -1091,7 +1095,10 @@ def cuda_val_cc_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         ssum = _safe_div(ss, 2.0 * silu)
         mixed = _verdict(pmax, psum)
         same = _verdict(smax, ssum)
-        extra_hb = "mixed-kind-serial" if mixed == "serial" else "none"
+        # pair_relation is Capability. observed_constraint is not extra HB:
+        # T_ovl ≈ T_seq on named streams is resource contention, not
+        # HB_CUDA ⊃ HB_S^2C^2 (#60 reserved extra_hb=legacy-default).
+        constraint = "resource_contention" if mixed == "serial" else "none"
         out.append(
             {
                 "N": n,
@@ -1109,7 +1116,8 @@ def cuda_val_cc_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "ss_over_max": smax,
                 "ss_over_sum": ssum,
                 "same_verdict": same,
-                "extra_hb": extra_hb,
+                "pair_relation": mixed,
+                "observed_constraint": constraint,
             }
         )
     return out
@@ -1128,7 +1136,8 @@ def analyze_cuda_val_cc(jsonl: Path, out: Path | None = None) -> int:
     )
     print(
         "slice\tN\tk\tdim\tr\tsilu\tmatmul\tseq\tovl\tsilu_silu\t"
-        "ovl/max\tovl/sum\tmixed\tss/max\tss/sum\tsame\textra_hb"
+        "ovl/max\tovl/sum\tmixed\tss/max\tss/sum\tsame\t"
+        "pair_relation\tobserved_constraint"
     )
     serial_hits = 0
     kind_specific = 0
@@ -1142,14 +1151,16 @@ def analyze_cuda_val_cc(jsonl: Path, out: Path | None = None) -> int:
             f"{s['T_silu_silu_us']:.1f}\t{s['ovl_over_max']:.3f}\t"
             f"{s['ovl_over_sum']:.3f}\t{s['mixed_verdict']}\t"
             f"{s['ss_over_max']:.3f}\t{s['ss_over_sum']:.3f}\t"
-            f"{s['same_verdict']}\t{s['extra_hb']}"
+            f"{s['same_verdict']}\t{s['pair_relation']}\t"
+            f"{s['observed_constraint']}"
         )
         print(
             f"control\tN={s['N']}\tsame-kind={s['same_verdict']}"
         )
         print(
             f"mixed\tN={s['N']}\tsilu||matmul={s['mixed_verdict']}\t"
-            f"extra-hb={s['extra_hb']}"
+            f"pair-relation={s['pair_relation']}\t"
+            f"observed-constraint={s['observed_constraint']}"
         )
         if s["same_verdict"] == "parallel":
             unexpected += 1
@@ -1167,14 +1178,15 @@ def analyze_cuda_val_cc(jsonl: Path, out: Path | None = None) -> int:
             serial_hits += 1
             print(
                 f"still-serial\tN={s['N']}\tsame=serial\tmixed=serial\t"
-                "extra-hb=mixed-kind-serial"
+                "observed-constraint=resource_contention"
             )
         elif s["mixed_verdict"] == "serial":
             serial_hits += 1
     print(
-        f"summary slices={len(slices)} mixed-kind-serial={serial_hits} "
+        f"summary slices={len(slices)} resource-contention={serial_hits} "
         f"kind-specific={kind_specific} still-serial={still_serial} "
         f"unexpected-same-kind={unexpected} "
+        "no-overlap-not-hb "
         "semantics=unchanged v3=not-claimed cost=unchanged"
     )
     if out:
@@ -1200,7 +1212,8 @@ def analyze_cuda_val_cc(jsonl: Path, out: Path | None = None) -> int:
                         "ss_over_max": f"{s['ss_over_max']:.3f}",
                         "ss_over_sum": f"{s['ss_over_sum']:.3f}",
                         "same_verdict": s["same_verdict"],
-                        "extra_hb": s["extra_hb"],
+                        "pair_relation": s["pair_relation"],
+                        "observed_constraint": s["observed_constraint"],
                     }
                 )
         print(

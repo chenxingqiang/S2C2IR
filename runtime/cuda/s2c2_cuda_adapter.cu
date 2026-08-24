@@ -1610,11 +1610,11 @@ static const char *valCcFunc(ValCcKind kind) {
   return "val-cc-off";
 }
 
-static const char *valCcExtraHb(ValCcKind kind) {
+static const char *valCcObservedConstraint(ValCcKind kind) {
+  // Candidate label only. Analyzer decides from T_ovl vs T_seq.
+  // resource_contention is not extra HB (#60 reserved extra_hb).
   if (kind == ValCcKind::Ovl)
-    return "mixed-kind-serial";
-  if (kind == ValCcKind::SiluSilu)
-    return "same-kind";
+    return "resource_contention";
   return "none";
 }
 
@@ -1712,9 +1712,10 @@ static void printValCc(ValCcKind kind, const char *dev, int n, int k, int m,
   std::fprintf(stderr,
                "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
                "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f "
-               "correct=1 extra_hb=%s m=%d dim=%d\n",
+               "correct=1 observed_constraint=%s extra_hb=not-applicable "
+               "m=%d dim=%d\n",
                valCcFunc(kind), kSched, kMap, dev, n, k, us,
-               valCcExtraHb(kind), m, kValCcDim);
+               valCcObservedConstraint(kind), m, kValCcDim);
 }
 
 static double timeValCcArm(ValCcBuf &b, ValCcKind kind, int warmup, int reps,

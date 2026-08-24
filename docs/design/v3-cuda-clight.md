@@ -42,7 +42,9 @@ Two different questions, kept separate:
 
 ```text
 1. Same-kind control:   SiLU || SiLU     (replay #55 at this k)
-2. Mixed-kind probe:    SiLU || GEMM     (matched duration, r ~ 1)
+2. Mixed-kind probe:    SiLU || GEMM     (duration approximately
+                                          balanced / outside the
+                                          #61 unbalance gray zone)
 ```
 
 `#55` `C∥C = serial` would be **kind-specific** if (1)
@@ -59,8 +61,9 @@ Streams stay **named nonblocking**. N in {4M, 16M, 64M}.
 GEMM dimension is **1024** (the existing `--cap` tiled
 stand-in; `N` is the SiLU vector length, not the matrix
 dim). `k` (SiLU repeats) and `m` (GEMM repeats) are chosen
-so `T_silu ~ T_matmul` (`r ~ 1`), avoiding the `#61`
-r-unbalance gray zone:
+so `T_silu` and `T_matmul` are approximately balanced
+(outside the `#61` r-unbalance gray zone). `r = 1` is the
+target, not a lock:
 
 ```text
 if T_silu_unit <= T_gemm_unit:
@@ -91,11 +94,31 @@ microseconds.
 `--cuda-val-mem` / `--matched` / `--phase` / `--cap` /
 `--pipe`. V1/V2 timed bodies stay untouched.
 
-`extra_hb = mixed-kind-serial` is a **realization
-classification** from observed *serial* extra time on the
-mixed-kind pair, not a reconstructed CUDA HB graph.
-Same-kind serial is the `#55` control and is **not**
-extra-HB.
+Three layers stay distinct:
+
+```text
+Semantic              !=  Capability
+Capability            !=  Realization constraint
+No observed overlap   !=  Extra HB
+```
+
+The mixed-kind probe reports:
+
+```text
+pair_relation          =  serial | parallel | mixed
+observed_constraint    =  none | resource_contention
+extra_hb               =  not-applicable
+```
+
+`T_ovl ≈ T_seq` on **named nonblocking** streams is
+Capability serial from resource contention (SM / occupancy
+/ scheduler), not `HB_CUDA ⊃ HB_S^2C^2`. `#60` reserved
+`extra_hb = legacy-default` for the default-stream
+realization that *does* add extra HB. This increment does
+not reuse that ontology.
+
+Same-kind serial is the `#55` control. It is a pair
+relation, not extra-HB.
 
 What would count as kind-specific overlap:
 
@@ -112,62 +135,82 @@ SiLU || GEMM   ->  serial     (ovl/sum >= 0.90)
 ```
 
 Do not treat a `#55` mixed gray zone (`ovl/max <= 1.15`
-and `ovl/sum` in (0.75, 0.90)) as extra-HB.
+and `ovl/sum` in (0.75, 0.90)) as resource contention.
 
 ---
 
 ## 3. 4090 result (15 points -> 3 slices)
 
 All arms `correct=1`. Named nonblocking streams. GEMM
-`dim=1024`. `k`/`m` calibrated toward `r ~ 1` (4M: k=16
-m=1; 16M: k=3 m=1; 64M: k=1 m=2). Same-kind SiLU||SiLU
-stays serial/mixed (confirms `#55` on this arm; 16M is
-again degraded). Mixed-kind SiLU||GEMM is **serial** at
-all 3 N: `T_ovl ≈ T_seq`, `ovl/sum ≥ 0.90`, `ovl/max > 1.15`.
-That is not the `#61` r-unbalance gray zone.
+`dim=1024`. `k`/`m` calibrated to be approximately
+balanced / gray-zone-excluded (4M: k=16 m=1 r=0.547;
+16M: k=3 m=1 r=0.751; 64M: k=1 m=2 r=0.785). Same-kind
+SiLU||SiLU stays serial/mixed (confirms `#55` on this arm;
+16M is again degraded). Mixed-kind SiLU||GEMM is
+**serial** at all 3 N: `T_ovl ≈ T_seq`, `ovl/sum ≥ 0.90`,
+`ovl/max > 1.15`. That is not the `#61` r-unbalance gray
+zone.
 
-| N | k | m | r | silu | gemm | seq | ovl | silu||silu | ovl/max | ovl/sum | mixed | same | extra_hb |
-| - | - | - | - | ---- | ---- | --- | --- | ---------- | ------- | ------- | ----- | ---- | -------- |
-| 4M | 16 | 1 | 0.547 | 189 | 346 | 522 | 506 | 332 | 1.465 | 0.947 | serial | mixed | mixed-kind-serial |
-| 16M | 3 | 1 | 0.751 | 263 | 350 | 580 | 630 | 824 | 1.799 | 1.027 | serial | serial | mixed-kind-serial |
-| 64M | 1 | 2 | 0.785 | 539 | 686 | 1212 | 1212 | 1119 | 1.766 | 0.989 | serial | serial | mixed-kind-serial |
+| N | k | m | r | silu | gemm | seq | ovl | silu||silu | ovl/max | ovl/sum | pair_relation | same | observed_constraint |
+| - | - | - | - | ---- | ---- | --- | --- | ---------- | ------- | ------- | ------------- | ---- | ------------------- |
+| 4M | 16 | 1 | 0.547 | 189 | 346 | 522 | 506 | 332 | 1.465 | 0.947 | serial | mixed | resource_contention |
+| 16M | 3 | 1 | 0.751 | 263 | 350 | 580 | 630 | 824 | 1.799 | 1.027 | serial | serial | resource_contention |
+| 64M | 1 | 2 | 0.785 | 539 | 686 | 1212 | 1212 | 1119 | 1.766 | 0.989 | serial | serial | resource_contention |
 
 ```text
 kind-specific overlap     :  0
 still-serial              :  2     (16M + 64M)
-mixed-kind-serial         :  3
+resource_contention       :  3
 unexpected-same-kind      :  0
-extra_hb                  :  mixed-kind-serial (all 3 N)
+extra_hb                  :  not-applicable
 ```
 
 4M same-kind is `#55` mixed (`ss/max=1.758`, `ss/sum=0.879`):
-not parallel, not a serial-flip extra-HB of its own.
+not parallel, not extra-HB.
 16M same-kind is degraded serial (`ss/sum=1.565`), same
 shape as `#55` C||C at 16M.
 
 ```text
 SiLU || SiLU     serial/mixed   (this arm, this k)
 SiLU || GEMM     serial         (T_ovl ~ T_seq)
-C || C           stays serial across these two kinds
-                 under this tested regime
+pair_relation    serial         under this tested regime
+observed_constraint = resource_contention
+extra_hb            = not-applicable
 ```
 
-So `#55` `C∥C = serial` is **not** only "two identical
-SiLUs". On this SiLU / 1024-tiled-GEMM pair, named
-nonblocking streams, tested N, the mixed pair also
-serialized. Do not upgrade that to "4090 cannot overlap
+Approved scoped claim, if this increment is accepted:
+
+```text
+Capability(C_SiLU, C_GEMM)  =  serial
+    under the tested 4090 regime
+```
+
+Not:
+
+```text
+HB_CUDA  ⊃  HB_S^2C^2
+```
+
+`#60` vs this increment:
+
+```text
+#60  C||HtoD  default stream :  pair_relation=serial
+                                observed_constraint=legacy_default
+                                extra_hb=legacy-default
+
+#63  SiLU||GEMM  named      :  pair_relation=serial
+                                observed_constraint=resource_contention
+                                extra_hb=not-applicable
+```
+
+Same pair_relation, different compiler problem.
+Do not upgrade resource contention to "4090 cannot overlap
 any compute": this GEMM is a small tiled stand-in
 (~12 MB), not a Tensor-Core occupancy study.
 
-`extra_hb = mixed-kind-serial` is a **realization
-classification** from observed extra time, not a
-reconstructed CUDA HB graph. Phrase as:
-
-> observed extra serialization on SiLU || 1024-GEMM
-> consistent with compute-resource contention on this arm
-
-Records: [`v3-dataset/v3-cuda-clight.jsonl`](v3-dataset/v3-cuda-clight.jsonl).
-Derived: [`v3-dataset/v3-cuda-clight-slices.csv`](v3-dataset/v3-cuda-clight-slices.csv).
+Records: [`v3-dataset/v3-cuda-clight.jsonl`](v3-dataset/v3-cuda-clight.jsonl)
+(15/15 probe points unchanged). Derived:
+[`v3-dataset/v3-cuda-clight-slices.csv`](v3-dataset/v3-cuda-clight-slices.csv).
 
 Do not FileCheck microseconds. Do not promote this to a
 Cost axiom or a Schedule rewrite.
@@ -204,6 +247,7 @@ untouched.
 ```text
 C_light || C_heavy   !=  Cost v0.4
 C || C               !=  one device law
+No observed overlap  !=  Extra HB
 Semantics            =  unchanged
 V3                   !=  claimed
 ```

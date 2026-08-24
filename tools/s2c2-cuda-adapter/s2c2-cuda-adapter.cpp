@@ -165,7 +165,15 @@ static void printCudaValCc() {
   std::fprintf(stderr,
                "s2c2-cuda-adapter cuda-val-cc cell mixed-kind=SiLU||GEMM\n");
   std::fprintf(stderr,
-               "s2c2-cuda-adapter cuda-val-cc cell extra-hb=mixed-kind-serial\n");
+               "s2c2-cuda-adapter cuda-val-cc cell "
+               "pair-relation=serial|parallel|mixed\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc cell "
+               "observed-constraint=none|resource_contention\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc cell extra-hb=not-applicable\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc note no-overlap-not-hb\n");
   std::fprintf(stderr,
                "s2c2-cuda-adapter cuda-val-cc pair=C_light||C_heavy\n");
   std::fprintf(stderr,
