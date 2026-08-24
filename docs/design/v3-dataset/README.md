@@ -56,6 +56,6 @@ Synthetic NPU demo cells (`v3-cap-schema-npu-demo.jsonl`)
 are **not measured**. Not Cost v0.4.
 
 Ascend 910B uses the **same** Capability Schema v1. Measured
-catalogs land under `docs/design/v3-dataset/ascend910b/` in
-PR-R2. This increment does not invent 910B pair_relation cells.
+catalog: `docs/design/v3-dataset/ascend910b/` (PR-R2). Topology
+only; do not FileCheck microseconds.
 
