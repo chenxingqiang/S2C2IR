@@ -55,3 +55,7 @@ Hardware-neutral Capability Schema v1 catalog
 Synthetic NPU demo cells (`v3-cap-schema-npu-demo.jsonl`)
 are **not measured**. Not Cost v0.4.
 
+ROCm uses the **same** Capability Schema v1. Measured AMD
+catalogs land under `docs/design/v3-dataset/rocm/` in PR-R2.
+This increment does not invent ROCm pair_relation cells.
+

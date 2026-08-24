@@ -612,3 +612,21 @@ Same IR + different CapabilityProfile → different legal schedule.
 | CQ3 | same | npu-demo inferred keeps all concurrent |
 | CQ4 | `test/Integration/capability-schedule-stream.mlir` | gated-MLP / SSD stream e2e; JSONL profile load |
 
+## ROCm Capability Adapter (Phase 3B / PR-R1)
+
+**Not Cost v0.4.** Design:
+[`backend-adapter-rocm.md`](backend-adapter-rocm.md). HIP
+measurement entry for three pairs only. Same Capability Schema
+v1; no `hip_*` keys; no scheduler change. No FileCheck of
+microseconds. `Workload_semantic ≠ Kernel_backend`.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| RA1 | `test/Pilot/s2c2-rocm-adapter-protocol.mlir` | `--dry-run` lists R1–R3 + workload contract; `T_pair=completion(s0,s1)` |
+| RA2 | same | classifier protocol; `correctness=1`; no SiLU/GEMM workload names |
+| RA3 | same | `--emit-record` is schema v1; `confidence=unknown` |
+| RA4 | same | foreign 4090 `hardware_id` rejected as an AMD record |
+| RS1 | `test/Pilot/s2c2-rocm-cap-schema.mlir` | `--cap-schema` fields match CUDA v1 |
+| RS2 | same | extra `hip_*` key rejected |
+| RS3 | same | `--check-schema-identity` against `v3-capability-schema.v1.json` |
+
