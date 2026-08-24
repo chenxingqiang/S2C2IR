@@ -43,3 +43,8 @@ C_light ∥ C_heavy records (`v3-cuda-clight.jsonl`) reuse
 the same columns after the 4090 sweep. Derived:
 `v3-cuda-clight-slices.csv`. Does not change V1/V2 timed
 bodies. Not Cost v0.4.
+
+CUDA Validation V2 P1 async-alloc records
+(`v3-cuda-async.jsonl`) reuse the same columns after the
+4090 sweep. Derived: `v3-cuda-async-slices.csv`. Does not
+change V1 / V2 mem / C_light timed bodies. Not Cost v0.4.

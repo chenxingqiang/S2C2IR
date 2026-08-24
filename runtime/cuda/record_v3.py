@@ -175,6 +175,27 @@ VAL_CC_FIELDS = (
     "pair_relation",
     "observed_constraint",
 )
+VAL_ASYNC_ARMS = (
+    "val-async-copy",
+    "val-async-compute",
+    "val-async-life-sync",
+    "val-async-life-async",
+    "val-async-hb",
+)
+VAL_ASYNC_FUNCS = set(VAL_ASYNC_ARMS)
+VAL_ASYNC_FIELDS = (
+    "N",
+    "k",
+    "r",
+    "T_copy_us",
+    "T_compute_us",
+    "T_life_sync_us",
+    "T_life_async_us",
+    "T_hb_us",
+    "sync_over_async",
+    "hb_over_async",
+    "extra_hb",
+)
 PIPE_FIELDS = (
     "N",
     "k",
@@ -1219,6 +1240,212 @@ def analyze_cuda_val_cc(jsonl: Path, out: Path | None = None) -> int:
         print(
             f"record_v3 wrote {out} count={len(slices)} "
             "cuda-val-cc v3=not-claimed"
+        )
+    return 0
+
+
+def print_cuda_val_async_schema() -> int:
+    print("cuda-val-async v2p1")
+    print("chain materialize->write->event->wait->read->release")
+    print("alloc cudaMalloc cudaMallocAsync")
+    print("wait cudaStreamWaitEvent")
+    print("extra-hb none|sync-alloc")
+    print("score3 not-applicable")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def parse_val_async_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in VAL_ASYNC_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": int(m.group("k")),
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
+def _collect_val_async_rows(
+    text: str, gpu: dict[str, str], warmup: int, reps: int, commit: str
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parsed = parse_val_async_line(line)
+        if not parsed:
+            continue
+        rec = base_record(commit, gpu, warmup, reps)
+        rec["case"] = parsed["case"]
+        rec["N"] = parsed["N"]
+        rec["k"] = parsed["k"]
+        rec["provisioned"] = parsed["provisioned"]
+        rec["score3"] = parsed["score3"]
+        rec["latency_us"] = parsed["latency_us"]
+        rows.append({key: rec[key] for key in FIELDS})
+    return rows
+
+
+def cuda_val_async_sweep(bin_path: str, out_prefix: Path, warmup: int,
+                         reps: int, commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    try:
+        for n in NS:
+            print(f"=== cuda-val-async calibrate n={n} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-async=copy", f"--n={n}", "--k=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            copy_rows = _collect_val_async_rows(text, gpu, warmup, reps, commit)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-async=compute", f"--n={n}", "--k=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            unit_rows = _collect_val_async_rows(text, gpu, warmup, reps, commit)
+            if len(copy_rows) != 1 or len(unit_rows) != 1:
+                print("record_v3: cuda-val-async calibrate expected 2 rows",
+                      file=sys.stderr)
+                return 4
+            k = choose_phase_k(
+                1.0,
+                float(copy_rows[0]["latency_us"]),
+                float(unit_rows[0]["latency_us"]),
+            )
+            print(f"=== cuda-val-async p0 n={n} k={k} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-async=p0", f"--n={n}", f"--k={k}"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            got = _collect_val_async_rows(text, gpu, warmup, reps, commit)
+            if {r["case"] for r in got} != set(VAL_ASYNC_ARMS):
+                print(
+                    f"record_v3: expected 5 val-async arms, got "
+                    f"{[r['case'] for r in got]}",
+                    file=sys.stderr,
+                )
+                return 4
+            rows.extend(got)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"record_v3: cuda-val-async run failed: {exc}", file=sys.stderr)
+        return 2
+    write_outputs(rows, out_prefix)
+    print(
+        f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+        f"count={len(rows)} cuda-val-async v3=not-claimed"
+    )
+    return 0
+
+
+def cuda_val_async_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in NS:
+        by_case = {r["case"]: r for r in rows if int(r["N"]) == n}
+        need = list(VAL_ASYNC_ARMS)
+        if any(key not in by_case for key in need):
+            continue
+        copy = float(by_case["val-async-copy"]["latency_us"])
+        compute = float(by_case["val-async-compute"]["latency_us"])
+        life_sync = float(by_case["val-async-life-sync"]["latency_us"])
+        life_async = float(by_case["val-async-life-async"]["latency_us"])
+        hb = float(by_case["val-async-hb"]["latency_us"])
+        sync_over = _safe_div(life_sync, life_async)
+        hb_over = _safe_div(hb, life_async)
+        extra = "sync-alloc" if sync_over >= 1.15 else "none"
+        out.append(
+            {
+                "N": n,
+                "k": int(by_case["val-async-hb"]["k"]),
+                "r": _safe_div(compute, copy),
+                "T_copy_us": copy,
+                "T_compute_us": compute,
+                "T_life_sync_us": life_sync,
+                "T_life_async_us": life_async,
+                "T_hb_us": hb,
+                "sync_over_async": sync_over,
+                "hb_over_async": hb_over,
+                "extra_hb": extra,
+            }
+        )
+    return out
+
+
+def analyze_cuda_val_async(jsonl: Path, out: Path | None = None) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    slices = cuda_val_async_slices(rows)
+    print(
+        "v3-cuda-val-async v2p1 chain=materialize-write-event-wait-read-release "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    print(
+        "slice\tN\tk\tr\tcopy\tcompute\tlife_sync\tlife_async\thb\t"
+        "sync/async\thb/async\textra_hb"
+    )
+    hits = 0
+    for s in slices:
+        print(
+            f"slice\t{s['N']}\t{s['k']}\t{s['r']:.3f}\t"
+            f"{s['T_copy_us']:.1f}\t{s['T_compute_us']:.1f}\t"
+            f"{s['T_life_sync_us']:.1f}\t{s['T_life_async_us']:.1f}\t"
+            f"{s['T_hb_us']:.1f}\t{s['sync_over_async']:.3f}\t"
+            f"{s['hb_over_async']:.3f}\t{s['extra_hb']}"
+        )
+        if s["extra_hb"] == "sync-alloc":
+            hits += 1
+            print(
+                f"counterexample\tN={s['N']}\t"
+                f"sync/async={s['sync_over_async']:.3f}\t"
+                "extra-hb=sync-alloc"
+            )
+    print(
+        f"summary slices={len(slices)} counterexamples={hits} "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=VAL_ASYNC_FIELDS)
+            w.writeheader()
+            for s in slices:
+                w.writerow(
+                    {
+                        "N": s["N"],
+                        "k": s["k"],
+                        "r": f"{s['r']:.3f}",
+                        "T_copy_us": f"{s['T_copy_us']:.1f}",
+                        "T_compute_us": f"{s['T_compute_us']:.1f}",
+                        "T_life_sync_us": f"{s['T_life_sync_us']:.1f}",
+                        "T_life_async_us": f"{s['T_life_async_us']:.1f}",
+                        "T_hb_us": f"{s['T_hb_us']:.1f}",
+                        "sync_over_async": f"{s['sync_over_async']:.3f}",
+                        "hb_over_async": f"{s['hb_over_async']:.3f}",
+                        "extra_hb": s["extra_hb"],
+                    }
+                )
+        print(
+            f"record_v3 wrote {out} count={len(slices)} "
+            "cuda-val-async v3=not-claimed"
         )
     return 0
 
@@ -2626,9 +2853,11 @@ def main() -> int:
     p.add_argument("--print-cuda-val-schema", action="store_true")
     p.add_argument("--print-cuda-val-mem-schema", action="store_true")
     p.add_argument("--print-cuda-val-cc-schema", action="store_true")
+    p.add_argument("--print-cuda-val-async-schema", action="store_true")
     p.add_argument("--cuda-val-sweep", metavar="BIN")
     p.add_argument("--cuda-val-mem-sweep", metavar="BIN")
     p.add_argument("--cuda-val-cc-sweep", metavar="BIN")
+    p.add_argument("--cuda-val-async-sweep", metavar="BIN")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
@@ -2646,6 +2875,7 @@ def main() -> int:
     p.add_argument("--analyze-cuda-val", type=Path)
     p.add_argument("--analyze-cuda-val-mem", type=Path)
     p.add_argument("--analyze-cuda-val-cc", type=Path)
+    p.add_argument("--analyze-cuda-val-async", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
@@ -2674,6 +2904,8 @@ def main() -> int:
         return print_cuda_val_mem_schema()
     if args.print_cuda_val_cc_schema:
         return print_cuda_val_cc_schema()
+    if args.print_cuda_val_async_schema:
+        return print_cuda_val_async_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
@@ -2696,6 +2928,8 @@ def main() -> int:
         return analyze_cuda_val_mem(args.analyze_cuda_val_mem, args.out)
     if args.analyze_cuda_val_cc:
         return analyze_cuda_val_cc(args.analyze_cuda_val_cc, args.out)
+    if args.analyze_cuda_val_async:
+        return analyze_cuda_val_async(args.analyze_cuda_val_async, args.out)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -2767,17 +3001,26 @@ def main() -> int:
             args.cuda_val_cc_sweep, args.out, args.warmup, args.reps,
             git_commit(args.git_commit)
         )
+    if args.cuda_val_async_sweep:
+        if not args.out:
+            print("record_v3: --out required with --cuda-val-async-sweep",
+                  file=sys.stderr)
+            return 1
+        return cuda_val_async_sweep(
+            args.cuda_val_async_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
           "--print-cap-schema, --print-phase-schema, --print-pipe-schema, "
           "--print-pipe-tiles-schema, --print-cuda-val-schema, "
-          "--print-cuda-val-mem-schema, --print-cuda-val-cc-schema, --sweep, "
+          "--print-cuda-val-mem-schema, --print-cuda-val-cc-schema, --print-cuda-val-async-schema, --sweep, "
           "--matched-sweep, --cap-sweep, --phase-sweep, --pipe-sweep, "
           "--pipe-tiles-sweep, --cuda-val-sweep, --cuda-val-mem-sweep, "
-          "--cuda-val-cc-sweep, --analyze, "
+          "--cuda-val-cc-sweep, --cuda-val-async-sweep, --analyze, "
           "--analyze-matched, --analyze-cap, --analyze-phase, --analyze-pipe, "
           "--analyze-pipe-tiles, --analyze-cuda-val, --analyze-cuda-val-mem, "
-          "--analyze-cuda-val-cc, --calibrate, "
+          "--analyze-cuda-val-cc, --analyze-cuda-val-async, --calibrate, "
           "or --analyze-ratio",
           file=sys.stderr)
     return 1

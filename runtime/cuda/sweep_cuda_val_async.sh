@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# CUDA Validation V2 P1 sweep: async alloc + cross-stream wait.
+# Does not change Cost, A/B/C, V1 --cuda-val, or V2 --cuda-val-mem bodies.
+# Correctness is gated in the adapter. Do not FileCheck microseconds.
+# Do not store host/password.
+set -euo pipefail
+HERE=$(cd "$(dirname "$0")" && pwd)
+BIN=${1:-./s2c2-cuda-run}
+OUT=${2:-./v3-cuda-async}
+CMD=(python3 "$HERE/record_v3.py" --cuda-val-async-sweep "$BIN" --out "$OUT")
+if [[ -n "${S2C2_GIT_COMMIT:-}" ]]; then
+  CMD+=(--git-commit "$S2C2_GIT_COMMIT")
+fi
+"${CMD[@]}"
+python3 "$HERE/record_v3.py" --analyze-cuda-val-async "${OUT}.jsonl" \
+  --out "${OUT}-slices.csv"
