@@ -45,6 +45,34 @@ Capability(4090)  ≠  Capability(910B)
 Hardware Agnostic ≠  Hardware Universal
 ```
 
+Phase 3B-now is 4090 + 910B. ROCm `#67` is Phase 3B-later
+(third vendor). Cost v0.4 stays closed.
+
+```text
+Same S²C² IR
++ Same Schema
++ Same Applicability
++ Same Scheduler
++ Capability_4090 ≠ Capability_910B
+→ Schedule_4090 ≠ Schedule_910B     # PR-R3, if measured cells differ
+```
+
+The second vendor's value is **not** that `C||C` must come out
+parallel. It is that the **same** Capability Schema can describe
+a real NPU. If 910B `C||C` is also serial, that is still a
+measured cell. If it is parallel, PR-R3 becomes the
+cross-vendor schedule witness:
+
+```text
+Same IR:  sched.concurrent { elemwise, elemwise }
+
+4090 profile:  C||C = serial  →  serialize (parent IR order)
+910B profile:  C||C = parallel →  keep concurrent
+both:          --check-s2c2-execution ok
+```
+
+Do not invent that 910B verdict in this PR.
+
 ---
 
 ## 2. First-cut pairs (only these)
@@ -108,12 +136,21 @@ comm.stream HtoD  ≠  aclrtMemcpyAsync     # map, not identity
 
 Same type as `docs/design/v3-capability-schema.v1.json`.
 
-Allowed **values** (not keys):
+Allowed **values** (not keys). Frozen Schema v1 splits transfer
+**domain** from transfer **direction**; `host_to_device` is not a
+`transfer_domain` key or value here:
 
 ```text
 hardware_id       ascend910b:ascend   (or unfilled on the host)
 compute_domain    ascend_ai_core | none
 transfer_domain   copy_engine | none
+direction         host_to_device | device_to_host | none
+```
+
+```text
+transfer_domain  ≠  direction
+host_to_device   ⊂  direction / pair name
+copy_engine      ⊂  transfer_domain values
 ```
 
 Forbidden:
@@ -151,8 +188,16 @@ hardware_id contains 4090 / sm89 / cuda / gfx / amd / hip  →  reject
 | `comp.elemwise` | unary device op on a stream |
 | Concurrent siblings | two `aclrtCreateStream`; no wait between them |
 
+`aclrtRecordEvent` captures work **already submitted** on that
+stream. `aclrtStreamWaitEvent` is the SW edge. That is the frozen
+Event + SW map. Concurrent pair timing does **not** insert a wait
+between s0 and s1 (that would measure a serialized schedule, not
+the pair).
+
 ```text
 HB_source ⊆ HB_impl
+Event + SW  →  RecordEvent + StreamWaitEvent
+aclgraph / GE / MindSpore / torch_npu  ≠  this increment
 ```
 
 Named streams are the default synchronization context
@@ -210,6 +255,20 @@ absolute performance vs 4090
 A compile smoke on a 910B (`correctness=1`) is **not** a
 catalog. Tiny-N `pair_relation` is not committed and is not
 FileChecked. Measured cells belong in PR-R2.
+
+### Later increments (not this PR)
+
+| ID | Work | Gate |
+| -- | ---- | ---- |
+| PR-R2 | `docs/design/v3-dataset/ascend910b/` measured cells | real sweep, not tiny-N |
+| R4 | pinned vs pageable host residency | after R1; may share a PR with R2 or follow it |
+| PR-R3 | same IR, two profiles, different legal schedule | only if measured cells differ |
+
+R4 is Storage Residency → Communication Capability, not a copy
+benchmark. CANN: page-locked host `aclrtMemcpyAsync` may return
+before the copy completes; non-page-locked host
+`aclrtMemcpyAsync` waits until the copy completes. First-cut
+pairs in this PR use `aclrtMallocHost` (pinned) only.
 
 ---
 

@@ -14,6 +14,9 @@ module {
 
 // CHECK: s2c2-ascend-adapter dry-run=1
 // CHECK: s2c2-ascend-adapter cap-schema=v1
+// CHECK: s2c2-ascend-adapter cap-schema transfer_domain=copy_engine
+// CHECK: s2c2-ascend-adapter cap-schema direction=host_to_device
+// CHECK: s2c2-ascend-adapter note transfer_domain-ne-direction
 // CHECK: s2c2-ascend-adapter cap-schema field=compute_domain
 // CHECK: s2c2-ascend-adapter cap-schema field=transfer_domain
 // CHECK: s2c2-ascend-adapter cap-schema field=direction

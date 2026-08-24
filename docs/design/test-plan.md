@@ -618,12 +618,14 @@ Same IR + different CapabilityProfile → different legal schedule.
 [`backend-adapter-ascend.md`](backend-adapter-ascend.md). AscendCL
 measurement entry for three pairs only. Same Capability Schema
 v1; no `acl_*` keys; no scheduler change. `T_pair=completion(s0,s1)`.
+`transfer_domain=copy_engine`; `direction` carries `host_to_device`.
+`sched.wait` = `aclrtRecordEvent` + `aclrtStreamWaitEvent`.
 No FileCheck of microseconds. `Workload_semantic ≠ Kernel_backend`.
-ROCm `#67` stays parked.
+ROCm `#67` stays parked. Pinned vs pageable (R4) is later.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
-| AA1 | `test/Pilot/s2c2-ascend-adapter-protocol.mlir` | `--dry-run` lists R1–R3 + workload contract; timing contract |
+| AA1 | `test/Pilot/s2c2-ascend-adapter-protocol.mlir` | `--dry-run` lists R1–R3 + workload contract; timing contract; Event+SW map |
 | AA2 | same | classifier protocol; `correctness=1`; no SiLU/GEMM workload names |
 | AA3 | same | `--emit-record` is schema v1; `confidence=unknown` |
 | AA4 | same | foreign 4090 `hardware_id` rejected as a 910B record |

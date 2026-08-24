@@ -25,7 +25,10 @@ static void printMaps() {
   std::fprintf(stderr,
                "s2c2-ascend-adapter map comm.stream=aclrtMemcpyAsync\n");
   std::fprintf(stderr,
-               "s2c2-ascend-adapter map sched.wait=aclrtStreamWaitEvent\n");
+               "s2c2-ascend-adapter map sched.wait="
+               "aclrtRecordEvent+aclrtStreamWaitEvent\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter map event=submitted-work-on-stream\n");
   std::fprintf(stderr,
                "s2c2-ascend-adapter map sched.concurrent=two_streams\n");
   std::fprintf(stderr,
@@ -70,6 +73,12 @@ static void printPairs() {
 
 static void printCapSchema() {
   std::fprintf(stderr, "s2c2-ascend-adapter cap-schema=v1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter cap-schema transfer_domain=copy_engine\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter cap-schema direction=host_to_device\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter note transfer_domain-ne-direction\n");
   for (int i = 0; i < kSchemaFieldCount; ++i)
     std::fprintf(stderr, "s2c2-ascend-adapter cap-schema field=%s\n",
                  kSchemaFields[i]);

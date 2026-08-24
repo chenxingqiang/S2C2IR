@@ -28,6 +28,8 @@ module {
 // CHECK: s2c2-ascend-adapter correctness=1
 // CHECK: s2c2-ascend-adapter map stor.pack=host_pinned
 // CHECK: s2c2-ascend-adapter map comm.stream=aclrtMemcpyAsync
+// CHECK: s2c2-ascend-adapter map sched.wait=aclrtRecordEvent+aclrtStreamWaitEvent
+// CHECK: s2c2-ascend-adapter map event=submitted-work-on-stream
 // CHECK: s2c2-ascend-adapter map sched.concurrent=two_streams
 // CHECK: s2c2-ascend-adapter note workload-semantic-ne-kernel-backend
 // CHECK: s2c2-ascend-adapter cost=unchanged
