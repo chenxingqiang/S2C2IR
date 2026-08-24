@@ -1,6 +1,6 @@
 # CUDA Validation — Same-Device D2D (Communication Domain)
 
-Status: **protocol frozen; 4090 pending**. Not Cost
+Status: **4090 evidence recorded**. Not Cost
 v0.4. Does **not** change Cost, HB axioms, `R`, Search,
 Transformation, Pilot IR, A/B/C bodies, `--matched` /
 `--phase` / `--cap` / `--pipe` bodies, V1 `--cuda-val=p0`,
@@ -146,23 +146,56 @@ not insert `cudaDeviceSynchronize` between sides.
 
 ---
 
-## 4. 4090 result
+## 4. 4090 result (21 points -> 3 slices)
 
-Pending remote sweep. Do not upgrade a rate ratio into a
-Cost communication model, and do not claim P2P from
-same-device D2D.
+All arms `correct=1`. `device_count=1`, `p2p_capable=0`.
+Protocol tree: `9521f85`. Named nonblocking. k calibrated
+per copy (`r ~ 1`).
+
+| N | k_htod | k_d2d | htod | d2d | htod/d2d | C\|\|HtoD | C\|\|D2D | D2D\|\|D2D | observed_constraint | extra_hb |
+| - | ------ | ----- | ---- | --- | -------- | --------- | -------- | ---------- | ------------------- | -------- |
+| 4M | 32 | 1 | 670 | 18 | 37.4 | parallel | mixed | serial | copy_engine_contention | not-applicable |
+| 16M | 49 | 2 | 2659 | 108 | 24.6 | parallel | serial | serial | copy_engine_contention | not-applicable |
+| 64M | 20 | 1 | 10611 | 547 | 19.4 | parallel | serial | serial | copy_engine_contention | not-applicable |
 
 ```text
-Communication Domain  Host<->Device  ->  Device<->Device (same GPU)
-P2P                   out of this increment
-Semantics             unchanged
-V3                    not claimed
-Cost v0.4             closed
+T_htod / T_d2d          =  37.4 / 24.6 / 19.4
+C || HtoD               =  parallel / parallel / parallel
+D2D || D2D              =  serial   / serial   / serial
+C || D2D                =  mixed    / serial   / serial
+r_d2d                   =  1.04 / 1.10 / 1.00   (not gray-zone)
+copy_engine_contention  =  3
+p2p                     =  out-of-increment
+extra_hb                =  not-applicable
 ```
 
-Records: [`v3-dataset/v3-cuda-d2d.jsonl`](v3-dataset/v3-cuda-d2d.jsonl)
-after the sweep. Derived:
-[`v3-dataset/v3-cuda-d2d-slices.csv`](v3-dataset/v3-cuda-d2d-slices.csv).
+Same-device D2D is a **faster** `comm.copy` realization
+than pinned HtoD on this box. That is a Communication
+**rate** fact, not a Cost axiom.
+
+`D2D || D2D` is serial on named streams: same-direction
+device copies do not overlap. That is
+`copy_engine_contention`, echoing `#55` `HtoD || HtoD`,
+not extra HB.
+
+`C || HtoD` stays parallel (control, matches `#55` /
+`#56` / `#60` named). `C || D2D` does **not** match that
+control at 16M/64M: with balanced `k_d2d` the pair is
+sum-like. Both sides are device-memory traffic. Do not
+call that extra HB, P2P, or "4090 cannot overlap
+compute". Do not mint a Cost D2D penalty from three
+points.
+
+```text
+comm.copy Host<->Device     can hide behind C   (this regime)
+comm.copy Device<->Device   same GPU, this arm  does not
+Legal SW                    !=  Extra HB
+copy_engine_contention      !=  extra_hb
+P2P                         !=  claimed
+```
+
+Records: [`v3-dataset/v3-cuda-d2d.jsonl`](v3-dataset/v3-cuda-d2d.jsonl).
+Derived: [`v3-dataset/v3-cuda-d2d-slices.csv`](v3-dataset/v3-cuda-d2d-slices.csv).
 
 ---
 

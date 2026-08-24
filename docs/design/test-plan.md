@@ -600,3 +600,4 @@ microseconds. Semantics unchanged.
 | CD2 | same async | `--dry-run --cuda-val-async` stays V2 P1 |
 | CD3 | same V1 | `--dry-run --cuda-val` stays V1 |
 | CD4 | same fixture | `--analyze-cuda-val-d2d` prints `copy_engine_contention`; extra-HB not-applicable |
+| CD5 | 4090 jsonl | qualitative `copy_engine_contention`; P2P out-of-increment; no microseconds; no extra-HB |

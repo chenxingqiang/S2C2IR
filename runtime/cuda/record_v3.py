@@ -1742,6 +1742,15 @@ def analyze_cuda_val_d2d(jsonl: Path, out: Path | None = None) -> int:
             f"{s['dd_verdict']}\t{s['pair_relation']}\t"
             f"{s['observed_constraint']}\t{s['extra_hb']}"
         )
+        print(
+            f"pair\tC||HtoD\tN={s['N']}\t{s['htod_verdict']}"
+        )
+        print(
+            f"pair\tC||D2D\tN={s['N']}\t{s['d2d_verdict']}"
+        )
+        print(
+            f"pair\tD2D||D2D\tN={s['N']}\t{s['dd_verdict']}"
+        )
         if s["observed_constraint"] == "copy_engine_contention":
             hits += 1
             print(

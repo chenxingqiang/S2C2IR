@@ -6,6 +6,7 @@
 // RUN: s2c2-cuda-adapter --dry-run 2>&1 | FileCheck %s --check-prefix=ABC
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --print-cuda-val-d2d-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val-d2d %S/cuda-val-d2d-fixture.jsonl | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val-d2d %S/../../docs/design/v3-dataset/v3-cuda-d2d.jsonl | FileCheck %s --check-prefix=HW
 
 // Host + recorder protocol for same-device D2D Communication Domain.
 // No device, no microseconds FileCheck, no Cost change. P2P is later.
@@ -82,3 +83,19 @@ module {
 // AN-NOT: extra-hb=copy-engine
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 4090 surface only. Do not FileCheck microseconds.
+// HW: v3-cuda-val-d2d p0 comm=same-device-d2d p2p=out-of-increment
+// HW: acceptance=communication-domain
+// HW: pair
+// HW: C||HtoD
+// HW: C||D2D
+// HW: D2D||D2D
+// HW: copy-engine-contention=3
+// HW: extra-hb=not-applicable
+// HW: d2d-not-extra-hb
+// HW: semantics=unchanged
+// HW: v3=not-claimed
+// HW-NOT: extra-hb=copy-engine
+// HW-NOT: Cost v0.4
+// HW-NOT: password
