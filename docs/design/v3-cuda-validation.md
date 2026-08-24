@@ -69,7 +69,7 @@ C_heavy∥C_heavy  vs  C_light∥C_light
 HtoD∥DtoH across sizes
 ```
 
-P1 later: D2D, P2P, stream-count, CUDA Graph, unified
+P1 later: D2D (same-device, this chain), P2P (two GPUs), stream-count, CUDA Graph, unified
 memory.
 
 ---

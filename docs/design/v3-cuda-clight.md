@@ -223,7 +223,7 @@ Cost axiom or a Schedule rewrite.
 ```text
 Tensor-Core-specific claims
 occupancy / Nsight
-cudaMallocAsync (#62, separate PR)
+cudaMallocAsync (#62, merged)
 D2D / P2P / Graph / multi-GPU
 rewriting #55 C||C cells
 Cost v0.4 / Capability_4090 rewrite
