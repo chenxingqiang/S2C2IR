@@ -1772,6 +1772,197 @@ static std::vector<ValCcKind> parseValCcList(const char *name) {
   std::exit(1);
 }
 
+// Async alloc + cross-stream wait. Named nonblocking only.
+// Does not change V1 --cuda-val, V2 --cuda-val-mem, or --cuda-val-cc timed bodies.
+enum class ValAsyncKind { Copy, Compute, LifeSync, LifeAsync, HbWait };
+
+struct ValAsyncBuf {
+  float *host = nullptr;
+  float *check = nullptr;
+  float *scratch = nullptr;
+  int n = 0;
+  cudaStream_t sA = nullptr;
+  cudaStream_t sB = nullptr;
+  cudaEvent_t evReady = nullptr;
+  cudaEvent_t evDone = nullptr;
+  cudaEvent_t start = nullptr;
+  cudaEvent_t stop = nullptr;
+
+  void alloc(int n_) {
+    n = n_;
+    size_t bytes = sizeof(float) * static_cast<size_t>(n);
+    CUDA_OK(cudaHostAlloc(&host, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&check, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaMalloc(&scratch, bytes));
+    CUDA_OK(cudaStreamCreateWithFlags(&sA, cudaStreamNonBlocking));
+    CUDA_OK(cudaStreamCreateWithFlags(&sB, cudaStreamNonBlocking));
+    CUDA_OK(cudaEventCreateWithFlags(&evReady, cudaEventDisableTiming));
+    CUDA_OK(cudaEventCreateWithFlags(&evDone, cudaEventDisableTiming));
+    CUDA_OK(cudaEventCreate(&start));
+    CUDA_OK(cudaEventCreate(&stop));
+    fillHost(host, n, 1);
+  }
+
+  void freeAll() {
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(evDone);
+    cudaEventDestroy(evReady);
+    cudaStreamDestroy(sB);
+    cudaStreamDestroy(sA);
+    cudaFree(scratch);
+    cudaFreeHost(check);
+    cudaFreeHost(host);
+  }
+};
+
+static const char *valAsyncFunc(ValAsyncKind kind) {
+  if (kind == ValAsyncKind::Copy)
+    return "val-async-copy";
+  if (kind == ValAsyncKind::Compute)
+    return "val-async-compute";
+  if (kind == ValAsyncKind::LifeSync)
+    return "val-async-life-sync";
+  if (kind == ValAsyncKind::LifeAsync)
+    return "val-async-life-async";
+  return "val-async-hb";
+}
+
+static const char *valAsyncObservedConstraint(ValAsyncKind kind) {
+  // Candidate label only. Analyzer decides from T_sync / T_async.
+  // Allocator rate is not extra HB (#60 reserved extra_hb).
+  return kind == ValAsyncKind::LifeSync ? "allocator_sync" : "none";
+}
+
+static void provisionValAsync(ValAsyncBuf &b) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  CUDA_OK(cudaMemcpyAsync(b.scratch, b.host, bytes, cudaMemcpyHostToDevice,
+                          b.sA));
+  CUDA_OK(cudaStreamSynchronize(b.sA));
+}
+
+static void runValAsync(ValAsyncBuf &b, ValAsyncKind kind, int k) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  float *d = nullptr;
+  switch (kind) {
+  case ValAsyncKind::Copy:
+    CUDA_OK(cudaMemcpyAsync(b.scratch, b.host, bytes, cudaMemcpyHostToDevice,
+                            b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValAsyncKind::Compute:
+    siluLaunch(b.scratch, b.n, b.sA, k);
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValAsyncKind::LifeSync:
+    CUDA_OK(cudaMalloc(&d, bytes));
+    CUDA_OK(cudaMemcpyAsync(d, b.host, bytes, cudaMemcpyHostToDevice, b.sA));
+    siluLaunch(d, b.n, b.sA, k);
+    CUDA_OK(cudaMemcpyAsync(b.check, d, bytes, cudaMemcpyDeviceToHost, b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    CUDA_OK(cudaFree(d));
+    break;
+  case ValAsyncKind::LifeAsync:
+    CUDA_OK(cudaMallocAsync(&d, bytes, b.sA));
+    CUDA_OK(cudaMemcpyAsync(d, b.host, bytes, cudaMemcpyHostToDevice, b.sA));
+    siluLaunch(d, b.n, b.sA, k);
+    CUDA_OK(cudaMemcpyAsync(b.check, d, bytes, cudaMemcpyDeviceToHost, b.sA));
+    CUDA_OK(cudaFreeAsync(d, b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValAsyncKind::HbWait:
+    CUDA_OK(cudaMallocAsync(&d, bytes, b.sA));
+    CUDA_OK(cudaMemcpyAsync(d, b.host, bytes, cudaMemcpyHostToDevice, b.sA));
+    CUDA_OK(cudaEventRecord(b.evReady, b.sA));
+    CUDA_OK(cudaStreamWaitEvent(b.sB, b.evReady, 0));
+    siluLaunch(d, b.n, b.sB, k);
+    CUDA_OK(cudaEventRecord(b.evDone, b.sB));
+    CUDA_OK(cudaStreamWaitEvent(b.sA, b.evDone, 0));
+    CUDA_OK(cudaMemcpyAsync(b.check, d, bytes, cudaMemcpyDeviceToHost, b.sA));
+    CUDA_OK(cudaFreeAsync(d, b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sB));
+    break;
+  }
+}
+
+static bool checkValAsync(ValAsyncBuf &b, ValAsyncKind kind, int seed, int k) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  if (kind == ValAsyncKind::Copy) {
+    CUDA_OK(cudaMemcpy(b.check, b.scratch, bytes, cudaMemcpyDeviceToHost));
+    return valSpotOk(b.check, b.n, seed, 0);
+  }
+  if (kind == ValAsyncKind::Compute) {
+    CUDA_OK(cudaMemcpy(b.check, b.scratch, bytes, cudaMemcpyDeviceToHost));
+    return valSpotOk(b.check, b.n, seed, k);
+  }
+  return valSpotOk(b.check, b.n, seed, k);
+}
+
+static void printValAsync(ValAsyncKind kind, const char *dev, int n, int k,
+                          double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f "
+               "correct=1 observed_constraint=%s extra_hb=not-applicable\n",
+               valAsyncFunc(kind), kSched, kMap, dev, n, k, us,
+               valAsyncObservedConstraint(kind));
+}
+
+static double timeValAsyncArm(ValAsyncBuf &b, ValAsyncKind kind, int warmup,
+                              int reps, int k) {
+  auto body = [&]() { runValAsync(b, kind, k); };
+  for (int i = 0; i < warmup; ++i) {
+    fillHost(b.host, b.n, 1);
+    if (kind == ValAsyncKind::Copy || kind == ValAsyncKind::Compute)
+      provisionValAsync(b);
+    body();
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    int seed = i + 2;
+    fillHost(b.host, b.n, seed);
+    if (kind == ValAsyncKind::Copy || kind == ValAsyncKind::Compute)
+      provisionValAsync(b);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f);
+    if (!checkValAsync(b, kind, seed, k)) {
+      std::fprintf(stderr, "s2c2-cuda-run: %s correct=0\n",
+                   valAsyncFunc(kind));
+      std::exit(3);
+    }
+  }
+  return medianUs(samples);
+}
+
+static std::vector<ValAsyncKind> parseValAsyncList(const char *name) {
+  if (std::strcmp(name, "off") == 0)
+    return {};
+  if (std::strcmp(name, "p0") == 0 || std::strcmp(name, "all") == 0)
+    return {ValAsyncKind::Copy, ValAsyncKind::Compute, ValAsyncKind::LifeSync,
+            ValAsyncKind::LifeAsync, ValAsyncKind::HbWait};
+  if (std::strcmp(name, "copy") == 0)
+    return {ValAsyncKind::Copy};
+  if (std::strcmp(name, "compute") == 0)
+    return {ValAsyncKind::Compute};
+  if (std::strcmp(name, "life-sync") == 0)
+    return {ValAsyncKind::LifeSync};
+  if (std::strcmp(name, "life-async") == 0)
+    return {ValAsyncKind::LifeAsync};
+  if (std::strcmp(name, "hb") == 0 || std::strcmp(name, "hb-wait") == 0)
+    return {ValAsyncKind::HbWait};
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --cuda-val-async %s\n", name);
+  std::exit(1);
+}
+
+
 int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
@@ -1782,6 +1973,7 @@ int main(int argc, char **argv) {
   const char *valArg = "off";
   const char *valMemArg = "off";
   const char *valCcArg = "off";
+  const char *valAsyncArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
@@ -1811,6 +2003,8 @@ int main(int argc, char **argv) {
       phaseArg = argv[i] + 8;
     else if (a.rfind("--pipe=", 0) == 0)
       pipeArg = argv[i] + 7;
+    else if (a.rfind("--cuda-val-async=", 0) == 0)
+      valAsyncArg = argv[i] + 17;
     else if (a.rfind("--cuda-val-cc=", 0) == 0)
       valCcArg = argv[i] + 14;
     else if (a.rfind("--cuda-val-mem=", 0) == 0)
@@ -1845,6 +2039,8 @@ int main(int argc, char **argv) {
                    "ovl-dtoh --device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --cuda-val-cc=p0|silu|matmul|seq|ovl|"
                    "silu-silu --device=gpu --n=N --k=K --m=M\n"
+                   "s2c2-cuda-run --cuda-val-async=p0|copy|compute|life-sync|"
+                   "life-async|hb --device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -1870,6 +2066,7 @@ int main(int argc, char **argv) {
   std::vector<ValArm> valArms = parseValList(valArg);
   std::vector<ValMemArm> valMemArms = parseValMemList(valMemArg);
   std::vector<ValCcKind> valCcArms = parseValCcList(valCcArg);
+  std::vector<ValAsyncKind> valAsyncArms = parseValAsyncList(valAsyncArg);
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;
   MatchedArm matched = parseMatched(matchedArg);
   bool matchedOn = matchedAll || matched != MatchedArm::Off;
@@ -1910,6 +2107,16 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "s2c2-cuda-run: --cuda-val-cc cannot combine with "
                  "--cuda-val-mem/--cuda-val/--pipe/--phase/--cap/--matched\n");
+    return 1;
+  }
+  if (!valAsyncArms.empty() &&
+      (matchedOn || !capArms.empty() || !phaseArms.empty() ||
+       !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
+       !valCcArms.empty())) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run: --cuda-val-async cannot combine with "
+                 "--cuda-val-cc/--cuda-val-mem/--cuda-val/"
+                 "--pipe/--phase/--cap/--matched\n");
     return 1;
   }
   if (m != 1 && valCcArms.empty()) {
@@ -1991,6 +2198,27 @@ int main(int argc, char **argv) {
     for (ValCcKind arm : valCcArms) {
       double us = timeValCcArm(b, arm, warmup, reps, k, m);
       printValCc(arm, "gpu", n, k, m, us);
+    }
+    b.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
+  }
+  if (!valAsyncArms.empty()) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --cuda-val-async is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    ValAsyncBuf b;
+    b.alloc(n);
+    for (ValAsyncKind arm : valAsyncArms) {
+      double us = timeValAsyncArm(b, arm, warmup, reps, k);
+      printValAsync(arm, "gpu", n, k, us);
     }
     b.freeAll();
     std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");

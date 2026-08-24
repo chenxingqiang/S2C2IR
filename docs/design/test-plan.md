@@ -568,3 +568,18 @@ No FileCheck of microseconds. Semantics unchanged.
 | CC4 | same ABC | `--dry-run` without flags stays A/B/C |
 | CC5 | same fixture | `--analyze-cuda-val-cc` prints `observed_constraint`; `v3=not-claimed` |
 | CC6 | 4090 jsonl | qualitative `resource_contention`; no microseconds; no extra-HB |
+
+## CUDA Validation V2 P1 (async alloc + wait)
+
+**Not Cost v0.4.** Design:
+[`v3-cuda-async.md`](v3-cuda-async.md). `cudaMallocAsync` +
+`cudaStreamWaitEvent` lifetime chain. Does not change V1
+`--cuda-val`, V2 `--cuda-val-mem`, or `--cuda-val-cc` timed
+bodies. No FileCheck of microseconds. Semantics unchanged.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CA1 | `test/Pilot/s2c2-v3-cuda-async.mlir` | `--dry-run --cuda-val-async` lists the chain |
+| CA2 | same V1 | `--dry-run --cuda-val` stays V1 |
+| CA3 | same V2 | `--dry-run --cuda-val-mem` stays V2 |
+| CA4 | same fixture | `--analyze-cuda-val-async` prints `observed_constraint`; extra-HB not-applicable |

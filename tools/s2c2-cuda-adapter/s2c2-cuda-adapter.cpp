@@ -184,6 +184,40 @@ static void printCudaValCc() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc semantics=unchanged\n");
 }
 
+
+static void printCudaValAsync() {
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async=v2p1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async map "
+               "stor.materialize=cudaMallocAsync\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async map "
+               "stor.release=cudaFreeAsync\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async map "
+               "sched.wait=cudaStreamWaitEvent\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async map "
+               "task-event=cudaEventRecord\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async chain "
+               "materialize->write->event->wait->read->release\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async cell alloc-sync\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async cell alloc-async\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async cell "
+               "observed-constraint=none|allocator_sync\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async cell extra-hb=not-applicable\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-async note legal-wait-not-extra-hb\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async semantics=unchanged\n");
+}
+
 static void printCudaVal() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val=v1\n");
   std::fprintf(stderr,
@@ -222,6 +256,7 @@ int main(int argc, char **argv) {
   bool cudaVal = false;
   bool cudaValMem = false;
   bool cudaValCc = false;
+  bool cudaValAsync = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -237,6 +272,8 @@ int main(int argc, char **argv) {
       pipe = true;
     } else if (a == "--pipe-tiles") {
       pipeTiles = true;
+    } else if (a == "--cuda-val-async") {
+      cudaValAsync = true;
     } else if (a == "--cuda-val-cc") {
       cudaValCc = true;
     } else if (a == "--cuda-val-mem") {
@@ -249,7 +286,7 @@ int main(int argc, char **argv) {
       std::fprintf(stderr,
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
-                   "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc]\n"
+                   "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] [--cuda-val-async]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -268,11 +305,12 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
-              (int)cudaValCc;
+              (int)cudaValCc + (int)cudaValAsync;
   if (modes > 1) {
     std::fprintf(stderr,
-                 "s2c2-cuda-adapter: --cuda-val-cc/--cuda-val-mem/--cuda-val/"
-                 "--pipe-tiles/--pipe/--phase/--cap/--matched cannot combine\n");
+                 "s2c2-cuda-adapter: --cuda-val-async/--cuda-val-cc/--cuda-val-mem/"
+                 "--cuda-val/--pipe-tiles/--pipe/--phase/--cap/--matched "
+                 "cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -312,6 +350,11 @@ int main(int argc, char **argv) {
   }
   if (cudaValCc) {
     printCudaValCc();
+    printMaps();
+    return 0;
+  }
+  if (cudaValAsync) {
+    printCudaValAsync();
     printMaps();
     return 0;
   }

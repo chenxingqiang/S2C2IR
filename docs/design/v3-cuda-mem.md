@@ -199,3 +199,7 @@ stor.space<host>   !=  one realization
 Semantics          =  unchanged
 V3                 !=  claimed
 ```
+
+Async alloc + cross-stream wait (V2 P1) is a separate
+increment: [`v3-cuda-async.md`](v3-cuda-async.md). It does
+not change this V2 P0 surface.
