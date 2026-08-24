@@ -1962,6 +1962,254 @@ static std::vector<ValAsyncKind> parseValAsyncList(const char *name) {
   std::exit(1);
 }
 
+// Same-device D2D Communication Domain. Named nonblocking only.
+// Does not change V1 --cuda-val, V2 --cuda-val-mem, --cuda-val-cc,
+// or --cuda-val-async timed bodies. P2P is out of this increment.
+enum class ValD2dKind {
+  HtoD,
+  D2D,
+  ComputeHtoD,
+  ComputeD2D,
+  OvlHtoD,
+  OvlD2D,
+  D2DD2D
+};
+
+struct ValD2dBuf {
+  float *host = nullptr;
+  float *check = nullptr;
+  float *dSrcA = nullptr;
+  float *dDstA = nullptr;
+  float *dSrcB = nullptr;
+  float *dDstB = nullptr;
+  float *dCompute = nullptr;
+  int n = 0;
+  int deviceCount = 1;
+  int p2pCapable = 0;
+  cudaStream_t sA = nullptr;
+  cudaStream_t sB = nullptr;
+  cudaEvent_t start = nullptr;
+  cudaEvent_t stop = nullptr;
+
+  void alloc(int n_) {
+    n = n_;
+    size_t bytes = sizeof(float) * static_cast<size_t>(n);
+    CUDA_OK(cudaGetDeviceCount(&deviceCount));
+    p2pCapable = 0;
+    if (deviceCount >= 2) {
+      int can = 0;
+      CUDA_OK(cudaDeviceCanAccessPeer(&can, 0, 1));
+      p2pCapable = can;
+    }
+    CUDA_OK(cudaHostAlloc(&host, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&check, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaMalloc(&dSrcA, bytes));
+    CUDA_OK(cudaMalloc(&dDstA, bytes));
+    CUDA_OK(cudaMalloc(&dSrcB, bytes));
+    CUDA_OK(cudaMalloc(&dDstB, bytes));
+    CUDA_OK(cudaMalloc(&dCompute, bytes));
+    CUDA_OK(cudaStreamCreateWithFlags(&sA, cudaStreamNonBlocking));
+    CUDA_OK(cudaStreamCreateWithFlags(&sB, cudaStreamNonBlocking));
+    CUDA_OK(cudaEventCreate(&start));
+    CUDA_OK(cudaEventCreate(&stop));
+    fillHost(host, n, 1);
+  }
+
+  void freeAll() {
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+    cudaStreamDestroy(sB);
+    cudaStreamDestroy(sA);
+    cudaFree(dCompute);
+    cudaFree(dDstB);
+    cudaFree(dSrcB);
+    cudaFree(dDstA);
+    cudaFree(dSrcA);
+    cudaFreeHost(check);
+    cudaFreeHost(host);
+  }
+};
+
+static const char *valD2dFunc(ValD2dKind kind) {
+  switch (kind) {
+  case ValD2dKind::HtoD:
+    return "val-d2d-htod";
+  case ValD2dKind::D2D:
+    return "val-d2d-d2d";
+  case ValD2dKind::ComputeHtoD:
+    return "val-d2d-compute-htod";
+  case ValD2dKind::ComputeD2D:
+    return "val-d2d-compute-d2d";
+  case ValD2dKind::OvlHtoD:
+    return "val-d2d-ovl-htod";
+  case ValD2dKind::OvlD2D:
+    return "val-d2d-ovl-d2d";
+  case ValD2dKind::D2DD2D:
+    return "val-d2d-d2d-d2d";
+  }
+  return "val-d2d-off";
+}
+
+static const char *valD2dCommKind(ValD2dKind kind) {
+  if (kind == ValD2dKind::HtoD || kind == ValD2dKind::ComputeHtoD ||
+      kind == ValD2dKind::OvlHtoD)
+    return "htod";
+  return "d2d_same_device";
+}
+
+static const char *valD2dObservedConstraint(ValD2dKind kind) {
+  // Candidate label only. Analyzer decides from D2D||D2D / C||D2D.
+  // Copy-engine contention is not extra HB (#60 reserved extra_hb).
+  if (kind == ValD2dKind::D2DD2D)
+    return "copy_engine_contention";
+  return "none";
+}
+
+static void provisionValD2d(ValD2dBuf &b) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  CUDA_OK(cudaMemcpyAsync(b.dSrcA, b.host, bytes, cudaMemcpyHostToDevice,
+                          b.sA));
+  CUDA_OK(cudaMemcpyAsync(b.dSrcB, b.host, bytes, cudaMemcpyHostToDevice,
+                          b.sA));
+  CUDA_OK(cudaMemcpyAsync(b.dCompute, b.host, bytes, cudaMemcpyHostToDevice,
+                          b.sA));
+  CUDA_OK(cudaStreamSynchronize(b.sA));
+}
+
+static void runValD2d(ValD2dBuf &b, ValD2dKind kind, int k) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  switch (kind) {
+  case ValD2dKind::HtoD:
+    CUDA_OK(cudaMemcpyAsync(b.dDstA, b.host, bytes, cudaMemcpyHostToDevice,
+                            b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValD2dKind::D2D:
+    CUDA_OK(cudaMemcpyAsync(b.dDstA, b.dSrcA, bytes,
+                            cudaMemcpyDeviceToDevice, b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValD2dKind::ComputeHtoD:
+  case ValD2dKind::ComputeD2D:
+    siluLaunch(b.dCompute, b.n, b.sB, k);
+    CUDA_OK(cudaStreamSynchronize(b.sB));
+    break;
+  case ValD2dKind::OvlHtoD:
+    siluLaunch(b.dCompute, b.n, b.sB, k);
+    CUDA_OK(cudaMemcpyAsync(b.dDstA, b.host, bytes, cudaMemcpyHostToDevice,
+                            b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sB));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValD2dKind::OvlD2D:
+    siluLaunch(b.dCompute, b.n, b.sB, k);
+    CUDA_OK(cudaMemcpyAsync(b.dDstA, b.dSrcA, bytes,
+                            cudaMemcpyDeviceToDevice, b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sB));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValD2dKind::D2DD2D:
+    CUDA_OK(cudaMemcpyAsync(b.dDstA, b.dSrcA, bytes,
+                            cudaMemcpyDeviceToDevice, b.sA));
+    CUDA_OK(cudaMemcpyAsync(b.dDstB, b.dSrcB, bytes,
+                            cudaMemcpyDeviceToDevice, b.sB));
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sB));
+    break;
+  }
+}
+
+static bool checkValD2d(ValD2dBuf &b, ValD2dKind kind, int seed, int k) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  if (kind == ValD2dKind::HtoD || kind == ValD2dKind::D2D ||
+      kind == ValD2dKind::OvlHtoD || kind == ValD2dKind::OvlD2D ||
+      kind == ValD2dKind::D2DD2D) {
+    CUDA_OK(cudaMemcpy(b.check, b.dDstA, bytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.check, b.n, seed, 0))
+      return false;
+  }
+  if (kind == ValD2dKind::D2DD2D) {
+    CUDA_OK(cudaMemcpy(b.check, b.dDstB, bytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.check, b.n, seed, 0))
+      return false;
+  }
+  if (kind == ValD2dKind::ComputeHtoD || kind == ValD2dKind::ComputeD2D ||
+      kind == ValD2dKind::OvlHtoD || kind == ValD2dKind::OvlD2D) {
+    CUDA_OK(cudaMemcpy(b.check, b.dCompute, bytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.check, b.n, seed, k))
+      return false;
+  }
+  return true;
+}
+
+static void printValD2d(ValD2dKind kind, const ValD2dBuf &b, const char *dev,
+                        int n, int k, double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f "
+               "correct=1 observed_constraint=%s extra_hb=not-applicable "
+               "comm_kind=%s p2p_capable=%d device_count=%d\n",
+               valD2dFunc(kind), kSched, kMap, dev, n, k, us,
+               valD2dObservedConstraint(kind), valD2dCommKind(kind),
+               b.p2pCapable, b.deviceCount);
+}
+
+static double timeValD2dArm(ValD2dBuf &b, ValD2dKind kind, int warmup, int reps,
+                            int k) {
+  auto body = [&]() { runValD2d(b, kind, k); };
+  for (int i = 0; i < warmup; ++i) {
+    fillHost(b.host, b.n, 1);
+    provisionValD2d(b);
+    body();
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    int seed = i + 2;
+    fillHost(b.host, b.n, seed);
+    provisionValD2d(b);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f);
+    if (!checkValD2d(b, kind, seed, k)) {
+      std::fprintf(stderr, "s2c2-cuda-run: %s correct=0\n", valD2dFunc(kind));
+      std::exit(3);
+    }
+  }
+  return medianUs(samples);
+}
+
+static std::vector<ValD2dKind> parseValD2dList(const char *name) {
+  if (std::strcmp(name, "off") == 0)
+    return {};
+  if (std::strcmp(name, "p0") == 0 || std::strcmp(name, "all") == 0)
+    return {ValD2dKind::HtoD,         ValD2dKind::D2D,
+            ValD2dKind::ComputeHtoD, ValD2dKind::ComputeD2D,
+            ValD2dKind::OvlHtoD,     ValD2dKind::OvlD2D,
+            ValD2dKind::D2DD2D};
+  if (std::strcmp(name, "htod") == 0)
+    return {ValD2dKind::HtoD};
+  if (std::strcmp(name, "d2d") == 0)
+    return {ValD2dKind::D2D};
+  if (std::strcmp(name, "compute-htod") == 0)
+    return {ValD2dKind::ComputeHtoD};
+  if (std::strcmp(name, "compute-d2d") == 0)
+    return {ValD2dKind::ComputeD2D};
+  if (std::strcmp(name, "ovl-htod") == 0)
+    return {ValD2dKind::OvlHtoD};
+  if (std::strcmp(name, "ovl-d2d") == 0)
+    return {ValD2dKind::OvlD2D};
+  if (std::strcmp(name, "d2d-d2d") == 0)
+    return {ValD2dKind::D2DD2D};
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --cuda-val-d2d %s\n", name);
+  std::exit(1);
+}
+
 
 int main(int argc, char **argv) {
   const char *func = "all";
@@ -1974,6 +2222,7 @@ int main(int argc, char **argv) {
   const char *valMemArg = "off";
   const char *valCcArg = "off";
   const char *valAsyncArg = "off";
+  const char *valD2dArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
@@ -2003,6 +2252,8 @@ int main(int argc, char **argv) {
       phaseArg = argv[i] + 8;
     else if (a.rfind("--pipe=", 0) == 0)
       pipeArg = argv[i] + 7;
+    else if (a.rfind("--cuda-val-d2d=", 0) == 0)
+      valD2dArg = argv[i] + 15;
     else if (a.rfind("--cuda-val-async=", 0) == 0)
       valAsyncArg = argv[i] + 17;
     else if (a.rfind("--cuda-val-cc=", 0) == 0)
@@ -2041,6 +2292,9 @@ int main(int argc, char **argv) {
                    "silu-silu --device=gpu --n=N --k=K --m=M\n"
                    "s2c2-cuda-run --cuda-val-async=p0|copy|compute|life-sync|"
                    "life-async|hb --device=gpu --n=N --k=K\n"
+                   "s2c2-cuda-run --cuda-val-d2d=p0|htod|d2d|compute-htod|"
+                   "compute-d2d|ovl-htod|ovl-d2d|d2d-d2d "
+                   "--device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -2067,6 +2321,7 @@ int main(int argc, char **argv) {
   std::vector<ValMemArm> valMemArms = parseValMemList(valMemArg);
   std::vector<ValCcKind> valCcArms = parseValCcList(valCcArg);
   std::vector<ValAsyncKind> valAsyncArms = parseValAsyncList(valAsyncArg);
+  std::vector<ValD2dKind> valD2dArms = parseValD2dList(valD2dArg);
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;
   MatchedArm matched = parseMatched(matchedArg);
   bool matchedOn = matchedAll || matched != MatchedArm::Off;
@@ -2112,10 +2367,20 @@ int main(int argc, char **argv) {
   if (!valAsyncArms.empty() &&
       (matchedOn || !capArms.empty() || !phaseArms.empty() ||
        !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
-       !valCcArms.empty())) {
+       !valCcArms.empty() || !valD2dArms.empty())) {
     std::fprintf(stderr,
                  "s2c2-cuda-run: --cuda-val-async cannot combine with "
-                 "--cuda-val-cc/--cuda-val-mem/--cuda-val/"
+                 "--cuda-val-d2d/--cuda-val-cc/--cuda-val-mem/--cuda-val/"
+                 "--pipe/--phase/--cap/--matched\n");
+    return 1;
+  }
+  if (!valD2dArms.empty() &&
+      (matchedOn || !capArms.empty() || !phaseArms.empty() ||
+       !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
+       !valCcArms.empty() || !valAsyncArms.empty())) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run: --cuda-val-d2d cannot combine with "
+                 "--cuda-val-async/--cuda-val-cc/--cuda-val-mem/--cuda-val/"
                  "--pipe/--phase/--cap/--matched\n");
     return 1;
   }
@@ -2219,6 +2484,27 @@ int main(int argc, char **argv) {
     for (ValAsyncKind arm : valAsyncArms) {
       double us = timeValAsyncArm(b, arm, warmup, reps, k);
       printValAsync(arm, "gpu", n, k, us);
+    }
+    b.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
+  }
+  if (!valD2dArms.empty()) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --cuda-val-d2d is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    ValD2dBuf b;
+    b.alloc(n);
+    for (ValD2dKind arm : valD2dArms) {
+      double us = timeValD2dArm(b, arm, warmup, reps, k);
+      printValD2d(arm, b, "gpu", n, k, us);
     }
     b.freeAll();
     std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");

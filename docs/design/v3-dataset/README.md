@@ -48,3 +48,9 @@ CUDA Validation V2 P1 async-alloc records
 (`v3-cuda-async.jsonl`) reuse the same columns after the
 4090 sweep. Derived: `v3-cuda-async-slices.csv`. Does not
 change V1 / V2 mem / C_light timed bodies. Not Cost v0.4.
+
+Same-device D2D Communication Domain records
+(`v3-cuda-d2d.jsonl`) reuse the same columns after the
+4090 sweep. Derived: `v3-cuda-d2d-slices.csv`. Does not
+change V1 / V2 / C_light / async timed bodies. P2P is out
+of that increment. Not Cost v0.4.

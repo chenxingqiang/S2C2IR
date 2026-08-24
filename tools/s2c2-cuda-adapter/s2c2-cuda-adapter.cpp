@@ -185,6 +185,45 @@ static void printCudaValCc() {
 }
 
 
+static void printCudaValD2d() {
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-d2d=p0\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d map comm.copy=cudaMemcpyAsync\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d map "
+               "comm.d2d=cudaMemcpyDeviceToDevice\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d map comm.p2p=out-of-increment\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d map "
+               "sched.concurrent=named-nonblocking-streams\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d cell same-device-d2d\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-d2d cell d2d-vs-htod\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-d2d cell C||D2D\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-d2d cell D2D||D2D\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d cell "
+               "pair-relation=serial|parallel|mixed\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d cell "
+               "observed-constraint=none|copy_engine_contention\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d cell extra-hb=not-applicable\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d note p2p-needs-two-devices\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d note d2d-not-extra-hb\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-d2d pair=C||D2D\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-d2d pair=D2D||D2D\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d acceptance=communication-domain\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-d2d score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-d2d cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-d2d semantics=unchanged\n");
+}
+
 static void printCudaValAsync() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async=v2p1\n");
   std::fprintf(stderr,
@@ -257,6 +296,7 @@ int main(int argc, char **argv) {
   bool cudaValMem = false;
   bool cudaValCc = false;
   bool cudaValAsync = false;
+  bool cudaValD2d = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -272,6 +312,8 @@ int main(int argc, char **argv) {
       pipe = true;
     } else if (a == "--pipe-tiles") {
       pipeTiles = true;
+    } else if (a == "--cuda-val-d2d") {
+      cudaValD2d = true;
     } else if (a == "--cuda-val-async") {
       cudaValAsync = true;
     } else if (a == "--cuda-val-cc") {
@@ -286,7 +328,8 @@ int main(int argc, char **argv) {
       std::fprintf(stderr,
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
-                   "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] [--cuda-val-async]\n"
+                   "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
+                   "[--cuda-val-async] [--cuda-val-d2d]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -305,10 +348,11 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
-              (int)cudaValCc + (int)cudaValAsync;
+              (int)cudaValCc + (int)cudaValAsync + (int)cudaValD2d;
   if (modes > 1) {
     std::fprintf(stderr,
-                 "s2c2-cuda-adapter: --cuda-val-async/--cuda-val-cc/--cuda-val-mem/"
+                 "s2c2-cuda-adapter: --cuda-val-d2d/--cuda-val-async/"
+                 "--cuda-val-cc/--cuda-val-mem/"
                  "--cuda-val/--pipe-tiles/--pipe/--phase/--cap/--matched "
                  "cannot combine\n");
     return 1;
@@ -355,6 +399,11 @@ int main(int argc, char **argv) {
   }
   if (cudaValAsync) {
     printCudaValAsync();
+    printMaps();
+    return 0;
+  }
+  if (cudaValD2d) {
+    printCudaValD2d();
     printMaps();
     return 0;
   }

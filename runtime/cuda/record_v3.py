@@ -197,6 +197,44 @@ VAL_ASYNC_FIELDS = (
     "observed_constraint",
     "extra_hb",
 )
+VAL_D2D_ARMS = (
+    "val-d2d-htod",
+    "val-d2d-d2d",
+    "val-d2d-compute-htod",
+    "val-d2d-compute-d2d",
+    "val-d2d-ovl-htod",
+    "val-d2d-ovl-d2d",
+    "val-d2d-d2d-d2d",
+)
+VAL_D2D_FUNCS = set(VAL_D2D_ARMS)
+VAL_D2D_FIELDS = (
+    "N",
+    "k_htod",
+    "k_d2d",
+    "r_htod",
+    "r_d2d",
+    "T_htod_us",
+    "T_d2d_us",
+    "T_compute_htod_us",
+    "T_compute_d2d_us",
+    "T_ovl_htod_us",
+    "T_ovl_d2d_us",
+    "T_d2d_d2d_us",
+    "htod_over_d2d",
+    "ovl_htod_over_max",
+    "ovl_htod_over_sum",
+    "htod_verdict",
+    "ovl_d2d_over_max",
+    "ovl_d2d_over_sum",
+    "d2d_verdict",
+    "dd_over_max",
+    "dd_over_sum",
+    "dd_verdict",
+    "pair_relation",
+    "observed_constraint",
+    "extra_hb",
+    "r_unbalance",
+)
 PIPE_FIELDS = (
     "N",
     "k",
@@ -1455,6 +1493,324 @@ def analyze_cuda_val_async(jsonl: Path, out: Path | None = None) -> int:
         print(
             f"record_v3 wrote {out} count={len(slices)} "
             "cuda-val-async v3=not-claimed"
+        )
+    return 0
+
+
+def print_cuda_val_d2d_schema() -> int:
+    print("cuda-val-d2d p0")
+    print("comm same-device-d2d")
+    print("p2p out-of-increment")
+    print("pair C||D2D")
+    print("pair D2D||D2D")
+    print("acceptance communication-domain")
+    print("pair-relation parallel|serial|mixed")
+    print("observed-constraint none|copy_engine_contention")
+    print("extra-hb not-applicable")
+    print("d2d-not-extra-hb")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def parse_val_d2d_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in VAL_D2D_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": int(m.group("k")),
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
+def _collect_val_d2d_rows(
+    text: str, gpu: dict[str, str], warmup: int, reps: int, commit: str
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parsed = parse_val_d2d_line(line)
+        if not parsed:
+            continue
+        rec = base_record(commit, gpu, warmup, reps)
+        rec["case"] = parsed["case"]
+        rec["N"] = parsed["N"]
+        rec["k"] = parsed["k"]
+        rec["provisioned"] = parsed["provisioned"]
+        rec["score3"] = parsed["score3"]
+        rec["latency_us"] = parsed["latency_us"]
+        rows.append({key: rec[key] for key in FIELDS})
+    return rows
+
+
+def _r_unbalance(t_a: float, t_b: float) -> bool:
+    r = _safe_div(t_a, t_b)
+    return r < 0.3 or r > 3.0
+
+
+def cuda_val_d2d_sweep(bin_path: str, out_prefix: Path, warmup: int,
+                       reps: int, commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    try:
+        for n in NS:
+            print(f"=== cuda-val-d2d calibrate n={n} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-d2d=htod", f"--n={n}", "--k=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            htod_rows = _collect_val_d2d_rows(text, gpu, warmup, reps, commit)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-d2d=d2d", f"--n={n}", "--k=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            d2d_rows = _collect_val_d2d_rows(text, gpu, warmup, reps, commit)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-d2d=compute-htod", f"--n={n}", "--k=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            unit_rows = _collect_val_d2d_rows(text, gpu, warmup, reps, commit)
+            if (len(htod_rows) != 1 or len(d2d_rows) != 1 or
+                    len(unit_rows) != 1):
+                print("record_v3: cuda-val-d2d calibrate expected 3 rows",
+                      file=sys.stderr)
+                return 4
+            t_htod = float(htod_rows[0]["latency_us"])
+            t_d2d = float(d2d_rows[0]["latency_us"])
+            t_unit = float(unit_rows[0]["latency_us"])
+            k_htod = choose_phase_k(1.0, t_htod, t_unit)
+            k_d2d = choose_phase_k(1.0, t_d2d, t_unit)
+            print(
+                f"=== cuda-val-d2d n={n} k_htod={k_htod} k_d2d={k_d2d} ===",
+                file=sys.stderr,
+            )
+            plan = (
+                ("htod", 1),
+                ("d2d", 1),
+                ("d2d-d2d", 1),
+                ("compute-htod", k_htod),
+                ("ovl-htod", k_htod),
+                ("compute-d2d", k_d2d),
+                ("ovl-d2d", k_d2d),
+            )
+            got: list[dict[str, Any]] = []
+            for arm, k in plan:
+                text = _run_adapter(
+                    bin_path,
+                    [f"--cuda-val-d2d={arm}", f"--n={n}", f"--k={k}"],
+                    warmup,
+                    reps,
+                )
+                print(text, end="" if text.endswith("\n") else "\n",
+                      file=sys.stderr)
+                got.extend(
+                    _collect_val_d2d_rows(text, gpu, warmup, reps, commit)
+                )
+            if {r["case"] for r in got} != set(VAL_D2D_ARMS):
+                print(
+                    f"record_v3: expected 7 val-d2d arms, got "
+                    f"{[r['case'] for r in got]}",
+                    file=sys.stderr,
+                )
+                return 4
+            rows.extend(got)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"record_v3: cuda-val-d2d run failed: {exc}", file=sys.stderr)
+        return 2
+    write_outputs(rows, out_prefix)
+    print(
+        f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+        f"count={len(rows)} cuda-val-d2d v3=not-claimed"
+    )
+    return 0
+
+
+def cuda_val_d2d_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in NS:
+        by_case = {r["case"]: r for r in rows if int(r["N"]) == n}
+        if any(key not in by_case for key in VAL_D2D_ARMS):
+            continue
+        htod = float(by_case["val-d2d-htod"]["latency_us"])
+        d2d = float(by_case["val-d2d-d2d"]["latency_us"])
+        compute_h = float(by_case["val-d2d-compute-htod"]["latency_us"])
+        compute_d = float(by_case["val-d2d-compute-d2d"]["latency_us"])
+        ovl_h = float(by_case["val-d2d-ovl-htod"]["latency_us"])
+        ovl_d = float(by_case["val-d2d-ovl-d2d"]["latency_us"])
+        dd = float(by_case["val-d2d-d2d-d2d"]["latency_us"])
+        hmax = _safe_div(ovl_h, max(htod, compute_h))
+        hsum = _safe_div(ovl_h, htod + compute_h)
+        dmax = _safe_div(ovl_d, max(d2d, compute_d))
+        dsum = _safe_div(ovl_d, d2d + compute_d)
+        ddmax = _safe_div(dd, d2d)
+        ddsum = _safe_div(dd, 2.0 * d2d)
+        htod_v = _verdict(hmax, hsum)
+        d2d_v = _verdict(dmax, dsum)
+        dd_v = _verdict(ddmax, ddsum)
+        gray = _r_unbalance(compute_d, d2d)
+        # Copy-engine contention is observed_constraint, not extra HB.
+        # Gray-zone C||D2D does not mint the constraint.
+        constraint = "none"
+        if dd_v == "serial":
+            constraint = "copy_engine_contention"
+        elif d2d_v == "serial" and not gray:
+            constraint = "copy_engine_contention"
+        out.append(
+            {
+                "N": n,
+                "k_htod": int(by_case["val-d2d-compute-htod"]["k"]),
+                "k_d2d": int(by_case["val-d2d-compute-d2d"]["k"]),
+                "r_htod": _safe_div(compute_h, htod),
+                "r_d2d": _safe_div(compute_d, d2d),
+                "T_htod_us": htod,
+                "T_d2d_us": d2d,
+                "T_compute_htod_us": compute_h,
+                "T_compute_d2d_us": compute_d,
+                "T_ovl_htod_us": ovl_h,
+                "T_ovl_d2d_us": ovl_d,
+                "T_d2d_d2d_us": dd,
+                "htod_over_d2d": _safe_div(htod, d2d),
+                "ovl_htod_over_max": hmax,
+                "ovl_htod_over_sum": hsum,
+                "htod_verdict": htod_v,
+                "ovl_d2d_over_max": dmax,
+                "ovl_d2d_over_sum": dsum,
+                "d2d_verdict": "r-unbalance" if gray else d2d_v,
+                "dd_over_max": ddmax,
+                "dd_over_sum": ddsum,
+                "dd_verdict": dd_v,
+                "pair_relation": dd_v,
+                "observed_constraint": constraint,
+                "extra_hb": "not-applicable",
+                "r_unbalance": "1" if gray else "0",
+            }
+        )
+    return out
+
+
+def analyze_cuda_val_d2d(jsonl: Path, out: Path | None = None) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    slices = cuda_val_d2d_slices(rows)
+    print(
+        "v3-cuda-val-d2d p0 comm=same-device-d2d p2p=out-of-increment "
+        "acceptance=communication-domain d2d-not-extra-hb "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    print(
+        "slice\tN\tk_htod\tk_d2d\thtod\td2d\tcompute_htod\tcompute_d2d\t"
+        "ovl_htod\tovl_d2d\td2d_d2d\thtod/d2d\t"
+        "ovl_htod/max\tovl_htod/sum\thtod_verdict\t"
+        "ovl_d2d/max\tovl_d2d/sum\td2d_verdict\t"
+        "dd/max\tdd/sum\tdd_verdict\t"
+        "pair_relation\tobserved_constraint\textra_hb"
+    )
+    hits = 0
+    gray_hits = 0
+    for s in slices:
+        print(
+            f"slice\t{s['N']}\t{s['k_htod']}\t{s['k_d2d']}\t"
+            f"{s['T_htod_us']:.1f}\t{s['T_d2d_us']:.1f}\t"
+            f"{s['T_compute_htod_us']:.1f}\t{s['T_compute_d2d_us']:.1f}\t"
+            f"{s['T_ovl_htod_us']:.1f}\t{s['T_ovl_d2d_us']:.1f}\t"
+            f"{s['T_d2d_d2d_us']:.1f}\t{s['htod_over_d2d']:.3f}\t"
+            f"{s['ovl_htod_over_max']:.3f}\t{s['ovl_htod_over_sum']:.3f}\t"
+            f"{s['htod_verdict']}\t"
+            f"{s['ovl_d2d_over_max']:.3f}\t{s['ovl_d2d_over_sum']:.3f}\t"
+            f"{s['d2d_verdict']}\t"
+            f"{s['dd_over_max']:.3f}\t{s['dd_over_sum']:.3f}\t"
+            f"{s['dd_verdict']}\t{s['pair_relation']}\t"
+            f"{s['observed_constraint']}\t{s['extra_hb']}"
+        )
+        print(
+            f"pair\tC||HtoD\tN={s['N']}\t{s['htod_verdict']}"
+        )
+        print(
+            f"pair\tC||D2D\tN={s['N']}\t{s['d2d_verdict']}"
+        )
+        print(
+            f"pair\tD2D||D2D\tN={s['N']}\t{s['dd_verdict']}"
+        )
+        if s["observed_constraint"] == "copy_engine_contention":
+            hits += 1
+            print(
+                f"copy-engine-contention\tN={s['N']}\t"
+                f"dd_verdict={s['dd_verdict']}\t"
+                "observed-constraint=copy_engine_contention "
+                "extra-hb=not-applicable"
+            )
+        if s["r_unbalance"] == "1":
+            gray_hits += 1
+            print(
+                f"r-unbalance\tN={s['N']}\tr_d2d={s['r_d2d']:.3f}\t"
+                "no-copy-engine-from-gray-zone"
+            )
+    print(
+        f"summary slices={len(slices)} "
+        f"copy-engine-contention={hits} r-unbalance={gray_hits} "
+        "p2p=out-of-increment extra-hb=not-applicable d2d-not-extra-hb "
+        "same-device-d2d communication-domain "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=VAL_D2D_FIELDS)
+            w.writeheader()
+            for s in slices:
+                w.writerow(
+                    {
+                        "N": s["N"],
+                        "k_htod": s["k_htod"],
+                        "k_d2d": s["k_d2d"],
+                        "r_htod": f"{s['r_htod']:.3f}",
+                        "r_d2d": f"{s['r_d2d']:.3f}",
+                        "T_htod_us": f"{s['T_htod_us']:.1f}",
+                        "T_d2d_us": f"{s['T_d2d_us']:.1f}",
+                        "T_compute_htod_us": f"{s['T_compute_htod_us']:.1f}",
+                        "T_compute_d2d_us": f"{s['T_compute_d2d_us']:.1f}",
+                        "T_ovl_htod_us": f"{s['T_ovl_htod_us']:.1f}",
+                        "T_ovl_d2d_us": f"{s['T_ovl_d2d_us']:.1f}",
+                        "T_d2d_d2d_us": f"{s['T_d2d_d2d_us']:.1f}",
+                        "htod_over_d2d": f"{s['htod_over_d2d']:.3f}",
+                        "ovl_htod_over_max": f"{s['ovl_htod_over_max']:.3f}",
+                        "ovl_htod_over_sum": f"{s['ovl_htod_over_sum']:.3f}",
+                        "htod_verdict": s["htod_verdict"],
+                        "ovl_d2d_over_max": f"{s['ovl_d2d_over_max']:.3f}",
+                        "ovl_d2d_over_sum": f"{s['ovl_d2d_over_sum']:.3f}",
+                        "d2d_verdict": s["d2d_verdict"],
+                        "dd_over_max": f"{s['dd_over_max']:.3f}",
+                        "dd_over_sum": f"{s['dd_over_sum']:.3f}",
+                        "dd_verdict": s["dd_verdict"],
+                        "pair_relation": s["pair_relation"],
+                        "observed_constraint": s["observed_constraint"],
+                        "extra_hb": s["extra_hb"],
+                        "r_unbalance": s["r_unbalance"],
+                    }
+                )
+        print(
+            f"record_v3 wrote {out} count={len(slices)} "
+            "cuda-val-d2d v3=not-claimed"
         )
     return 0
 
@@ -2863,10 +3219,12 @@ def main() -> int:
     p.add_argument("--print-cuda-val-mem-schema", action="store_true")
     p.add_argument("--print-cuda-val-cc-schema", action="store_true")
     p.add_argument("--print-cuda-val-async-schema", action="store_true")
+    p.add_argument("--print-cuda-val-d2d-schema", action="store_true")
     p.add_argument("--cuda-val-sweep", metavar="BIN")
     p.add_argument("--cuda-val-mem-sweep", metavar="BIN")
     p.add_argument("--cuda-val-cc-sweep", metavar="BIN")
     p.add_argument("--cuda-val-async-sweep", metavar="BIN")
+    p.add_argument("--cuda-val-d2d-sweep", metavar="BIN")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
@@ -2885,6 +3243,7 @@ def main() -> int:
     p.add_argument("--analyze-cuda-val-mem", type=Path)
     p.add_argument("--analyze-cuda-val-cc", type=Path)
     p.add_argument("--analyze-cuda-val-async", type=Path)
+    p.add_argument("--analyze-cuda-val-d2d", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
@@ -2915,6 +3274,8 @@ def main() -> int:
         return print_cuda_val_cc_schema()
     if args.print_cuda_val_async_schema:
         return print_cuda_val_async_schema()
+    if args.print_cuda_val_d2d_schema:
+        return print_cuda_val_d2d_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
@@ -2939,6 +3300,8 @@ def main() -> int:
         return analyze_cuda_val_cc(args.analyze_cuda_val_cc, args.out)
     if args.analyze_cuda_val_async:
         return analyze_cuda_val_async(args.analyze_cuda_val_async, args.out)
+    if args.analyze_cuda_val_d2d:
+        return analyze_cuda_val_d2d(args.analyze_cuda_val_d2d, args.out)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -3019,17 +3382,29 @@ def main() -> int:
             args.cuda_val_async_sweep, args.out, args.warmup, args.reps,
             git_commit(args.git_commit)
         )
+    if args.cuda_val_d2d_sweep:
+        if not args.out:
+            print("record_v3: --out required with --cuda-val-d2d-sweep",
+                  file=sys.stderr)
+            return 1
+        return cuda_val_d2d_sweep(
+            args.cuda_val_d2d_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
           "--print-cap-schema, --print-phase-schema, --print-pipe-schema, "
           "--print-pipe-tiles-schema, --print-cuda-val-schema, "
-          "--print-cuda-val-mem-schema, --print-cuda-val-cc-schema, --print-cuda-val-async-schema, --sweep, "
+          "--print-cuda-val-mem-schema, --print-cuda-val-cc-schema, "
+          "--print-cuda-val-async-schema, --print-cuda-val-d2d-schema, --sweep, "
           "--matched-sweep, --cap-sweep, --phase-sweep, --pipe-sweep, "
           "--pipe-tiles-sweep, --cuda-val-sweep, --cuda-val-mem-sweep, "
-          "--cuda-val-cc-sweep, --cuda-val-async-sweep, --analyze, "
+          "--cuda-val-cc-sweep, --cuda-val-async-sweep, --cuda-val-d2d-sweep, "
+          "--analyze, "
           "--analyze-matched, --analyze-cap, --analyze-phase, --analyze-pipe, "
           "--analyze-pipe-tiles, --analyze-cuda-val, --analyze-cuda-val-mem, "
-          "--analyze-cuda-val-cc, --analyze-cuda-val-async, --calibrate, "
+          "--analyze-cuda-val-cc, --analyze-cuda-val-async, "
+          "--analyze-cuda-val-d2d, --calibrate, "
           "or --analyze-ratio",
           file=sys.stderr)
     return 1

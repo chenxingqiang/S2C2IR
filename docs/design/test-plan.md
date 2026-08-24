@@ -583,3 +583,21 @@ bodies. No FileCheck of microseconds. Semantics unchanged.
 | CA2 | same V1 | `--dry-run --cuda-val` stays V1 |
 | CA3 | same V2 | `--dry-run --cuda-val-mem` stays V2 |
 | CA4 | same fixture | `--analyze-cuda-val-async` prints `observed_constraint`; extra-HB not-applicable |
+
+## CUDA Validation D2D (same-device Communication Domain)
+
+**Not Cost v0.4.** Design:
+[`v3-cuda-d2d.md`](v3-cuda-d2d.md). Same named-nonblocking
+streams; `cudaMemcpyDeviceToDevice` vs HtoD; C∥D2D and
+D2D∥D2D. Does not change V1 `--cuda-val`, V2
+`--cuda-val-mem`, `--cuda-val-cc`, or `--cuda-val-async`
+timed bodies. P2P is out of this increment. No FileCheck of
+microseconds. Semantics unchanged.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CD1 | `test/Pilot/s2c2-v3-cuda-d2d.mlir` | `--dry-run --cuda-val-d2d` lists D2D map |
+| CD2 | same async | `--dry-run --cuda-val-async` stays V2 P1 |
+| CD3 | same V1 | `--dry-run --cuda-val` stays V1 |
+| CD4 | same fixture | `--analyze-cuda-val-d2d` prints `copy_engine_contention`; extra-HB not-applicable |
+| CD5 | 4090 jsonl | qualitative `copy_engine_contention`; P2P out-of-increment; no microseconds; no extra-HB |
