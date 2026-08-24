@@ -12,6 +12,7 @@
 #include <hip/hip_runtime.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -108,8 +109,6 @@ struct Buf {
   int n = 0;
   hipStream_t s0 = nullptr;
   hipStream_t s1 = nullptr;
-  hipEvent_t start = nullptr;
-  hipEvent_t stop = nullptr;
 
   void alloc(int n_) {
     n = n_;
@@ -122,15 +121,11 @@ struct Buf {
     HIP_OK(hipMalloc(&dev2, bytes));
     HIP_OK(hipStreamCreateWithFlags(&s0, hipStreamNonBlocking));
     HIP_OK(hipStreamCreateWithFlags(&s1, hipStreamNonBlocking));
-    HIP_OK(hipEventCreate(&start));
-    HIP_OK(hipEventCreate(&stop));
     fillHost(host0, n, 1);
     fillHost(host1, n, 2);
   }
 
   void freeAll() {
-    hipEventDestroy(stop);
-    hipEventDestroy(start);
     hipStreamDestroy(s1);
     hipStreamDestroy(s0);
     hipFree(dev2);
@@ -257,11 +252,14 @@ static bool checkArm(Buf &b, Arm arm, int k) {
   return false;
 }
 
-static double medianUs(std::vector<float> &s) {
+static double medianUs(std::vector<double> &s) {
   std::sort(s.begin(), s.end());
   return s[s.size() / 2];
 }
 
+// T_pair = host wall-clock over launch + completion(s0, s1).
+// Do not use hipEventRecord() on the null stream: that event is
+// not a witness for hipStreamNonBlocking work on s0/s1.
 static double timeArm(Buf &b, Arm arm, int warmup, int reps, int k) {
   auto body = [&]() { runArm(b, arm, k); };
   for (int i = 0; i < warmup; ++i) {
@@ -269,21 +267,23 @@ static double timeArm(Buf &b, Arm arm, int warmup, int reps, int k) {
     fillHost(b.host1, b.n, i + 7);
     provision(b, arm);
     body();
+    HIP_OK(hipStreamSynchronize(b.s0));
+    HIP_OK(hipStreamSynchronize(b.s1));
   }
-  std::vector<float> samples;
+  std::vector<double> samples;
   samples.reserve(reps);
   for (int i = 0; i < reps; ++i) {
     fillHost(b.host0, b.n, i + 11);
     fillHost(b.host1, b.n, i + 19);
     provision(b, arm);
     HIP_OK(hipDeviceSynchronize());
-    HIP_OK(hipEventRecord(b.start));
+    auto start = std::chrono::steady_clock::now();
     body();
-    HIP_OK(hipEventRecord(b.stop));
-    HIP_OK(hipEventSynchronize(b.stop));
-    float ms = 0.f;
-    HIP_OK(hipEventElapsedTime(&ms, b.start, b.stop));
-    samples.push_back(ms * 1000.f);
+    HIP_OK(hipStreamSynchronize(b.s0));
+    HIP_OK(hipStreamSynchronize(b.s1));
+    auto stop = std::chrono::steady_clock::now();
+    samples.push_back(
+        std::chrono::duration<double, std::micro>(stop - start).count());
     if (!checkArm(b, arm, k)) {
       std::fprintf(stderr, "s2c2-rocm-run correctness=0 arm=%s\n",
                    armName(arm));
@@ -404,6 +404,8 @@ int main(int argc, char **argv) {
                        "device_to_host\n");
   std::fprintf(stderr,
                "s2c2-rocm-run note workload-semantic-ne-kernel-backend\n");
+  std::fprintf(stderr, "s2c2-rocm-run timing=host-wall-clock\n");
+  std::fprintf(stderr, "s2c2-rocm-run timing completion=s0,s1\n");
 
   Buf b;
   b.alloc(n);

@@ -23,6 +23,8 @@ module {
 // CHECK: s2c2-rocm-adapter pair id=R1 name=C||HtoD
 // CHECK: s2c2-rocm-adapter pair id=R2 name=C||C
 // CHECK: s2c2-rocm-adapter pair id=R3 name=HtoD||DtoH
+// CHECK: s2c2-rocm-adapter timing=host-wall-clock
+// CHECK: s2c2-rocm-adapter timing completion=s0,s1
 // CHECK: s2c2-rocm-adapter correctness=1
 // CHECK: s2c2-rocm-adapter map stor.pack=host_pinned
 // CHECK: s2c2-rocm-adapter map comm.stream=hipMemcpyAsync
@@ -41,6 +43,8 @@ module {
 // PAIRS: s2c2-rocm-adapter pair=C||HtoD
 // PAIRS: s2c2-rocm-adapter pair=C||C
 // PAIRS: s2c2-rocm-adapter pair=HtoD||DtoH
+// PAIRS: s2c2-rocm-adapter timing=host-wall-clock
+// PAIRS: s2c2-rocm-adapter timing completion=s0,s1
 // PAIRS: s2c2-rocm-adapter correctness=1
 // PAIRS: s2c2-rocm-adapter score3=not-applicable
 // PAIRS-NOT: pair=C_silu||C_gemm

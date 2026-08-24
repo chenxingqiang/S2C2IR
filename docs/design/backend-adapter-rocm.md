@@ -180,6 +180,28 @@ Named nonblocking streams are the default synchronization
 context (`named-nonblocking`), same as the CUDA decision
 default. Do not measure the HIP null stream in this increment.
 
+### Timing contract
+
+`T_pair` is **host wall-clock** over both work streams:
+
+```text
+hipDeviceSynchronize()          # clean boundary
+start = steady_clock
+launch on s0 / s1
+hipStreamSynchronize(s0)
+hipStreamSynchronize(s1)
+stop  = steady_clock
+T_pair = completion(s0, s1)
+```
+
+Do **not** use unbound `hipEventRecord()` on the null stream.
+That event is not a completion witness for `hipStreamNonBlocking`
+work on `s0`/`s1`. Cross-stream GPU event graphs are deferred:
+they insert extra waits into the pair under test.
+
+`sched.wait` in the construct map remains a HIP event for IR
+realization. It is not the pair timer.
+
 ---
 
 ## 6. Correctness

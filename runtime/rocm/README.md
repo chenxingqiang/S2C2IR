@@ -18,5 +18,7 @@ python3 runtime/rocm/record_rocm.py --check-schema-identity
 Pairs: `C||HtoD`, `C||C`, `HtoD||DtoH`.
 Workload semantic: `elemwise` / `host_to_device` / `device_to_host`.
 Capability Schema v1 keys only. No `hip_*` fields.
+`T_pair` is host wall-clock over `completion(s0,s1)`, not a
+null-stream `hipEventRecord`.
 Do not commit hostnames, accounts, or passwords.
 Do not FileCheck microseconds.

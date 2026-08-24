@@ -622,7 +622,7 @@ microseconds. `Workload_semantic ≠ Kernel_backend`.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
-| RA1 | `test/Pilot/s2c2-rocm-adapter-protocol.mlir` | `--dry-run` lists R1–R3 + workload contract |
+| RA1 | `test/Pilot/s2c2-rocm-adapter-protocol.mlir` | `--dry-run` lists R1–R3 + workload contract; `T_pair=completion(s0,s1)` |
 | RA2 | same | classifier protocol; `correctness=1`; no SiLU/GEMM workload names |
 | RA3 | same | `--emit-record` is schema v1; `confidence=unknown` |
 | RA4 | same | foreign 4090 `hardware_id` rejected as an AMD record |

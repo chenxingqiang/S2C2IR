@@ -58,6 +58,8 @@ static void printPairs() {
   std::fprintf(stderr, "s2c2-rocm-adapter pair=C||HtoD\n");
   std::fprintf(stderr, "s2c2-rocm-adapter pair=C||C\n");
   std::fprintf(stderr, "s2c2-rocm-adapter pair=HtoD||DtoH\n");
+  std::fprintf(stderr, "s2c2-rocm-adapter timing=host-wall-clock\n");
+  std::fprintf(stderr, "s2c2-rocm-adapter timing completion=s0,s1\n");
   std::fprintf(stderr, "s2c2-rocm-adapter correctness=1\n");
   std::fprintf(stderr, "s2c2-rocm-adapter score3=not-applicable\n");
   std::fprintf(stderr, "s2c2-rocm-adapter cost=unchanged\n");
