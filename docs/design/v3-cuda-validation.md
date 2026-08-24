@@ -15,6 +15,9 @@ depth* = N_resource ≠  a law
 V3                  ≠  claimed
 ```
 
+Compiler-facing claim (not a Cost patch):
+[`capability-aware-decision.md`](capability-aware-decision.md).
+
 ---
 
 ## 1. Why this layer
