@@ -29,3 +29,7 @@ C∥HtoD pipeline-tiles sanity records (`v3-pipe-tiles.jsonl`,
 72 points) reuse the same columns. Case names carry the
 tiles count (`pipe-t{T}-*`). Derived slices:
 `v3-pipe-tiles-slices.csv`.
+
+CUDA Validation V1 P0 records (`v3-cuda-val.jsonl`) reuse
+the same columns after the 4090 sweep. Derived:
+`v3-cuda-val-slices.csv`. Not Cost v0.4.

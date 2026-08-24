@@ -126,6 +126,34 @@ static void printCap() {
   std::fprintf(stderr, "s2c2-cuda-adapter cap cost=unchanged\n");
 }
 
+static void printCudaVal() {
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val=v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val map stor.materialize=cudaMalloc\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val map stor.transfer=cudaMemcpyAsync\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val map comm.copy=cudaMemcpyAsync\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val map sched.wait=cudaStreamWaitEvent\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val map "
+               "sched.concurrent=named-nonblocking-streams\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val map sched.pipeline=chained-events\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val map task-event=cudaEventRecord\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val cell stream-named\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val cell stream-default\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val cell extra-hb=legacy-default\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val pair=C||HtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val acceptance=HB-subset\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val semantics=unchanged\n");
+}
+
 int main(int argc, char **argv) {
   bool dryRun = false;
   bool matched = false;
@@ -133,6 +161,7 @@ int main(int argc, char **argv) {
   bool phase = false;
   bool pipe = false;
   bool pipeTiles = false;
+  bool cudaVal = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -148,12 +177,15 @@ int main(int argc, char **argv) {
       pipe = true;
     } else if (a == "--pipe-tiles") {
       pipeTiles = true;
+    } else if (a == "--cuda-val") {
+      cudaVal = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
-                   "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles]\n"
+                   "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
+                   "[--cuda-val]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -170,11 +202,12 @@ int main(int argc, char **argv) {
   }
 
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
-  int modes = (int)matched + (int)cap + (int)phase + (int)pipe + (int)pipeTiles;
+  int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
+              (int)pipeTiles + (int)cudaVal;
   if (modes > 1) {
     std::fprintf(stderr,
-                 "s2c2-cuda-adapter: --pipe-tiles/--pipe/--phase/--cap/--matched "
-                 "cannot combine\n");
+                 "s2c2-cuda-adapter: --cuda-val/--pipe-tiles/--pipe/"
+                 "--phase/--cap/--matched cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -199,6 +232,11 @@ int main(int argc, char **argv) {
   }
   if (pipeTiles) {
     printPipeTiles();
+    printMaps();
+    return 0;
+  }
+  if (cudaVal) {
+    printCudaVal();
     printMaps();
     return 0;
   }

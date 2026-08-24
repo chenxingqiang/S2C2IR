@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -1068,6 +1069,229 @@ static std::vector<CapArm> parseCapList(const char *name) {
   return {parseOneCap(name)};
 }
 
+// V1 CUDA validation. Same remaining work as --matched.
+// Does not change A/B/C / --matched / --phase / --cap / --pipe bodies.
+enum class ValKind { Copy, Compute, Seq, Ovl };
+enum class ValStreamKind { Named, Default };
+
+struct ValArm {
+  ValKind kind;
+  ValStreamKind stream;
+};
+
+struct ValBuf {
+  float *host = nullptr;
+  float *dest = nullptr;
+  float *scratch = nullptr;
+  float *check = nullptr;
+  int n = 0;
+  cudaStream_t sCopy = nullptr;
+  cudaStream_t sCompute = nullptr;
+  cudaEvent_t start = nullptr;
+  cudaEvent_t stop = nullptr;
+  bool named = false;
+
+  void alloc(int n_, ValStreamKind sk) {
+    n = n_;
+    named = sk == ValStreamKind::Named;
+    CUDA_OK(cudaHostAlloc(&host, sizeof(float) * n, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&check, sizeof(float) * n, cudaHostAllocDefault));
+    CUDA_OK(cudaMalloc(&dest, sizeof(float) * n));
+    CUDA_OK(cudaMalloc(&scratch, sizeof(float) * n));
+    if (named) {
+      CUDA_OK(cudaStreamCreateWithFlags(&sCopy, cudaStreamNonBlocking));
+      CUDA_OK(cudaStreamCreateWithFlags(&sCompute, cudaStreamNonBlocking));
+    } else {
+      sCopy = nullptr;
+      sCompute = nullptr;
+    }
+    CUDA_OK(cudaEventCreate(&start));
+    CUDA_OK(cudaEventCreate(&stop));
+    fillHost(host, n, 1);
+  }
+
+  void freeAll() {
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+    if (named) {
+      cudaStreamDestroy(sCompute);
+      cudaStreamDestroy(sCopy);
+    }
+    cudaFree(scratch);
+    cudaFree(dest);
+    cudaFreeHost(check);
+    cudaFreeHost(host);
+  }
+};
+
+static const char *valFunc(ValArm arm) {
+  if (arm.stream == ValStreamKind::Named) {
+    if (arm.kind == ValKind::Copy)
+      return "val-copy-named";
+    if (arm.kind == ValKind::Compute)
+      return "val-compute-named";
+    if (arm.kind == ValKind::Seq)
+      return "val-seq-named";
+    return "val-ovl-named";
+  }
+  if (arm.kind == ValKind::Copy)
+    return "val-copy-default";
+  if (arm.kind == ValKind::Compute)
+    return "val-compute-default";
+  if (arm.kind == ValKind::Seq)
+    return "val-seq-default";
+  return "val-ovl-default";
+}
+
+static const char *valExtraHb(ValStreamKind sk) {
+  return sk == ValStreamKind::Named ? "none" : "legacy-default";
+}
+
+static void provisionVal(ValBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.scratch, b.host, sizeof(float) * b.n,
+                          cudaMemcpyHostToDevice, b.sCopy));
+  CUDA_OK(cudaStreamSynchronize(b.sCopy));
+}
+
+static void runVal(ValBuf &b, ValArm arm, int k) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  switch (arm.kind) {
+  case ValKind::Copy:
+    CUDA_OK(cudaMemcpyAsync(b.dest, b.host, bytes, cudaMemcpyHostToDevice,
+                            b.sCopy));
+    CUDA_OK(cudaStreamSynchronize(b.sCopy));
+    break;
+  case ValKind::Compute:
+    siluLaunch(b.scratch, b.n, b.sCompute, k);
+    CUDA_OK(cudaStreamSynchronize(b.sCompute));
+    break;
+  case ValKind::Seq:
+    CUDA_OK(cudaMemcpyAsync(b.dest, b.host, bytes, cudaMemcpyHostToDevice,
+                            b.sCopy));
+    siluLaunch(b.scratch, b.n, b.sCopy, k);
+    CUDA_OK(cudaStreamSynchronize(b.sCopy));
+    break;
+  case ValKind::Ovl:
+    siluLaunch(b.scratch, b.n, b.sCompute, k);
+    CUDA_OK(cudaMemcpyAsync(b.dest, b.host, bytes, cudaMemcpyHostToDevice,
+                            b.sCopy));
+    CUDA_OK(cudaStreamSynchronize(b.sCompute));
+    CUDA_OK(cudaStreamSynchronize(b.sCopy));
+    break;
+  }
+}
+
+static float hostSilu(float v) { return v / (1.f + expf(-v)); }
+
+static bool valSpotOk(const float *got, int n, int seed, int siluK) {
+  int idx[3] = {0, n / 2, n - 1};
+  for (int t = 0; t < 3; ++t) {
+    int i = idx[t];
+    if (i < 0 || i >= n)
+      continue;
+    float want = 0.001f * static_cast<float>((i + seed) % 1000);
+    for (int r = 0; r < siluK; ++r)
+      want = hostSilu(want);
+    if (fabsf(got[i] - want) > 1e-3f)
+      return false;
+  }
+  return true;
+}
+
+static bool checkVal(ValBuf &b, ValArm arm, int seed, int k) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  if (arm.kind == ValKind::Copy || arm.kind == ValKind::Seq ||
+      arm.kind == ValKind::Ovl) {
+    CUDA_OK(cudaMemcpy(b.check, b.dest, bytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.check, b.n, seed, 0))
+      return false;
+  }
+  if (arm.kind == ValKind::Compute || arm.kind == ValKind::Seq ||
+      arm.kind == ValKind::Ovl) {
+    CUDA_OK(cudaMemcpy(b.check, b.scratch, bytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.check, b.n, seed, k))
+      return false;
+  }
+  return true;
+}
+
+static void printVal(ValArm arm, const char *dev, int n, int k, double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f "
+               "correct=1 extra_hb=%s\n",
+               valFunc(arm), kSched, kMap, dev, n, k, us,
+               valExtraHb(arm.stream));
+}
+
+static double timeValArm(ValBuf &b, ValArm arm, int warmup, int reps, int k) {
+  auto body = [&]() { runVal(b, arm, k); };
+  for (int i = 0; i < warmup; ++i) {
+    fillHost(b.host, b.n, 1);
+    provisionVal(b);
+    body();
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    int seed = i + 2;
+    fillHost(b.host, b.n, seed);
+    provisionVal(b);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f);
+    if (!checkVal(b, arm, seed, k)) {
+      std::fprintf(stderr, "s2c2-cuda-run: %s correct=0\n", valFunc(arm));
+      std::exit(3);
+    }
+  }
+  return medianUs(samples);
+}
+
+static std::vector<ValArm> parseValList(const char *name) {
+  auto named = [](ValKind k) {
+    return ValArm{k, ValStreamKind::Named};
+  };
+  auto def = [](ValKind k) {
+    return ValArm{k, ValStreamKind::Default};
+  };
+  if (std::strcmp(name, "off") == 0)
+    return {};
+  if (std::strcmp(name, "p0") == 0 || std::strcmp(name, "all") == 0)
+    return {named(ValKind::Copy), named(ValKind::Compute), named(ValKind::Seq),
+            named(ValKind::Ovl),  def(ValKind::Copy),     def(ValKind::Compute),
+            def(ValKind::Seq),    def(ValKind::Ovl)};
+  if (std::strcmp(name, "named") == 0)
+    return {named(ValKind::Copy), named(ValKind::Compute), named(ValKind::Seq),
+            named(ValKind::Ovl)};
+  if (std::strcmp(name, "default") == 0)
+    return {def(ValKind::Copy), def(ValKind::Compute), def(ValKind::Seq),
+            def(ValKind::Ovl)};
+  if (std::strcmp(name, "copy-named") == 0)
+    return {named(ValKind::Copy)};
+  if (std::strcmp(name, "compute-named") == 0)
+    return {named(ValKind::Compute)};
+  if (std::strcmp(name, "seq-named") == 0)
+    return {named(ValKind::Seq)};
+  if (std::strcmp(name, "ovl-named") == 0)
+    return {named(ValKind::Ovl)};
+  if (std::strcmp(name, "copy-default") == 0)
+    return {def(ValKind::Copy)};
+  if (std::strcmp(name, "compute-default") == 0)
+    return {def(ValKind::Compute)};
+  if (std::strcmp(name, "seq-default") == 0)
+    return {def(ValKind::Seq)};
+  if (std::strcmp(name, "ovl-default") == 0)
+    return {def(ValKind::Ovl)};
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --cuda-val %s\n", name);
+  std::exit(1);
+}
+
 int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
@@ -1075,6 +1299,7 @@ int main(int argc, char **argv) {
   const char *capArg = "off";
   const char *phaseArg = "off";
   const char *pipeArg = "off";
+  const char *valArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
@@ -1103,6 +1328,8 @@ int main(int argc, char **argv) {
       phaseArg = argv[i] + 8;
     else if (a.rfind("--pipe=", 0) == 0)
       pipeArg = argv[i] + 7;
+    else if (a.rfind("--cuda-val=", 0) == 0)
+      valArg = argv[i] + 11;
     else if (a.rfind("--tiles=", 0) == 0)
       tiles = std::atoi(argv[i] + 8);
     else if (a == "--provisioned")
@@ -1123,6 +1350,8 @@ int main(int argc, char **argv) {
                    "--device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --pipe=d1|d2|d3|d4|copy|compute|depths|all "
                    "--device=gpu --n=N --k=K --tiles=8\n"
+                   "s2c2-cuda-run --cuda-val=p0|named|default|ovl-named|"
+                   "ovl-default --device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -1145,6 +1374,7 @@ int main(int argc, char **argv) {
   std::vector<CapArm> capArms = parseCapList(capArg);
   std::vector<MatchedArm> phaseArms = parsePhaseList(phaseArg);
   std::vector<PipeArm> pipeArms = parsePipeList(pipeArg);
+  std::vector<ValArm> valArms = parseValList(valArg);
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;
   MatchedArm matched = parseMatched(matchedArg);
   bool matchedOn = matchedAll || matched != MatchedArm::Off;
@@ -1162,6 +1392,52 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "s2c2-cuda-run: --pipe cannot combine with --phase/--cap/--matched\n");
     return 1;
+  }
+  if (!valArms.empty() &&
+      (matchedOn || !capArms.empty() || !phaseArms.empty() ||
+       !pipeArms.empty())) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run: --cuda-val cannot combine with "
+                 "--pipe/--phase/--cap/--matched\n");
+    return 1;
+  }
+  if (!valArms.empty()) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --cuda-val is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    ValBuf namedBuf;
+    ValBuf defaultBuf;
+    bool needNamed = false;
+    bool needDefault = false;
+    for (ValArm arm : valArms) {
+      if (arm.stream == ValStreamKind::Named)
+        needNamed = true;
+      else
+        needDefault = true;
+    }
+    if (needNamed)
+      namedBuf.alloc(n, ValStreamKind::Named);
+    if (needDefault)
+      defaultBuf.alloc(n, ValStreamKind::Default);
+    for (ValArm arm : valArms) {
+      ValBuf &b =
+          arm.stream == ValStreamKind::Named ? namedBuf : defaultBuf;
+      double us = timeValArm(b, arm, warmup, reps, k);
+      printVal(arm, "gpu", n, k, us);
+    }
+    if (needNamed)
+      namedBuf.freeAll();
+    if (needDefault)
+      defaultBuf.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
   }
   if (!pipeArms.empty()) {
     if (!gpu) {

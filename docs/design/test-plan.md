@@ -522,3 +522,17 @@ and depths; `tiles ∈ {4, 8, 16, 32}`. Does not change
 | PT2 | same ABC | `--dry-run` without `--pipe-tiles` stays A/B/C |
 | PT3 | same | `--dry-run --pipe` still `tiles=8` |
 | PT4 | same fixture | `--analyze-pipe-tiles` prints sat; `v3=not-claimed` |
+
+## CUDA Validation V1 (P0)
+
+**Not Cost v0.4.** Design:
+[`v3-cuda-validation.md`](v3-cuda-validation.md). Semantic
+map + default vs named-nonblocking C∥HtoD. No FileCheck of
+microseconds. Semantics unchanged.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CV1 | `test/Pilot/s2c2-v3-cuda-validation.mlir` | `--dry-run --cuda-val` lists V1 map |
+| CV2 | same ABC | `--dry-run` without `--cuda-val` stays A/B/C |
+| CV3 | same | `--dry-run --pipe` still `tiles=8` |
+| CV4 | same fixture | `--analyze-cuda-val` prints extra-hb; `v3=not-claimed` |
