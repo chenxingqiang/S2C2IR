@@ -4,6 +4,7 @@
 // RUN: s2c2-cuda-adapter --dry-run --pipe 2>&1 | FileCheck %s --check-prefix=PIPE
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --print-cuda-val-mem-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val-mem %S/cuda-val-mem-fixture.jsonl | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val-mem %S/../../docs/design/v3-dataset/v3-cuda-mem.jsonl | FileCheck %s --check-prefix=HW
 
 // Host + recorder protocol for CUDA Validation V2 pinned vs pageable.
 // No device, no microseconds FileCheck, no Cost change.
@@ -61,3 +62,14 @@ module {
 // AN: v3=not-claimed
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 4090 surface only. Do not FileCheck microseconds.
+// HW: v3-cuda-val-mem v2 pair=C||HtoD,C||DtoH acceptance=storage-comm
+// HW: bandwidth
+// HW: max-like-unbalanced
+// HW: bandwidth-only
+// HW: counterexamples=0
+// HW: semantics=unchanged
+// HW: v3=not-claimed
+// HW-NOT: Cost v0.4
+// HW-NOT: password

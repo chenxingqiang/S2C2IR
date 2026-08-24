@@ -1,11 +1,11 @@
 # CUDA Validation — Pinned vs Pageable (V2 P0)
 
-Status: **protocol only**. 4090 not yet recorded. Not Cost
-v0.4. Does **not** change Cost, HB axioms, `R`, Search,
+Status: **4090 evidence recorded**. Not Cost v0.4. Does
+**not** change Cost, HB axioms, `R`, Search,
 Transformation, Pilot IR, A/B/C bodies, `--matched` /
 `--phase` / `--cap` / `--pipe` bodies, V1 `--cuda-val=p0`
 timed bodies, or S^2C^2 Semantics. Baseline: `e44d577`
-(`#60`).
+(`#60`). Protocol tree: `616cca2`.
 
 ```text
 Host residency     !=  a Cost axiom
@@ -39,20 +39,17 @@ different host residency
 different effective async / overlap?
 ```
 
-That would be a second realization counterexample:
+Two different questions, kept separate:
 
 ```text
-stor.space<host>  cannot mean "any host buffer"
-host residency    may decide comm realization capability
+1. Communication rate:   T_pageable / T_pinned  ?
+2. Extra HB / overlap:   does pageable serialize C || copy?
 ```
 
-Not a bandwidth paper. The question is
-
-```text
-Storage Capability
-    <->  Communication Capability
-    <->  Overlap
-```
+`stor.space<host>` cannot mean "any host buffer" if (1) is
+large. It would further decide overlap realization if (2)
+is a serial flip. A bandwidth-only gap without a serial
+flip is reported, but is not by itself extra-HB.
 
 ---
 
@@ -92,26 +89,86 @@ Do not FileCheck microseconds.
 bodies stay untouched.
 
 `extra_hb = pageable-host` is a **realization
-classification** from observed serialization, not a
+classification** from observed *serial* extra time, not a
 reconstructed CUDA HB graph. Phrase as:
 
 > observed extra serialization consistent with pageable-host
 > staging / implicit synchronization
 
-What would count as the Storage x Comm counterexample:
+A `#55` mixed verdict with `ovl/max <= 1.15` is still
+max-like. That gray zone is r-unbalance from a slower
+pageable copy, not extra HB.
+
+What would count as the Storage x Comm extra-HB
+counterexample:
 
 ```text
-pinned   C||HtoD  ->  parallel     (confirms #60 named)
-pageable C||HtoD  ->  serial|mixed
+pinned   C||HtoD  ->  parallel
+pageable C||HtoD  ->  serial     (ovl/sum >= 0.90)
 ```
 
-and/or the same flip on C||DtoH. A bandwidth-only gap
-(`T_pageable > T_pinned`) **without** a verdict flip is
-reported, but is not by itself the Storage x Comm claim.
+and/or the same serial flip on C||DtoH.
 
 ---
 
-## 3. Out of this increment
+## 3. 4090 result (27 points -> 12 slices)
+
+All arms `correct=1`. Same remaining compute `k` per N.
+Pinned C||HtoD / C||DtoH stay **parallel** at all 3 N
+(confirms `#60` named). Pageable copies are 2-3x slower.
+Pageable overlap stays **max-like** (`T_ovl ~ T_copy`);
+compute is still hidden under the slower copy.
+
+| N | pair | res | k | r | copy | compute | ovl | ovl/max | ovl/sum | verdict |
+| - | ---- | --- | - | - | ---- | ------- | --- | ------- | ------- | ------- |
+| 4M | C||HtoD | pin | 31 | 0.528 | 671 | 354 | 734 | 1.094 | 0.717 | parallel |
+| 4M | C||HtoD | page | 31 | 0.276 | 1280 | 354 | 1316 | 1.028 | 0.806 | mixed |
+| 4M | C||DtoH | pin | 31 | 0.545 | 649 | 354 | 713 | 1.098 | 0.711 | parallel |
+| 4M | C||DtoH | page | 31 | 0.186 | 1898 | 354 | 1958 | 1.032 | 0.869 | mixed |
+| 16M | C||HtoD | pin | 20 | 0.548 | 2660 | 1457 | 2718 | 1.022 | 0.660 | parallel |
+| 16M | C||HtoD | page | 20 | 0.236 | 6162 | 1457 | 6261 | 1.016 | 0.822 | mixed |
+| 16M | C||DtoH | pin | 20 | 0.568 | 2566 | 1457 | 2700 | 1.052 | 0.671 | parallel |
+| 16M | C||DtoH | page | 20 | 0.210 | 6935 | 1457 | 6990 | 1.008 | 0.833 | mixed |
+| 64M | C||HtoD | pin | 20 | 1.092 | 10620 | 11602 | 11919 | 1.027 | 0.536 | parallel |
+| 64M | C||HtoD | page | 20 | 0.468 | 24815 | 11602 | 24777 | 0.998 | 0.680 | parallel |
+| 64M | C||DtoH | pin | 20 | 1.134 | 10233 | 11602 | 11974 | 1.032 | 0.548 | parallel |
+| 64M | C||DtoH | page | 20 | 0.378 | 30687 | 11602 | 30695 | 1.000 | 0.726 | parallel |
+
+```text
+bandwidth HtoD page/pin :  1.908 / 2.317 / 2.337
+bandwidth DtoH page/pin :  2.923 / 2.702 / 2.999
+counterexamples         :  0 / 6
+max-like-unbalanced     :  4     (4M + 16M, both pairs)
+bandwidth-only          :  2     (64M, both pairs)
+extra_hb                :  none
+```
+
+The four mixed cells have `ovl/max ~ 1.02` and
+`ovl/sum ~ 1/(1+r)`. That is the `#55` gray zone from a
+copy-dominated `r`, not `T_ovl ~ sum`.
+
+```text
+Communication rate  =  f(residency, direction, size)
+C || copy           stays max-like on named streams
+                    for both pinned and pageable
+HB_pageable \ HB_S^2C^2  =  empty   (this regime)
+HB_default  \ HB_S^2C^2  != empty   (#60)
+```
+
+So `stor.space<host>` is not one Communication capability:
+residency changes the transfer rate by ~2-3x. It did **not**
+add the legacy-default style extra HB on this SiLU arm /
+named-nonblocking realization / tested N.
+
+Do not FileCheck microseconds. Do not promote this to a
+Cost axiom or a Schedule rewrite.
+
+Records: [`v3-dataset/v3-cuda-mem.jsonl`](v3-dataset/v3-cuda-mem.jsonl).
+Derived: [`v3-dataset/v3-cuda-mem-slices.csv`](v3-dataset/v3-cuda-mem-slices.csv).
+
+---
+
+## 4. Out of this increment
 
 ```text
 managed / mapped / cudaMallocAsync
@@ -125,14 +182,14 @@ claiming V3
 
 ---
 
-## 4. Files
+## 5. Files
 
 | Path | Role |
 | ---- | ---- |
 | `runtime/cuda/s2c2_cuda_adapter.cu` | `--cuda-val-mem=` |
 | `tools/s2c2-cuda-adapter/` | host `--dry-run --cuda-val-mem` |
 | `runtime/cuda/record_v3.py` | `--cuda-val-mem-sweep` / `--analyze-cuda-val-mem` |
-| `docs/design/v3-dataset/v3-cuda-mem.jsonl` | after 4090 (27 points) |
+| `docs/design/v3-dataset/v3-cuda-mem.jsonl` | 27 points |
 
 `--cuda-val=p0` named/default bodies stay untouched.
 

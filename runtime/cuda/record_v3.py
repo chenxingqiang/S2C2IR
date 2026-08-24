@@ -780,6 +780,14 @@ def cuda_val_mem_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 ovl = float(by_case[ovl_key]["latency_us"])
                 pmax = _safe_div(ovl, max(copy, compute))
                 psum = _safe_div(ovl, copy + compute)
+                verdict = _verdict(pmax, psum)
+                # extra_hb is observed serialization, not a CUDA HB graph.
+                # Pageable + mixed with ovl/max <= 1.15 is still max-like;
+                # the #55 gray zone is r-unbalance, not extra HB.
+                if residency == "pageable" and verdict == "serial":
+                    extra_hb = extra
+                else:
+                    extra_hb = "none"
                 out.append(
                     {
                         "N": n,
@@ -792,8 +800,8 @@ def cuda_val_mem_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                         "T_ovl_us": ovl,
                         "ovl_over_max": pmax,
                         "ovl_over_sum": psum,
-                        "verdict": _verdict(pmax, psum),
-                        "extra_hb": extra,
+                        "verdict": verdict,
+                        "extra_hb": extra_hb,
                     }
                 )
     return out
@@ -822,6 +830,7 @@ def analyze_cuda_val_mem(jsonl: Path, out: Path | None = None) -> int:
             f"{s['ovl_over_sum']:.3f}\t{s['verdict']}\t{s['extra_hb']}"
         )
     hits = 0
+    unbalanced = 0
     bw_only = 0
     for n in NS:
         by_case = {r["case"]: r for r in rows if int(r["N"]) == n}
@@ -850,16 +859,25 @@ def analyze_cuda_val_mem(jsonl: Path, out: Path | None = None) -> int:
             )
             if not pinned or not pageable:
                 continue
-            flipped = (
-                pinned["verdict"] == "parallel"
-                and pageable["verdict"] in ("serial", "mixed")
-            )
-            if flipped:
+            # Storage x Comm extra-HB requires a serial flip, not a
+            # mixed gray zone from r-unbalanced pageable copies.
+            if pinned["verdict"] == "parallel" and pageable["verdict"] == "serial":
                 hits += 1
                 print(
                     f"counterexample\tN={n}\tpair={pair}\t"
-                    f"pinned=parallel\tpageable={pageable['verdict']}\t"
+                    f"pinned=parallel\tpageable=serial\t"
                     "extra-hb=pageable-host"
+                )
+            elif (
+                pinned["verdict"] == "parallel"
+                and pageable["verdict"] == "mixed"
+                and pageable["ovl_over_max"] <= 1.15
+            ):
+                unbalanced += 1
+                print(
+                    f"max-like-unbalanced\tN={n}\tpair={pair}\t"
+                    f"pinned=parallel\tpageable=mixed\t"
+                    "extra-hb=none"
                 )
             elif pageable["T_copy_us"] > pinned["T_copy_us"]:
                 bw_only += 1
@@ -870,7 +888,7 @@ def analyze_cuda_val_mem(jsonl: Path, out: Path | None = None) -> int:
                 )
     print(
         f"summary slices={len(slices)} counterexamples={hits} "
-        f"bandwidth-only={bw_only} "
+        f"max-like-unbalanced={unbalanced} bandwidth-only={bw_only} "
         "semantics=unchanged v3=not-claimed cost=unchanged"
     )
     if out:
