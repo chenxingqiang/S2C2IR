@@ -3,6 +3,7 @@
 // RUN: not s2c2-ascend-adapter --dry-run --cc-phase --cc-size 2>&1 | FileCheck %s --check-prefix=EXCL
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --print-cc-size-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-cc-size %S/ascend-cc-size-fixture.log | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-cc-size %S/../../docs/design/v3-dataset/ascend910b/cc-size.log | FileCheck %s --check-prefix=HW
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --query-cap 'C||C' --cap-catalog %S/../../docs/design/v3-dataset/ascend910b/capability.jsonl | FileCheck %s --check-prefix=QC
 
 // Host protocol for 910B C||C size-boundary at r≈1. No microseconds FileCheck.
@@ -42,6 +43,16 @@ module {
 // AN: v3=not-claimed
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 910B surface only. Do not FileCheck microseconds.
+// HW: v3-ascend-cc-size pair=C||C r=1 r3-gate=closed
+// HW: n-grid=4M,8M,12M,16M,32M,64M,128M
+// HW: transition=mixed-to-serial 16M..32M
+// HW: r3-gate=closed
+// HW: note catalog-untouched
+// HW: v3=not-claimed
+// HW-NOT: Cost v0.4
+// HW-NOT: password
 
 // #69 C||C stays underdetermined.
 // QC: "pair":"C||C"

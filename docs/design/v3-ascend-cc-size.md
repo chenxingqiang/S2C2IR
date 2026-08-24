@@ -65,3 +65,30 @@ D2D / P2P
 opening PR-R3
 overwriting #69 / #71
 ```
+
+## 910B result (r≈1, k_ref=32)
+
+`correctness=1`. `transition=mixed-to-serial 16M..32M`.
+`#69` `C||C` stays `underdetermined`. PR-R3 stays closed.
+
+```text
+4M     mixed
+8M     mixed
+12M    mixed
+16M    mixed
+32M    serial / resource_contention
+64M    serial / resource_contention
+128M   serial / resource_contention
+```
+
+Quote only **within r≈1**. 16M sits near the classifier slack
+(`par/sum=0.867` here; `#71` r=1 recorded serial). Treat 16M as
+a **boundary band**, not a single applicable cell.
+
+32M `T_par` on this run is an outlier (`par/sum ≫ 1`); the
+verdict is still serial. Do not freeze that ratio as Cost.
+
+Do not majority-vote `#69`. Do not invent a global serial cell.
+
+Files: `docs/design/v3-dataset/ascend910b/cc-size.log`,
+`cc-size.csv`. Do not FileCheck microseconds.

@@ -1,0 +1,91 @@
+sweep_cc_size n=4194304 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=4194304 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=mixed observed_constraint=none n=4194304
+s2c2-ascend-run cc-phase timing a=731.7 b=731.7 par=1136.0 par_over_max=1.552 par_over_sum=0.776
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
+sweep_cc_size n=8388608 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=8388608 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=mixed observed_constraint=none n=8388608
+s2c2-ascend-run cc-phase timing a=1084.4 b=1084.4 par=1783.7 par_over_max=1.645 par_over_sum=0.822
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
+sweep_cc_size n=12582912 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=12582912 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=mixed observed_constraint=none n=12582912
+s2c2-ascend-run cc-phase timing a=1417.5 b=1417.5 par=2450.8 par_over_max=1.729 par_over_sum=0.864
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
+sweep_cc_size n=16777216 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=16777216 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=mixed observed_constraint=none n=16777216
+s2c2-ascend-run cc-phase timing a=1817.8 b=1817.8 par=3153.0 par_over_max=1.734 par_over_sum=0.867
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
+sweep_cc_size n=33554432 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=33554432 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=33554432
+s2c2-ascend-run cc-phase timing a=3315.4 b=3315.4 par=23438.6 par_over_max=7.070 par_over_sum=3.535
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
+sweep_cc_size n=67108864 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=67108864 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=67108864
+s2c2-ascend-run cc-phase timing a=23849.4 b=23849.4 par=56059.3 par_over_max=2.351 par_over_sum=1.175
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched
+sweep_cc_size n=134217728 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-phase=1 pair=C||C
+s2c2-ascend-run cc-phase n=134217728 k_ref=32
+s2c2-ascend-run cc-phase slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=134217728
+s2c2-ascend-run cc-phase timing a=56536.1 b=56536.1 par=112209.7 par_over_max=1.985 par_over_sum=0.992
+s2c2-ascend-run cc-phase correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-phase r3-gate=closed note catalog-untouched

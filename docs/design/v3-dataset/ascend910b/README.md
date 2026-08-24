@@ -54,3 +54,7 @@ a single parallel cell.
 `C||C` r-sweep: `cc-phase.log`, `cc-phase.csv`.
 `unique=no` (`mixed` at 4M, `serial` at 16M/64M for every
 `r ∈ {0.5,0.75,1,1.5,2}`). Pair catalog unchanged.
+
+`C||C` size-boundary at `r≈1`: `cc-size.log`, `cc-size.csv`.
+`transition=mixed-to-serial 16M..32M`. 16M is a boundary band.
+Pair catalog unchanged. PR-R3 closed.

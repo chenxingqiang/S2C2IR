@@ -685,4 +685,5 @@ PR-R3 stays closed. No FileCheck of microseconds.
 | AS2 | same | exclusive vs `--cc-phase` |
 | AS3 | same fixture | `--analyze-cc-size` reports mixed→serial |
 | AS4 | same | `#69` `--query-cap C||C` still `underdetermined` |
+| AS5 | same HW log | `transition=mixed-to-serial 16M..32M`; no μs |
 
