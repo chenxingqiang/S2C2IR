@@ -221,7 +221,7 @@ claiming V3
 | `runtime/cuda/s2c2_cuda_adapter.cu` | `--cuda-val-d2d=` |
 | `tools/s2c2-cuda-adapter/` | host `--dry-run --cuda-val-d2d` |
 | `runtime/cuda/record_v3.py` | `--cuda-val-d2d-sweep` / `--analyze-cuda-val-d2d` |
-| `docs/design/v3-dataset/v3-cuda-d2d.jsonl` | 21 points after 4090 |
+| `docs/design/v3-dataset/v3-cuda-d2d.jsonl` | 21 points |
 
 ```text
 same-device D2D         !=  P2P
