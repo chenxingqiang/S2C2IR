@@ -152,6 +152,38 @@ static void printCudaValMem() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-mem semantics=unchanged\n");
 }
 
+static void printCudaValCc() {
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc=p0\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc map C_light=kxSiLU\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc map C_heavy=mxGEMM\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc map dim=1024\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc map "
+               "sched.concurrent=named-nonblocking-streams\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc cell same-kind=SiLU||SiLU\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc cell mixed-kind=SiLU||GEMM\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc cell "
+               "pair-relation=serial|parallel|mixed\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc cell "
+               "observed-constraint=none|resource_contention\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc cell extra-hb=not-applicable\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc note no-overlap-not-hb\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc pair=C_light||C_heavy\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc acceptance=compute-resource\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cuda-val-cc score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc semantics=unchanged\n");
+}
+
 static void printCudaVal() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val=v1\n");
   std::fprintf(stderr,
@@ -189,6 +221,7 @@ int main(int argc, char **argv) {
   bool pipeTiles = false;
   bool cudaVal = false;
   bool cudaValMem = false;
+  bool cudaValCc = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -204,6 +237,8 @@ int main(int argc, char **argv) {
       pipe = true;
     } else if (a == "--pipe-tiles") {
       pipeTiles = true;
+    } else if (a == "--cuda-val-cc") {
+      cudaValCc = true;
     } else if (a == "--cuda-val-mem") {
       cudaValMem = true;
     } else if (a == "--cuda-val") {
@@ -214,7 +249,7 @@ int main(int argc, char **argv) {
       std::fprintf(stderr,
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
-                   "[--cuda-val] [--cuda-val-mem]\n"
+                   "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -232,11 +267,12 @@ int main(int argc, char **argv) {
 
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
-              (int)pipeTiles + (int)cudaVal + (int)cudaValMem;
+              (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
+              (int)cudaValCc;
   if (modes > 1) {
     std::fprintf(stderr,
-                 "s2c2-cuda-adapter: --cuda-val-mem/--cuda-val/--pipe-tiles/"
-                 "--pipe/--phase/--cap/--matched cannot combine\n");
+                 "s2c2-cuda-adapter: --cuda-val-cc/--cuda-val-mem/--cuda-val/"
+                 "--pipe-tiles/--pipe/--phase/--cap/--matched cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -271,6 +307,11 @@ int main(int argc, char **argv) {
   }
   if (cudaValMem) {
     printCudaValMem();
+    printMaps();
+    return 0;
+  }
+  if (cudaValCc) {
+    printCudaValCc();
     printMaps();
     return 0;
   }

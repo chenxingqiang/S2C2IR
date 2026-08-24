@@ -38,3 +38,8 @@ CUDA Validation V2 P0 pinned vs pageable records
 (`v3-cuda-mem.jsonl`) reuse the same columns after the
 4090 sweep. Derived: `v3-cuda-mem-slices.csv`. Does not
 change V1 `--cuda-val` bodies. Not Cost v0.4.
+
+C_light ∥ C_heavy records (`v3-cuda-clight.jsonl`) reuse
+the same columns after the 4090 sweep. Derived:
+`v3-cuda-clight-slices.csv`. Does not change V1/V2 timed
+bodies. Not Cost v0.4.

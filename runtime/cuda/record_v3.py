@@ -147,6 +147,34 @@ VAL_MEM_FIELDS = (
     "verdict",
     "extra_hb",
 )
+VAL_CC_ARMS = (
+    "val-cc-silu",
+    "val-cc-matmul",
+    "val-cc-seq",
+    "val-cc-ovl",
+    "val-cc-silu-silu",
+)
+VAL_CC_FUNCS = set(VAL_CC_ARMS)
+VAL_CC_DIM = 1024
+VAL_CC_FIELDS = (
+    "N",
+    "k",
+    "dim",
+    "r",
+    "T_silu_us",
+    "T_matmul_us",
+    "T_seq_us",
+    "T_ovl_us",
+    "T_silu_silu_us",
+    "ovl_over_max",
+    "ovl_over_sum",
+    "mixed_verdict",
+    "ss_over_max",
+    "ss_over_sum",
+    "same_verdict",
+    "pair_relation",
+    "observed_constraint",
+)
 PIPE_FIELDS = (
     "N",
     "k",
@@ -916,6 +944,281 @@ def analyze_cuda_val_mem(jsonl: Path, out: Path | None = None) -> int:
         print(
             f"record_v3 wrote {out} count={len(slices)} "
             "cuda-val-mem v3=not-claimed"
+        )
+    return 0
+
+
+def print_cuda_val_cc_schema() -> int:
+    print("cuda-val-cc p0")
+    print("pair C_light||C_heavy")
+    print("C_light kxSiLU")
+    print("C_heavy mxGEMM")
+    print("dim 1024")
+    print("stream named-nonblocking")
+    print("acceptance compute-resource")
+    print("pair-relation parallel|serial|mixed")
+    print("observed-constraint none|resource_contention")
+    print("extra-hb not-applicable")
+    print("no-overlap-not-hb")
+    print("score3 not-applicable")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def parse_val_cc_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in VAL_CC_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": int(m.group("k")),
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
+def _collect_val_cc_rows(
+    text: str, gpu: dict[str, str], warmup: int, reps: int, commit: str
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parsed = parse_val_cc_line(line)
+        if not parsed:
+            continue
+        rec = base_record(commit, gpu, warmup, reps)
+        rec["case"] = parsed["case"]
+        rec["N"] = parsed["N"]
+        rec["k"] = parsed["k"]
+        rec["provisioned"] = parsed["provisioned"]
+        rec["score3"] = parsed["score3"]
+        rec["latency_us"] = parsed["latency_us"]
+        rows.append({key: rec[key] for key in FIELDS})
+    return rows
+
+
+def _choose_val_cc_km(t_silu_unit: float, t_gemm_unit: float) -> tuple[int, int]:
+    if t_silu_unit <= t_gemm_unit:
+        return choose_phase_k(1.0, t_gemm_unit, t_silu_unit), 1
+    return 1, choose_phase_k(1.0, t_silu_unit, t_gemm_unit)
+
+
+def cuda_val_cc_sweep(bin_path: str, out_prefix: Path, warmup: int, reps: int,
+                      commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    try:
+        for n in NS:
+            print(f"=== cuda-val-cc calibrate n={n} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-cc=silu", f"--n={n}", "--k=1", "--m=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            silu_rows = _collect_val_cc_rows(text, gpu, warmup, reps, commit)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-cc=matmul", f"--n={n}", "--k=1", "--m=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            gemm_rows = _collect_val_cc_rows(text, gpu, warmup, reps, commit)
+            if len(silu_rows) != 1 or len(gemm_rows) != 1:
+                print("record_v3: cuda-val-cc calibrate expected 2 rows",
+                      file=sys.stderr)
+                return 4
+            k, m = _choose_val_cc_km(
+                float(silu_rows[0]["latency_us"]),
+                float(gemm_rows[0]["latency_us"]),
+            )
+            print(f"=== cuda-val-cc p0 n={n} k={k} m={m} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-cc=p0", f"--n={n}", f"--k={k}", f"--m={m}"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            got = _collect_val_cc_rows(text, gpu, warmup, reps, commit)
+            if {r["case"] for r in got} != set(VAL_CC_ARMS):
+                print(
+                    f"record_v3: expected 5 val-cc arms, got "
+                    f"{[r['case'] for r in got]}",
+                    file=sys.stderr,
+                )
+                return 4
+            rows.extend(got)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"record_v3: cuda-val-cc run failed: {exc}", file=sys.stderr)
+        return 2
+    write_outputs(rows, out_prefix)
+    print(
+        f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+        f"count={len(rows)} cuda-val-cc v3=not-claimed"
+    )
+    return 0
+
+
+def cuda_val_cc_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in NS:
+        slice_rows = [r for r in rows if int(r["N"]) == n]
+        by_case = {r["case"]: r for r in slice_rows}
+        need = (
+            "val-cc-silu",
+            "val-cc-matmul",
+            "val-cc-seq",
+            "val-cc-ovl",
+            "val-cc-silu-silu",
+        )
+        if any(key not in by_case for key in need):
+            continue
+        silu = float(by_case["val-cc-silu"]["latency_us"])
+        matmul = float(by_case["val-cc-matmul"]["latency_us"])
+        seq = float(by_case["val-cc-seq"]["latency_us"])
+        ovl = float(by_case["val-cc-ovl"]["latency_us"])
+        ss = float(by_case["val-cc-silu-silu"]["latency_us"])
+        k = int(by_case["val-cc-silu"]["k"])
+        pmax = _safe_div(ovl, max(silu, matmul))
+        psum = _safe_div(ovl, silu + matmul)
+        smax = _safe_div(ss, silu)
+        ssum = _safe_div(ss, 2.0 * silu)
+        mixed = _verdict(pmax, psum)
+        same = _verdict(smax, ssum)
+        # pair_relation is Capability. observed_constraint is not extra HB:
+        # T_ovl ≈ T_seq on named streams is resource contention, not
+        # HB_CUDA ⊃ HB_S^2C^2 (#60 reserved extra_hb=legacy-default).
+        constraint = "resource_contention" if mixed == "serial" else "none"
+        out.append(
+            {
+                "N": n,
+                "k": k,
+                "dim": VAL_CC_DIM,
+                "r": _safe_div(silu, matmul),
+                "T_silu_us": silu,
+                "T_matmul_us": matmul,
+                "T_seq_us": seq,
+                "T_ovl_us": ovl,
+                "T_silu_silu_us": ss,
+                "ovl_over_max": pmax,
+                "ovl_over_sum": psum,
+                "mixed_verdict": mixed,
+                "ss_over_max": smax,
+                "ss_over_sum": ssum,
+                "same_verdict": same,
+                "pair_relation": mixed,
+                "observed_constraint": constraint,
+            }
+        )
+    return out
+
+
+def analyze_cuda_val_cc(jsonl: Path, out: Path | None = None) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    slices = cuda_val_cc_slices(rows)
+    print(
+        "v3-cuda-val-cc p0 pair=C_light||C_heavy acceptance=compute-resource "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    print(
+        "slice\tN\tk\tdim\tr\tsilu\tmatmul\tseq\tovl\tsilu_silu\t"
+        "ovl/max\tovl/sum\tmixed\tss/max\tss/sum\tsame\t"
+        "pair_relation\tobserved_constraint"
+    )
+    serial_hits = 0
+    kind_specific = 0
+    still_serial = 0
+    unexpected = 0
+    for s in slices:
+        print(
+            f"slice\t{s['N']}\t{s['k']}\t{s['dim']}\t{s['r']:.3f}\t"
+            f"{s['T_silu_us']:.1f}\t{s['T_matmul_us']:.1f}\t"
+            f"{s['T_seq_us']:.1f}\t{s['T_ovl_us']:.1f}\t"
+            f"{s['T_silu_silu_us']:.1f}\t{s['ovl_over_max']:.3f}\t"
+            f"{s['ovl_over_sum']:.3f}\t{s['mixed_verdict']}\t"
+            f"{s['ss_over_max']:.3f}\t{s['ss_over_sum']:.3f}\t"
+            f"{s['same_verdict']}\t{s['pair_relation']}\t"
+            f"{s['observed_constraint']}"
+        )
+        print(
+            f"control\tN={s['N']}\tsame-kind={s['same_verdict']}"
+        )
+        print(
+            f"mixed\tN={s['N']}\tsilu||matmul={s['mixed_verdict']}\t"
+            f"pair-relation={s['pair_relation']}\t"
+            f"observed-constraint={s['observed_constraint']}"
+        )
+        if s["same_verdict"] == "parallel":
+            unexpected += 1
+            print(
+                f"unexpected-same-kind-overlap\tN={s['N']}\t"
+                f"same={s['same_verdict']}"
+            )
+        elif s["same_verdict"] == "serial" and s["mixed_verdict"] == "parallel":
+            kind_specific += 1
+            print(
+                f"kind-specific\tN={s['N']}\tsame=serial\tmixed=parallel"
+            )
+        elif s["same_verdict"] == "serial" and s["mixed_verdict"] == "serial":
+            still_serial += 1
+            serial_hits += 1
+            print(
+                f"still-serial\tN={s['N']}\tsame=serial\tmixed=serial\t"
+                "observed-constraint=resource_contention"
+            )
+        elif s["mixed_verdict"] == "serial":
+            serial_hits += 1
+    print(
+        f"summary slices={len(slices)} resource-contention={serial_hits} "
+        f"kind-specific={kind_specific} still-serial={still_serial} "
+        f"unexpected-same-kind={unexpected} "
+        "no-overlap-not-hb "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=VAL_CC_FIELDS)
+            w.writeheader()
+            for s in slices:
+                w.writerow(
+                    {
+                        "N": s["N"],
+                        "k": s["k"],
+                        "dim": s["dim"],
+                        "r": f"{s['r']:.3f}",
+                        "T_silu_us": f"{s['T_silu_us']:.1f}",
+                        "T_matmul_us": f"{s['T_matmul_us']:.1f}",
+                        "T_seq_us": f"{s['T_seq_us']:.1f}",
+                        "T_ovl_us": f"{s['T_ovl_us']:.1f}",
+                        "T_silu_silu_us": f"{s['T_silu_silu_us']:.1f}",
+                        "ovl_over_max": f"{s['ovl_over_max']:.3f}",
+                        "ovl_over_sum": f"{s['ovl_over_sum']:.3f}",
+                        "mixed_verdict": s["mixed_verdict"],
+                        "ss_over_max": f"{s['ss_over_max']:.3f}",
+                        "ss_over_sum": f"{s['ss_over_sum']:.3f}",
+                        "same_verdict": s["same_verdict"],
+                        "pair_relation": s["pair_relation"],
+                        "observed_constraint": s["observed_constraint"],
+                    }
+                )
+        print(
+            f"record_v3 wrote {out} count={len(slices)} "
+            "cuda-val-cc v3=not-claimed"
         )
     return 0
 
@@ -2322,8 +2625,10 @@ def main() -> int:
     p.add_argument("--print-pipe-tiles-schema", action="store_true")
     p.add_argument("--print-cuda-val-schema", action="store_true")
     p.add_argument("--print-cuda-val-mem-schema", action="store_true")
+    p.add_argument("--print-cuda-val-cc-schema", action="store_true")
     p.add_argument("--cuda-val-sweep", metavar="BIN")
     p.add_argument("--cuda-val-mem-sweep", metavar="BIN")
+    p.add_argument("--cuda-val-cc-sweep", metavar="BIN")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
@@ -2340,6 +2645,7 @@ def main() -> int:
     p.add_argument("--analyze-pipe-tiles", type=Path)
     p.add_argument("--analyze-cuda-val", type=Path)
     p.add_argument("--analyze-cuda-val-mem", type=Path)
+    p.add_argument("--analyze-cuda-val-cc", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
@@ -2366,6 +2672,8 @@ def main() -> int:
         return print_cuda_val_schema()
     if args.print_cuda_val_mem_schema:
         return print_cuda_val_mem_schema()
+    if args.print_cuda_val_cc_schema:
+        return print_cuda_val_cc_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
@@ -2386,6 +2694,8 @@ def main() -> int:
         return analyze_cuda_val(args.analyze_cuda_val, args.out)
     if args.analyze_cuda_val_mem:
         return analyze_cuda_val_mem(args.analyze_cuda_val_mem, args.out)
+    if args.analyze_cuda_val_cc:
+        return analyze_cuda_val_cc(args.analyze_cuda_val_cc, args.out)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -2448,17 +2758,26 @@ def main() -> int:
             args.cuda_val_mem_sweep, args.out, args.warmup, args.reps,
             git_commit(args.git_commit)
         )
+    if args.cuda_val_cc_sweep:
+        if not args.out:
+            print("record_v3: --out required with --cuda-val-cc-sweep",
+                  file=sys.stderr)
+            return 1
+        return cuda_val_cc_sweep(
+            args.cuda_val_cc_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
           "--print-cap-schema, --print-phase-schema, --print-pipe-schema, "
           "--print-pipe-tiles-schema, --print-cuda-val-schema, "
-          "--print-cuda-val-mem-schema, --sweep, "
+          "--print-cuda-val-mem-schema, --print-cuda-val-cc-schema, --sweep, "
           "--matched-sweep, --cap-sweep, --phase-sweep, --pipe-sweep, "
           "--pipe-tiles-sweep, --cuda-val-sweep, --cuda-val-mem-sweep, "
-          "--analyze, "
+          "--cuda-val-cc-sweep, --analyze, "
           "--analyze-matched, --analyze-cap, --analyze-phase, --analyze-pipe, "
           "--analyze-pipe-tiles, --analyze-cuda-val, --analyze-cuda-val-mem, "
-          "--calibrate, "
+          "--analyze-cuda-val-cc, --calibrate, "
           "or --analyze-ratio",
           file=sys.stderr)
     return 1
