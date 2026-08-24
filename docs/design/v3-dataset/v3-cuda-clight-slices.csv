@@ -1,0 +1,4 @@
+N,k,dim,r,T_silu_us,T_matmul_us,T_seq_us,T_ovl_us,T_silu_silu_us,ovl_over_max,ovl_over_sum,mixed_verdict,ss_over_max,ss_over_sum,same_verdict,extra_hb
+4194304,16,1024,0.547,188.9,345.5,522.0,506.1,332.0,1.465,0.947,serial,1.758,0.879,mixed,mixed-kind-serial
+16777216,3,1024,0.751,263.1,350.2,580.0,630.0,823.6,1.799,1.027,serial,3.130,1.565,serial,mixed-kind-serial
+67108864,1,1024,0.785,538.6,686.0,1212.2,1211.6,1119.4,1.766,0.989,serial,2.078,1.039,serial,mixed-kind-serial

@@ -567,3 +567,4 @@ No FileCheck of microseconds. Semantics unchanged.
 | CC3 | same V1 | `--dry-run --cuda-val` stays V1 |
 | CC4 | same ABC | `--dry-run` without flags stays A/B/C |
 | CC5 | same fixture | `--analyze-cuda-val-cc` prints extra-hb; `v3=not-claimed` |
+| CC6 | 4090 jsonl | qualitative `mixed-kind-serial`; no microseconds |

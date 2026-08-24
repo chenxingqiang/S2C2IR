@@ -1,6 +1,6 @@
 # CUDA Validation — C_light ∥ C_heavy (compute kinds)
 
-Status: **protocol only** (4090 not yet recorded). Not Cost
+Status: **4090 evidence recorded**. Not Cost
 v0.4. Does **not** change Cost, HB axioms, `R`, Search,
 Transformation, Pilot IR, A/B/C bodies, `--matched` /
 `--phase` / `--cap` / `--pipe` bodies, V1 `--cuda-val=p0`
@@ -116,13 +116,58 @@ and `ovl/sum` in (0.75, 0.90)) as extra-HB.
 
 ---
 
-## 3. 4090 result
+## 3. 4090 result (15 points -> 3 slices)
 
-Pending the GPU sweep. Protocol and host FileCheck land
-first. Records will be
-[`v3-dataset/v3-cuda-clight.jsonl`](v3-dataset/v3-cuda-clight.jsonl)
-(15 points: 3 N × 5 arms). Derived:
-[`v3-dataset/v3-cuda-clight-slices.csv`](v3-dataset/v3-cuda-clight-slices.csv).
+All arms `correct=1`. Named nonblocking streams. GEMM
+`dim=1024`. `k`/`m` calibrated toward `r ~ 1` (4M: k=16
+m=1; 16M: k=3 m=1; 64M: k=1 m=2). Same-kind SiLU||SiLU
+stays serial/mixed (confirms `#55` on this arm; 16M is
+again degraded). Mixed-kind SiLU||GEMM is **serial** at
+all 3 N: `T_ovl ≈ T_seq`, `ovl/sum ≥ 0.90`, `ovl/max > 1.15`.
+That is not the `#61` r-unbalance gray zone.
+
+| N | k | m | r | silu | gemm | seq | ovl | silu||silu | ovl/max | ovl/sum | mixed | same | extra_hb |
+| - | - | - | - | ---- | ---- | --- | --- | ---------- | ------- | ------- | ----- | ---- | -------- |
+| 4M | 16 | 1 | 0.547 | 189 | 346 | 522 | 506 | 332 | 1.465 | 0.947 | serial | mixed | mixed-kind-serial |
+| 16M | 3 | 1 | 0.751 | 263 | 350 | 580 | 630 | 824 | 1.799 | 1.027 | serial | serial | mixed-kind-serial |
+| 64M | 1 | 2 | 0.785 | 539 | 686 | 1212 | 1212 | 1119 | 1.766 | 0.989 | serial | serial | mixed-kind-serial |
+
+```text
+kind-specific overlap     :  0
+still-serial              :  2     (16M + 64M)
+mixed-kind-serial         :  3
+unexpected-same-kind      :  0
+extra_hb                  :  mixed-kind-serial (all 3 N)
+```
+
+4M same-kind is `#55` mixed (`ss/max=1.758`, `ss/sum=0.879`):
+not parallel, not a serial-flip extra-HB of its own.
+16M same-kind is degraded serial (`ss/sum=1.565`), same
+shape as `#55` C||C at 16M.
+
+```text
+SiLU || SiLU     serial/mixed   (this arm, this k)
+SiLU || GEMM     serial         (T_ovl ~ T_seq)
+C || C           stays serial across these two kinds
+                 under this tested regime
+```
+
+So `#55` `C∥C = serial` is **not** only "two identical
+SiLUs". On this SiLU / 1024-tiled-GEMM pair, named
+nonblocking streams, tested N, the mixed pair also
+serialized. Do not upgrade that to "4090 cannot overlap
+any compute": this GEMM is a small tiled stand-in
+(~12 MB), not a Tensor-Core occupancy study.
+
+`extra_hb = mixed-kind-serial` is a **realization
+classification** from observed extra time, not a
+reconstructed CUDA HB graph. Phrase as:
+
+> observed extra serialization on SiLU || 1024-GEMM
+> consistent with compute-resource contention on this arm
+
+Records: [`v3-dataset/v3-cuda-clight.jsonl`](v3-dataset/v3-cuda-clight.jsonl).
+Derived: [`v3-dataset/v3-cuda-clight-slices.csv`](v3-dataset/v3-cuda-clight-slices.csv).
 
 Do not FileCheck microseconds. Do not promote this to a
 Cost axiom or a Schedule rewrite.
@@ -151,6 +196,7 @@ claiming V3
 | `runtime/cuda/s2c2_cuda_adapter.cu` | `--cuda-val-cc=` |
 | `tools/s2c2-cuda-adapter/` | host `--dry-run --cuda-val-cc` |
 | `runtime/cuda/record_v3.py` | `--cuda-val-cc-sweep` / `--analyze-cuda-val-cc` |
+| `docs/design/v3-dataset/v3-cuda-clight.jsonl` | 15 points |
 
 `--cuda-val=p0` and `--cuda-val-mem=p0` bodies stay
 untouched.

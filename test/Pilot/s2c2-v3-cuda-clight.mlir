@@ -5,6 +5,7 @@
 // RUN: s2c2-cuda-adapter --dry-run --pipe 2>&1 | FileCheck %s --check-prefix=PIPE
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --print-cuda-val-cc-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val-cc %S/cuda-val-cc-fixture.jsonl | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val-cc %S/../../docs/design/v3-dataset/v3-cuda-clight.jsonl | FileCheck %s --check-prefix=HW
 
 // Host + recorder protocol for C_light || C_heavy (SiLU || GEMM).
 // No device, no microseconds FileCheck, no Cost change.
@@ -68,3 +69,15 @@ module {
 // AN: v3=not-claimed
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 4090 surface only. Do not FileCheck microseconds.
+// HW: v3-cuda-val-cc p0 pair=C_light||C_heavy acceptance=compute-resource
+// HW: mixed-kind-serial
+// HW: still-serial
+// HW: mixed-kind-serial=3
+// HW: kind-specific=0
+// HW: unexpected-same-kind=0
+// HW: semantics=unchanged
+// HW: v3=not-claimed
+// HW-NOT: Cost v0.4
+// HW-NOT: password
