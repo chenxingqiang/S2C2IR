@@ -12,6 +12,7 @@ C_light || C_heavy   !=  a Cost axiom
 --cuda-val-cc        !=  a new Pilot func
 C || C               !=  "4090 cannot parallelize compute"
 two SiLU             !=  every compute pair
+No observed overlap  !=  Extra HB
 V3                   !=  claimed
 ```
 
