@@ -3,10 +3,11 @@
 **Status:** Frozen for Phase 3A.  
 **Not:** Cost v0.4, V3 claim, CUDA Validation V1.
 
-This document freezes one record type. CUDA 4090, a future NPU, and a CIM
-fill the **same fields**. Hardware names stay in `hardware_id` and in
-`compute_domain` / `transfer_domain` / memory-class **values**, not in
-the schema keys.
+This document freezes one record type. CUDA 4090, a ROCm GPU, a future
+NPU, and a CIM fill the **same fields**. Hardware names stay in
+`hardware_id` and in `compute_domain` / `transfer_domain` /
+memory-class **values**, not in the schema keys. Do not add
+`hip_*` or `amdgpu_*` keys.
 
 ## CapabilityRecord
 
@@ -43,6 +44,8 @@ CapabilityRecord
 JSON Schema: `docs/design/v3-capability-schema.v1.json`.
 
 CUDA 4090 catalog: `docs/design/v3-dataset/v3-cap-schema-4090.jsonl`.  
+ROCm fills the same record type (`compute_domain` value `rocm_cu`).
+Measured ROCm cells are a later projection (PR-R2), not this schema.
 Synthetic NPU demo catalog (not measured):
 `docs/design/v3-dataset/v3-cap-schema-npu-demo.jsonl`.
 
@@ -92,6 +95,8 @@ record actually applies to.
 
 ```text
 s2c2-cuda-adapter --dry-run --cap-schema
+s2c2-rocm-adapter --dry-run --cap-schema
 runtime/cuda/record_v3.py --print-cap-schema-v1
+runtime/rocm/record_rocm.py --print-cap-schema-v1
 runtime/cuda/record_v3.py --analyze-cap-schema
 ```
