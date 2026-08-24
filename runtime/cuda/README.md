@@ -23,6 +23,7 @@ S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_pipe.sh ./s2c2-cuda-r
 S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_pipe_tiles.sh ./s2c2-cuda-run ./v3-pipe-tiles
 S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val.sh ./s2c2-cuda-run ./v3-cuda-val
 S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val_mem.sh ./s2c2-cuda-run ./v3-cuda-mem
+S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val_cc.sh ./s2c2-cuda-run ./v3-cuda-clight
 # writes JSONL/CSV; no host/password fields
 # --matched does not change A/B/C bodies or Score_3
 # 4090 records: docs/design/v3-dataset/v3-matched.jsonl

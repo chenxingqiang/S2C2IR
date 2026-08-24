@@ -551,3 +551,19 @@ microseconds. Semantics unchanged.
 | CM2 | same V1 | `--dry-run --cuda-val` stays V1 |
 | CM3 | same ABC | `--dry-run` without flags stays A/B/C |
 | CM4 | same fixture | `--analyze-cuda-val-mem` prints extra-hb; `v3=not-claimed` |
+
+## CUDA Validation C_light ∥ C_heavy
+
+**Not Cost v0.4.** Design:
+[`v3-cuda-clight.md`](v3-cuda-clight.md). Same named-nonblocking
+streams; SiLU ∥ tiled GEMM vs SiLU ∥ SiLU control. Does not
+change V1 `--cuda-val=p0` or V2 `--cuda-val-mem` timed bodies.
+No FileCheck of microseconds. Semantics unchanged.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CC1 | `test/Pilot/s2c2-v3-cuda-clight.mlir` | `--dry-run --cuda-val-cc` lists kinds map |
+| CC2 | same V2 | `--dry-run --cuda-val-mem` stays V2 |
+| CC3 | same V1 | `--dry-run --cuda-val` stays V1 |
+| CC4 | same ABC | `--dry-run` without flags stays A/B/C |
+| CC5 | same fixture | `--analyze-cuda-val-cc` prints extra-hb; `v3=not-claimed` |

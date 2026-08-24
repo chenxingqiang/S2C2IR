@@ -1527,6 +1527,250 @@ static std::vector<ValMemArm> parseValMemList(const char *name) {
   std::exit(1);
 }
 
+// C_light || C_heavy. Named nonblocking only.
+// Does not change V1 --cuda-val or V2 --cuda-val-mem timed bodies.
+static constexpr int kValCcDim = 1024;
+
+enum class ValCcKind { Silu, Matmul, Seq, Ovl, SiluSilu };
+
+struct ValCcBuf {
+  float *hostSilu = nullptr;
+  float *hostA = nullptr;
+  float *hostB = nullptr;
+  float *checkVec = nullptr;
+  float *checkMat = nullptr;
+  float *dSilu0 = nullptr;
+  float *dSilu1 = nullptr;
+  float *dA = nullptr;
+  float *dB = nullptr;
+  float *dC = nullptr;
+  int n = 0;
+  int dim = kValCcDim;
+  cudaStream_t sA = nullptr;
+  cudaStream_t sB = nullptr;
+  cudaEvent_t start = nullptr;
+  cudaEvent_t stop = nullptr;
+
+  void alloc(int n_) {
+    n = n_;
+    dim = kValCcDim;
+    size_t vecBytes = sizeof(float) * static_cast<size_t>(n);
+    size_t matBytes = sizeof(float) * static_cast<size_t>(dim) *
+                      static_cast<size_t>(dim);
+    CUDA_OK(cudaHostAlloc(&hostSilu, vecBytes, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&hostA, matBytes, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&hostB, matBytes, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&checkVec, vecBytes, cudaHostAllocDefault));
+    CUDA_OK(cudaHostAlloc(&checkMat, matBytes, cudaHostAllocDefault));
+    CUDA_OK(cudaMalloc(&dSilu0, vecBytes));
+    CUDA_OK(cudaMalloc(&dSilu1, vecBytes));
+    CUDA_OK(cudaMalloc(&dA, matBytes));
+    CUDA_OK(cudaMalloc(&dB, matBytes));
+    CUDA_OK(cudaMalloc(&dC, matBytes));
+    CUDA_OK(cudaStreamCreateWithFlags(&sA, cudaStreamNonBlocking));
+    CUDA_OK(cudaStreamCreateWithFlags(&sB, cudaStreamNonBlocking));
+    CUDA_OK(cudaEventCreate(&start));
+    CUDA_OK(cudaEventCreate(&stop));
+    fillHost(hostSilu, n, 1);
+    fillHost(hostA, dim * dim, 101);
+    fillHost(hostB, dim * dim, 202);
+  }
+
+  void freeAll() {
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+    cudaStreamDestroy(sB);
+    cudaStreamDestroy(sA);
+    cudaFree(dC);
+    cudaFree(dB);
+    cudaFree(dA);
+    cudaFree(dSilu1);
+    cudaFree(dSilu0);
+    cudaFreeHost(checkMat);
+    cudaFreeHost(checkVec);
+    cudaFreeHost(hostB);
+    cudaFreeHost(hostA);
+    cudaFreeHost(hostSilu);
+  }
+};
+
+static const char *valCcFunc(ValCcKind kind) {
+  switch (kind) {
+  case ValCcKind::Silu:
+    return "val-cc-silu";
+  case ValCcKind::Matmul:
+    return "val-cc-matmul";
+  case ValCcKind::Seq:
+    return "val-cc-seq";
+  case ValCcKind::Ovl:
+    return "val-cc-ovl";
+  case ValCcKind::SiluSilu:
+    return "val-cc-silu-silu";
+  }
+  return "val-cc-off";
+}
+
+static const char *valCcExtraHb(ValCcKind kind) {
+  if (kind == ValCcKind::Ovl)
+    return "mixed-kind-serial";
+  if (kind == ValCcKind::SiluSilu)
+    return "same-kind";
+  return "none";
+}
+
+static void provisionValCc(ValCcBuf &b) {
+  size_t vecBytes = sizeof(float) * static_cast<size_t>(b.n);
+  size_t matBytes = sizeof(float) * static_cast<size_t>(b.dim) *
+                    static_cast<size_t>(b.dim);
+  CUDA_OK(cudaMemcpyAsync(b.dSilu0, b.hostSilu, vecBytes,
+                          cudaMemcpyHostToDevice, b.sA));
+  CUDA_OK(cudaMemcpyAsync(b.dSilu1, b.hostSilu, vecBytes,
+                          cudaMemcpyHostToDevice, b.sA));
+  CUDA_OK(cudaMemcpyAsync(b.dA, b.hostA, matBytes, cudaMemcpyHostToDevice,
+                          b.sA));
+  CUDA_OK(cudaMemcpyAsync(b.dB, b.hostB, matBytes, cudaMemcpyHostToDevice,
+                          b.sA));
+  CUDA_OK(cudaStreamSynchronize(b.sA));
+}
+
+static void runValCc(ValCcBuf &b, ValCcKind kind, int k, int m) {
+  switch (kind) {
+  case ValCcKind::Silu:
+    siluLaunch(b.dSilu0, b.n, b.sA, k);
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValCcKind::Matmul:
+    for (int i = 0; i < m; ++i)
+      matmulLaunch(b.dA, b.dB, b.dC, b.dim, b.sB);
+    CUDA_OK(cudaStreamSynchronize(b.sB));
+    break;
+  case ValCcKind::Seq:
+    siluLaunch(b.dSilu0, b.n, b.sA, k);
+    for (int i = 0; i < m; ++i)
+      matmulLaunch(b.dA, b.dB, b.dC, b.dim, b.sA);
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    break;
+  case ValCcKind::Ovl:
+    siluLaunch(b.dSilu0, b.n, b.sA, k);
+    for (int i = 0; i < m; ++i)
+      matmulLaunch(b.dA, b.dB, b.dC, b.dim, b.sB);
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sB));
+    break;
+  case ValCcKind::SiluSilu:
+    siluLaunch(b.dSilu0, b.n, b.sA, k);
+    siluLaunch(b.dSilu1, b.n, b.sB, k);
+    CUDA_OK(cudaStreamSynchronize(b.sA));
+    CUDA_OK(cudaStreamSynchronize(b.sB));
+    break;
+  }
+}
+
+static bool matmulSpotOk(const float *got, const float *a, const float *b,
+                         int dim) {
+  int idx[3][2] = {{0, 0}, {dim / 2, dim / 2}, {dim - 1, dim - 1}};
+  for (int t = 0; t < 3; ++t) {
+    int row = idx[t][0];
+    int col = idx[t][1];
+    float want = 0.f;
+    for (int k = 0; k < dim; ++k)
+      want += a[row * dim + k] * b[k * dim + col];
+    float diff = fabsf(got[row * dim + col] - want);
+    float scale = fabsf(want) > 1.f ? fabsf(want) : 1.f;
+    if (diff > 5e-3f * scale)
+      return false;
+  }
+  return true;
+}
+
+static bool checkValCc(ValCcBuf &b, ValCcKind kind, int seed, int k) {
+  size_t vecBytes = sizeof(float) * static_cast<size_t>(b.n);
+  size_t matBytes = sizeof(float) * static_cast<size_t>(b.dim) *
+                    static_cast<size_t>(b.dim);
+  if (kind == ValCcKind::Silu || kind == ValCcKind::Seq ||
+      kind == ValCcKind::Ovl || kind == ValCcKind::SiluSilu) {
+    CUDA_OK(cudaMemcpy(b.checkVec, b.dSilu0, vecBytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.checkVec, b.n, seed, k))
+      return false;
+  }
+  if (kind == ValCcKind::SiluSilu) {
+    CUDA_OK(cudaMemcpy(b.checkVec, b.dSilu1, vecBytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.checkVec, b.n, seed, k))
+      return false;
+  }
+  if (kind == ValCcKind::Matmul || kind == ValCcKind::Seq ||
+      kind == ValCcKind::Ovl) {
+    CUDA_OK(cudaMemcpy(b.checkMat, b.dC, matBytes, cudaMemcpyDeviceToHost));
+    if (!matmulSpotOk(b.checkMat, b.hostA, b.hostB, b.dim))
+      return false;
+  }
+  return true;
+}
+
+static void printValCc(ValCcKind kind, const char *dev, int n, int k, int m,
+                       double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f "
+               "correct=1 extra_hb=%s m=%d dim=%d\n",
+               valCcFunc(kind), kSched, kMap, dev, n, k, us,
+               valCcExtraHb(kind), m, kValCcDim);
+}
+
+static double timeValCcArm(ValCcBuf &b, ValCcKind kind, int warmup, int reps,
+                           int k, int m) {
+  auto body = [&]() { runValCc(b, kind, k, m); };
+  for (int i = 0; i < warmup; ++i) {
+    fillHost(b.hostSilu, b.n, 1);
+    fillHost(b.hostA, b.dim * b.dim, 101);
+    fillHost(b.hostB, b.dim * b.dim, 202);
+    provisionValCc(b);
+    body();
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    int seed = i + 2;
+    fillHost(b.hostSilu, b.n, seed);
+    fillHost(b.hostA, b.dim * b.dim, seed + 100);
+    fillHost(b.hostB, b.dim * b.dim, seed + 200);
+    provisionValCc(b);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f);
+    if (!checkValCc(b, kind, seed, k)) {
+      std::fprintf(stderr, "s2c2-cuda-run: %s correct=0\n", valCcFunc(kind));
+      std::exit(3);
+    }
+  }
+  return medianUs(samples);
+}
+
+static std::vector<ValCcKind> parseValCcList(const char *name) {
+  if (std::strcmp(name, "off") == 0)
+    return {};
+  if (std::strcmp(name, "p0") == 0 || std::strcmp(name, "all") == 0)
+    return {ValCcKind::Silu, ValCcKind::Matmul, ValCcKind::Seq, ValCcKind::Ovl,
+            ValCcKind::SiluSilu};
+  if (std::strcmp(name, "silu") == 0)
+    return {ValCcKind::Silu};
+  if (std::strcmp(name, "matmul") == 0)
+    return {ValCcKind::Matmul};
+  if (std::strcmp(name, "seq") == 0)
+    return {ValCcKind::Seq};
+  if (std::strcmp(name, "ovl") == 0)
+    return {ValCcKind::Ovl};
+  if (std::strcmp(name, "silu-silu") == 0)
+    return {ValCcKind::SiluSilu};
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --cuda-val-cc %s\n", name);
+  std::exit(1);
+}
+
 int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
@@ -1536,10 +1780,12 @@ int main(int argc, char **argv) {
   const char *pipeArg = "off";
   const char *valArg = "off";
   const char *valMemArg = "off";
+  const char *valCcArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
   int k = 1;
+  int m = 1;
   int tiles = 8;
   bool provisioned = false;
   for (int i = 1; i < argc; ++i) {
@@ -1564,10 +1810,14 @@ int main(int argc, char **argv) {
       phaseArg = argv[i] + 8;
     else if (a.rfind("--pipe=", 0) == 0)
       pipeArg = argv[i] + 7;
+    else if (a.rfind("--cuda-val-cc=", 0) == 0)
+      valCcArg = argv[i] + 14;
     else if (a.rfind("--cuda-val-mem=", 0) == 0)
       valMemArg = argv[i] + 15;
     else if (a.rfind("--cuda-val=", 0) == 0)
       valArg = argv[i] + 11;
+    else if (a.rfind("--m=", 0) == 0)
+      m = std::atoi(argv[i] + 4);
     else if (a.rfind("--tiles=", 0) == 0)
       tiles = std::atoi(argv[i] + 8);
     else if (a == "--provisioned")
@@ -1592,6 +1842,8 @@ int main(int argc, char **argv) {
                    "ovl-default --device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --cuda-val-mem=p0|htod|dtoh|ovl-htod|"
                    "ovl-dtoh --device=gpu --n=N --k=K\n"
+                   "s2c2-cuda-run --cuda-val-cc=p0|silu|matmul|seq|ovl|"
+                   "silu-silu --device=gpu --n=N --k=K --m=M\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -1599,7 +1851,7 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
-  if (n <= 0 || warmup < 0 || reps <= 0 || k <= 0 || tiles <= 0) {
+  if (n <= 0 || warmup < 0 || reps <= 0 || k <= 0 || tiles <= 0 || m <= 0) {
     std::fprintf(stderr, "s2c2-cuda-run: bad numeric arg\n");
     return 1;
   }
@@ -1616,6 +1868,7 @@ int main(int argc, char **argv) {
   std::vector<PipeArm> pipeArms = parsePipeList(pipeArg);
   std::vector<ValArm> valArms = parseValList(valArg);
   std::vector<ValMemArm> valMemArms = parseValMemList(valMemArg);
+  std::vector<ValCcKind> valCcArms = parseValCcList(valCcArg);
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;
   MatchedArm matched = parseMatched(matchedArg);
   bool matchedOn = matchedAll || matched != MatchedArm::Off;
@@ -1648,6 +1901,18 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "s2c2-cuda-run: --cuda-val-mem cannot combine with "
                  "--cuda-val/--pipe/--phase/--cap/--matched\n");
+    return 1;
+  }
+  if (!valCcArms.empty() &&
+      (matchedOn || !capArms.empty() || !phaseArms.empty() ||
+       !pipeArms.empty() || !valArms.empty() || !valMemArms.empty())) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run: --cuda-val-cc cannot combine with "
+                 "--cuda-val-mem/--cuda-val/--pipe/--phase/--cap/--matched\n");
+    return 1;
+  }
+  if (m != 1 && valCcArms.empty()) {
+    std::fprintf(stderr, "s2c2-cuda-run: --m is --cuda-val-cc only\n");
     return 1;
   }
   if (!valArms.empty()) {
@@ -1704,6 +1969,27 @@ int main(int argc, char **argv) {
     for (ValMemArm arm : valMemArms) {
       double us = timeValMemArm(b, arm, warmup, reps, k);
       printValMem(arm, "gpu", n, k, us);
+    }
+    b.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
+  }
+  if (!valCcArms.empty()) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --cuda-val-cc is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    ValCcBuf b;
+    b.alloc(n);
+    for (ValCcKind arm : valCcArms) {
+      double us = timeValCcArm(b, arm, warmup, reps, k, m);
+      printValCc(arm, "gpu", n, k, m, us);
     }
     b.freeAll();
     std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
