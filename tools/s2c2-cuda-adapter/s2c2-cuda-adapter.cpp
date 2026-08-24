@@ -185,6 +185,43 @@ static void printCudaValCc() {
 }
 
 
+static void printCapSchema() {
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema=v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=compute_domain\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=transfer_domain\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=direction\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=source_memory_class\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=destination_memory_class\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=pair_relation\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=size_range\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=regime\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=synchronization\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=pipeline_depth_evidence\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=observed_constraint\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=confidence\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema hardware=unfilled\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema pair_relation="
+               "parallel|serial|mixed|underdetermined\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema observed_constraint="
+               "none|legacy_default|resource_contention|"
+               "allocator_sync|copy_engine_contention\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema depth-star=not-a-law\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter cap-schema semantics=unchanged\n");
+}
+
 static void printCudaValAsync() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-async=v2p1\n");
   std::fprintf(stderr,
@@ -257,6 +294,7 @@ int main(int argc, char **argv) {
   bool cudaValMem = false;
   bool cudaValCc = false;
   bool cudaValAsync = false;
+  bool capSchema = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -280,13 +318,16 @@ int main(int argc, char **argv) {
       cudaValMem = true;
     } else if (a == "--cuda-val") {
       cudaVal = true;
+    } else if (a == "--cap-schema") {
+      capSchema = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
-                   "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] [--cuda-val-async]\n"
+                   "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
+                   "[--cuda-val-async] [--cap-schema]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -305,12 +346,12 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
-              (int)cudaValCc + (int)cudaValAsync;
+              (int)cudaValCc + (int)cudaValAsync + (int)capSchema;
   if (modes > 1) {
     std::fprintf(stderr,
-                 "s2c2-cuda-adapter: --cuda-val-async/--cuda-val-cc/--cuda-val-mem/"
-                 "--cuda-val/--pipe-tiles/--pipe/--phase/--cap/--matched "
-                 "cannot combine\n");
+                 "s2c2-cuda-adapter: --cap-schema/--cuda-val-async/--cuda-val-cc/"
+                 "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
+                 "--matched cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -355,6 +396,11 @@ int main(int argc, char **argv) {
   }
   if (cudaValAsync) {
     printCudaValAsync();
+    printMaps();
+    return 0;
+  }
+  if (capSchema) {
+    printCapSchema();
     printMaps();
     return 0;
   }

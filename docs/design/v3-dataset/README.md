@@ -48,3 +48,10 @@ CUDA Validation V2 P1 async-alloc records
 (`v3-cuda-async.jsonl`) reuse the same columns after the
 4090 sweep. Derived: `v3-cuda-async-slices.csv`. Does not
 change V1 / V2 mem / C_light timed bodies. Not Cost v0.4.
+
+Hardware-neutral Capability Schema v1 catalog
+(`v3-cap-schema-4090.jsonl`) is the compiler input for
+`--s2c2-capability-query` / `--s2c2-capability-schedule`.
+Synthetic NPU demo cells (`v3-cap-schema-npu-demo.jsonl`)
+are **not measured**. Not Cost v0.4.
+

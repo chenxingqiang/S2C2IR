@@ -583,3 +583,32 @@ bodies. No FileCheck of microseconds. Semantics unchanged.
 | CA2 | same V1 | `--dry-run --cuda-val` stays V1 |
 | CA3 | same V2 | `--dry-run --cuda-val-mem` stays V2 |
 | CA4 | same fixture | `--analyze-cuda-val-async` prints `observed_constraint`; extra-HB not-applicable |
+
+## Capability Schema v1 (hardware-neutral)
+
+**Not Cost v0.4.** Design:
+[`v3-capability-schema.md`](v3-capability-schema.md).
+One `CapabilityRecord` type for CUDA / NPU / CIM. Completes `#59`
+with required `observed_constraint`. No FileCheck of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CS1 | `test/Pilot/s2c2-v3-capability-schema.mlir` | `--dry-run --cap-schema` lists v1 fields |
+| CS2 | same ABC | `--dry-run` without `--cap-schema` stays A/B/C |
+| CS3 | same fixture | `--analyze-cap-schema` + `--query-cap`; `v3=not-claimed` |
+| CS4 | 4090 jsonl | qualitative pair cells; `C\|\|HtoD` parallel; `C_silu\|\|C_gemm` serial |
+
+## Capability-Aware Schedule (Phase 3A)
+
+**Not Cost v0.4.** Design:
+[`capability-aware-schedule.md`](capability-aware-schedule.md).
+Same IR + different CapabilityProfile → different legal schedule.
+`--check-s2c2-execution` after rewrite. Does not invent sibling HB.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CQ1 | `test/Analysis/s2c2-capability-query.mlir` | catalog query C\|\|HtoD parallel + applicable unknown; SiLU\|\|GEMM serial + applicable false |
+| CQ2 | `test/Analysis/s2c2-capability-schedule.mlir` | 4090 keeps C\|\|HtoD and arm_specific SiLU\|\|GEMM; serializes measured C\|\|C; pipeline StageOrder kept |
+| CQ3 | same | npu-demo inferred keeps all concurrent |
+| CQ4 | `test/Integration/capability-schedule-stream.mlir` | gated-MLP / SSD stream e2e; JSONL profile load |
+

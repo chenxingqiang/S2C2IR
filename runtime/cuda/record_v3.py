@@ -1481,6 +1481,356 @@ def print_cap_schema() -> int:
     return 0
 
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_CAP_SCHEMA_4090 = _REPO_ROOT / "docs/design/v3-dataset/v3-cap-schema-4090.jsonl"
+
+CAP_SCHEMA_VERSION = "1"
+CAP_SCHEMA_KINDS = ("pair", "depth", "memory", "sync")
+CAP_SCHEMA_RELATION = ("serial", "parallel", "mixed", "underdetermined")
+CAP_SCHEMA_REGIME = ("bandwidth", "latency", "occupancy", "underdetermined")
+CAP_SCHEMA_CONSTRAINT = (
+    "none",
+    "legacy_default",
+    "resource_contention",
+    "allocator_sync",
+    "copy_engine_contention",
+)
+CAP_SCHEMA_CONFIDENCE = ("measured", "inferred", "arm_specific", "unknown")
+CAP_SCHEMA_FIELDS = (
+    "schema_version",
+    "record_kind",
+    "hardware_id",
+    "compute_domain",
+    "transfer_domain",
+    "direction",
+    "source_memory_class",
+    "destination_memory_class",
+    "pair",
+    "pair_relation",
+    "regime",
+    "size_range",
+    "synchronization",
+    "pipeline_depth_evidence",
+    "observed_constraint",
+    "confidence",
+    "note",
+    "evidence_refs",
+    "v3",
+    "cost",
+    "semantics",
+)
+
+
+def print_cap_schema_v1() -> int:
+    print("cap-schema v1")
+    print(
+        "field compute_domain transfer_domain direction "
+        "source_memory_class destination_memory_class pair_relation "
+        "size_range regime synchronization pipeline_depth_evidence "
+        "observed_constraint confidence"
+    )
+    print(
+        "transfer_domain copy_engine dma on_chip_bus host_to_device "
+        "device_to_host device_to_device device_to_local device_to_array none"
+    )
+    print(
+        "direction host_to_device device_to_host device_to_device "
+        "device_to_local device_to_array none"
+    )
+    print(
+        "memory_class pinned_host pageable_host device_memory "
+        "global_memory local_buffer dram cim_array none"
+    )
+    print("pair_relation parallel serial mixed underdetermined")
+    print(
+        "observed_constraint none legacy_default resource_contention "
+        "allocator_sync copy_engine_contention"
+    )
+    print("confidence measured inferred arm_specific unknown")
+    print("hardware unfilled")
+    print("depth-star not-a-law")
+    print("semantics unchanged")
+    print("score3 not-applicable")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def blank_cap_record(
+    kind: str = "pair",
+    hardware_id: str = "unfilled",
+    pair: str = "C||HtoD",
+) -> dict[str, Any]:
+    return {
+        "schema_version": CAP_SCHEMA_VERSION,
+        "record_kind": kind,
+        "hardware_id": hardware_id,
+        "compute_domain": "none",
+        "transfer_domain": "none",
+        "direction": "none",
+        "source_memory_class": "none",
+        "destination_memory_class": "none",
+        "pair": pair,
+        "pair_relation": "underdetermined",
+        "regime": "underdetermined",
+        "size_range": "n/a",
+        "synchronization": "n/a",
+        "pipeline_depth_evidence": "n/a",
+        "observed_constraint": "none",
+        "confidence": "unknown",
+        "note": "",
+        "evidence_refs": "",
+        "v3": "not-claimed",
+        "cost": "unchanged",
+        "semantics": "unchanged",
+    }
+
+
+def validate_cap_schema_v1(rec: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for key in CAP_SCHEMA_FIELDS:
+        if key not in rec:
+            errors.append(f"missing {key}")
+    if rec.get("schema_version") != CAP_SCHEMA_VERSION:
+        errors.append("schema_version")
+    if rec.get("record_kind") not in CAP_SCHEMA_KINDS:
+        errors.append("record_kind")
+    for open_key in (
+        "hardware_id",
+        "compute_domain",
+        "transfer_domain",
+        "direction",
+        "source_memory_class",
+        "destination_memory_class",
+        "pair",
+        "size_range",
+        "synchronization",
+        "pipeline_depth_evidence",
+        "note",
+        "evidence_refs",
+    ):
+        val = rec.get(open_key)
+        if not isinstance(val, str) or not val:
+            errors.append(open_key)
+    if rec.get("pair_relation") not in CAP_SCHEMA_RELATION:
+        errors.append("pair_relation")
+    if rec.get("regime") not in CAP_SCHEMA_REGIME:
+        errors.append("regime")
+    if rec.get("observed_constraint") not in CAP_SCHEMA_CONSTRAINT:
+        errors.append("observed_constraint")
+    if rec.get("confidence") not in CAP_SCHEMA_CONFIDENCE:
+        errors.append("confidence")
+    if rec.get("v3") != "not-claimed":
+        errors.append("v3")
+    if rec.get("cost") != "unchanged":
+        errors.append("cost")
+    if rec.get("semantics") != "unchanged":
+        errors.append("semantics")
+    hid = str(rec.get("hardware_id", ""))
+    if hid.lower() in {"password", "localhost"}:
+        errors.append("hardware_id")
+    blob = json.dumps(rec, ensure_ascii=True)
+    if "password" in blob.lower():
+        errors.append("password")
+    return errors
+
+
+def _hw_short(hid: str) -> str:
+    if "4090" in hid:
+        return "rtx4090"
+    if "npu" in hid.lower():
+        return "npu-demo"
+    return hid
+
+
+def analyze_cap_schema(jsonl: Path) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    if not rows:
+        print("record_v3: empty cap-schema", file=sys.stderr)
+        return 4
+    hardwares: list[str] = []
+    for rec in rows:
+        errors = validate_cap_schema_v1(rec)
+        if errors:
+            print(f"record_v3: invalid cap-schema {errors}", file=sys.stderr)
+            return 4
+        hid = _hw_short(str(rec["hardware_id"]))
+        if hid not in hardwares:
+            hardwares.append(hid)
+    print(
+        f"v3-cap-schema v1 records={len(rows)} "
+        f"hardware={','.join(hardwares)} "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    for rec in rows:
+        kind = rec["record_kind"]
+        pair = rec.get("pair", "-")
+        if kind == "pair":
+            print(
+                f"pair\t{pair}\t{rec['pair_relation']}\t"
+                f"{rec['observed_constraint']}\t{rec['confidence']}"
+            )
+        elif kind == "depth":
+            print(
+                f"pipeline\t{pair}\t{rec['pipeline_depth_evidence']}\t"
+                f"{rec['hardware_id']}"
+            )
+        elif kind == "memory":
+            print(
+                f"memory\t{rec['source_memory_class']}\t"
+                f"{rec['destination_memory_class']}"
+            )
+        elif kind == "sync":
+            print(
+                f"sync\t{rec['synchronization']}\t"
+                f"{rec['observed_constraint']}"
+            )
+    print("depth-star not-a-law")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def project_cap_schema_v1(out: Path | None = None) -> int:
+    if not _CAP_SCHEMA_4090.is_file():
+        print(f"record_v3: missing {_CAP_SCHEMA_4090}", file=sys.stderr)
+        return 4
+    rc = analyze_cap_schema(_CAP_SCHEMA_4090)
+    if rc != 0:
+        return rc
+    rows = [
+        json.loads(line)
+        for line in _CAP_SCHEMA_4090.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    print(
+        f"v3-cap-schema project hardware=rtx4090 records={len(rows)} "
+        "depth-star=not-a-law semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(_CAP_SCHEMA_4090.read_text(encoding="utf-8"), encoding="utf-8")
+        print(
+            f"record_v3 wrote {out} count={len(rows)} "
+            "cap-schema-v1 v3=not-claimed"
+        )
+    return 0
+
+
+def cap_applicability(
+    rec: dict[str, Any],
+    size_bytes: int | None = None,
+    sync: str = "named-nonblocking",
+) -> bool | str:
+    """Evidence → Applicability. arm_specific/inferred are not global rules."""
+    conf = str(rec.get("confidence", "unknown"))
+    if conf != "measured":
+        return False
+
+    def _norm_sync(s: str) -> str:
+        t = s.strip().lower()
+        if t in {"", "n/a", "none", "unmeasured"}:
+            return "n/a"
+        return t
+
+    rec_sync = _norm_sync(str(rec.get("synchronization", "n/a")))
+    if rec_sync != "n/a" and rec_sync != _norm_sync(sync):
+        return False
+
+    raw = str(rec.get("size_range", "n/a")).strip()
+    if raw.lower() in {"n/a", "none", "unmeasured", ""}:
+        return True
+    if ".." not in raw:
+        return "unknown"
+
+    def _bytes(tok: str) -> int | None:
+        t = tok.strip().lower()
+        mul = 1
+        if t.endswith("mib"):
+            mul = 1024 * 1024
+            t = t[:-3].strip()
+        elif t.endswith("mb"):
+            mul = 1000 * 1000
+            t = t[:-2].strip()
+        elif t.endswith("kib"):
+            mul = 1024
+            t = t[:-3].strip()
+        elif t.endswith("bytes"):
+            t = t[:-5].strip()
+        try:
+            return int(t) * mul
+        except ValueError:
+            return None
+
+    left, right = raw.split("..", 1)
+    lo, hi = _bytes(left), _bytes(right)
+    if lo is None or hi is None:
+        return "unknown"
+    if size_bytes is None:
+        return "unknown"
+    return lo <= size_bytes <= hi
+
+
+def query_cap_schema(
+    pair: str,
+    catalog: Path | None = None,
+    hardware: str | None = None,
+) -> int:
+    path = catalog or _CAP_SCHEMA_4090
+    if not path.is_file():
+        print(f"record_v3: missing {path}", file=sys.stderr)
+        return 4
+    rows = [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    hits = []
+    for rec in rows:
+        errors = validate_cap_schema_v1(rec)
+        if errors:
+            print(f"record_v3: invalid cap-schema {errors}", file=sys.stderr)
+            return 4
+        if rec.get("record_kind") != "pair":
+            continue
+        if rec.get("pair") != pair:
+            continue
+        if hardware and hardware not in _hw_short(str(rec["hardware_id"])) and (
+            hardware not in str(rec["hardware_id"])
+        ):
+            continue
+        hits.append(rec)
+    if not hits:
+        payload = {
+            "pair": pair,
+            "pair_relation": "underdetermined",
+            "observed_constraint": "none",
+            "confidence": "unknown",
+            "applicable": False,
+        }
+        print(json.dumps(payload, ensure_ascii=True))
+        return 0
+    rec = hits[0]
+    payload = {
+        "pair": rec["pair"],
+        "pair_relation": rec["pair_relation"],
+        "observed_constraint": rec["observed_constraint"],
+        "confidence": rec["confidence"],
+        "regime": rec.get("regime", "underdetermined"),
+        "size_range": rec.get("size_range", "n/a"),
+        "synchronization": rec.get("synchronization", "n/a"),
+        "hardware_id": rec["hardware_id"],
+        "applicable": cap_applicability(rec),
+    }
+    print(json.dumps(payload, ensure_ascii=True))
+    return 0
+
+
 def print_matched_schema() -> int:
     print("matched-arm seq ovl copy compute")
     print("remaining-work 1xHtoD+kxSiLU")
@@ -2856,6 +3206,12 @@ def main() -> int:
     p.add_argument("--print-calibration-schema", action="store_true")
     p.add_argument("--print-ratio-schema", action="store_true")
     p.add_argument("--print-cap-schema", action="store_true")
+    p.add_argument("--print-cap-schema-v1", action="store_true")
+    p.add_argument("--project-cap-schema-v1", action="store_true")
+    p.add_argument("--analyze-cap-schema", type=Path)
+    p.add_argument("--query-cap", metavar="PAIR")
+    p.add_argument("--cap-catalog", type=Path)
+    p.add_argument("--cap-device", default="rtx4090")
     p.add_argument("--print-phase-schema", action="store_true")
     p.add_argument("--print-pipe-schema", action="store_true")
     p.add_argument("--print-pipe-tiles-schema", action="store_true")
@@ -2901,6 +3257,14 @@ def main() -> int:
         return print_ratio_schema()
     if args.print_cap_schema:
         return print_cap_schema()
+    if args.print_cap_schema_v1:
+        return print_cap_schema_v1()
+    if args.project_cap_schema_v1:
+        return project_cap_schema_v1(args.out)
+    if args.analyze_cap_schema:
+        return analyze_cap_schema(args.analyze_cap_schema)
+    if args.query_cap:
+        return query_cap_schema(args.query_cap, args.cap_catalog, args.cap_device)
     if args.print_phase_schema:
         return print_phase_schema()
     if args.print_pipe_schema:
@@ -3021,7 +3385,7 @@ def main() -> int:
         )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
-          "--print-cap-schema, --print-phase-schema, --print-pipe-schema, "
+          "--print-cap-schema, --print-cap-schema-v1, --print-phase-schema, --print-pipe-schema, "
           "--print-pipe-tiles-schema, --print-cuda-val-schema, "
           "--print-cuda-val-mem-schema, --print-cuda-val-cc-schema, --print-cuda-val-async-schema, --sweep, "
           "--matched-sweep, --cap-sweep, --phase-sweep, --pipe-sweep, "
@@ -3029,7 +3393,8 @@ def main() -> int:
           "--cuda-val-cc-sweep, --cuda-val-async-sweep, --analyze, "
           "--analyze-matched, --analyze-cap, --analyze-phase, --analyze-pipe, "
           "--analyze-pipe-tiles, --analyze-cuda-val, --analyze-cuda-val-mem, "
-          "--analyze-cuda-val-cc, --analyze-cuda-val-async, --calibrate, "
+          "--analyze-cuda-val-cc, --analyze-cuda-val-async, --analyze-cap-schema, "
+          "--project-cap-schema-v1, --query-cap, --calibrate, "
           "or --analyze-ratio",
           file=sys.stderr)
     return 1

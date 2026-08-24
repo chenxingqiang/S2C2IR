@@ -56,8 +56,11 @@ places where the mapping would invent performance.
 | V4 | Compute / resource | light vs heavy `C∥C`; occupancy |
 | V5 | Execution | stream count, Graph, multi-GPU |
 
-Capability schema (`#59`, if landed) is the **record
+Capability schema (`#59` / Phase 3A) is the **record
 type**. These PRs fill cells. They do not rewrite Cost.
+The compiler consumes the catalog via
+`--s2c2-capability-query` / `--s2c2-capability-schedule`
+([`capability-aware-schedule.md`](capability-aware-schedule.md)).
 
 P0 counterexamples (this campaign’s order, not all in V1):
 
