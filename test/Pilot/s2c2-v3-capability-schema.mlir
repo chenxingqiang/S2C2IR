@@ -16,6 +16,8 @@ module {
 // CHECK: s2c2-cuda-adapter cap-schema field=compute_domain
 // CHECK: s2c2-cuda-adapter cap-schema field=transfer_domain
 // CHECK: s2c2-cuda-adapter cap-schema field=direction
+// CHECK: s2c2-cuda-adapter cap-schema field=source_memory_class
+// CHECK: s2c2-cuda-adapter cap-schema field=destination_memory_class
 // CHECK: s2c2-cuda-adapter cap-schema field=pair_relation
 // CHECK: s2c2-cuda-adapter cap-schema field=size_range
 // CHECK: s2c2-cuda-adapter cap-schema field=regime
@@ -43,7 +45,11 @@ module {
 
 // SCHEMA: cap-schema v1
 // SCHEMA: field compute_domain
+// SCHEMA: source_memory_class
+// SCHEMA: transfer_domain host_to_device
 // SCHEMA: pair_relation parallel serial mixed underdetermined unmeasured
+// SCHEMA-NOT: pinned_htod
+// SCHEMA-NOT: same_HtoD
 // SCHEMA: hardware unfilled
 // SCHEMA: depth-star not-a-law
 // SCHEMA: semantics unchanged

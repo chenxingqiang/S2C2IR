@@ -150,13 +150,35 @@ VAL_MEM_FIELDS = (
 CAP_SCHEMA_VERSION = "v1"
 CAP_SCHEMA_KINDS = ("pair", "transfer", "sync", "phase", "pipeline")
 CAP_SCHEMA_COMPUTE = ("elementwise_silu", "reduction", "matmul", "none")
-CAP_SCHEMA_TRANSFER = ("pinned_htod", "pinned_dtoh", "pinned_both", "none")
+CAP_SCHEMA_TRANSFER = (
+    "host_to_device",
+    "device_to_host",
+    "device_to_device",
+    "host_to_host",
+    "device_to_local",
+    "device_to_array",
+    "device_to_remote",
+    "remote_to_device",
+    "none",
+)
 CAP_SCHEMA_DIRECTION = (
-    "HtoD",
-    "DtoH",
+    "host_to_device",
+    "device_to_host",
+    "device_to_device",
     "bidirectional",
-    "same_HtoD",
-    "same_DtoH",
+    "none",
+)
+CAP_SCHEMA_MEMORY = (
+    "pinned_host",
+    "pageable_host",
+    "managed_host",
+    "device_memory",
+    "global_memory",
+    "local_buffer",
+    "dram",
+    "cim_sram",
+    "cim_array",
+    "bram",
     "none",
 )
 CAP_SCHEMA_RELATION = (
@@ -182,6 +204,8 @@ CAP_SCHEMA_FIELDS = (
     "compute_domain",
     "transfer_domain",
     "direction",
+    "source_memory_class",
+    "destination_memory_class",
     "pair_relation",
     "size_range",
     "regime",
@@ -192,13 +216,32 @@ CAP_SCHEMA_FIELDS = (
     "cost",
     "semantics",
 )
+# compute, transfer_domain, direction, src_mem, dst_mem, confidence
+# Same-direction pair relation lives in `pair`, not direction.
 CAP_SCHEMA_PAIR_META = {
-    "C||HtoD": ("elementwise_silu", "pinned_htod", "HtoD", "measured"),
-    "C||DtoH": ("elementwise_silu", "pinned_dtoh", "DtoH", "measured"),
-    "HtoD||HtoD": ("none", "pinned_htod", "same_HtoD", "measured"),
-    "DtoH||DtoH": ("none", "pinned_dtoh", "same_DtoH", "measured"),
-    "HtoD||DtoH": ("none", "pinned_both", "bidirectional", "measured"),
-    "C||C": ("elementwise_silu", "none", "none", "arm_specific"),
+    "C||HtoD": (
+        "elementwise_silu", "host_to_device", "host_to_device",
+        "pinned_host", "device_memory", "measured",
+    ),
+    "C||DtoH": (
+        "elementwise_silu", "device_to_host", "device_to_host",
+        "device_memory", "pinned_host", "measured",
+    ),
+    "HtoD||HtoD": (
+        "none", "host_to_device", "host_to_device",
+        "pinned_host", "device_memory", "measured",
+    ),
+    "DtoH||DtoH": (
+        "none", "device_to_host", "device_to_host",
+        "device_memory", "pinned_host", "measured",
+    ),
+    "HtoD||DtoH": (
+        "none", "host_to_device", "bidirectional",
+        "pinned_host", "device_memory", "measured",
+    ),
+    "C||C": (
+        "elementwise_silu", "none", "none", "none", "none", "arm_specific",
+    ),
 }
 DATASET_DIR = Path(__file__).resolve().parents[2] / "docs/design/v3-dataset"
 PIPE_FIELDS = (
@@ -999,8 +1042,22 @@ def print_cap_schema() -> int:
 def print_cap_schema_v1() -> int:
     print("cap-schema v1")
     print(
-        "field compute_domain transfer_domain direction pair_relation "
+        "field compute_domain transfer_domain direction "
+        "source_memory_class destination_memory_class pair_relation "
         "size_range regime synchronization pipeline_depth_evidence confidence"
+    )
+    print(
+        "transfer_domain host_to_device device_to_host device_to_device "
+        "host_to_host device_to_local device_to_array device_to_remote "
+        "remote_to_device none"
+    )
+    print(
+        "direction host_to_device device_to_host device_to_device "
+        "bidirectional none"
+    )
+    print(
+        "memory_class pinned_host pageable_host device_memory "
+        "global_memory local_buffer none"
     )
     print("pair_relation parallel serial mixed underdetermined unmeasured")
     print("confidence measured arm_specific projected unmeasured")
@@ -1025,6 +1082,8 @@ def blank_cap_record(
         "compute_domain": "none",
         "transfer_domain": "none",
         "direction": "none",
+        "source_memory_class": "none",
+        "destination_memory_class": "none",
         "pair_relation": "unmeasured",
         "size_range": "unmeasured",
         "regime": "unmeasured",
@@ -1053,6 +1112,10 @@ def validate_cap_schema_v1(rec: dict[str, Any]) -> list[str]:
         errors.append("transfer_domain")
     if rec.get("direction") not in CAP_SCHEMA_DIRECTION:
         errors.append("direction")
+    if rec.get("source_memory_class") not in CAP_SCHEMA_MEMORY:
+        errors.append("source_memory_class")
+    if rec.get("destination_memory_class") not in CAP_SCHEMA_MEMORY:
+        errors.append("destination_memory_class")
     if rec.get("pair_relation") not in CAP_SCHEMA_RELATION:
         errors.append("pair_relation")
     if rec.get("regime") not in CAP_SCHEMA_REGIME:
@@ -1091,7 +1154,9 @@ def project_cap_schema_v1(out: Path | None = None) -> int:
     for row in _read_csv_dicts(pairs_path):
         by_pair.setdefault(row["pair"], set()).add(row["verdict"])
     records: list[dict[str, Any]] = []
-    for pair, (comp, xfer, direction, conf) in CAP_SCHEMA_PAIR_META.items():
+    for pair, (comp, xfer, direction, src_mem, dst_mem, conf) in (
+        CAP_SCHEMA_PAIR_META.items()
+    ):
         verdicts = by_pair.get(pair, set())
         if len(verdicts) != 1:
             print(f"record_v3: pair {pair} verdicts={verdicts}", file=sys.stderr)
@@ -1101,6 +1166,8 @@ def project_cap_schema_v1(out: Path | None = None) -> int:
         rec["compute_domain"] = comp
         rec["transfer_domain"] = xfer
         rec["direction"] = direction
+        rec["source_memory_class"] = src_mem
+        rec["destination_memory_class"] = dst_mem
         rec["pair_relation"] = relation
         rec["size_range"] = "N=4M,16M,64M"
         rec["regime"] = "pair_matrix"
@@ -1112,13 +1179,17 @@ def project_cap_schema_v1(out: Path | None = None) -> int:
             else "pair cell under hid_short=1.15 near_sum=0.90 policy"
         )
         records.append(rec)
-    for direction, domain, label in (
-        ("HtoD", "pinned_htod", "htod"),
-        ("DtoH", "pinned_dtoh", "dtoh"),
+    for direction, domain, src_mem, dst_mem, label in (
+        ("host_to_device", "host_to_device", "pinned_host", "device_memory",
+         "htod"),
+        ("device_to_host", "device_to_host", "device_memory", "pinned_host",
+         "dtoh"),
     ):
         rec = blank_cap_record("transfer", "rtx4090", label)
         rec["transfer_domain"] = domain
         rec["direction"] = direction
+        rec["source_memory_class"] = src_mem
+        rec["destination_memory_class"] = dst_mem
         rec["size_range"] = "bytes=1KB..256MB"
         rec["regime"] = "size_curve"
         rec["confidence"] = "measured"
@@ -1139,8 +1210,10 @@ def project_cap_schema_v1(out: Path | None = None) -> int:
         return 4
     phase = blank_cap_record("phase", "rtx4090", "C||HtoD")
     phase["compute_domain"] = "elementwise_silu"
-    phase["transfer_domain"] = "pinned_htod"
-    phase["direction"] = "HtoD"
+    phase["transfer_domain"] = "host_to_device"
+    phase["direction"] = "host_to_device"
+    phase["source_memory_class"] = "pinned_host"
+    phase["destination_memory_class"] = "device_memory"
     phase["pair_relation"] = "parallel"
     phase["size_range"] = "N=4M,16M,64M"
     phase["regime"] = "phase_r_N"
@@ -1157,8 +1230,10 @@ def project_cap_schema_v1(out: Path | None = None) -> int:
     tiles = sorted({int(row["tiles"]) for row in tile_rows})
     pipe = blank_cap_record("pipeline", "rtx4090", "C||HtoD")
     pipe["compute_domain"] = "elementwise_silu"
-    pipe["transfer_domain"] = "pinned_htod"
-    pipe["direction"] = "HtoD"
+    pipe["transfer_domain"] = "host_to_device"
+    pipe["direction"] = "host_to_device"
+    pipe["source_memory_class"] = "pinned_host"
+    pipe["destination_memory_class"] = "device_memory"
     pipe["pair_relation"] = "parallel"
     pipe["size_range"] = "N=4M,16M,64M"
     pipe["regime"] = "pipe_depth_tiles"

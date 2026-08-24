@@ -104,6 +104,10 @@ static void printCapSchema() {
                "s2c2-cuda-adapter cap-schema field=transfer_domain\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=direction\n");
   std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=source_memory_class\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter cap-schema field=destination_memory_class\n");
+  std::fprintf(stderr,
                "s2c2-cuda-adapter cap-schema field=pair_relation\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=size_range\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cap-schema field=regime\n");

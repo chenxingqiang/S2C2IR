@@ -11,6 +11,8 @@
     "compute_domain",
     "transfer_domain",
     "direction",
+    "source_memory_class",
+    "destination_memory_class",
     "pair_relation",
     "size_range",
     "regime",
@@ -31,10 +33,56 @@
       "enum": ["elementwise_silu", "reduction", "matmul", "none"]
     },
     "transfer_domain": {
-      "enum": ["pinned_htod", "pinned_dtoh", "pinned_both", "none"]
+      "enum": [
+        "host_to_device",
+        "device_to_host",
+        "device_to_device",
+        "host_to_host",
+        "device_to_local",
+        "device_to_array",
+        "device_to_remote",
+        "remote_to_device",
+        "none"
+      ]
     },
     "direction": {
-      "enum": ["HtoD", "DtoH", "bidirectional", "same_HtoD", "same_DtoH", "none"]
+      "enum": [
+        "host_to_device",
+        "device_to_host",
+        "device_to_device",
+        "bidirectional",
+        "none"
+      ]
+    },
+    "source_memory_class": {
+      "enum": [
+        "pinned_host",
+        "pageable_host",
+        "managed_host",
+        "device_memory",
+        "global_memory",
+        "local_buffer",
+        "dram",
+        "cim_sram",
+        "cim_array",
+        "bram",
+        "none"
+      ]
+    },
+    "destination_memory_class": {
+      "enum": [
+        "pinned_host",
+        "pageable_host",
+        "managed_host",
+        "device_memory",
+        "global_memory",
+        "local_buffer",
+        "dram",
+        "cim_sram",
+        "cim_array",
+        "bram",
+        "none"
+      ]
     },
     "pair_relation": {
       "enum": ["parallel", "serial", "mixed", "underdetermined", "unmeasured"]

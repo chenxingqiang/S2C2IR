@@ -54,8 +54,10 @@ universal.
 ## 2. Record
 
 One JSON object. Closed vocabularies. Extra keys (`pair`,
-`note`, `evidence_refs`) are allowed; the twelve fields
-below are required.
+`note`, `evidence_refs`) are allowed; the fields below are
+required. Transport, direction, and memory class are
+**separate** dimensions. `pinned` is a memory class, not a
+transfer domain.
 
 | Field | Closed vocabulary / form |
 | ----- | ------------------------ |
@@ -63,8 +65,10 @@ below are required.
 | `record_kind` | `pair` / `transfer` / `sync` / `phase` / `pipeline` |
 | `hardware_id` | `unfilled` or a device tag (`rtx4090`, …) |
 | `compute_domain` | `elementwise_silu` / `reduction` / `matmul` / `none` |
-| `transfer_domain` | `pinned_htod` / `pinned_dtoh` / `pinned_both` / `none` |
-| `direction` | `HtoD` / `DtoH` / `bidirectional` / `same_HtoD` / `same_DtoH` / `none` |
+| `transfer_domain` | `host_to_device` / `device_to_host` / `device_to_device` / `host_to_host` / `device_to_local` / `device_to_array` / `device_to_remote` / `remote_to_device` / `none` |
+| `direction` | `host_to_device` / `device_to_host` / `device_to_device` / `bidirectional` / `none` |
+| `source_memory_class` | `pinned_host` / `pageable_host` / `managed_host` / `device_memory` / `global_memory` / `local_buffer` / `dram` / `cim_sram` / `cim_array` / `bram` / `none` |
+| `destination_memory_class` | same closed set as `source_memory_class` |
 | `pair_relation` | `parallel` / `serial` / `mixed` / `underdetermined` / `unmeasured` |
 | `size_range` | `unmeasured` or a payload band |
 | `regime` | `pair_matrix` / `size_curve` / `idle_sync` / `phase_r_N` / `pipe_depth_tiles` / `unmeasured` |
@@ -84,12 +88,28 @@ What the fields are **for** (hardware-agnostic):
 
 ```text
 pair capability              pair_relation
-directionality               direction
+logical transport            transfer_domain
+logical direction            direction
+memory property              source/destination_memory_class
+same-direction pair          pair  (HtoD||HtoD, not direction)
 size dependence              size_range + regime=size_curve
 r dependence                 regime=phase_r_N
 fixed latency                transfer note (T_fixed + bytes/BW)
 synchronization cost         synchronization
 pipeline depth saturation    pipeline_depth_evidence
+```
+
+Same Concurrent pair relation (`HtoD||HtoD`, `DtoH||DtoH`)
+lives in the extra `pair` key. `direction` is one logical
+arrow, or `bidirectional`. It is not `same_HtoD`.
+
+Example fill-ins (same schema, different hardware):
+
+```text
+4090     host_to_device     pinned_host -> device_memory
+NPU      device_to_local    global_memory -> local_buffer
+CIM      device_to_array    dram -> cim_array
+P2P      device_to_device   device_memory -> device_memory
 ```
 
 `pair_relation` uses the **measurement policy** already
