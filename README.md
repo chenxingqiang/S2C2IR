@@ -64,6 +64,7 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/realization-transform-compose.md`](docs/design/realization-transform-compose.md),
 [`docs/design/pilot-benchmark.md`](docs/design/pilot-benchmark.md),
 [`docs/design/backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md),
+[`docs/design/backend-adapter-ascend.md`](docs/design/backend-adapter-ascend.md),
 [`docs/design/v3-capability-schema.md`](docs/design/v3-capability-schema.md),
 [`docs/design/capability-aware-schedule.md`](docs/design/capability-aware-schedule.md)
 
@@ -95,7 +96,11 @@ composition contract `(T_b ∘ T_a)`: each step re-proves
 that stack. It is not a new Search or Transform kind. A CUDA measurement adapter
 ([`backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md))
 binds those shapes to one legal `M`; it is a stand-in, not a
-CUDA backend. V3 is a calibration probe, not claimed.
+CUDA backend. An Ascend 910B capability adapter
+([`backend-adapter-ascend.md`](docs/design/backend-adapter-ascend.md))
+fills the same Capability Schema for three pairs; it does not
+change the scheduler or Cost. V3 is a calibration probe, not
+claimed.
 
 ## Requirements
 
