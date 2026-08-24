@@ -52,3 +52,21 @@ not extra HB until a serial flip is observed.
 
 Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
 Do not invent extra HB.
+
+## 910B result
+
+`correctness=1` on all arms. `counterexamples=0`.
+
+Pageable copies can be slower (especially 4M). Overlap never
+flipped pinned-parallel → pageable-serial. 16M stays parallel
+for both residencies. 64M pageable `C||copy` is mixed, not serial.
+
+```text
+Communication rate  =  f(residency, direction, size)
+C || copy           does not gain extra HB from pageable host
+                    on this elemwise / named-stream / N grid
+extra_hb            =  none
+```
+
+`#69` pair catalog is unchanged. PR-R3 stays closed.
+

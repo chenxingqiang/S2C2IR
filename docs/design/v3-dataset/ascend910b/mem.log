@@ -1,0 +1,36 @@
+sweep_mem n=4194304 k=calibrate
+s2c2-ascend-run mem calibrate n=4194304 k=14
+s2c2-ascend-run mem=r4 correctness=1
+s2c2-ascend-run mem case=htod-pinned n=4194304 k=14 us=735.4
+s2c2-ascend-run mem case=htod-pageable n=4194304 k=14 us=1151.2
+s2c2-ascend-run mem case=dtoh-pinned n=4194304 k=14 us=746.5
+s2c2-ascend-run mem case=dtoh-pageable n=4194304 k=14 us=1095.8
+s2c2-ascend-run mem case=compute n=4194304 k=14 us=349.7
+s2c2-ascend-run mem slice pair=C||HtoD residency=pinned pair_relation=mixed extra_hb=none ovl_over_max=1.214 ovl_over_sum=0.823 n=4194304 k=14
+s2c2-ascend-run mem slice pair=C||HtoD residency=pageable pair_relation=mixed extra_hb=none ovl_over_max=1.018 ovl_over_sum=0.781 n=4194304 k=14
+s2c2-ascend-run mem slice pair=C||DtoH residency=pinned pair_relation=mixed extra_hb=none ovl_over_max=1.169 ovl_over_sum=0.796 n=4194304 k=14
+s2c2-ascend-run mem slice pair=C||DtoH residency=pageable pair_relation=mixed extra_hb=none ovl_over_max=1.046 ovl_over_sum=0.793 n=4194304 k=14
+sweep_mem n=16777216 k=calibrate
+s2c2-ascend-run mem calibrate n=16777216 k=26
+s2c2-ascend-run mem=r4 correctness=1
+s2c2-ascend-run mem case=htod-pinned n=16777216 k=26 us=2868.7
+s2c2-ascend-run mem case=htod-pageable n=16777216 k=26 us=3116.3
+s2c2-ascend-run mem case=dtoh-pinned n=16777216 k=26 us=2848.2
+s2c2-ascend-run mem case=dtoh-pageable n=16777216 k=26 us=3254.6
+s2c2-ascend-run mem case=compute n=16777216 k=26 us=1455.4
+s2c2-ascend-run mem slice pair=C||HtoD residency=pinned pair_relation=parallel extra_hb=none ovl_over_max=1.054 ovl_over_sum=0.699 n=16777216 k=26
+s2c2-ascend-run mem slice pair=C||HtoD residency=pageable pair_relation=parallel extra_hb=none ovl_over_max=1.020 ovl_over_sum=0.695 n=16777216 k=26
+s2c2-ascend-run mem slice pair=C||DtoH residency=pinned pair_relation=parallel extra_hb=none ovl_over_max=1.087 ovl_over_sum=0.719 n=16777216 k=26
+s2c2-ascend-run mem slice pair=C||DtoH residency=pageable pair_relation=parallel extra_hb=none ovl_over_max=1.068 ovl_over_sum=0.738 n=16777216 k=26
+sweep_mem n=67108864 k=calibrate
+s2c2-ascend-run mem calibrate n=67108864 k=11
+s2c2-ascend-run mem=r4 correctness=1
+s2c2-ascend-run mem case=htod-pinned n=67108864 k=11 us=9808.7
+s2c2-ascend-run mem case=htod-pageable n=67108864 k=11 us=9818.7
+s2c2-ascend-run mem case=dtoh-pinned n=67108864 k=11 us=9910.9
+s2c2-ascend-run mem case=dtoh-pageable n=67108864 k=11 us=12514.7
+s2c2-ascend-run mem case=compute n=67108864 k=11 us=9813.2
+s2c2-ascend-run mem slice pair=C||HtoD residency=pinned pair_relation=parallel extra_hb=none ovl_over_max=1.041 ovl_over_sum=0.521 n=67108864 k=11
+s2c2-ascend-run mem slice pair=C||HtoD residency=pageable pair_relation=mixed extra_hb=none ovl_over_max=1.481 ovl_over_sum=0.740 n=67108864 k=11
+s2c2-ascend-run mem slice pair=C||DtoH residency=pinned pair_relation=parallel extra_hb=none ovl_over_max=1.039 ovl_over_sum=0.522 n=67108864 k=11
+s2c2-ascend-run mem slice pair=C||DtoH residency=pageable pair_relation=mixed extra_hb=none ovl_over_max=1.302 ovl_over_sum=0.730 n=67108864 k=11

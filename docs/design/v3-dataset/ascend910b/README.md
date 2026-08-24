@@ -44,5 +44,7 @@ Do not store host / password / IP.
 frozen Schema v1 pair-record convention used by the 4090 catalog,
 not a 910B-specific interpretation.
 
-Pinned vs pageable (R4) is not this catalog. Cross-vendor schedule
-(PR-R3) is not this catalog: `C||C` is not a single parallel cell.
+Pinned vs pageable (R4): `mem.log`, `mem-slices.csv`, `mem.jsonl`.
+`counterexamples=0`. Extra HB was not observed. Rate may differ;
+that is not a Schedule rewrite. Cross-vendor schedule (PR-R3) is
+not this catalog: `C||C` is not a single parallel cell.

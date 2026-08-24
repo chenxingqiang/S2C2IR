@@ -2,6 +2,7 @@
 // RUN: s2c2-ascend-adapter --dry-run --pairs 2>&1 | FileCheck %s --check-prefix=PAIRS
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --print-mem-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-mem %S/ascend-mem-fixture.log | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-mem %S/../../docs/design/v3-dataset/ascend910b/mem.log | FileCheck %s --check-prefix=HW
 
 // Host protocol for 910B pinned vs pageable. No microseconds FileCheck.
 module {
@@ -44,3 +45,13 @@ module {
 // AN: v3=not-claimed
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 910B surface only. Do not FileCheck microseconds.
+// HW: v3-ascend-mem r4 pair=C||HtoD,C||DtoH acceptance=storage-comm
+// HW: counterexamples=0
+// HW: note residency-ne-extra-hb
+// HW: semantics=unchanged
+// HW: v3=not-claimed
+// HW-NOT: extra-hb=pageable-host
+// HW-NOT: Cost v0.4
+// HW-NOT: password

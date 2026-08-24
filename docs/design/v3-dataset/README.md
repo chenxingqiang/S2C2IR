@@ -56,6 +56,6 @@ Synthetic NPU demo cells (`v3-cap-schema-npu-demo.jsonl`)
 are **not measured**. Not Cost v0.4.
 
 Ascend 910B uses the **same** Capability Schema v1. Measured
-catalog: `docs/design/v3-dataset/ascend910b/` (PR-R2). Topology
-only; do not FileCheck microseconds.
+catalog: `docs/design/v3-dataset/ascend910b/` (pairs + R4 mem).
+Topology only; do not FileCheck microseconds.
 
