@@ -1,6 +1,6 @@
 # CUDA Validation — Async Alloc + Cross-Stream Wait (V2 P1)
 
-Status: **protocol only**. 4090 not yet recorded. Not Cost
+Status: **4090 evidence recorded**. Not Cost
 v0.4. Does **not** change Cost, HB axioms, `R`, Search,
 Transformation, Pilot IR, A/B/C bodies, `--matched` /
 `--phase` / `--cap` / `--pipe` bodies, V1 `--cuda-val=p0`
@@ -72,12 +72,48 @@ with `--cuda-val` / `--cuda-val-mem` / `--matched` /
 
 `extra_hb = sync-alloc` is a realization classification
 from observed extra serialization of the sync lifetime
-arm, not a reconstructed CUDA HB graph. The explicit
-wait arm is legal S^2C^2 HB (`extra_hb = none`).
+arm (`T_life_sync / T_life_async >= 1.15`), not a
+reconstructed CUDA HB graph. The explicit wait arm is
+legal S^2C^2 HB (`extra_hb = none`).
 
 ---
 
-## 3. Out of this increment
+## 3. 4090 result (15 points -> 3 slices)
+
+All arms `correct=1`. Protocol tree: `fd5088f`.
+
+| N | k | r | copy | compute | life_sync | life_async | hb | sync/async | hb/async | extra_hb |
+| - | - | - | ---- | ------- | --------- | ---------- | -- | ---------- | -------- | -------- |
+| 4M | 35 | 0.594 | 670 | 398 | 1904 | 1925 | 1932 | 0.989 | 1.004 | none |
+| 16M | 42 | 1.102 | 2659 | 2930 | 8492 | 9186 | 9182 | 0.924 | 1.000 | none |
+| 64M | 20 | 1.093 | 10611 | 11597 | 33440 | 38400 | 38403 | 0.871 | 1.000 | none |
+
+```text
+T_hb / T_life_async     =  1.004 / 1.000 / 1.000
+T_life_sync / T_async   =  0.989 / 0.924 / 0.871
+counterexamples         =  0
+extra_hb                =  none
+```
+
+The explicit wait chain matches same-stream async
+lifetime. Sync `cudaMalloc`/`cudaFree` did **not** add
+extra HB on this arm; the async pool path was equal or
+slower. Do not upgrade that to "async alloc is always
+faster" or to a Cost axiom.
+
+```text
+stor.materialize -> write -> event -> wait -> read -> release
+    is a correct, timed CUDA realization of legal HB
+sync-alloc extra HB     =  not observed  (this regime)
+Semantics               =  unchanged
+```
+
+Records: [`v3-dataset/v3-cuda-async.jsonl`](v3-dataset/v3-cuda-async.jsonl).
+Derived: [`v3-dataset/v3-cuda-async-slices.csv`](v3-dataset/v3-cuda-async-slices.csv).
+
+---
+
+## 4. Out of this increment
 
 ```text
 V1 / V2 timed-body rewrite
@@ -90,14 +126,14 @@ claiming V3
 
 ---
 
-## 4. Files
+## 5. Files
 
 | Path | Role |
 | ---- | ---- |
 | `runtime/cuda/s2c2_cuda_adapter.cu` | `--cuda-val-async=` |
 | `tools/s2c2-cuda-adapter/` | host `--dry-run --cuda-val-async` |
 | `runtime/cuda/record_v3.py` | `--cuda-val-async-sweep` / `--analyze-cuda-val-async` |
-| `docs/design/v3-dataset/v3-cuda-async.jsonl` | after 4090 (15 points) |
+| `docs/design/v3-dataset/v3-cuda-async.jsonl` | 15 points |
 
 ```text
 allocation realization  !=  Cost v0.4

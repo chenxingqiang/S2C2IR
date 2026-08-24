@@ -4,6 +4,7 @@
 // RUN: s2c2-cuda-adapter --dry-run 2>&1 | FileCheck %s --check-prefix=ABC
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --print-cuda-val-async-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val-async %S/cuda-val-async-fixture.jsonl | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val-async %S/../../docs/design/v3-dataset/v3-cuda-async.jsonl | FileCheck %s --check-prefix=HW
 
 // Host + recorder protocol for async alloc + cross-stream wait.
 // No device, no microseconds FileCheck, no Cost change.
@@ -52,3 +53,12 @@ module {
 // AN: v3=not-claimed
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 4090 surface only. Do not FileCheck microseconds.
+// HW: v3-cuda-val-async v2p1 chain=materialize-write-event-wait-read-release
+// HW: extra_hb
+// HW: counterexamples=0
+// HW: semantics=unchanged
+// HW: v3=not-claimed
+// HW-NOT: Cost v0.4
+// HW-NOT: password
