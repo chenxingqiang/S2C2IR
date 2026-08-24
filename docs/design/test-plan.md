@@ -536,3 +536,18 @@ microseconds. Semantics unchanged.
 | CV2 | same ABC | `--dry-run` without `--cuda-val` stays A/B/C |
 | CV3 | same | `--dry-run --pipe` still `tiles=8` |
 | CV4 | same fixture | `--analyze-cuda-val` prints extra-hb; `v3=not-claimed` |
+
+## CUDA Validation V2 (pinned vs pageable)
+
+**Not Cost v0.4.** Design:
+[`v3-cuda-mem.md`](v3-cuda-mem.md). Same named-nonblocking
+streams; host residency pinned vs pageable. Does not change
+V1 `--cuda-val=p0` timed bodies. No FileCheck of
+microseconds. Semantics unchanged.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CM1 | `test/Pilot/s2c2-v3-cuda-mem.mlir` | `--dry-run --cuda-val-mem` lists V2 map |
+| CM2 | same V1 | `--dry-run --cuda-val` stays V1 |
+| CM3 | same ABC | `--dry-run` without flags stays A/B/C |
+| CM4 | same fixture | `--analyze-cuda-val-mem` prints extra-hb; `v3=not-claimed` |
