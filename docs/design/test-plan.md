@@ -687,3 +687,19 @@ PR-R3 stays closed. No FileCheck of microseconds.
 | AS4 | same | `#69` `--query-cap C||C` still `underdetermined` |
 | AS5 | same HW log | `transition=mixed-to-serial 16M..32M`; no μs |
 
+## Size-banded Capability Applicability
+
+**Not Cost v0.4. Not PR-R3.** Design:
+[`capability-size-applicability.md`](capability-size-applicability.md).
+Multiple Schema v1 `size_range` cells per pair. `#69` catalog
+untouched. 910B `C||C` serial band is queryable and **not** a
+rewrite license.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| SA1 | `test/Pilot/s2c2-ascend-size-app.mlir` | band catalog Schema v1; three `C||C` ranges |
+| SA2 | same | `--query-cap --n` mixed / transition / serial |
+| SA3 | same | `#69` `--query-cap C||C` still `underdetermined` |
+| SA4 | `test/Analysis/s2c2-capability-size-band.mlir` | compiler lookup by payload; serial band `decision=keep` |
+| SA5 | same | flipping `rewrite_license=yes` serializes (fixture, not 910B) |
+

@@ -85,8 +85,11 @@ The catalog is a **decision input**, not an archive. See
 
 A record is not a global rule. `--s2c2-capability-query` returns the
 cell plus `applicable`. The scheduler rewrites only when
-`applicable = yes` and `pair_relation = serial`. `arm_specific` and
-`inferred` stay queryable.
+`applicable = yes` and `pair_relation = serial` and the cell is
+rewrite-licensed (`rewrite_license=no` in `note` blocks flatten).
+`arm_specific` and `inferred` stay queryable. A pair may carry
+several `size_range` bands; lookup is by payload size. See
+[`capability-size-applicability.md`](capability-size-applicability.md).
 
 Phase 3A does **not** pick the fastest schedule. It filters candidates
 that Capability says are not worthwhile to overlap **and** that the

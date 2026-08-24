@@ -58,3 +58,6 @@ a single parallel cell.
 `C||C` size-boundary at `r≈1`: `cc-size.log`, `cc-size.csv`.
 `transition=mixed-to-serial 16M..32M`. 16M is a boundary band.
 Pair catalog unchanged. PR-R3 closed.
+
+Size-banded applicability overlay (not `#69`): `cc-size-applicability.jsonl`.
+`rewrite_license=no`. Scheduler must not auto-serialize `N≥32M`.

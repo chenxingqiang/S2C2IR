@@ -101,7 +101,8 @@ order is one legal total order of `NoOrderingRequirement`.
 
 ```text
 pair_relation = parallel | mixed | underdetermined  → keep
-pair_relation = serial AND applicable = yes         → flatten
+pair_relation = serial AND applicable = yes
+                 AND rewrite_license ≠ no           → flatten
 otherwise                                           → keep
 ```
 
@@ -113,11 +114,18 @@ AND synchronization matches (default named-nonblocking)
 AND size_range is n/a or the static payload is inside the range
 ```
 
+A pair may have **several** `size_range` records. Lookup picks the
+narrowest covering band. Catalog query with no payload size and
+more than one ranged cell returns `underdetermined` /
+`size_range=multiple`. See
+[`capability-size-applicability.md`](capability-size-applicability.md).
+
 Not used for destructive rewrite:
 
 ```text
 confidence = arm_specific | inferred | unknown
 size_range present but payload unknown or outside the range
+rewrite_license=no in note (size-banded evidence, not yet licensed)
 ```
 
 4090:

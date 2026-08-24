@@ -464,7 +464,107 @@ def project_pairs(log: Path, out_dir: Path) -> int:
     return 0
 
 
-def query_cap(pair: str, catalog: Path, hardware: str | None) -> int:
+def _parse_byte_token(tok: str) -> int | None:
+    s = tok.strip()
+    mul = 1
+    low = s.lower()
+    if low.endswith("mib"):
+        mul = 1024 * 1024
+        s = s[:-3].strip()
+    elif low.endswith("mb"):
+        mul = 1000 * 1000
+        s = s[:-2].strip()
+    elif low.endswith("kib"):
+        mul = 1024
+        s = s[:-3].strip()
+    elif low.endswith("bytes"):
+        s = s[:-5].strip()
+    try:
+        n = int(s, 10)
+    except ValueError:
+        return None
+    if n < 0:
+        return None
+    return n * mul
+
+
+def parse_size_spec(raw: str) -> tuple[str, int | None, int | None]:
+    s = (raw or "").strip()
+    if s.lower() in ("n/a", "none", "unmeasured", ""):
+        return "unconstrained", None, None
+    if ".." not in s:
+        return "unparsed", None, None
+    left, right = s.split("..", 1)
+    lo = _parse_byte_token(left)
+    hi = _parse_byte_token(right)
+    if lo is None or hi is None:
+        return "unparsed", None, None
+    return "range", lo, hi
+
+
+def note_fields(note: str) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for tok in (note or "").split(";"):
+        tok = tok.strip()
+        if "=" not in tok:
+            continue
+        key, val = tok.split("=", 1)
+        out[key.strip()] = val.strip()
+    return out
+
+
+def rewrite_licensed(rec: dict[str, Any]) -> bool:
+    val = note_fields(str(rec.get("note", ""))).get("rewrite_license", "yes")
+    return val.lower() not in ("no", "false")
+
+
+def select_pair_record(
+    hits: list[dict[str, Any]], size_bytes: int | None
+) -> dict[str, Any] | None:
+    if not hits:
+        return None
+    if size_bytes is None:
+        if len(hits) == 1:
+            return hits[0]
+        unconstrained = [
+            rec
+            for rec in hits
+            if parse_size_spec(str(rec.get("size_range", "n/a")))[0]
+            == "unconstrained"
+        ]
+        if unconstrained:
+            return unconstrained[0]
+        rec0 = hits[0]
+        return {
+            "pair": rec0["pair"],
+            "pair_relation": "underdetermined",
+            "observed_constraint": "none",
+            "confidence": "measured",
+            "regime": rec0.get("regime", "underdetermined"),
+            "size_range": "multiple",
+            "synchronization": rec0.get("synchronization", "n/a"),
+            "hardware_id": rec0["hardware_id"],
+            "note": "phase_band=; rewrite_license=no; catalog query has no payload size",
+        }
+    covering: list[tuple[int, int, dict[str, Any]]] = []
+    for rec in hits:
+        kind, lo, hi = parse_size_spec(str(rec.get("size_range", "n/a")))
+        if kind == "unconstrained":
+            covering.append((1, 0, rec))
+        elif kind == "range" and lo is not None and hi is not None:
+            if lo <= size_bytes <= hi:
+                covering.append((0, hi - lo, rec))
+    if not covering:
+        if len(hits) == 1:
+            return hits[0]
+        return None
+    covering.sort(key=lambda item: (item[0], item[1]))
+    return covering[0][2]
+
+
+def query_cap(
+    pair: str, catalog: Path, hardware: str | None, n_floats: int | None
+) -> int:
     if pair not in PAIRS:
         print(f"record_ascend: unknown pair {pair}", file=sys.stderr)
         return 2
@@ -488,7 +588,9 @@ def query_cap(pair: str, catalog: Path, hardware: str | None) -> int:
         if hardware and hardware not in hid:
             continue
         hits.append(rec)
-    if not hits:
+    size_bytes = None if n_floats is None else n_floats * 4
+    rec = select_pair_record(hits, size_bytes)
+    if rec is None:
         print(
             json.dumps(
                 {
@@ -497,30 +599,30 @@ def query_cap(pair: str, catalog: Path, hardware: str | None) -> int:
                     "observed_constraint": "none",
                     "confidence": "unknown",
                     "applicable": False,
+                    "rewrite_license": False,
                 },
                 ensure_ascii=True,
             )
         )
         return 0
-    rec = hits[0]
-    print(
-        json.dumps(
-            {
-                "pair": rec["pair"],
-                "pair_relation": rec["pair_relation"],
-                "observed_constraint": rec["observed_constraint"],
-                "confidence": rec["confidence"],
-                "regime": rec.get("regime", "underdetermined"),
-                "size_range": rec.get("size_range", "n/a"),
-                "synchronization": rec.get("synchronization", "n/a"),
-                "hardware_id": rec["hardware_id"],
-                "applicable": rec.get("confidence") == "measured"
-                and rec.get("pair_relation") in ("serial", "parallel", "mixed"),
-            },
-            ensure_ascii=True,
-            separators=(",", ":"),
-        )
-    )
+    fields = note_fields(str(rec.get("note", "")))
+    determined = rec.get("pair_relation") in ("serial", "parallel", "mixed")
+    applicable = rec.get("confidence") == "measured" and determined
+    payload: dict[str, Any] = {
+        "pair": rec["pair"],
+        "pair_relation": rec["pair_relation"],
+        "observed_constraint": rec["observed_constraint"],
+        "confidence": rec["confidence"],
+        "regime": rec.get("regime", "underdetermined"),
+    }
+    if fields.get("phase_band"):
+        payload["phase_band"] = fields["phase_band"]
+    payload["size_range"] = rec.get("size_range", "n/a")
+    payload["synchronization"] = rec.get("synchronization", "n/a")
+    payload["hardware_id"] = rec["hardware_id"]
+    payload["applicable"] = applicable
+    payload["rewrite_license"] = rewrite_licensed(rec)
+    print(json.dumps(payload, ensure_ascii=True, separators=(",", ":")))
     print(
         f"record_ascend query-cap pair={pair} "
         f"pair_relation={rec['pair_relation']} "
@@ -833,6 +935,12 @@ def main() -> int:
     p.add_argument("--out", type=Path, default=_CATALOG_PATH.parent)
     p.add_argument("--query-cap", metavar="PAIR")
     p.add_argument("--cap-catalog", type=Path, default=_CATALOG_PATH)
+    p.add_argument(
+        "--n",
+        type=int,
+        dest="n_floats",
+        help="optional float count for size-banded --query-cap (payload = N*4 bytes)",
+    )
     p.add_argument("--print-mem-schema", action="store_true")
     p.add_argument("--analyze-mem", type=Path)
     p.add_argument("--print-cc-phase-schema", action="store_true")
@@ -909,7 +1017,9 @@ def main() -> int:
     if args.project_pairs:
         return project_pairs(args.project_pairs, args.out)
     if args.query_cap:
-        return query_cap(args.query_cap, args.cap_catalog, args.hardware)
+        return query_cap(
+            args.query_cap, args.cap_catalog, args.hardware, args.n_floats
+        )
     if args.print_mem_schema:
         return print_mem_schema()
     if args.analyze_mem:
