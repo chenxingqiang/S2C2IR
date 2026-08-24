@@ -433,6 +433,18 @@ workloads. V3/V4 (real latency) need a backend.
 | PA3 | same ARG / GPU | A argmin 130; B 128; C 163 (gpu-async) |
 | PA4 | same XF / IR | reorder accepts only B; C keeps pipeline |
 
+## Compiler Decision Model
+
+**Frozen claim.** Not Cost v0.4. Design:
+[`capability-aware-decision.md`](capability-aware-decision.md).
+Protects `Semantic ≠ Capability ≠ Runtime Constraint`.
+Does not add a pass or a CUDA arm. Next compiler increment
+is Capability Schema (`#59`) then query / schedule filter.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| CDM1 | `docs/design/capability-aware-decision.md` | three buckets: semantic / runtime-added / resource; `extra_hb` not dumped |
+
 ## CUDA Measurement Adapter (v0.1)
 
 **Frozen protocol in CI.** Measurement stand-in, not a

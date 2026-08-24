@@ -24,6 +24,9 @@ That `⊆` is **not** Realization Space membership. `R(P, D)` requires
 A profile must not invent sibling HB, treat `materialize` as a fill, or
 add StageResult / SoftPipe / InstanceOrder / race analysis.
 
+What 4090 evidence is *for* (not a mapping rewrite):
+[`capability-aware-decision.md`](capability-aware-decision.md).
+
 ---
 
 ## 1. Why this is not a new semantic core
