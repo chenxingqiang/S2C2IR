@@ -84,6 +84,18 @@ static void printPipe() {
   std::fprintf(stderr, "s2c2-cuda-adapter pipe cost=unchanged\n");
 }
 
+static void printPipeTiles() {
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles=4 remaining=C||HtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles=8 remaining=C||HtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles=16 remaining=C||HtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles=32 remaining=C||HtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles pair=C||HtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles depths=1,2,3,4\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles set=4,8,16,32\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter pipe-tiles cost=unchanged\n");
+}
+
 static void printCap() {
   std::fprintf(stderr, "s2c2-cuda-adapter cap=htod remaining=1xHtoD\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cap=dtoh remaining=1xDtoH\n");
@@ -120,6 +132,7 @@ int main(int argc, char **argv) {
   bool cap = false;
   bool phase = false;
   bool pipe = false;
+  bool pipeTiles = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -133,12 +146,14 @@ int main(int argc, char **argv) {
       phase = true;
     } else if (a == "--pipe") {
       pipe = true;
+    } else if (a == "--pipe-tiles") {
+      pipeTiles = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
-                   "[--matched] [--cap] [--phase] [--pipe]\n"
+                   "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -155,10 +170,11 @@ int main(int argc, char **argv) {
   }
 
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
-  int modes = (int)matched + (int)cap + (int)phase + (int)pipe;
+  int modes = (int)matched + (int)cap + (int)phase + (int)pipe + (int)pipeTiles;
   if (modes > 1) {
     std::fprintf(stderr,
-                 "s2c2-cuda-adapter: --pipe/--phase/--cap/--matched cannot combine\n");
+                 "s2c2-cuda-adapter: --pipe-tiles/--pipe/--phase/--cap/--matched "
+                 "cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -178,6 +194,11 @@ int main(int argc, char **argv) {
   }
   if (pipe) {
     printPipe();
+    printMaps();
+    return 0;
+  }
+  if (pipeTiles) {
+    printPipeTiles();
     printMaps();
     return 0;
   }
