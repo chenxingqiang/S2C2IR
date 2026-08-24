@@ -115,6 +115,38 @@ VAL_FIELDS = (
     "verdict",
     "extra_hb",
 )
+VAL_MEM_ARMS = (
+    "val-htod-pinned",
+    "val-htod-pageable",
+    "val-dtoh-pinned",
+    "val-dtoh-pageable",
+    "val-compute-mem",
+    "val-ovl-htod-pin",
+    "val-ovl-htod-page",
+    "val-ovl-dtoh-pin",
+    "val-ovl-dtoh-page",
+)
+VAL_MEM_FUNCS = set(VAL_MEM_ARMS)
+VAL_MEM_PAIRS = (
+    ("C||HtoD", "val-htod-pinned", "val-htod-pageable",
+     "val-ovl-htod-pin", "val-ovl-htod-page"),
+    ("C||DtoH", "val-dtoh-pinned", "val-dtoh-pageable",
+     "val-ovl-dtoh-pin", "val-ovl-dtoh-page"),
+)
+VAL_MEM_FIELDS = (
+    "N",
+    "k",
+    "pair",
+    "residency",
+    "r",
+    "T_copy_us",
+    "T_compute_us",
+    "T_ovl_us",
+    "ovl_over_max",
+    "ovl_over_sum",
+    "verdict",
+    "extra_hb",
+)
 PIPE_FIELDS = (
     "N",
     "k",
@@ -613,6 +645,278 @@ def analyze_cuda_val(jsonl: Path, out: Path | None = None) -> int:
                     }
                 )
         print(f"record_v3 wrote {out} count={len(slices)} cuda-val v3=not-claimed")
+    return 0
+
+
+def print_cuda_val_mem_schema() -> int:
+    print("cuda-val-mem v2")
+    print("pair C||HtoD C||DtoH")
+    print("host pinned pageable")
+    print("stream named-nonblocking")
+    print("acceptance storage-comm")
+    print("extra-hb none|pageable-host")
+    print("score3 not-applicable")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def parse_val_mem_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in VAL_MEM_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": int(m.group("k")),
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
+def _collect_val_mem_rows(
+    text: str, gpu: dict[str, str], warmup: int, reps: int, commit: str
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parsed = parse_val_mem_line(line)
+        if not parsed:
+            continue
+        rec = base_record(commit, gpu, warmup, reps)
+        rec["case"] = parsed["case"]
+        rec["N"] = parsed["N"]
+        rec["k"] = parsed["k"]
+        rec["provisioned"] = parsed["provisioned"]
+        rec["score3"] = parsed["score3"]
+        rec["latency_us"] = parsed["latency_us"]
+        rows.append({key: rec[key] for key in FIELDS})
+    return rows
+
+
+def cuda_val_mem_sweep(bin_path: str, out_prefix: Path, warmup: int, reps: int,
+                       commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    try:
+        for n in NS:
+            print(f"=== cuda-val-mem calibrate n={n} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-mem=htod-pinned", f"--n={n}", "--k=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            copy_rows = _collect_val_mem_rows(text, gpu, warmup, reps, commit)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-mem=compute", f"--n={n}", "--k=1"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            unit_rows = _collect_val_mem_rows(text, gpu, warmup, reps, commit)
+            if len(copy_rows) != 1 or len(unit_rows) != 1:
+                print("record_v3: cuda-val-mem calibrate expected 2 rows",
+                      file=sys.stderr)
+                return 4
+            k = choose_phase_k(
+                1.0,
+                float(copy_rows[0]["latency_us"]),
+                float(unit_rows[0]["latency_us"]),
+            )
+            print(f"=== cuda-val-mem p0 n={n} k={k} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--cuda-val-mem=p0", f"--n={n}", f"--k={k}"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            got = _collect_val_mem_rows(text, gpu, warmup, reps, commit)
+            if {r["case"] for r in got} != set(VAL_MEM_ARMS):
+                print(
+                    f"record_v3: expected 9 val-mem arms, got "
+                    f"{[r['case'] for r in got]}",
+                    file=sys.stderr,
+                )
+                return 4
+            rows.extend(got)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"record_v3: cuda-val-mem run failed: {exc}", file=sys.stderr)
+        return 2
+    write_outputs(rows, out_prefix)
+    print(
+        f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+        f"count={len(rows)} cuda-val-mem v3=not-claimed"
+    )
+    return 0
+
+
+def cuda_val_mem_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in NS:
+        slice_rows = [r for r in rows if int(r["N"]) == n]
+        by_case = {r["case"]: r for r in slice_rows}
+        compute_row = by_case.get("val-compute-mem")
+        if not compute_row:
+            continue
+        compute = float(compute_row["latency_us"])
+        k = int(compute_row["k"])
+        for pair, pin_copy, page_copy, pin_ovl, page_ovl in VAL_MEM_PAIRS:
+            for residency, copy_key, ovl_key, extra in (
+                ("pinned", pin_copy, pin_ovl, "none"),
+                ("pageable", page_copy, page_ovl, "pageable-host"),
+            ):
+                if copy_key not in by_case or ovl_key not in by_case:
+                    continue
+                copy = float(by_case[copy_key]["latency_us"])
+                ovl = float(by_case[ovl_key]["latency_us"])
+                pmax = _safe_div(ovl, max(copy, compute))
+                psum = _safe_div(ovl, copy + compute)
+                verdict = _verdict(pmax, psum)
+                # extra_hb is observed serialization, not a CUDA HB graph.
+                # Pageable + mixed with ovl/max <= 1.15 is still max-like;
+                # the #55 gray zone is r-unbalance, not extra HB.
+                if residency == "pageable" and verdict == "serial":
+                    extra_hb = extra
+                else:
+                    extra_hb = "none"
+                out.append(
+                    {
+                        "N": n,
+                        "k": k,
+                        "pair": pair,
+                        "residency": residency,
+                        "r": _safe_div(compute, copy),
+                        "T_copy_us": copy,
+                        "T_compute_us": compute,
+                        "T_ovl_us": ovl,
+                        "ovl_over_max": pmax,
+                        "ovl_over_sum": psum,
+                        "verdict": verdict,
+                        "extra_hb": extra_hb,
+                    }
+                )
+    return out
+
+
+def analyze_cuda_val_mem(jsonl: Path, out: Path | None = None) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    slices = cuda_val_mem_slices(rows)
+    print(
+        "v3-cuda-val-mem v2 pair=C||HtoD,C||DtoH acceptance=storage-comm "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    print(
+        "slice\tN\tpair\tresidency\tk\tr\tcopy\tcompute\tovl\t"
+        "ovl/max\tovl/sum\tverdict\textra_hb"
+    )
+    for s in slices:
+        print(
+            f"slice\t{s['N']}\t{s['pair']}\t{s['residency']}\t{s['k']}\t"
+            f"{s['r']:.3f}\t{s['T_copy_us']:.1f}\t{s['T_compute_us']:.1f}\t"
+            f"{s['T_ovl_us']:.1f}\t{s['ovl_over_max']:.3f}\t"
+            f"{s['ovl_over_sum']:.3f}\t{s['verdict']}\t{s['extra_hb']}"
+        )
+    hits = 0
+    unbalanced = 0
+    bw_only = 0
+    for n in NS:
+        by_case = {r["case"]: r for r in rows if int(r["N"]) == n}
+        for pair, pin_copy, page_copy, _pin_ovl, _page_ovl in VAL_MEM_PAIRS:
+            pin_row = by_case.get(pin_copy)
+            page_row = by_case.get(page_copy)
+            if pin_row and page_row:
+                pin_t = float(pin_row["latency_us"])
+                page_t = float(page_row["latency_us"])
+                ratio = _safe_div(page_t, pin_t)
+                print(
+                    f"bandwidth\tN={n}\tpair={pair.split('||')[-1]}\t"
+                    f"page/pin={ratio:.3f}"
+                )
+        for pair, _c0, _c1, _o0, _o1 in VAL_MEM_PAIRS:
+            pinned = next(
+                (s for s in slices
+                 if s["N"] == n and s["pair"] == pair and s["residency"] == "pinned"),
+                None,
+            )
+            pageable = next(
+                (s for s in slices
+                 if s["N"] == n and s["pair"] == pair
+                 and s["residency"] == "pageable"),
+                None,
+            )
+            if not pinned or not pageable:
+                continue
+            # Storage x Comm extra-HB requires a serial flip, not a
+            # mixed gray zone from r-unbalanced pageable copies.
+            if pinned["verdict"] == "parallel" and pageable["verdict"] == "serial":
+                hits += 1
+                print(
+                    f"counterexample\tN={n}\tpair={pair}\t"
+                    f"pinned=parallel\tpageable=serial\t"
+                    "extra-hb=pageable-host"
+                )
+            elif (
+                pinned["verdict"] == "parallel"
+                and pageable["verdict"] == "mixed"
+                and pageable["ovl_over_max"] <= 1.15
+            ):
+                unbalanced += 1
+                print(
+                    f"max-like-unbalanced\tN={n}\tpair={pair}\t"
+                    f"pinned=parallel\tpageable=mixed\t"
+                    "extra-hb=none"
+                )
+            elif pageable["T_copy_us"] > pinned["T_copy_us"]:
+                bw_only += 1
+                print(
+                    f"bandwidth-only\tN={n}\tpair={pair}\t"
+                    f"pinned={pinned['verdict']}\t"
+                    f"pageable={pageable['verdict']}"
+                )
+    print(
+        f"summary slices={len(slices)} counterexamples={hits} "
+        f"max-like-unbalanced={unbalanced} bandwidth-only={bw_only} "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=VAL_MEM_FIELDS)
+            w.writeheader()
+            for s in slices:
+                w.writerow(
+                    {
+                        "N": s["N"],
+                        "k": s["k"],
+                        "pair": s["pair"],
+                        "residency": s["residency"],
+                        "r": f"{s['r']:.3f}",
+                        "T_copy_us": f"{s['T_copy_us']:.1f}",
+                        "T_compute_us": f"{s['T_compute_us']:.1f}",
+                        "T_ovl_us": f"{s['T_ovl_us']:.1f}",
+                        "ovl_over_max": f"{s['ovl_over_max']:.3f}",
+                        "ovl_over_sum": f"{s['ovl_over_sum']:.3f}",
+                        "verdict": s["verdict"],
+                        "extra_hb": s["extra_hb"],
+                    }
+                )
+        print(
+            f"record_v3 wrote {out} count={len(slices)} "
+            "cuda-val-mem v3=not-claimed"
+        )
     return 0
 
 
@@ -2017,7 +2321,9 @@ def main() -> int:
     p.add_argument("--print-pipe-schema", action="store_true")
     p.add_argument("--print-pipe-tiles-schema", action="store_true")
     p.add_argument("--print-cuda-val-schema", action="store_true")
+    p.add_argument("--print-cuda-val-mem-schema", action="store_true")
     p.add_argument("--cuda-val-sweep", metavar="BIN")
+    p.add_argument("--cuda-val-mem-sweep", metavar="BIN")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
@@ -2033,6 +2339,7 @@ def main() -> int:
     p.add_argument("--analyze-pipe", type=Path)
     p.add_argument("--analyze-pipe-tiles", type=Path)
     p.add_argument("--analyze-cuda-val", type=Path)
+    p.add_argument("--analyze-cuda-val-mem", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
@@ -2057,6 +2364,8 @@ def main() -> int:
         return print_pipe_tiles_schema()
     if args.print_cuda_val_schema:
         return print_cuda_val_schema()
+    if args.print_cuda_val_mem_schema:
+        return print_cuda_val_mem_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
@@ -2075,6 +2384,8 @@ def main() -> int:
         return analyze_pipe_tiles(args.analyze_pipe_tiles, args.out)
     if args.analyze_cuda_val:
         return analyze_cuda_val(args.analyze_cuda_val, args.out)
+    if args.analyze_cuda_val_mem:
+        return analyze_cuda_val_mem(args.analyze_cuda_val_mem, args.out)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -2128,14 +2439,26 @@ def main() -> int:
             args.cuda_val_sweep, args.out, args.warmup, args.reps,
             git_commit(args.git_commit)
         )
+    if args.cuda_val_mem_sweep:
+        if not args.out:
+            print("record_v3: --out required with --cuda-val-mem-sweep",
+                  file=sys.stderr)
+            return 1
+        return cuda_val_mem_sweep(
+            args.cuda_val_mem_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
           "--print-cap-schema, --print-phase-schema, --print-pipe-schema, "
-          "--print-pipe-tiles-schema, --print-cuda-val-schema, --sweep, "
+          "--print-pipe-tiles-schema, --print-cuda-val-schema, "
+          "--print-cuda-val-mem-schema, --sweep, "
           "--matched-sweep, --cap-sweep, --phase-sweep, --pipe-sweep, "
-          "--pipe-tiles-sweep, --cuda-val-sweep, --analyze, "
+          "--pipe-tiles-sweep, --cuda-val-sweep, --cuda-val-mem-sweep, "
+          "--analyze, "
           "--analyze-matched, --analyze-cap, --analyze-phase, --analyze-pipe, "
-          "--analyze-pipe-tiles, --analyze-cuda-val, --calibrate, "
+          "--analyze-pipe-tiles, --analyze-cuda-val, --analyze-cuda-val-mem, "
+          "--calibrate, "
           "or --analyze-ratio",
           file=sys.stderr)
     return 1

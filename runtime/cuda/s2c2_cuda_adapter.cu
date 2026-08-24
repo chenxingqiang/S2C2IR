@@ -1292,6 +1292,241 @@ static std::vector<ValArm> parseValList(const char *name) {
   std::exit(1);
 }
 
+// V2 pinned vs pageable. Named nonblocking only.
+// Does not change V1 --cuda-val timed bodies.
+enum class ValMemKind { HtoD, DtoH, Compute, OvlHtoD, OvlDtoH };
+enum class ValMemRes { Pinned, Pageable, Device };
+
+struct ValMemArm {
+  ValMemKind kind;
+  ValMemRes res;
+};
+
+struct ValMemBuf {
+  float *hostPin = nullptr;
+  float *hostPage = nullptr;
+  float *check = nullptr;
+  float *dest = nullptr;
+  float *scratch = nullptr;
+  int n = 0;
+  cudaStream_t sCopy = nullptr;
+  cudaStream_t sCompute = nullptr;
+  cudaEvent_t start = nullptr;
+  cudaEvent_t stop = nullptr;
+
+  float *hostOf(ValMemRes res) const {
+    return res == ValMemRes::Pinned ? hostPin : hostPage;
+  }
+
+  void alloc(int n_) {
+    n = n_;
+    size_t bytes = sizeof(float) * static_cast<size_t>(n);
+    CUDA_OK(cudaHostAlloc(&hostPin, bytes, cudaHostAllocDefault));
+    hostPage = static_cast<float *>(std::malloc(bytes));
+    if (!hostPage) {
+      std::fprintf(stderr, "s2c2-cuda-run: pageable malloc failed\n");
+      std::exit(2);
+    }
+    CUDA_OK(cudaHostAlloc(&check, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaMalloc(&dest, bytes));
+    CUDA_OK(cudaMalloc(&scratch, bytes));
+    CUDA_OK(cudaStreamCreateWithFlags(&sCopy, cudaStreamNonBlocking));
+    CUDA_OK(cudaStreamCreateWithFlags(&sCompute, cudaStreamNonBlocking));
+    CUDA_OK(cudaEventCreate(&start));
+    CUDA_OK(cudaEventCreate(&stop));
+    fillHost(hostPin, n, 1);
+    fillHost(hostPage, n, 1);
+  }
+
+  void freeAll() {
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+    cudaStreamDestroy(sCompute);
+    cudaStreamDestroy(sCopy);
+    cudaFree(scratch);
+    cudaFree(dest);
+    cudaFreeHost(check);
+    cudaFreeHost(hostPin);
+    std::free(hostPage);
+  }
+};
+
+static const char *valMemFunc(ValMemArm arm) {
+  if (arm.kind == ValMemKind::Compute)
+    return "val-compute-mem";
+  if (arm.kind == ValMemKind::HtoD)
+    return arm.res == ValMemRes::Pinned ? "val-htod-pinned"
+                                        : "val-htod-pageable";
+  if (arm.kind == ValMemKind::DtoH)
+    return arm.res == ValMemRes::Pinned ? "val-dtoh-pinned"
+                                        : "val-dtoh-pageable";
+  if (arm.kind == ValMemKind::OvlHtoD)
+    return arm.res == ValMemRes::Pinned ? "val-ovl-htod-pin"
+                                        : "val-ovl-htod-page";
+  return arm.res == ValMemRes::Pinned ? "val-ovl-dtoh-pin"
+                                      : "val-ovl-dtoh-page";
+}
+
+static const char *valMemExtraHb(ValMemArm arm) {
+  bool ovl =
+      arm.kind == ValMemKind::OvlHtoD || arm.kind == ValMemKind::OvlDtoH;
+  if (ovl && arm.res == ValMemRes::Pageable)
+    return "pageable-host";
+  return "none";
+}
+
+static bool valMemNeedsPoison(ValMemArm arm) {
+  return arm.kind == ValMemKind::DtoH || arm.kind == ValMemKind::OvlDtoH;
+}
+
+static void provisionValMem(ValMemBuf &b) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  CUDA_OK(cudaMemcpyAsync(b.scratch, b.hostPin, bytes, cudaMemcpyHostToDevice,
+                          b.sCopy));
+  CUDA_OK(cudaMemcpyAsync(b.dest, b.hostPin, bytes, cudaMemcpyHostToDevice,
+                          b.sCopy));
+  CUDA_OK(cudaStreamSynchronize(b.sCopy));
+}
+
+static void runValMem(ValMemBuf &b, ValMemArm arm, int k) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  float *h = b.hostOf(arm.res == ValMemRes::Device ? ValMemRes::Pinned
+                                                   : arm.res);
+  switch (arm.kind) {
+  case ValMemKind::HtoD:
+    CUDA_OK(cudaMemcpyAsync(b.dest, h, bytes, cudaMemcpyHostToDevice, b.sCopy));
+    CUDA_OK(cudaStreamSynchronize(b.sCopy));
+    break;
+  case ValMemKind::DtoH:
+    CUDA_OK(cudaMemcpyAsync(h, b.dest, bytes, cudaMemcpyDeviceToHost, b.sCopy));
+    CUDA_OK(cudaStreamSynchronize(b.sCopy));
+    break;
+  case ValMemKind::Compute:
+    siluLaunch(b.scratch, b.n, b.sCompute, k);
+    CUDA_OK(cudaStreamSynchronize(b.sCompute));
+    break;
+  case ValMemKind::OvlHtoD:
+    siluLaunch(b.scratch, b.n, b.sCompute, k);
+    CUDA_OK(cudaMemcpyAsync(b.dest, h, bytes, cudaMemcpyHostToDevice, b.sCopy));
+    CUDA_OK(cudaStreamSynchronize(b.sCompute));
+    CUDA_OK(cudaStreamSynchronize(b.sCopy));
+    break;
+  case ValMemKind::OvlDtoH:
+    siluLaunch(b.scratch, b.n, b.sCompute, k);
+    CUDA_OK(cudaMemcpyAsync(h, b.dest, bytes, cudaMemcpyDeviceToHost, b.sCopy));
+    CUDA_OK(cudaStreamSynchronize(b.sCompute));
+    CUDA_OK(cudaStreamSynchronize(b.sCopy));
+    break;
+  }
+}
+
+static bool checkValMem(ValMemBuf &b, ValMemArm arm, int seed, int k) {
+  size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
+  if (arm.kind == ValMemKind::HtoD || arm.kind == ValMemKind::OvlHtoD) {
+    CUDA_OK(cudaMemcpy(b.check, b.dest, bytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.check, b.n, seed, 0))
+      return false;
+  }
+  if (arm.kind == ValMemKind::DtoH || arm.kind == ValMemKind::OvlDtoH) {
+    if (!valSpotOk(b.hostOf(arm.res), b.n, seed, 0))
+      return false;
+  }
+  if (arm.kind == ValMemKind::Compute || arm.kind == ValMemKind::OvlHtoD ||
+      arm.kind == ValMemKind::OvlDtoH) {
+    CUDA_OK(cudaMemcpy(b.check, b.scratch, bytes, cudaMemcpyDeviceToHost));
+    if (!valSpotOk(b.check, b.n, seed, k))
+      return false;
+  }
+  return true;
+}
+
+static void printValMem(ValMemArm arm, const char *dev, int n, int k,
+                        double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f "
+               "correct=1 extra_hb=%s\n",
+               valMemFunc(arm), kSched, kMap, dev, n, k, us,
+               valMemExtraHb(arm));
+}
+
+static double timeValMemArm(ValMemBuf &b, ValMemArm arm, int warmup, int reps,
+                            int k) {
+  auto body = [&]() { runValMem(b, arm, k); };
+  for (int i = 0; i < warmup; ++i) {
+    fillHost(b.hostPin, b.n, 1);
+    fillHost(b.hostPage, b.n, 1);
+    provisionValMem(b);
+    if (valMemNeedsPoison(arm))
+      fillHost(b.hostOf(arm.res), b.n, 7919);
+    body();
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    int seed = i + 2;
+    fillHost(b.hostPin, b.n, seed);
+    fillHost(b.hostPage, b.n, seed);
+    provisionValMem(b);
+    if (valMemNeedsPoison(arm))
+      fillHost(b.hostOf(arm.res), b.n, seed + 7919);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f);
+    if (!checkValMem(b, arm, seed, k)) {
+      std::fprintf(stderr, "s2c2-cuda-run: %s correct=0\n", valMemFunc(arm));
+      std::exit(3);
+    }
+  }
+  return medianUs(samples);
+}
+
+static std::vector<ValMemArm> parseValMemList(const char *name) {
+  auto pin = [](ValMemKind k) { return ValMemArm{k, ValMemRes::Pinned}; };
+  auto page = [](ValMemKind k) { return ValMemArm{k, ValMemRes::Pageable}; };
+  if (std::strcmp(name, "off") == 0)
+    return {};
+  if (std::strcmp(name, "p0") == 0 || std::strcmp(name, "all") == 0)
+    return {pin(ValMemKind::HtoD),        page(ValMemKind::HtoD),
+            pin(ValMemKind::DtoH),        page(ValMemKind::DtoH),
+            {ValMemKind::Compute, ValMemRes::Device},
+            pin(ValMemKind::OvlHtoD),     page(ValMemKind::OvlHtoD),
+            pin(ValMemKind::OvlDtoH),     page(ValMemKind::OvlDtoH)};
+  if (std::strcmp(name, "htod") == 0)
+    return {pin(ValMemKind::HtoD), page(ValMemKind::HtoD)};
+  if (std::strcmp(name, "dtoh") == 0)
+    return {pin(ValMemKind::DtoH), page(ValMemKind::DtoH)};
+  if (std::strcmp(name, "ovl-htod") == 0)
+    return {pin(ValMemKind::OvlHtoD), page(ValMemKind::OvlHtoD)};
+  if (std::strcmp(name, "ovl-dtoh") == 0)
+    return {pin(ValMemKind::OvlDtoH), page(ValMemKind::OvlDtoH)};
+  if (std::strcmp(name, "compute") == 0 || std::strcmp(name, "compute-mem") == 0)
+    return {{ValMemKind::Compute, ValMemRes::Device}};
+  if (std::strcmp(name, "htod-pinned") == 0)
+    return {pin(ValMemKind::HtoD)};
+  if (std::strcmp(name, "htod-pageable") == 0)
+    return {page(ValMemKind::HtoD)};
+  if (std::strcmp(name, "dtoh-pinned") == 0)
+    return {pin(ValMemKind::DtoH)};
+  if (std::strcmp(name, "dtoh-pageable") == 0)
+    return {page(ValMemKind::DtoH)};
+  if (std::strcmp(name, "ovl-htod-pin") == 0)
+    return {pin(ValMemKind::OvlHtoD)};
+  if (std::strcmp(name, "ovl-htod-page") == 0)
+    return {page(ValMemKind::OvlHtoD)};
+  if (std::strcmp(name, "ovl-dtoh-pin") == 0)
+    return {pin(ValMemKind::OvlDtoH)};
+  if (std::strcmp(name, "ovl-dtoh-page") == 0)
+    return {page(ValMemKind::OvlDtoH)};
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --cuda-val-mem %s\n", name);
+  std::exit(1);
+}
+
 int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
@@ -1300,6 +1535,7 @@ int main(int argc, char **argv) {
   const char *phaseArg = "off";
   const char *pipeArg = "off";
   const char *valArg = "off";
+  const char *valMemArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
@@ -1328,6 +1564,8 @@ int main(int argc, char **argv) {
       phaseArg = argv[i] + 8;
     else if (a.rfind("--pipe=", 0) == 0)
       pipeArg = argv[i] + 7;
+    else if (a.rfind("--cuda-val-mem=", 0) == 0)
+      valMemArg = argv[i] + 15;
     else if (a.rfind("--cuda-val=", 0) == 0)
       valArg = argv[i] + 11;
     else if (a.rfind("--tiles=", 0) == 0)
@@ -1352,6 +1590,8 @@ int main(int argc, char **argv) {
                    "--device=gpu --n=N --k=K --tiles=8\n"
                    "s2c2-cuda-run --cuda-val=p0|named|default|ovl-named|"
                    "ovl-default --device=gpu --n=N --k=K\n"
+                   "s2c2-cuda-run --cuda-val-mem=p0|htod|dtoh|ovl-htod|"
+                   "ovl-dtoh --device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -1375,6 +1615,7 @@ int main(int argc, char **argv) {
   std::vector<MatchedArm> phaseArms = parsePhaseList(phaseArg);
   std::vector<PipeArm> pipeArms = parsePipeList(pipeArg);
   std::vector<ValArm> valArms = parseValList(valArg);
+  std::vector<ValMemArm> valMemArms = parseValMemList(valMemArg);
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;
   MatchedArm matched = parseMatched(matchedArg);
   bool matchedOn = matchedAll || matched != MatchedArm::Off;
@@ -1399,6 +1640,14 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "s2c2-cuda-run: --cuda-val cannot combine with "
                  "--pipe/--phase/--cap/--matched\n");
+    return 1;
+  }
+  if (!valMemArms.empty() &&
+      (matchedOn || !capArms.empty() || !phaseArms.empty() ||
+       !pipeArms.empty() || !valArms.empty())) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run: --cuda-val-mem cannot combine with "
+                 "--cuda-val/--pipe/--phase/--cap/--matched\n");
     return 1;
   }
   if (!valArms.empty()) {
@@ -1436,6 +1685,27 @@ int main(int argc, char **argv) {
       namedBuf.freeAll();
     if (needDefault)
       defaultBuf.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
+  }
+  if (!valMemArms.empty()) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --cuda-val-mem is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    ValMemBuf b;
+    b.alloc(n);
+    for (ValMemArm arm : valMemArms) {
+      double us = timeValMemArm(b, arm, warmup, reps, k);
+      printValMem(arm, "gpu", n, k, us);
+    }
+    b.freeAll();
     std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
     return 0;
   }

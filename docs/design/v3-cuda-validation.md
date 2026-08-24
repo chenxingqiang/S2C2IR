@@ -216,3 +216,7 @@ extra HB         ≠  a Schedule rewrite
 Semantics        =  unchanged
 V3               ≠  claimed
 ```
+
+Pinned vs pageable (V2 P0) is a separate increment:
+[`v3-cuda-mem.md`](v3-cuda-mem.md). It does not change this
+V1 P0 surface.
