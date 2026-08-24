@@ -673,3 +673,16 @@ PR-R3 stays closed. No FileCheck of microseconds.
 | AP4 | same | `#69` `--query-cap C||C` still `underdetermined` |
 | AP5 | same HW log | measured `unique=no`; `relations=mixed,serial`; no μs |
 
+## Ascend 910B C∥C size-boundary sweep
+
+**Not Cost v0.4.** Design: [`v3-ascend-cc-size.md`](v3-ascend-cc-size.md).
+`C||C` at `r≈1`. N grid 4M..128M. Does not overwrite `#69`.
+PR-R3 stays closed. No FileCheck of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| AS1 | `test/Pilot/s2c2-ascend-cc-size.mlir` | `--dry-run --cc-size` lists N grid |
+| AS2 | same | exclusive vs `--cc-phase` |
+| AS3 | same fixture | `--analyze-cc-size` reports mixed→serial |
+| AS4 | same | `#69` `--query-cap C||C` still `underdetermined` |
+
