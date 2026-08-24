@@ -612,3 +612,22 @@ Same IR + different CapabilityProfile → different legal schedule.
 | CQ3 | same | npu-demo inferred keeps all concurrent |
 | CQ4 | `test/Integration/capability-schedule-stream.mlir` | gated-MLP / SSD stream e2e; JSONL profile load |
 
+## Ascend 910B Capability Adapter (Phase 3B / PR-R1-Ascend)
+
+**Not Cost v0.4.** Design:
+[`backend-adapter-ascend.md`](backend-adapter-ascend.md). AscendCL
+measurement entry for three pairs only. Same Capability Schema
+v1; no `acl_*` keys; no scheduler change. `T_pair=completion(s0,s1)`.
+No FileCheck of microseconds. `Workload_semantic ≠ Kernel_backend`.
+ROCm `#67` stays parked.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| AA1 | `test/Pilot/s2c2-ascend-adapter-protocol.mlir` | `--dry-run` lists R1–R3 + workload contract; timing contract |
+| AA2 | same | classifier protocol; `correctness=1`; no SiLU/GEMM workload names |
+| AA3 | same | `--emit-record` is schema v1; `confidence=unknown` |
+| AA4 | same | foreign 4090 `hardware_id` rejected as a 910B record |
+| AS1 | `test/Pilot/s2c2-ascend-cap-schema.mlir` | `--cap-schema` fields match CUDA v1 |
+| AS2 | same | extra `acl_*` key rejected |
+| AS3 | same | `--check-schema-identity` against `v3-capability-schema.v1.json` |
+
