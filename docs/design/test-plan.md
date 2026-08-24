@@ -508,3 +508,17 @@ C∥HtoD bodies. No FileCheck of microseconds.
 | PP1 | `test/Pilot/s2c2-v3-pipe-depth.mlir` | `--dry-run --pipe` lists depths; `tiles=8` |
 | PP2 | same ABC | `--dry-run` without `--pipe` stays A/B/C |
 | PP3 | same fixture | `--analyze-pipe` prints speedup; `v3=not-claimed` |
+
+## V3 Pipeline Tiles Sanity (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-pipe-tiles.md`](v3-pipe-tiles.md). Same C∥HtoD pair
+and depths; `tiles ∈ {4, 8, 16, 32}`. Does not change
+`--pipe` default `tiles=8`. No FileCheck of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| PT1 | `test/Pilot/s2c2-v3-pipe-tiles.mlir` | `--dry-run --pipe-tiles` lists 4/8/16/32 |
+| PT2 | same ABC | `--dry-run` without `--pipe-tiles` stays A/B/C |
+| PT3 | same | `--dry-run --pipe` still `tiles=8` |
+| PT4 | same fixture | `--analyze-pipe-tiles` prints sat; `v3=not-claimed` |

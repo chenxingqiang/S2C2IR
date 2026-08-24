@@ -150,3 +150,6 @@ T_pipeline(d)  ≠  a Score_3 rewrite
 saturated@2    ≠  ∀ pipeline
 V3             ≠  claimed
 ```
+
+Tiles-count sanity check (whether saturation is a
+`tiles=8` artifact): [`v3-pipe-tiles.md`](v3-pipe-tiles.md).
