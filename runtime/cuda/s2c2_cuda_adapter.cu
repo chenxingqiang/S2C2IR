@@ -463,6 +463,50 @@ static void printMatched(MatchedArm arm, const char *dev, int n, int k,
                matchedFunc(arm), kSched, kMap, dev, n, k, us);
 }
 
+static const char *phaseFunc(MatchedArm arm) {
+  switch (arm) {
+  case MatchedArm::Seq:
+    return "phase-seq";
+  case MatchedArm::Ovl:
+    return "phase-ovl";
+  case MatchedArm::Copy:
+    return "phase-copy";
+  case MatchedArm::Compute:
+    return "phase-compute";
+  case MatchedArm::Off:
+    return "phase-off";
+  }
+  return "phase-off";
+}
+
+static void printPhase(MatchedArm arm, const char *dev, int n, int k,
+                       double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f\n",
+               phaseFunc(arm), kSched, kMap, dev, n, k, us);
+}
+
+static std::vector<MatchedArm> parsePhaseList(const char *name) {
+  if (std::strcmp(name, "off") == 0)
+    return {};
+  if (std::strcmp(name, "slice") == 0)
+    return {MatchedArm::Seq, MatchedArm::Ovl, MatchedArm::Compute};
+  if (std::strcmp(name, "all") == 0)
+    return {MatchedArm::Copy, MatchedArm::Seq, MatchedArm::Ovl,
+            MatchedArm::Compute};
+  if (std::strcmp(name, "seq") == 0)
+    return {MatchedArm::Seq};
+  if (std::strcmp(name, "ovl") == 0)
+    return {MatchedArm::Ovl};
+  if (std::strcmp(name, "copy") == 0)
+    return {MatchedArm::Copy};
+  if (std::strcmp(name, "compute") == 0)
+    return {MatchedArm::Compute};
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --phase %s\n", name);
+  std::exit(1);
+}
+
 static double timeMatchedArm(GpuBuf &b, MatchedArm arm, int warmup, int reps,
                              int k) {
   auto body = [&]() { runMatched(b, arm, k); };
@@ -846,6 +890,7 @@ int main(int argc, char **argv) {
   const char *device = kDevice;
   const char *matchedArg = "off";
   const char *capArg = "off";
+  const char *phaseArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
@@ -869,6 +914,8 @@ int main(int argc, char **argv) {
       matchedArg = argv[i] + 10;
     else if (a.rfind("--cap=", 0) == 0)
       capArg = argv[i] + 6;
+    else if (a.rfind("--phase=", 0) == 0)
+      phaseArg = argv[i] + 8;
     else if (a == "--provisioned")
       provisioned = true;
     else if (a == "--print-meta") {
@@ -882,6 +929,8 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-run --matched=off|seq|ovl|copy|compute|all "
                    "--device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --cap=htod|dtoh|pairs|sync|intensity|all "
+                   "--device=gpu --n=N --k=K\n"
+                   "s2c2-cuda-run --phase=copy|compute|seq|ovl|slice|all "
                    "--device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
@@ -903,11 +952,39 @@ int main(int argc, char **argv) {
   }
 
   std::vector<CapArm> capArms = parseCapList(capArg);
+  std::vector<MatchedArm> phaseArms = parsePhaseList(phaseArg);
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;
   MatchedArm matched = parseMatched(matchedArg);
-  if (!capArms.empty() && (matchedAll || matched != MatchedArm::Off)) {
+  bool matchedOn = matchedAll || matched != MatchedArm::Off;
+  if (!capArms.empty() && matchedOn) {
     std::fprintf(stderr, "s2c2-cuda-run: --cap and --matched cannot combine\n");
     return 1;
+  }
+  if (!phaseArms.empty() && (matchedOn || !capArms.empty())) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run: --phase cannot combine with --matched or --cap\n");
+    return 1;
+  }
+  if (!phaseArms.empty()) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --phase is gpu only\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    GpuBuf b;
+    b.alloc(n);
+    for (MatchedArm arm : phaseArms) {
+      double us = timeMatchedArm(b, arm, warmup, reps, k);
+      printPhase(arm, "gpu", n, k, us);
+    }
+    b.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
   }
   if (!capArms.empty()) {
     if (!gpu) {

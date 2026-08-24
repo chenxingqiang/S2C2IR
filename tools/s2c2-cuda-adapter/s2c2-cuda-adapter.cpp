@@ -56,6 +56,21 @@ static void printMatched() {
   std::fprintf(stderr, "s2c2-cuda-adapter matched cost=unchanged\n");
 }
 
+static void printPhase() {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter phase=seq remaining=1xHtoD+kxSiLU\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter phase=ovl remaining=1xHtoD+kxSiLU\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter phase=copy remaining=1xHtoD\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter phase=compute remaining=kxSiLU\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter phase axis=r=T_compute/T_copy\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter phase axis=size=N\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter phase pair=C||HtoD\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter phase score3=not-applicable\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter phase cost=unchanged\n");
+}
+
 static void printCap() {
   std::fprintf(stderr, "s2c2-cuda-adapter cap=htod remaining=1xHtoD\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cap=dtoh remaining=1xDtoH\n");
@@ -90,6 +105,7 @@ int main(int argc, char **argv) {
   bool dryRun = false;
   bool matched = false;
   bool cap = false;
+  bool phase = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -99,12 +115,14 @@ int main(int argc, char **argv) {
       matched = true;
     } else if (a == "--cap") {
       cap = true;
+    } else if (a == "--phase") {
+      phase = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
       std::fprintf(stderr,
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
-                   "[--matched] [--cap]\n"
+                   "[--matched] [--cap] [--phase]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -121,9 +139,9 @@ int main(int argc, char **argv) {
   }
 
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
-  if (matched && cap) {
+  if ((matched && cap) || (matched && phase) || (cap && phase)) {
     std::fprintf(stderr,
-                 "s2c2-cuda-adapter: --cap and --matched cannot combine\n");
+                 "s2c2-cuda-adapter: --phase/--cap/--matched cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -133,6 +151,11 @@ int main(int argc, char **argv) {
   }
   if (cap) {
     printCap();
+    printMaps();
+    return 0;
+  }
+  if (phase) {
+    printPhase();
     printMaps();
     return 0;
   }

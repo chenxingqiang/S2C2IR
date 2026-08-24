@@ -484,3 +484,15 @@ and host protocol only in CI. No FileCheck of microseconds.
 | VX1 | `test/Pilot/s2c2-v3-capability-matrix.mlir` | `--dry-run --cap` lists arms; `score3=not-applicable` |
 | VX2 | same ABC | `--dry-run` without `--cap` stays A/B/C |
 | VX3 | same fixture | `--analyze-cap` prints verdicts; `v3=not-claimed` |
+
+## V3 Overlap Phase Diagram (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-overlap-phase.md`](v3-overlap-phase.md). Reuses matched
+C∥HtoD bodies. No FileCheck of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| VP1 | `test/Pilot/s2c2-v3-overlap-phase.mlir` | `--dry-run --phase` lists arms and axes |
+| VP2 | same ABC | `--dry-run` without `--phase` stays A/B/C |
+| VP3 | same fixture | `--analyze-phase` prints dominance; `v3=not-claimed` |
