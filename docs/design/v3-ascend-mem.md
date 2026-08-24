@@ -36,7 +36,19 @@ from a slower pageable copy), not extra HB.
 ## Grid
 
 Named streams. `T_pair = completion(s0,s1)`.
-`N ∈ {4M,16M,64M}`. `k=0` calibrates from pinned HtoD / compute(k=1).
+`N ∈ {4M,16M,64M}` floats. `k=0` calibrates from pinned HtoD /
+compute(k=1). Schema v1 `size_range` is payload **bytes**, not the
+N label:
+
+```text
+N floats              4M         16M         64M
+payload bytes         16MiB      64MiB       256MiB
+size_range            16MiB..256MiB
+```
+
+Do not write `4MiB..64MiB`: that would treat element counts as
+bytes, exclude the measured 256MiB arm from Applicability, and
+apply the cell to unmeasured 4MiB payloads.
 
 ```text
 pinned  = aclrtMallocHost

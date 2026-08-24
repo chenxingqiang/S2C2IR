@@ -539,6 +539,16 @@ _SLICE_RE = re.compile(
 )
 
 
+def _mem_size_range(ns: list[int]) -> tuple[str, str]:
+    """Schema v1 size_range is payload bytes: N floats * sizeof(float)."""
+    mibs = [_mib(n) for n in ns]
+    size_range = (
+        f"{mibs[0]}MiB" if mibs[0] == mibs[-1] else f"{mibs[0]}MiB..{mibs[-1]}MiB"
+    )
+    measured = ",".join(f"{x}MiB" for x in mibs)
+    return size_range, measured
+
+
 def print_mem_schema() -> int:
     print("ascend-mem r4")
     print("pair C||HtoD C||DtoH")
@@ -546,6 +556,8 @@ def print_mem_schema() -> int:
     print("acceptance storage-comm")
     print("extra-hb none|pageable-host")
     print("note residency-ne-extra-hb")
+    print("size_range payload-bytes")
+    print("note size_range-ne-N-label")
     print("semantics unchanged")
     print("v3=not-claimed")
     print("cost=unchanged")
@@ -585,14 +597,17 @@ def analyze_mem(log: Path) -> int:
     if not slices:
         print("record_ascend: no mem slices in log", file=sys.stderr)
         return 4
+    ns = sorted({s["N"] for s in slices})
+    size_range, measured = _mem_size_range(ns)
     print(
         "v3-ascend-mem r4 pair=C||HtoD,C||DtoH acceptance=storage-comm "
         "semantics=unchanged v3=not-claimed cost=unchanged"
     )
+    print(f"size_range={size_range}")
+    print(f"measured sizes = {measured}")
     hits = 0
     unbalanced = 0
     bw_only = 0
-    ns = sorted({s["N"] for s in slices})
     for n in ns:
         by_case = {c["case"]: c for c in cases if c["N"] == n}
         for direction, pin_k, page_k in (

@@ -657,4 +657,5 @@ on a pinned-parallel → pageable-serial flip.
 | AM1 | `test/Pilot/s2c2-ascend-mem.mlir` | `--dry-run --mem` lists R4 map |
 | AM2 | same | `--dry-run --pairs` stays R1–R3 |
 | AM3 | same fixture | `--analyze-mem` extra-hb protocol; `v3=not-claimed` |
+| AM4 | same | `size_range` is payload bytes (`16MiB..256MiB`), not `N` as MiB |
 
