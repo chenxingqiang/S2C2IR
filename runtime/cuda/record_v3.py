@@ -73,6 +73,25 @@ CAP_SIZE_BYTES = (
 )
 CAP_MATMUL_DIMS = (256, 512, 1024)
 CAP_K = 32
+PHASE_R = (0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0)
+PHASE_K_MAX = 4096
+PHASE_ARMS = ("phase-seq", "phase-ovl", "phase-copy", "phase-compute")
+PHASE_FUNCS = set(PHASE_ARMS)
+PHASE_FIELDS = (
+    "N",
+    "k",
+    "r_target",
+    "r_achieved",
+    "T_seq_us",
+    "T_ovl_us",
+    "T_copy_us",
+    "T_compute_us",
+    "ovl_over_max",
+    "ovl_over_sum",
+    "hidden_frac",
+    "dominance",
+    "overlap",
+)
 CAP_FUNCS = set(CAP_PAIR_ARMS) | set(CAP_SYNC_ARMS) | {
     "cap-reduction",
     "cap-matmul",
@@ -241,6 +260,23 @@ def parse_adapter_line(line: str) -> dict[str, Any] | None:
     }
 
 
+def parse_phase_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in PHASE_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": int(m.group("k")),
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
 def parse_cap_line(line: str) -> dict[str, Any] | None:
     m = LINE_RE.search(line)
     if not m:
@@ -273,6 +309,17 @@ def parse_matched_line(line: str) -> dict[str, Any] | None:
         "score3": "",
         "latency_us": float(m.group("us")),
     }
+
+
+def print_phase_schema() -> int:
+    print("phase-arm seq ovl copy compute")
+    print("axis r=T_compute/T_copy")
+    print("axis size=N")
+    print("pair C||HtoD")
+    print("score3 not-applicable")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
 
 
 def print_cap_schema() -> int:
@@ -952,6 +999,242 @@ def analyze_cap(jsonl: Path) -> int:
     return 0
 
 
+def choose_phase_k(r_target: float, t_copy: float, t_unit: float) -> int:
+    if t_unit <= 0:
+        return 1
+    k = int(round(r_target * t_copy / t_unit))
+    return max(1, min(k, PHASE_K_MAX))
+
+
+def _collect_phase_rows(
+    text: str, gpu: dict[str, str], warmup: int, reps: int, commit: str
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parsed = parse_phase_line(line)
+        if not parsed:
+            continue
+        rec = base_record(commit, gpu, warmup, reps)
+        rec["case"] = parsed["case"]
+        rec["N"] = parsed["N"]
+        rec["k"] = parsed["k"]
+        rec["provisioned"] = parsed["provisioned"]
+        rec["score3"] = parsed["score3"]
+        rec["latency_us"] = parsed["latency_us"]
+        rows.append({key: rec[key] for key in FIELDS})
+    return rows
+
+
+def phase_sweep(bin_path: str, out_prefix: Path, warmup: int, reps: int,
+                commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    try:
+        for n in NS:
+            print(f"=== phase calibrate n={n} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path, ["--phase=copy", f"--n={n}", "--k=1"], warmup, reps
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            copy_rows = _collect_phase_rows(text, gpu, warmup, reps, commit)
+            if len(copy_rows) != 1:
+                print(f"record_v3: expected 1 phase-copy, got {len(copy_rows)}",
+                      file=sys.stderr)
+                return 4
+            rows.extend(copy_rows)
+            t_copy = float(copy_rows[0]["latency_us"])
+            text = _run_adapter(
+                bin_path, ["--phase=compute", f"--n={n}", "--k=1"], warmup, reps
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            unit_rows = _collect_phase_rows(text, gpu, warmup, reps, commit)
+            if len(unit_rows) != 1:
+                print(f"record_v3: expected 1 phase-compute k=1, got {len(unit_rows)}",
+                      file=sys.stderr)
+                return 4
+            t_unit = float(unit_rows[0]["latency_us"])
+            planned: dict[int, list[float]] = {}
+            for r in PHASE_R:
+                k = choose_phase_k(r, t_copy, t_unit)
+                planned.setdefault(k, []).append(r)
+            for k in sorted(planned):
+                print(
+                    f"=== phase slice n={n} k={k} r_target={planned[k]} ===",
+                    file=sys.stderr,
+                )
+                text = _run_adapter(
+                    bin_path,
+                    ["--phase=slice", f"--n={n}", f"--k={k}"],
+                    warmup,
+                    reps,
+                )
+                print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+                got = _collect_phase_rows(text, gpu, warmup, reps, commit)
+                if k == 1:
+                    # k=1 compute was already measured as T_unit; slice
+                    # still emits compute/seq/ovl. Keep all three.
+                    pass
+                if {r["case"] for r in got} != {
+                    "phase-seq",
+                    "phase-ovl",
+                    "phase-compute",
+                }:
+                    print(
+                        f"record_v3: expected phase slice arms, got "
+                        f"{[r['case'] for r in got]}",
+                        file=sys.stderr,
+                    )
+                    return 4
+                rows.extend(got)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"record_v3: phase run failed: {exc}", file=sys.stderr)
+        return 2
+    write_outputs(rows, out_prefix)
+    print(
+        f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+        f"count={len(rows)} phase v3=not-claimed"
+    )
+    return 0
+
+
+def _dominance(r: float) -> str:
+    if r < 0.3:
+        return "copy-dominated"
+    if r > 3.0:
+        return "compute-dominated"
+    return "balanced"
+
+
+def _phase_overlap(pmax: float, psum: float) -> str:
+    hid = pmax <= 1.15
+    near_sum = psum >= 0.90
+    if hid and not near_sum:
+        return "parallel"
+    if near_sum and not hid:
+        return "serial"
+    if hid and near_sum:
+        return "underdetermined"
+    return "mixed"
+
+
+def phase_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    copies = {
+        int(r["N"]): float(r["latency_us"])
+        for r in rows
+        if r["case"] == "phase-copy"
+    }
+    units = {
+        int(r["N"]): float(r["latency_us"])
+        for r in rows
+        if r["case"] == "phase-compute" and int(r["k"]) == 1
+    }
+    by_nk: dict[tuple[int, int], dict[str, dict[str, Any]]] = {}
+    for r in rows:
+        if r["case"] not in ("phase-seq", "phase-ovl", "phase-compute"):
+            continue
+        key = (int(r["N"]), int(r["k"]))
+        by_nk.setdefault(key, {})[r["case"]] = r
+    for (n, k), by_case in sorted(by_nk.items()):
+        if n not in copies:
+            continue
+        if not {"phase-seq", "phase-ovl", "phase-compute"}.issubset(by_case):
+            continue
+        copy = copies[n]
+        compute = float(by_case["phase-compute"]["latency_us"])
+        seq = float(by_case["phase-seq"]["latency_us"])
+        ovl = float(by_case["phase-ovl"]["latency_us"])
+        r_hat = _safe_div(compute, copy)
+        planned = []
+        if n in units:
+            for rt in PHASE_R:
+                if choose_phase_k(rt, copy, units[n]) == k:
+                    planned.append(rt)
+        nearest = planned[0] if planned else min(
+            PHASE_R, key=lambda t: abs(t - r_hat)
+        )
+        pmax = _safe_div(ovl, max(copy, compute))
+        psum = _safe_div(ovl, copy + compute)
+        out.append(
+            {
+                "N": n,
+                "k": k,
+                "r_target": nearest,
+                "r_achieved": r_hat,
+                "T_seq_us": seq,
+                "T_ovl_us": ovl,
+                "T_copy_us": copy,
+                "T_compute_us": compute,
+                "ovl_over_max": pmax,
+                "ovl_over_sum": psum,
+                "hidden_frac": _safe_div(seq - ovl, min(copy, compute)),
+                "dominance": _dominance(r_hat),
+                "overlap": _phase_overlap(pmax, psum),
+            }
+        )
+    return out
+
+
+def analyze_phase(jsonl: Path, out: Path | None = None) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    slices = phase_slices(rows)
+    print("v3-phase v3=not-claimed cost=unchanged pair=C||HtoD")
+    print(
+        "slice\tN\tk\tr_target\tr\tcopy\tcompute\tseq\tovl\t"
+        "ovl/max\tovl/sum\thidden\tdominance\toverlap"
+    )
+    for s in slices:
+        print(
+            f"slice\t{s['N']}\t{s['k']}\t{s['r_target']}\t"
+            f"{s['r_achieved']:.3f}\t{s['T_copy_us']:.1f}\t"
+            f"{s['T_compute_us']:.1f}\t{s['T_seq_us']:.1f}\t"
+            f"{s['T_ovl_us']:.1f}\t{s['ovl_over_max']:.3f}\t"
+            f"{s['ovl_over_sum']:.3f}\t{s['hidden_frac']:.3f}\t"
+            f"{s['dominance']}\t{s['overlap']}"
+        )
+    if slices:
+        by_dom: dict[str, int] = {}
+        by_ovl: dict[str, int] = {}
+        for s in slices:
+            by_dom[s["dominance"]] = by_dom.get(s["dominance"], 0) + 1
+            by_ovl[s["overlap"]] = by_ovl.get(s["overlap"], 0) + 1
+        print(
+            f"summary slices={len(slices)} "
+            f"dominance={by_dom} overlap={by_ovl} "
+            f"v3=not-claimed cost=unchanged"
+        )
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=PHASE_FIELDS)
+            w.writeheader()
+            for s in slices:
+                w.writerow(
+                    {
+                        "N": s["N"],
+                        "k": s["k"],
+                        "r_target": s["r_target"],
+                        "r_achieved": f"{s['r_achieved']:.3f}",
+                        "T_seq_us": f"{s['T_seq_us']:.1f}",
+                        "T_ovl_us": f"{s['T_ovl_us']:.1f}",
+                        "T_copy_us": f"{s['T_copy_us']:.1f}",
+                        "T_compute_us": f"{s['T_compute_us']:.1f}",
+                        "ovl_over_max": f"{s['ovl_over_max']:.3f}",
+                        "ovl_over_sum": f"{s['ovl_over_sum']:.3f}",
+                        "hidden_frac": f"{s['hidden_frac']:.3f}",
+                        "dominance": s["dominance"],
+                        "overlap": s["overlap"],
+                    }
+                )
+        print(f"record_v3 wrote {out} count={len(slices)} phase v3=not-claimed")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="V3 metadata recorder")
     p.add_argument("--print-schema", action="store_true")
@@ -959,14 +1242,17 @@ def main() -> int:
     p.add_argument("--print-calibration-schema", action="store_true")
     p.add_argument("--print-ratio-schema", action="store_true")
     p.add_argument("--print-cap-schema", action="store_true")
+    p.add_argument("--print-phase-schema", action="store_true")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
     p.add_argument("--cap-sweep", metavar="BIN")
+    p.add_argument("--phase-sweep", metavar="BIN")
     p.add_argument("--out", type=Path)
     p.add_argument("--analyze", type=Path)
     p.add_argument("--analyze-matched", type=Path)
     p.add_argument("--analyze-cap", type=Path)
+    p.add_argument("--analyze-phase", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
@@ -983,6 +1269,8 @@ def main() -> int:
         return print_ratio_schema()
     if args.print_cap_schema:
         return print_cap_schema()
+    if args.print_phase_schema:
+        return print_phase_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
@@ -993,6 +1281,8 @@ def main() -> int:
         return analyze_ratio(args.analyze_ratio)
     if args.analyze_cap:
         return analyze_cap(args.analyze_cap)
+    if args.analyze_phase:
+        return analyze_phase(args.analyze_phase, args.out)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -1014,10 +1304,19 @@ def main() -> int:
             args.cap_sweep, args.out, args.warmup, args.reps,
             git_commit(args.git_commit)
         )
+    if args.phase_sweep:
+        if not args.out:
+            print("record_v3: --out required with --phase-sweep", file=sys.stderr)
+            return 1
+        return phase_sweep(
+            args.phase_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
-          "--print-cap-schema, --sweep, --matched-sweep, --cap-sweep, "
-          "--analyze, --analyze-matched, --analyze-cap, "
+          "--print-cap-schema, --print-phase-schema, --sweep, "
+          "--matched-sweep, --cap-sweep, --phase-sweep, "
+          "--analyze, --analyze-matched, --analyze-cap, --analyze-phase, "
           "--calibrate, or --analyze-ratio",
           file=sys.stderr)
     return 1
