@@ -1,6 +1,6 @@
 # CUDA Target Validation Matrix v1
 
-Status: **V1 protocol + P0 probe**. Not Cost v0.4. Does
+Status: **V1 P0 4090 evidence recorded**. Not Cost v0.4. Does
 **not** change Cost, HB axioms, `R`, Search, Transformation,
 Pilot IR, A/B/C bodies, `--matched` / `--phase` / `--cap` /
 `--pipe` timed bodies, or S²C² Semantics. Baseline:
@@ -170,6 +170,45 @@ claiming V3
 
 `--matched` / `--phase` / `--cap` / `--pipe` bodies stay
 untouched.
+
+---
+
+## 6. RTX 4090 V1 P0 (24 points → 6 slices)
+
+Same 4090 / driver 570.124.06 / runtime 12080. All arms
+printed `correct=1` (adapter exits on mismatch).
+Records: [`v3-dataset/v3-cuda-val.jsonl`](v3-dataset/v3-cuda-val.jsonl).
+Derived: [`v3-dataset/v3-cuda-val-slices.csv`](v3-dataset/v3-cuda-val-slices.csv).
+
+| N | stream | r | T_copy | T_compute | T_seq | T_ovl | ovl/max | ovl/sum | verdict |
+| - | ------ | - | ------ | --------- | ----- | ----- | ------- | ------- | ------- |
+| 4M | named | 0.607 | 670 | 407 | 1076 | 741 | 1.105 | 0.688 | parallel |
+| 4M | default | 0.610 | 670 | 409 | 1075 | 1079 | 1.610 | 1.000 | serial |
+| 16M | named | 1.102 | 2660 | 2931 | 5636 | 2987 | 1.019 | 0.534 | parallel |
+| 16M | default | 1.102 | 2660 | 2931 | 5630 | 5571 | 1.901 | 0.996 | serial |
+| 64M | named | 1.093 | 10612 | 11594 | 22199 | 11903 | 1.027 | 0.536 | parallel |
+| 64M | default | 1.093 | 10613 | 11597 | 22203 | 22208 | 1.915 | 1.000 | serial |
+
+```text
+named:    T_ovl ≈ max     extra_hb = none      parallel at all 3 N
+default:  T_ovl ≈ seq ≈ sum   extra_hb = legacy-default   serial at all 3 N
+counterexamples = 3 / 3
+```
+
+So the **same** S²C² Concurrent remaining work is max-like
+on named nonblocking streams and sum-like on the legacy
+NULL stream. That is extra HB in the CUDA realization, not
+a change of S²C² semantics.
+
+```text
+sched.concurrent  =  logical no-order
+                  ≠  “CUDA streams produce overlap”
+HB_S²C²           ⊆  HB_named
+HB_default        \  HB_S²C²   =  legacy default-stream sync
+```
+
+Do not FileCheck microseconds. Do not promote this to a
+Cost axiom or a Schedule rewrite.
 
 ```text
 CUDA Validation  ≠  Cost v0.4

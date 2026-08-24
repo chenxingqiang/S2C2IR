@@ -3,6 +3,7 @@
 // RUN: s2c2-cuda-adapter --dry-run --pipe 2>&1 | FileCheck %s --check-prefix=PIPE
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --print-cuda-val-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val %S/cuda-val-fixture.jsonl | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-cuda-val %S/../../docs/design/v3-dataset/v3-cuda-val.jsonl | FileCheck %s --check-prefix=HW
 
 // Host + recorder protocol for CUDA Validation V1.
 // No device, no microseconds FileCheck, no Cost change.
@@ -54,3 +55,13 @@ module {
 // AN: v3=not-claimed
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 4090 surface only. Do not FileCheck microseconds.
+// HW: v3-cuda-val v1 pair=C||HtoD acceptance=HB-subset
+// HW: counterexample
+// HW: extra-hb=legacy-default
+// HW: counterexamples=3
+// HW: semantics=unchanged
+// HW: v3=not-claimed
+// HW-NOT: Cost v0.4
+// HW-NOT: password
