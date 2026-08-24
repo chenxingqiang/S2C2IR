@@ -232,6 +232,18 @@ PyTorch / JAX → StableHLO → S²C²
 
 ## Phase 3 — Runtime / multi-backend
 
+Phase 3A (this increment): Capability Schema + query +
+Capability-Aware Schedule. Design:
+[`capability-aware-schedule.md`](design/capability-aware-schedule.md),
+[`v3-capability-schema.md`](design/v3-capability-schema.md).
+
+```text
+Same S²C² IR + different CapabilityProfile → different legal schedule
+```
+
+Cost v0.4 and a second hardware (ROCm first) stay later.
+D2D/P2P is not the next CUDA arm.
+
 ```text
 S²C² → Linalg / Async → IREE HAL
                       → LLVM CPU

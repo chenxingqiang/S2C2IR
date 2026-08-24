@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "s2c2-capability-schema-v1",
+  "title": "S2C2 CapabilityRecord v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_kind",
+    "hardware_id",
+    "compute_domain",
+    "transfer_domain",
+    "direction",
+    "source_memory_class",
+    "destination_memory_class",
+    "pair",
+    "pair_relation",
+    "regime",
+    "size_range",
+    "synchronization",
+    "pipeline_depth_evidence",
+    "observed_constraint",
+    "confidence",
+    "note",
+    "evidence_refs",
+    "v3",
+    "cost",
+    "semantics"
+  ],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "record_kind": { "enum": ["pair", "depth", "memory", "sync"] },
+    "hardware_id": { "type": "string", "minLength": 1 },
+    "compute_domain": { "type": "string", "minLength": 1 },
+    "transfer_domain": { "type": "string", "minLength": 1 },
+    "direction": { "type": "string", "minLength": 1 },
+    "source_memory_class": { "type": "string", "minLength": 1 },
+    "destination_memory_class": { "type": "string", "minLength": 1 },
+    "pair": { "type": "string", "minLength": 1 },
+    "pair_relation": {
+      "enum": ["serial", "parallel", "mixed", "underdetermined"]
+    },
+    "regime": {
+      "enum": ["bandwidth", "latency", "occupancy", "underdetermined"]
+    },
+    "size_range": { "type": "string" },
+    "synchronization": { "type": "string" },
+    "pipeline_depth_evidence": { "type": "string" },
+    "observed_constraint": {
+      "enum": [
+        "none",
+        "legacy_default",
+        "resource_contention",
+        "allocator_sync",
+        "copy_engine_contention"
+      ]
+    },
+    "confidence": {
+      "enum": ["measured", "inferred", "arm_specific", "unknown"]
+    },
+    "note": { "type": "string" },
+    "evidence_refs": { "type": "string" },
+    "v3": { "const": "not-claimed" },
+    "cost": { "const": "unchanged" },
+    "semantics": { "const": "unchanged" }
+  }
+}

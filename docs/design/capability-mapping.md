@@ -168,3 +168,8 @@ default, t5      legal maps
 
 `M ∈ F` is not `IsLegal`. Enumerator / Search / Placement must call
 this predicate; they must not grow a second matrix.
+
+Phase 3A schedule filter: [`capability-aware-schedule.md`](capability-aware-schedule.md).
+It selects a legal realization from a CapabilityProfile. It does not
+redefine this mapping matrix or Cost.
+

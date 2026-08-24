@@ -356,6 +356,60 @@ def S2C2CostCP : Pass<"s2c2-cost-cp", "::mlir::ModuleOp"> {
   ];
 }
 
+def S2C2CapabilityQuery : Pass<"s2c2-capability-query", "::mlir::ModuleOp"> {
+  let summary = "Query CapabilityRecord cells for concurrent pairs";
+  let description = [{
+    Phase 3A. Reads a CapabilityProfile (builtin `rtx4090` / `npu-demo`
+    or a JSONL catalog) and prints one JSON object per queried pair.
+    Does not rewrite IR, change happens-before, or score Cost.
+
+    MVP pairs: C||HtoD, C||DtoH, HtoD||DtoH, C||C, C_silu||C_gemm.
+    Optional `producer` / `consumer` query the catalog without IR.
+    Walking `sched.concurrent` (2 tasks) and `sched.overlap` prints
+    the same JSON for each classified pair.
+  }];
+  let options = [
+    Option<"device", "device", "std::string", /*default=*/"\"rtx4090\"",
+           "Capability device id: rtx4090 or npu-demo">,
+    Option<"profilePath", "profile", "std::string", /*default=*/"\"\"",
+           "Optional CapabilityRecord JSONL catalog">,
+    Option<"producer", "producer", "std::string", /*default=*/"\"\"",
+           "Catalog query producer (comp.silu, comm.htod, ... )">,
+    Option<"consumer", "consumer", "std::string", /*default=*/"\"\"",
+           "Catalog query consumer">
+  ];
+}
+
+def S2C2CapabilitySchedule : Pass<"s2c2-capability-schedule", "::mlir::ModuleOp"> {
+  let summary = "Select a legal schedule from a CapabilityProfile";
+  let description = [{
+    Phase 3A CapabilityFilter. Same S²C² IR + different capability
+    profiles → different legal realizations. Does not invent semantic
+    dependency and does not rank by Cost.
+
+      pair_relation = parallel | mixed | underdetermined  → keep concurrent
+      pair_relation = serial → unbundle 2-task concurrent into parent
+                               IR order (NoOrderingRequirement)
+
+    Serializing concurrent siblings is a valid realization, not a new
+    `sched.serial` op and not a sibling `sched.wait`. Pipeline
+    StageOrder is never broken. After this pass, `--check-s2c2-execution`
+    must still succeed: HB_before ⊆ HB_after (parent PO may add edges).
+  }];
+  let dependentDialects = [
+    "mlir::s2c2::sched::ScheduleDialect",
+    "mlir::s2c2::comp::ComputeDialect",
+    "mlir::s2c2::comm::CommDialect",
+    "mlir::s2c2::stor::StorageDialect"
+  ];
+  let options = [
+    Option<"device", "device", "std::string", /*default=*/"\"rtx4090\"",
+           "Capability device id: rtx4090 or npu-demo">,
+    Option<"profilePath", "profile", "std::string", /*default=*/"\"\"",
+           "Optional CapabilityRecord JSONL catalog">
+  ];
+}
+
 def S2C2XForm : Pass<"s2c2-xform", "::mlir::ModuleOp"> {
   let summary = "Realization transformation T : P → P' (v0.5.1)";
   let description = [{
