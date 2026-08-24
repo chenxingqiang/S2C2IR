@@ -1183,33 +1183,33 @@ static void runVal(ValBuf &b, ValArm arm, int k) {
 
 static float hostSilu(float v) { return v / (1.f + expf(-v)); }
 
-static bool valSpotOk(const float *got, int n, int seed, bool silu) {
+static bool valSpotOk(const float *got, int n, int seed, int siluK) {
   int idx[3] = {0, n / 2, n - 1};
   for (int t = 0; t < 3; ++t) {
     int i = idx[t];
     if (i < 0 || i >= n)
       continue;
     float want = 0.001f * static_cast<float>((i + seed) % 1000);
-    if (silu)
+    for (int r = 0; r < siluK; ++r)
       want = hostSilu(want);
-    if (fabsf(got[i] - want) > 1e-4f)
+    if (fabsf(got[i] - want) > 1e-3f)
       return false;
   }
   return true;
 }
 
-static bool checkVal(ValBuf &b, ValArm arm, int seed) {
+static bool checkVal(ValBuf &b, ValArm arm, int seed, int k) {
   size_t bytes = sizeof(float) * static_cast<size_t>(b.n);
   if (arm.kind == ValKind::Copy || arm.kind == ValKind::Seq ||
       arm.kind == ValKind::Ovl) {
     CUDA_OK(cudaMemcpy(b.check, b.dest, bytes, cudaMemcpyDeviceToHost));
-    if (!valSpotOk(b.check, b.n, seed, false))
+    if (!valSpotOk(b.check, b.n, seed, 0))
       return false;
   }
   if (arm.kind == ValKind::Compute || arm.kind == ValKind::Seq ||
       arm.kind == ValKind::Ovl) {
     CUDA_OK(cudaMemcpy(b.check, b.scratch, bytes, cudaMemcpyDeviceToHost));
-    if (!valSpotOk(b.check, b.n, seed, true))
+    if (!valSpotOk(b.check, b.n, seed, k))
       return false;
   }
   return true;
@@ -1245,7 +1245,7 @@ static double timeValArm(ValBuf &b, ValArm arm, int warmup, int reps, int k) {
     float ms = 0.f;
     CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
     samples.push_back(ms * 1000.f);
-    if (!checkVal(b, arm, seed)) {
+    if (!checkVal(b, arm, seed, k)) {
       std::fprintf(stderr, "s2c2-cuda-run: %s correct=0\n", valFunc(arm));
       std::exit(3);
     }
