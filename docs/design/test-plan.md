@@ -496,3 +496,15 @@ C∥HtoD bodies. No FileCheck of microseconds.
 | VP1 | `test/Pilot/s2c2-v3-overlap-phase.mlir` | `--dry-run --phase` lists arms and axes |
 | VP2 | same ABC | `--dry-run` without `--phase` stays A/B/C |
 | VP3 | same fixture | `--analyze-phase` prints dominance; `v3=not-claimed` |
+
+## V3 Pipeline Depth (v0.1)
+
+**Not Cost v0.4.** Design:
+[`v3-pipe-depth.md`](v3-pipe-depth.md). 2-stage C∥HtoD,
+`depth ∈ {1,2,3,4}`. No FileCheck of microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| PP1 | `test/Pilot/s2c2-v3-pipe-depth.mlir` | `--dry-run --pipe` lists depths; `tiles=8` |
+| PP2 | same ABC | `--dry-run` without `--pipe` stays A/B/C |
+| PP3 | same fixture | `--analyze-pipe` prints speedup; `v3=not-claimed` |

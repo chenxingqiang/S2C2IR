@@ -507,6 +507,189 @@ static std::vector<MatchedArm> parsePhaseList(const char *name) {
   std::exit(1);
 }
 
+enum class PipeArm { Off, Copy, Compute, D1, D2, D3, D4 };
+
+static const int kPipeMaxDepth = 4;
+
+struct PipeBuf {
+  float *host = nullptr;
+  float *dev[kPipeMaxDepth] = {};
+  cudaEvent_t evCopy[kPipeMaxDepth] = {};
+  cudaEvent_t evCompute[kPipeMaxDepth] = {};
+  cudaStream_t sCopy = nullptr;
+  cudaStream_t sCompute = nullptr;
+  cudaEvent_t start = nullptr;
+  cudaEvent_t stop = nullptr;
+  int n = 0;
+  int tiles = 0;
+  int tileN = 0;
+
+  void alloc(int n_, int tiles_) {
+    n = n_;
+    tiles = tiles_;
+    tileN = n / tiles;
+    CUDA_OK(cudaHostAlloc(&host, sizeof(float) * n, cudaHostAllocDefault));
+    for (int i = 0; i < kPipeMaxDepth; ++i) {
+      CUDA_OK(cudaMalloc(&dev[i], sizeof(float) * tileN));
+      CUDA_OK(cudaEventCreate(&evCopy[i]));
+      CUDA_OK(cudaEventCreate(&evCompute[i]));
+    }
+    CUDA_OK(cudaStreamCreate(&sCopy));
+    CUDA_OK(cudaStreamCreate(&sCompute));
+    CUDA_OK(cudaEventCreate(&start));
+    CUDA_OK(cudaEventCreate(&stop));
+    fillHost(host, n, 1);
+  }
+
+  void freeAll() {
+    cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+    cudaStreamDestroy(sCompute);
+    cudaStreamDestroy(sCopy);
+    for (int i = 0; i < kPipeMaxDepth; ++i) {
+      cudaEventDestroy(evCompute[i]);
+      cudaEventDestroy(evCopy[i]);
+      cudaFree(dev[i]);
+    }
+    cudaFreeHost(host);
+  }
+
+  size_t tileBytes() const { return sizeof(float) * static_cast<size_t>(tileN); }
+};
+
+static const char *pipeFunc(PipeArm arm) {
+  switch (arm) {
+  case PipeArm::Copy:
+    return "pipe-copy";
+  case PipeArm::Compute:
+    return "pipe-compute";
+  case PipeArm::D1:
+    return "pipe-d1";
+  case PipeArm::D2:
+    return "pipe-d2";
+  case PipeArm::D3:
+    return "pipe-d3";
+  case PipeArm::D4:
+    return "pipe-d4";
+  case PipeArm::Off:
+    return "pipe-off";
+  }
+  return "pipe-off";
+}
+
+static int pipeDepthOf(PipeArm arm) {
+  switch (arm) {
+  case PipeArm::D1:
+    return 1;
+  case PipeArm::D2:
+    return 2;
+  case PipeArm::D3:
+    return 3;
+  case PipeArm::D4:
+    return 4;
+  default:
+    return 0;
+  }
+}
+
+static void runPipeDepth(PipeBuf &b, int depth, int k) {
+  size_t bytes = b.tileBytes();
+  for (int i = 0; i < b.tiles; ++i) {
+    int slot = i % depth;
+    if (i >= depth)
+      CUDA_OK(cudaStreamWaitEvent(b.sCopy, b.evCompute[slot], 0));
+    CUDA_OK(cudaMemcpyAsync(b.dev[slot], b.host + i * b.tileN, bytes,
+                            cudaMemcpyHostToDevice, b.sCopy));
+    CUDA_OK(cudaEventRecord(b.evCopy[slot], b.sCopy));
+    CUDA_OK(cudaStreamWaitEvent(b.sCompute, b.evCopy[slot], 0));
+    siluLaunch(b.dev[slot], b.tileN, b.sCompute, k);
+    CUDA_OK(cudaEventRecord(b.evCompute[slot], b.sCompute));
+  }
+  CUDA_OK(cudaStreamSynchronize(b.sCopy));
+  CUDA_OK(cudaStreamSynchronize(b.sCompute));
+}
+
+static void runPipe(PipeBuf &b, PipeArm arm, int k) {
+  int depth = pipeDepthOf(arm);
+  if (depth > 0) {
+    runPipeDepth(b, depth, k);
+    return;
+  }
+  if (arm == PipeArm::Copy) {
+    CUDA_OK(cudaMemcpyAsync(b.dev[0], b.host, b.tileBytes(),
+                            cudaMemcpyHostToDevice, b.sCopy));
+    CUDA_OK(cudaStreamSynchronize(b.sCopy));
+    return;
+  }
+  if (arm == PipeArm::Compute) {
+    siluLaunch(b.dev[0], b.tileN, b.sCompute, k);
+    CUDA_OK(cudaStreamSynchronize(b.sCompute));
+  }
+}
+
+static void provisionPipeCompute(PipeBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.dev[0], b.host, b.tileBytes(),
+                          cudaMemcpyHostToDevice, b.sCopy));
+  CUDA_OK(cudaStreamSynchronize(b.sCopy));
+}
+
+static void printPipe(PipeArm arm, const char *dev, int n, int k, double us) {
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter func=%s sched=%s map=%s device=%s "
+               "n=%d provisioned=1 k=%d score3_total=0 latency_us=%.1f\n",
+               pipeFunc(arm), kSched, kMap, dev, n, k, us);
+}
+
+static double timePipeArm(PipeBuf &b, PipeArm arm, int warmup, int reps,
+                          int k) {
+  auto body = [&]() { runPipe(b, arm, k); };
+  for (int i = 0; i < warmup; ++i) {
+    if (arm == PipeArm::Compute)
+      provisionPipeCompute(b);
+    body();
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    fillHost(b.host, b.n, i + 2);
+    if (arm == PipeArm::Compute)
+      provisionPipeCompute(b);
+    CUDA_OK(cudaDeviceSynchronize());
+    CUDA_OK(cudaEventRecord(b.start));
+    body();
+    CUDA_OK(cudaEventRecord(b.stop));
+    CUDA_OK(cudaEventSynchronize(b.stop));
+    float ms = 0.f;
+    CUDA_OK(cudaEventElapsedTime(&ms, b.start, b.stop));
+    samples.push_back(ms * 1000.f);
+  }
+  return medianUs(samples);
+}
+
+static std::vector<PipeArm> parsePipeList(const char *name) {
+  if (std::strcmp(name, "off") == 0)
+    return {};
+  if (std::strcmp(name, "depths") == 0)
+    return {PipeArm::D1, PipeArm::D2, PipeArm::D3, PipeArm::D4};
+  if (std::strcmp(name, "all") == 0)
+    return {PipeArm::Copy, PipeArm::Compute, PipeArm::D1, PipeArm::D2,
+            PipeArm::D3, PipeArm::D4};
+  if (std::strcmp(name, "copy") == 0)
+    return {PipeArm::Copy};
+  if (std::strcmp(name, "compute") == 0)
+    return {PipeArm::Compute};
+  if (std::strcmp(name, "d1") == 0)
+    return {PipeArm::D1};
+  if (std::strcmp(name, "d2") == 0)
+    return {PipeArm::D2};
+  if (std::strcmp(name, "d3") == 0)
+    return {PipeArm::D3};
+  if (std::strcmp(name, "d4") == 0)
+    return {PipeArm::D4};
+  std::fprintf(stderr, "s2c2-cuda-run: unknown --pipe %s\n", name);
+  std::exit(1);
+}
+
 static double timeMatchedArm(GpuBuf &b, MatchedArm arm, int warmup, int reps,
                              int k) {
   auto body = [&]() { runMatched(b, arm, k); };
@@ -891,10 +1074,12 @@ int main(int argc, char **argv) {
   const char *matchedArg = "off";
   const char *capArg = "off";
   const char *phaseArg = "off";
+  const char *pipeArg = "off";
   int n = 1 << 24;
   int warmup = 5;
   int reps = 21;
   int k = 1;
+  int tiles = 8;
   bool provisioned = false;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -916,6 +1101,10 @@ int main(int argc, char **argv) {
       capArg = argv[i] + 6;
     else if (a.rfind("--phase=", 0) == 0)
       phaseArg = argv[i] + 8;
+    else if (a.rfind("--pipe=", 0) == 0)
+      pipeArg = argv[i] + 7;
+    else if (a.rfind("--tiles=", 0) == 0)
+      tiles = std::atoi(argv[i] + 8);
     else if (a == "--provisioned")
       provisioned = true;
     else if (a == "--print-meta") {
@@ -932,6 +1121,8 @@ int main(int argc, char **argv) {
                    "--device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --phase=copy|compute|seq|ovl|slice|all "
                    "--device=gpu --n=N --k=K\n"
+                   "s2c2-cuda-run --pipe=d1|d2|d3|d4|copy|compute|depths|all "
+                   "--device=gpu --n=N --k=K --tiles=8\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -939,7 +1130,7 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
-  if (n <= 0 || warmup < 0 || reps <= 0 || k <= 0) {
+  if (n <= 0 || warmup < 0 || reps <= 0 || k <= 0 || tiles <= 0) {
     std::fprintf(stderr, "s2c2-cuda-run: bad numeric arg\n");
     return 1;
   }
@@ -953,6 +1144,7 @@ int main(int argc, char **argv) {
 
   std::vector<CapArm> capArms = parseCapList(capArg);
   std::vector<MatchedArm> phaseArms = parsePhaseList(phaseArg);
+  std::vector<PipeArm> pipeArms = parsePipeList(pipeArg);
   bool matchedAll = std::strcmp(matchedArg, "all") == 0;
   MatchedArm matched = parseMatched(matchedArg);
   bool matchedOn = matchedAll || matched != MatchedArm::Off;
@@ -964,6 +1156,37 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "s2c2-cuda-run: --phase cannot combine with --matched or --cap\n");
     return 1;
+  }
+  if (!pipeArms.empty() &&
+      (matchedOn || !capArms.empty() || !phaseArms.empty())) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run: --pipe cannot combine with --phase/--cap/--matched\n");
+    return 1;
+  }
+  if (!pipeArms.empty()) {
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --pipe is gpu only\n");
+      return 1;
+    }
+    if (n % tiles != 0) {
+      std::fprintf(stderr, "s2c2-cuda-run: n must divide tiles\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    PipeBuf b;
+    b.alloc(n, tiles);
+    for (PipeArm arm : pipeArms) {
+      double us = timePipeArm(b, arm, warmup, reps, k);
+      printPipe(arm, "gpu", n, k, us);
+    }
+    b.freeAll();
+    std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+    return 0;
   }
   if (!phaseArms.empty()) {
     if (!gpu) {

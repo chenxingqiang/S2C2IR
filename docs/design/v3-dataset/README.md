@@ -21,3 +21,6 @@ same columns. `score3` is empty. Derived pair table:
 
 C∥HtoD phase-diagram records (`v3-phase.jsonl`, 66 points)
 reuse the same columns. Derived slices: `v3-phase-slices.csv`.
+
+C∥HtoD pipeline-depth records (`v3-pipe.jsonl`, 18 points)
+reuse the same columns. Derived slices: `v3-pipe-slices.csv`.

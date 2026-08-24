@@ -77,6 +77,35 @@ PHASE_R = (0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0)
 PHASE_K_MAX = 4096
 PHASE_ARMS = ("phase-seq", "phase-ovl", "phase-copy", "phase-compute")
 PHASE_FUNCS = set(PHASE_ARMS)
+PIPE_TILES = 8
+PIPE_DEPTHS = (1, 2, 3, 4)
+PIPE_ARMS = (
+    "pipe-copy",
+    "pipe-compute",
+    "pipe-d1",
+    "pipe-d2",
+    "pipe-d3",
+    "pipe-d4",
+)
+PIPE_FUNCS = set(PIPE_ARMS)
+PIPE_FIELDS = (
+    "N",
+    "k",
+    "tiles",
+    "r_tile",
+    "T_copy_us",
+    "T_compute_us",
+    "T_d1_us",
+    "T_d2_us",
+    "T_d3_us",
+    "T_d4_us",
+    "speedup_d2",
+    "speedup_d3",
+    "speedup_d4",
+    "ideal",
+    "T_ideal_pipe_us",
+    "sat_d4_over_d2",
+)
 PHASE_FIELDS = (
     "N",
     "k",
@@ -260,6 +289,23 @@ def parse_adapter_line(line: str) -> dict[str, Any] | None:
     }
 
 
+def parse_pipe_line(line: str) -> dict[str, Any] | None:
+    m = LINE_RE.search(line)
+    if not m:
+        return None
+    func = m.group("func")
+    if func not in PIPE_FUNCS:
+        return None
+    return {
+        "case": func,
+        "N": int(m.group("n")),
+        "k": int(m.group("k")),
+        "provisioned": 1,
+        "score3": "",
+        "latency_us": float(m.group("us")),
+    }
+
+
 def parse_phase_line(line: str) -> dict[str, Any] | None:
     m = LINE_RE.search(line)
     if not m:
@@ -309,6 +355,17 @@ def parse_matched_line(line: str) -> dict[str, Any] | None:
         "score3": "",
         "latency_us": float(m.group("us")),
     }
+
+
+def print_pipe_schema() -> int:
+    print("pipe-arm d1 d2 d3 d4 copy compute")
+    print("pair C||HtoD")
+    print("tiles 8")
+    print("depth 1=seq 2=double 3=triple 4=quad")
+    print("score3 not-applicable")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
 
 
 def print_phase_schema() -> int:
@@ -1235,6 +1292,218 @@ def analyze_phase(jsonl: Path, out: Path | None = None) -> int:
     return 0
 
 
+def _collect_pipe_rows(
+    text: str, gpu: dict[str, str], warmup: int, reps: int, commit: str
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        parsed = parse_pipe_line(line)
+        if not parsed:
+            continue
+        rec = base_record(commit, gpu, warmup, reps)
+        rec["case"] = parsed["case"]
+        rec["N"] = parsed["N"]
+        rec["k"] = parsed["k"]
+        rec["provisioned"] = parsed["provisioned"]
+        rec["score3"] = parsed["score3"]
+        rec["latency_us"] = parsed["latency_us"]
+        rows.append({key: rec[key] for key in FIELDS})
+    return rows
+
+
+def pipe_sweep(bin_path: str, out_prefix: Path, warmup: int, reps: int,
+               commit: str) -> int:
+    gpu = collect_gpu()
+    gpu["cuda_runtime"] = cuda_runtime_from_bin(bin_path)
+    rows: list[dict[str, Any]] = []
+    try:
+        for n in NS:
+            if n % PIPE_TILES != 0:
+                print(f"record_v3: N={n} not divisible by tiles", file=sys.stderr)
+                return 4
+            print(f"=== pipe calibrate n={n} tiles={PIPE_TILES} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--pipe=copy", f"--n={n}", "--k=1", f"--tiles={PIPE_TILES}"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            copy_rows = _collect_pipe_rows(text, gpu, warmup, reps, commit)
+            if len(copy_rows) != 1:
+                print(f"record_v3: expected 1 pipe-copy, got {len(copy_rows)}",
+                      file=sys.stderr)
+                return 4
+            rows.extend(copy_rows)
+            text = _run_adapter(
+                bin_path,
+                ["--pipe=compute", f"--n={n}", "--k=1", f"--tiles={PIPE_TILES}"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            unit_rows = _collect_pipe_rows(text, gpu, warmup, reps, commit)
+            if len(unit_rows) != 1:
+                print(f"record_v3: expected 1 pipe-compute, got {len(unit_rows)}",
+                      file=sys.stderr)
+                return 4
+            t_copy = float(copy_rows[0]["latency_us"])
+            t_unit = float(unit_rows[0]["latency_us"])
+            k = choose_phase_k(1.0, t_copy, t_unit)
+            print(f"=== pipe depths n={n} k={k} ===", file=sys.stderr)
+            text = _run_adapter(
+                bin_path,
+                ["--pipe=depths", f"--n={n}", f"--k={k}", f"--tiles={PIPE_TILES}"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            got = _collect_pipe_rows(text, gpu, warmup, reps, commit)
+            if {r["case"] for r in got} != {
+                "pipe-d1",
+                "pipe-d2",
+                "pipe-d3",
+                "pipe-d4",
+            }:
+                print(f"record_v3: expected 4 depths, got {[r['case'] for r in got]}",
+                      file=sys.stderr)
+                return 4
+            rows.extend(got)
+            # Re-measure compute at chosen k so analysis has T_compute(k).
+            text = _run_adapter(
+                bin_path,
+                ["--pipe=compute", f"--n={n}", f"--k={k}", f"--tiles={PIPE_TILES}"],
+                warmup,
+                reps,
+            )
+            print(text, end="" if text.endswith("\n") else "\n", file=sys.stderr)
+            kcomp = _collect_pipe_rows(text, gpu, warmup, reps, commit)
+            if len(kcomp) != 1:
+                print("record_v3: expected 1 pipe-compute at k", file=sys.stderr)
+                return 4
+            rows.extend(kcomp)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"record_v3: pipe run failed: {exc}", file=sys.stderr)
+        return 2
+    write_outputs(rows, out_prefix)
+    print(
+        f"record_v3 wrote {out_prefix.with_suffix('.jsonl')} "
+        f"count={len(rows)} pipe v3=not-claimed"
+    )
+    return 0
+
+
+def pipe_slices(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for n in NS:
+        slice_rows = [r for r in rows if int(r["N"]) == n]
+        by_case: dict[str, list[dict[str, Any]]] = {}
+        for r in slice_rows:
+            by_case.setdefault(r["case"], []).append(r)
+        if "pipe-copy" not in by_case or "pipe-d1" not in by_case:
+            continue
+        copy = float(by_case["pipe-copy"][0]["latency_us"])
+        depths = {}
+        k_used = int(by_case["pipe-d1"][0]["k"])
+        for d in PIPE_DEPTHS:
+            key = f"pipe-d{d}"
+            if key not in by_case:
+                depths = {}
+                break
+            depths[d] = float(by_case[key][0]["latency_us"])
+        if len(depths) != 4:
+            continue
+        compute = None
+        for r in by_case.get("pipe-compute", []):
+            if int(r["k"]) == k_used:
+                compute = float(r["latency_us"])
+        if compute is None and by_case.get("pipe-compute"):
+            compute = float(by_case["pipe-compute"][-1]["latency_us"])
+        if compute is None:
+            continue
+        t1 = depths[1]
+        out.append(
+            {
+                "N": n,
+                "k": k_used,
+                "tiles": PIPE_TILES,
+                "r_tile": _safe_div(compute, copy),
+                "T_copy_us": copy,
+                "T_compute_us": compute,
+                "T_d1_us": depths[1],
+                "T_d2_us": depths[2],
+                "T_d3_us": depths[3],
+                "T_d4_us": depths[4],
+                "speedup_d2": _safe_div(t1, depths[2]),
+                "speedup_d3": _safe_div(t1, depths[3]),
+                "speedup_d4": _safe_div(t1, depths[4]),
+                "ideal": _safe_div(copy + compute, max(copy, compute)),
+                "T_ideal_pipe_us": copy + compute + (PIPE_TILES - 1) * max(copy, compute),
+                "sat_d4_over_d2": _safe_div(depths[4], depths[2]),
+            }
+        )
+    return out
+
+
+def analyze_pipe(jsonl: Path, out: Path | None = None) -> int:
+    rows = [
+        json.loads(line)
+        for line in jsonl.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+    slices = pipe_slices(rows)
+    print("v3-pipe v3=not-claimed cost=unchanged pair=C||HtoD tiles=8")
+    print(
+        "slice\tN\tk\tr\tcopy\tcompute\td1\td2\td3\td4\t"
+        "sp2\tsp3\tsp4\tideal\tTideal\tsat"
+    )
+    for s in slices:
+        print(
+            f"slice\t{s['N']}\t{s['k']}\t{s['r_tile']:.3f}\t"
+            f"{s['T_copy_us']:.1f}\t{s['T_compute_us']:.1f}\t"
+            f"{s['T_d1_us']:.1f}\t{s['T_d2_us']:.1f}\t"
+            f"{s['T_d3_us']:.1f}\t{s['T_d4_us']:.1f}\t"
+            f"{s['speedup_d2']:.3f}\t{s['speedup_d3']:.3f}\t"
+            f"{s['speedup_d4']:.3f}\t{s['ideal']:.3f}\t"
+            f"{s['T_ideal_pipe_us']:.1f}\t{s['sat_d4_over_d2']:.3f}"
+        )
+    if slices:
+        sats = [float(s["sat_d4_over_d2"]) for s in slices]
+        mean_sat = sum(sats) / len(sats)
+        print(
+            f"summary slices={len(slices)} mean_sat_d4/d2={mean_sat:.3f} "
+            f"v3=not-claimed cost=unchanged"
+        )
+    if out:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w", encoding="utf-8", newline="") as fh:
+            w = csv.DictWriter(fh, fieldnames=PIPE_FIELDS)
+            w.writeheader()
+            for s in slices:
+                w.writerow(
+                    {
+                        "N": s["N"],
+                        "k": s["k"],
+                        "tiles": s["tiles"],
+                        "r_tile": f"{s['r_tile']:.3f}",
+                        "T_copy_us": f"{s['T_copy_us']:.1f}",
+                        "T_compute_us": f"{s['T_compute_us']:.1f}",
+                        "T_d1_us": f"{s['T_d1_us']:.1f}",
+                        "T_d2_us": f"{s['T_d2_us']:.1f}",
+                        "T_d3_us": f"{s['T_d3_us']:.1f}",
+                        "T_d4_us": f"{s['T_d4_us']:.1f}",
+                        "speedup_d2": f"{s['speedup_d2']:.3f}",
+                        "speedup_d3": f"{s['speedup_d3']:.3f}",
+                        "speedup_d4": f"{s['speedup_d4']:.3f}",
+                        "ideal": f"{s['ideal']:.3f}",
+                        "T_ideal_pipe_us": f"{s['T_ideal_pipe_us']:.1f}",
+                        "sat_d4_over_d2": f"{s['sat_d4_over_d2']:.3f}",
+                    }
+                )
+        print(f"record_v3 wrote {out} count={len(slices)} pipe v3=not-claimed")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="V3 metadata recorder")
     p.add_argument("--print-schema", action="store_true")
@@ -1243,16 +1512,19 @@ def main() -> int:
     p.add_argument("--print-ratio-schema", action="store_true")
     p.add_argument("--print-cap-schema", action="store_true")
     p.add_argument("--print-phase-schema", action="store_true")
+    p.add_argument("--print-pipe-schema", action="store_true")
     p.add_argument("--format", choices=("jsonl", "csv"), default="jsonl")
     p.add_argument("--sweep", metavar="BIN")
     p.add_argument("--matched-sweep", metavar="BIN")
     p.add_argument("--cap-sweep", metavar="BIN")
     p.add_argument("--phase-sweep", metavar="BIN")
+    p.add_argument("--pipe-sweep", metavar="BIN")
     p.add_argument("--out", type=Path)
     p.add_argument("--analyze", type=Path)
     p.add_argument("--analyze-matched", type=Path)
     p.add_argument("--analyze-cap", type=Path)
     p.add_argument("--analyze-phase", type=Path)
+    p.add_argument("--analyze-pipe", type=Path)
     p.add_argument("--calibrate", type=Path)
     p.add_argument("--analyze-ratio", type=Path)
     p.add_argument("--warmup", type=int, default=5)
@@ -1271,6 +1543,8 @@ def main() -> int:
         return print_cap_schema()
     if args.print_phase_schema:
         return print_phase_schema()
+    if args.print_pipe_schema:
+        return print_pipe_schema()
     if args.analyze:
         return analyze(args.analyze)
     if args.analyze_matched:
@@ -1283,6 +1557,8 @@ def main() -> int:
         return analyze_cap(args.analyze_cap)
     if args.analyze_phase:
         return analyze_phase(args.analyze_phase, args.out)
+    if args.analyze_pipe:
+        return analyze_pipe(args.analyze_pipe, args.out)
     if args.sweep:
         if not args.out:
             print("record_v3: --out required with --sweep", file=sys.stderr)
@@ -1312,12 +1588,20 @@ def main() -> int:
             args.phase_sweep, args.out, args.warmup, args.reps,
             git_commit(args.git_commit)
         )
+    if args.pipe_sweep:
+        if not args.out:
+            print("record_v3: --out required with --pipe-sweep", file=sys.stderr)
+            return 1
+        return pipe_sweep(
+            args.pipe_sweep, args.out, args.warmup, args.reps,
+            git_commit(args.git_commit)
+        )
     print("record_v3: use --print-schema, --print-matched-schema, "
           "--print-calibration-schema, --print-ratio-schema, "
-          "--print-cap-schema, --print-phase-schema, --sweep, "
-          "--matched-sweep, --cap-sweep, --phase-sweep, "
-          "--analyze, --analyze-matched, --analyze-cap, --analyze-phase, "
-          "--calibrate, or --analyze-ratio",
+          "--print-cap-schema, --print-phase-schema, --print-pipe-schema, "
+          "--sweep, --matched-sweep, --cap-sweep, --phase-sweep, "
+          "--pipe-sweep, --analyze, --analyze-matched, --analyze-cap, "
+          "--analyze-phase, --analyze-pipe, --calibrate, or --analyze-ratio",
           file=sys.stderr)
     return 1
 
