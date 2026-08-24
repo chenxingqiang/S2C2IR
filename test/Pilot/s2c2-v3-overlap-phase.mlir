@@ -2,6 +2,7 @@
 // RUN: s2c2-cuda-adapter --dry-run 2>&1 | FileCheck %s --check-prefix=ABC
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --print-phase-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-phase %S/overlap-phase-fixture.jsonl | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-phase %S/../../docs/design/v3-dataset/v3-phase.jsonl | FileCheck %s --check-prefix=HW
 
 // Host + recorder protocol for the C||HtoD overlap phase
 // diagram. No device, no microseconds FileCheck, no Cost change.
@@ -42,3 +43,14 @@ module {
 // AN: v3=not-claimed
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 4090 surface only. Do not FileCheck microseconds.
+// HW: v3-phase v3=not-claimed cost=unchanged pair=C||HtoD
+// HW: copy-dominated
+// HW: balanced
+// HW: compute-dominated
+// HW: parallel
+// HW: underdetermined
+// HW: v3=not-claimed
+// HW-NOT: Cost v0.4
+// HW-NOT: password

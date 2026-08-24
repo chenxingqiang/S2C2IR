@@ -18,3 +18,6 @@ measurement binary, not the `nvidia-smi` CUDA Version banner.
 Capability-matrix records (`v3-cap.jsonl`, 60 points) reuse the
 same columns. `score3` is empty. Derived pair table:
 `v3-cap-pairs.csv`. Not Cost v0.4.
+
+C∥HtoD phase-diagram records (`v3-phase.jsonl`, 66 points)
+reuse the same columns. Derived slices: `v3-phase-slices.csv`.

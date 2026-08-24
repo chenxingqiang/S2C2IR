@@ -1,9 +1,9 @@
 # V3 Overlap Phase Diagram (v0.1)
 
-Status: **measurement campaign**. Not Cost v0.4. Does **not**
+Status: **4090 evidence recorded**. Not Cost v0.4. Does **not**
 change Cost, HB, `R`, Search, Transformation, Pilot IR, A/B/C
 bodies, `--matched` bodies, or the frozen Capability_4090
-table. Baseline: `0798aed` (`#55`).
+table. Baseline: `0798aed` (`#55`). Dataset: `e9f3d73`.
 
 ```text
 Phase diagram     ≠  a Cost axiom
@@ -147,6 +147,67 @@ claiming V3
 | `runtime/cuda/s2c2_cuda_adapter.cu` | `--phase=` (same bodies as `--matched`) |
 | `tools/s2c2-cuda-adapter/` | host `--dry-run --phase` |
 | `runtime/cuda/record_v3.py` | `--phase-sweep` / `--analyze-phase` |
-| `docs/design/v3-dataset/` | 4090 records after the run |
+| `docs/design/v3-dataset/v3-phase.jsonl` | 66-point 4090 records |
 
 Do not FileCheck microseconds.
+
+---
+
+## 6. RTX 4090 results (66 points → 21 slices)
+
+Hardware snapshot (not a lock): same 4090 / driver 570.124.06 /
+runtime 12080 as `#55`. `clock_state` is a pre-sweep idle P8
+snapshot.
+
+Records: [`v3-dataset/v3-phase.jsonl`](v3-dataset/v3-phase.jsonl).
+Derived: [`v3-dataset/v3-phase-slices.csv`](v3-dataset/v3-phase-slices.csv).
+`k=1` is the compute floor: `r=0.01` and `r=0.03` collapse
+to one slice per N. Achieved floors: 0.027 / 0.024 / 0.050.
+
+### 6.1 Surface
+
+```text
+Phase(C ∥ HtoD, r, N)  on this SiLU arm:
+
+  ovl / max  ∈  [0.998, 1.107]   across all 21 slices
+  overlap    ∈  {parallel, underdetermined}
+  serial     :  0
+  mixed      :  0
+```
+
+| N | copy-dom | balanced | compute-dom |
+| - | -------- | -------- | ----------- |
+| 4M | underdet / underdet / parallel | parallel / parallel | parallel / underdet |
+| 16M | underdet / underdet | parallel / parallel | parallel / underdet / underdet |
+| 64M | underdet / underdet | parallel / parallel | parallel / underdet / underdet |
+
+`underdetermined` is the extreme-`r` edge: `max` and `sum`
+are too close. Whenever the two sides are comparable,
+`T_ovl ≈ max(T_copy, T_compute)`.
+
+So for **this pair**, `#51`'s
+
+```text
+T_ovl ≈ max(T_c, T_i)
+```
+
+holds across the measured `(r, N)` surface, not only at
+`k=32`. It is **not** a device-wide law: `#55` already has
+HtoD∥DtoH = mixed and this-arm C∥C = serial.
+
+### 6.2 `hidden_frac` is still N-dependent
+
+Well-conditioned 16M / 64M slices sit near 0.97–1.02.
+4M still rises with `r` (0.56 → 0.82) before a
+`hidden_frac>1` noise point at `k=365`. Same `#54` lesson:
+do not fit `C_overlap = f(r)` from a pooled curve.
+
+### 6.3 What this is not
+
+```text
+Phase(C ∥ HtoD)  ≠  Phase(HtoD ∥ DtoH)
+Phase(C ∥ HtoD)  ≠  ∀ compute
+underdetermined  ≠  serial
+T_ovl ≈ max      ≠  a Cost v0.4 rewrite
+V3               ≠  claimed
+```
