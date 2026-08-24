@@ -529,6 +529,142 @@ def query_cap(pair: str, catalog: Path, hardware: str | None) -> int:
     return 0
 
 
+_CASE_RE = re.compile(
+    r"s2c2-ascend-run mem case=(\S+) n=(\d+) k=(\d+) us=([0-9.]+)"
+)
+_SLICE_RE = re.compile(
+    r"s2c2-ascend-run mem slice pair=(\S+) residency=(\S+) "
+    r"pair_relation=(\S+) extra_hb=(\S+) ovl_over_max=([0-9.]+) "
+    r"ovl_over_sum=([0-9.]+) n=(\d+) k=(\d+)"
+)
+
+
+def print_mem_schema() -> int:
+    print("ascend-mem r4")
+    print("pair C||HtoD C||DtoH")
+    print("host pinned pageable")
+    print("acceptance storage-comm")
+    print("extra-hb none|pageable-host")
+    print("note residency-ne-extra-hb")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_mem(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    cases: list[dict[str, Any]] = []
+    slices: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        m = _CASE_RE.search(line)
+        if m:
+            cases.append(
+                {
+                    "case": m.group(1),
+                    "N": int(m.group(2)),
+                    "k": int(m.group(3)),
+                    "us": float(m.group(4)),
+                }
+            )
+            continue
+        m = _SLICE_RE.search(line)
+        if m:
+            slices.append(
+                {
+                    "pair": m.group(1),
+                    "residency": m.group(2),
+                    "verdict": m.group(3),
+                    "extra_hb": m.group(4),
+                    "ovl_over_max": float(m.group(5)),
+                    "ovl_over_sum": float(m.group(6)),
+                    "N": int(m.group(7)),
+                    "k": int(m.group(8)),
+                }
+            )
+    if not slices:
+        print("record_ascend: no mem slices in log", file=sys.stderr)
+        return 4
+    print(
+        "v3-ascend-mem r4 pair=C||HtoD,C||DtoH acceptance=storage-comm "
+        "semantics=unchanged v3=not-claimed cost=unchanged"
+    )
+    hits = 0
+    unbalanced = 0
+    bw_only = 0
+    ns = sorted({s["N"] for s in slices})
+    for n in ns:
+        by_case = {c["case"]: c for c in cases if c["N"] == n}
+        for direction, pin_k, page_k in (
+            ("HtoD", "htod-pinned", "htod-pageable"),
+            ("DtoH", "dtoh-pinned", "dtoh-pageable"),
+        ):
+            pin_row = by_case.get(pin_k)
+            page_row = by_case.get(page_k)
+            if pin_row and page_row:
+                ratio = (page_row["us"] / pin_row["us"]) if pin_row["us"] else 0.0
+                print(f"bandwidth\tN={n}\tpair={direction}\tpage/pin={ratio:.3f}")
+        for pair in ("C||HtoD", "C||DtoH"):
+            pinned = next(
+                (
+                    s
+                    for s in slices
+                    if s["N"] == n and s["pair"] == pair and s["residency"] == "pinned"
+                ),
+                None,
+            )
+            pageable = next(
+                (
+                    s
+                    for s in slices
+                    if s["N"] == n
+                    and s["pair"] == pair
+                    and s["residency"] == "pageable"
+                ),
+                None,
+            )
+            if not pinned or not pageable:
+                continue
+            if pinned["verdict"] == "parallel" and pageable["verdict"] == "serial":
+                hits += 1
+                print(
+                    f"counterexample\tN={n}\tpair={pair}\t"
+                    f"pinned=parallel\tpageable=serial\t"
+                    "extra-hb=pageable-host"
+                )
+            elif (
+                pinned["verdict"] == "parallel"
+                and pageable["verdict"] == "mixed"
+                and pageable["ovl_over_max"] <= 1.15
+            ):
+                unbalanced += 1
+                print(
+                    f"max-like-unbalanced\tN={n}\tpair={pair}\t"
+                    f"pinned=parallel\tpageable=mixed"
+                )
+            elif pageable["verdict"] == pinned["verdict"]:
+                pin_t = by_case.get(
+                    "htod-pinned" if pair.endswith("HtoD") else "dtoh-pinned"
+                )
+                page_t = by_case.get(
+                    "htod-pageable" if pair.endswith("HtoD") else "dtoh-pageable"
+                )
+                if pin_t and page_t and page_t["us"] > pin_t["us"]:
+                    bw_only += 1
+                    print(
+                        f"bandwidth-only\tN={n}\tpair={pair}\t"
+                        f"pageable={pageable['verdict']}"
+                    )
+    print(f"counterexamples={hits}")
+    print(f"max-like-unbalanced={unbalanced}")
+    print(f"bandwidth-only={bw_only}")
+    print("note residency-ne-extra-hb")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Ascend CapabilityRecord host tools")
     p.add_argument("--print-cap-schema-v1", action="store_true")
@@ -542,6 +678,8 @@ def main() -> int:
     p.add_argument("--out", type=Path, default=_CATALOG_PATH.parent)
     p.add_argument("--query-cap", metavar="PAIR")
     p.add_argument("--cap-catalog", type=Path, default=_CATALOG_PATH)
+    p.add_argument("--print-mem-schema", action="store_true")
+    p.add_argument("--analyze-mem", type=Path)
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -556,6 +694,8 @@ def main() -> int:
             args.accept_hardware,
             args.project_pairs,
             args.query_cap,
+            args.print_mem_schema,
+            args.analyze_mem,
         )
     )
     if n != 1:
@@ -563,7 +703,8 @@ def main() -> int:
             "record_ascend: choose one of --print-cap-schema-v1, "
             "--print-workload-contract, --check-schema-identity, "
             "--analyze-cap-schema, --emit-record, --classify, "
-            "--accept-hardware, --project-pairs, --query-cap",
+            "--accept-hardware, --project-pairs, --query-cap, "
+            "--print-mem-schema, --analyze-mem",
             file=sys.stderr,
         )
         return 2
@@ -604,61 +745,10 @@ def main() -> int:
         return project_pairs(args.project_pairs, args.out)
     if args.query_cap:
         return query_cap(args.query_cap, args.cap_catalog, args.hardware)
-    return accept_hardware(args.accept_hardware)
-    n = sum(
-        bool(x)
-        for x in (
-            args.print_cap_schema_v1,
-            args.print_workload_contract,
-            args.check_schema_identity,
-            args.analyze_cap_schema,
-            args.emit_record,
-            args.classify,
-            args.accept_hardware,
-        )
-    )
-    if n != 1:
-        print(
-            "record_ascend: choose one of --print-cap-schema-v1, "
-            "--print-workload-contract, --check-schema-identity, "
-            "--analyze-cap-schema, --emit-record, --classify, "
-            "--accept-hardware",
-            file=sys.stderr,
-        )
-        return 2
-    if args.print_cap_schema_v1:
-        return print_cap_schema_v1()
-    if args.print_workload_contract:
-        return print_workload_contract()
-    if args.check_schema_identity:
-        return check_schema_identity()
-    if args.analyze_cap_schema:
-        return analyze_records(args.analyze_cap_schema)
-    if args.emit_record:
-        if args.emit_record not in PAIRS:
-            print(f"record_ascend: unknown pair {args.emit_record}", file=sys.stderr)
-            return 2
-        rec = blank_cap_record(args.emit_record)
-        errors = validate_cap_schema_v1(rec)
-        if errors:
-            print(f"record_ascend: invalid emit {errors}", file=sys.stderr)
-            return 4
-        print(json.dumps(rec, ensure_ascii=True, separators=(",", ":")))
-        print(
-            f"record_ascend emit-record pair={args.emit_record} "
-            "confidence=unknown pair_relation=underdetermined"
-        )
-        return 0
-    if args.classify:
-        parts = args.classify.split(":")
-        if len(parts) != 3:
-            print("record_ascend: classify wants ta:tb:tpar", file=sys.stderr)
-            return 2
-        ta, tb, tpar = (float(x) for x in parts)
-        rel = classify(ta, tb, tpar)
-        print(f"record_ascend classify pair_relation={rel}")
-        print("record_ascend classify cost=unchanged")
-        return 0
+    if args.print_mem_schema:
+        return print_mem_schema()
+    if args.analyze_mem:
+        return analyze_mem(args.analyze_mem)
     return accept_hardware(args.accept_hardware)
 
 

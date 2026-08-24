@@ -88,6 +88,7 @@ static const char *armName(Arm a) {
 struct Buf {
   float *host0 = nullptr;
   float *host1 = nullptr;
+  float *hostPage = nullptr;
   float *check = nullptr;
   void *dev0 = nullptr;
   void *dev1 = nullptr;
@@ -102,7 +103,7 @@ struct Buf {
   aclrtStream s0 = nullptr;
   aclrtStream s1 = nullptr;
 
-  void alloc(int n_) {
+  void alloc(int n_, bool withPageable = false) {
     n = n_;
     size_t bytes = sizeof(float) * static_cast<size_t>(n);
     ACL_OK(aclrtMallocHost(reinterpret_cast<void **>(&host0), bytes));
@@ -116,6 +117,14 @@ struct Buf {
     ACL_OK(aclrtCreateStream(&s1));
     fillHost(host0, n, 1);
     fillHost(host1, n, 2);
+    if (withPageable) {
+      hostPage = static_cast<float *>(std::malloc(bytes));
+      if (!hostPage) {
+        std::fprintf(stderr, "s2c2-ascend-run: pageable malloc failed\n");
+        std::exit(1);
+      }
+      fillHost(hostPage, n, 3);
+    }
   }
 
   int streamSlot(aclrtStream s) const { return s == s0 ? 0 : 1; }
@@ -162,6 +171,8 @@ struct Buf {
     aclrtFreeHost(check);
     aclrtFreeHost(host1);
     aclrtFreeHost(host0);
+    if (hostPage)
+      std::free(hostPage);
   }
 
   size_t bytes() const { return sizeof(float) * static_cast<size_t>(n); }
@@ -422,11 +433,231 @@ static void printRecord(const char *pair, const char *relation,
                relation, regime, sizeRange, kSync, constraint);
 }
 
+enum class MemKind { HtoD, DtoH, Compute, OvlHtoD, OvlDtoH };
+enum class MemRes { Pinned, Pageable, Device };
+
+static const char *memCase(MemKind kind, MemRes res) {
+  if (kind == MemKind::Compute)
+    return "compute";
+  if (kind == MemKind::HtoD)
+    return res == MemRes::Pinned ? "htod-pinned" : "htod-pageable";
+  if (kind == MemKind::DtoH)
+    return res == MemRes::Pinned ? "dtoh-pinned" : "dtoh-pageable";
+  if (kind == MemKind::OvlHtoD)
+    return res == MemRes::Pinned ? "ovl-htod-pin" : "ovl-htod-page";
+  return res == MemRes::Pinned ? "ovl-dtoh-pin" : "ovl-dtoh-page";
+}
+
+static float *memHost(Buf &b, MemRes res) {
+  return res == MemRes::Pageable ? b.hostPage : b.host0;
+}
+
+static void runMem(Buf &b, MemKind kind, MemRes res, int k) {
+  size_t bytes = b.bytes();
+  float *h = memHost(b, res == MemRes::Device ? MemRes::Pinned : res);
+  switch (kind) {
+  case MemKind::HtoD:
+    ACL_OK(aclrtMemcpyAsync(b.dev0, bytes, h, bytes, ACL_MEMCPY_HOST_TO_DEVICE,
+                            b.s0));
+    break;
+  case MemKind::DtoH:
+    ACL_OK(aclrtMemcpyAsync(h, bytes, b.dev0, bytes, ACL_MEMCPY_DEVICE_TO_HOST,
+                            b.s0));
+    break;
+  case MemKind::Compute:
+    elemwiseLaunch(b, b.dev1, b.dev2, k, b.s0);
+    break;
+  case MemKind::OvlHtoD:
+    elemwiseLaunch(b, b.dev1, b.dev2, k, b.s0);
+    ACL_OK(aclrtMemcpyAsync(b.dev0, bytes, h, bytes, ACL_MEMCPY_HOST_TO_DEVICE,
+                            b.s1));
+    break;
+  case MemKind::OvlDtoH:
+    elemwiseLaunch(b, b.dev1, b.dev2, k, b.s0);
+    ACL_OK(aclrtMemcpyAsync(h, bytes, b.dev0, bytes, ACL_MEMCPY_DEVICE_TO_HOST,
+                            b.s1));
+    break;
+  }
+}
+
+static bool checkMem(Buf &b, MemKind kind, MemRes res, int k) {
+  size_t bytes = b.bytes();
+  float *h = memHost(b, res == MemRes::Device ? MemRes::Pinned : res);
+  if (kind == MemKind::HtoD || kind == MemKind::OvlHtoD) {
+    ACL_OK(aclrtMemcpy(b.check, bytes, b.dev0, bytes, ACL_MEMCPY_DEVICE_TO_HOST));
+    for (int i = 0; i < b.n; ++i) {
+      if (!closeEnough(b.check[i], h[i]))
+        return false;
+    }
+  }
+  if (kind == MemKind::DtoH || kind == MemKind::OvlDtoH) {
+    for (int i = 0; i < b.n; ++i) {
+      if (!closeEnough(h[i], b.host1[i]))
+        return false;
+    }
+  }
+  if (kind == MemKind::Compute || kind == MemKind::OvlHtoD ||
+      kind == MemKind::OvlDtoH) {
+    ACL_OK(aclrtMemcpy(b.check, bytes, b.dev2, bytes, ACL_MEMCPY_DEVICE_TO_HOST));
+    for (int i = 0; i < b.n; ++i) {
+      if (!closeEnough(b.check[i], hostElemwise(b.host1[i], k)))
+        return false;
+    }
+  }
+  return true;
+}
+
+static void provisionMem(Buf &b, MemKind kind, MemRes res) {
+  size_t bytes = b.bytes();
+  if (kind == MemKind::HtoD)
+    return;
+  // Device compute src from pinned host1; DtoH src from host1 into dest0.
+  ACL_OK(aclrtMemcpyAsync(b.dev1, bytes, b.host1, bytes,
+                          ACL_MEMCPY_HOST_TO_DEVICE, b.s0));
+  if (kind != MemKind::Compute)
+    ACL_OK(aclrtMemcpyAsync(b.dev0, bytes, b.host1, bytes,
+                            ACL_MEMCPY_HOST_TO_DEVICE, b.s0));
+  ACL_OK(aclrtSynchronizeStream(b.s0));
+  (void)res;
+}
+
+static double timeMem(Buf &b, MemKind kind, MemRes res, int warmup, int reps,
+                      int k) {
+  auto body = [&]() { runMem(b, kind, res, k); };
+  for (int i = 0; i < warmup; ++i) {
+    fillHost(b.host0, b.n, i + 3);
+    fillHost(b.host1, b.n, i + 7);
+    if (b.hostPage)
+      fillHost(b.hostPage, b.n, i + 11);
+    provisionMem(b, kind, res);
+    if (kind == MemKind::DtoH || kind == MemKind::OvlDtoH)
+      fillHost(memHost(b, res), b.n, 7919);
+    body();
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    b.reapStaleWorkspace();
+  }
+  std::vector<double> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    fillHost(b.host0, b.n, i + 13);
+    fillHost(b.host1, b.n, i + 17);
+    if (b.hostPage)
+      fillHost(b.hostPage, b.n, i + 19);
+    provisionMem(b, kind, res);
+    if (kind == MemKind::DtoH || kind == MemKind::OvlDtoH)
+      fillHost(memHost(b, res), b.n, 7919);
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    auto start = std::chrono::steady_clock::now();
+    body();
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    auto stop = std::chrono::steady_clock::now();
+    b.reapStaleWorkspace();
+    samples.push_back(
+        std::chrono::duration<double, std::micro>(stop - start).count());
+    if (!checkMem(b, kind, res, k)) {
+      std::fprintf(stderr, "s2c2-ascend-run correctness=0 mem=%s\n",
+                   memCase(kind, res));
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static void printMemSlice(const char *pair, const char *res, double copyUs,
+                          double computeUs, double ovlUs, int n, int k) {
+  double mx = copyUs > computeUs ? copyUs : computeUs;
+  double sum = copyUs + computeUs;
+  double pmax = mx > 0 ? ovlUs / mx : 0;
+  double psum = sum > 0 ? ovlUs / sum : 0;
+  const char *rel = classifyPair(pmax, psum);
+  const char *extra = "none";
+  if (std::strcmp(res, "pageable") == 0 && rel[0] == 's')
+    extra = "pageable-host";
+  std::fprintf(stderr,
+               "s2c2-ascend-run mem slice pair=%s residency=%s "
+               "pair_relation=%s extra_hb=%s ovl_over_max=%.3f "
+               "ovl_over_sum=%.3f n=%d k=%d\n",
+               pair, res, rel, extra, pmax, psum, n, k);
+  std::fprintf(stderr,
+               "s2c2-ascend-run mem timing pair=%s residency=%s copy=%.1f "
+               "compute=%.1f ovl=%.1f\n",
+               pair, res, copyUs, computeUs, ovlUs);
+}
+
+static int runMemP0(int n, int kReq, int warmup, int reps) {
+  Buf b;
+  b.alloc(n, true);
+  fillHost(b.host0, b.n, 1);
+  fillHost(b.host1, b.n, 2);
+  fillHost(b.hostPage, b.n, 3);
+  provisionMem(b, MemKind::Compute, MemRes::Pinned);
+  elemwiseLaunch(b, b.dev1, b.dev2, 1, b.s0);
+  elemwiseLaunch(b, b.dev1, b.dev2, 1, b.s1);
+  ACL_OK(aclrtSynchronizeStream(b.s0));
+  ACL_OK(aclrtSynchronizeStream(b.s1));
+  b.reapStaleWorkspace();
+
+  int k = kReq;
+  if (k <= 0) {
+    double tCopy = timeMem(b, MemKind::HtoD, MemRes::Pinned, warmup, reps, 1);
+    double tC1 = timeMem(b, MemKind::Compute, MemRes::Device, warmup, reps, 1);
+    k = tC1 > 0 ? static_cast<int>(std::llround(tCopy / tC1)) : 1;
+    if (k < 1)
+      k = 1;
+    std::fprintf(stderr, "s2c2-ascend-run mem calibrate n=%d k=%d\n", n, k);
+  }
+
+  double tHPin = timeMem(b, MemKind::HtoD, MemRes::Pinned, warmup, reps, k);
+  double tHPage = timeMem(b, MemKind::HtoD, MemRes::Pageable, warmup, reps, k);
+  double tDPin = timeMem(b, MemKind::DtoH, MemRes::Pinned, warmup, reps, k);
+  double tDPage = timeMem(b, MemKind::DtoH, MemRes::Pageable, warmup, reps, k);
+  double tC = timeMem(b, MemKind::Compute, MemRes::Device, warmup, reps, k);
+  double tOvlHPin =
+      timeMem(b, MemKind::OvlHtoD, MemRes::Pinned, warmup, reps, k);
+  double tOvlHPage =
+      timeMem(b, MemKind::OvlHtoD, MemRes::Pageable, warmup, reps, k);
+  double tOvlDPin =
+      timeMem(b, MemKind::OvlDtoH, MemRes::Pinned, warmup, reps, k);
+  double tOvlDPage =
+      timeMem(b, MemKind::OvlDtoH, MemRes::Pageable, warmup, reps, k);
+  b.freeAll();
+
+  std::fprintf(stderr, "s2c2-ascend-run mem=r4 correctness=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run mem case=htod-pinned n=%d k=%d us=%.1f\n", n, k,
+               tHPin);
+  std::fprintf(stderr,
+               "s2c2-ascend-run mem case=htod-pageable n=%d k=%d us=%.1f\n", n,
+               k, tHPage);
+  std::fprintf(stderr,
+               "s2c2-ascend-run mem case=dtoh-pinned n=%d k=%d us=%.1f\n", n, k,
+               tDPin);
+  std::fprintf(stderr,
+               "s2c2-ascend-run mem case=dtoh-pageable n=%d k=%d us=%.1f\n", n,
+               k, tDPage);
+  std::fprintf(stderr, "s2c2-ascend-run mem case=compute n=%d k=%d us=%.1f\n",
+               n, k, tC);
+  printMemSlice("C||HtoD", "pinned", tHPin, tC, tOvlHPin, n, k);
+  printMemSlice("C||HtoD", "pageable", tHPage, tC, tOvlHPage, n, k);
+  printMemSlice("C||DtoH", "pinned", tDPin, tC, tOvlDPin, n, k);
+  printMemSlice("C||DtoH", "pageable", tDPage, tC, tOvlDPage, n, k);
+  std::fprintf(stderr,
+               "s2c2-ascend-run mem acceptance=storage-comm extra-hb="
+               "pageable-host cost=unchanged semantics=unchanged "
+               "v3=not-claimed\n");
+  return 0;
+}
+
 static void usage() {
   std::fprintf(
       stderr,
-      "s2c2-ascend-run --pairs [--n=N] [--k=K] [--warmup=W] [--reps=R]\n"
-      "Three pairs only. Do not FileCheck microseconds.\n");
+      "s2c2-ascend-run --pairs|--mem [--n=N] [--k=K|--k=0] "
+      "[--warmup=W] [--reps=R]\n"
+      "--k=0 calibrates k from pinned HtoD / compute(k=1). "
+      "Do not FileCheck microseconds.\n");
 }
 
 int main(int argc, char **argv) {
@@ -435,10 +666,13 @@ int main(int argc, char **argv) {
   int warmup = 1;
   int reps = 3;
   bool pairs = false;
+  bool mem = false;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     if (a == "--pairs") {
       pairs = true;
+    } else if (a == "--mem" || a == "--mem=p0") {
+      mem = true;
     } else if (a.rfind("--n=", 0) == 0) {
       n = std::atoi(argv[i] + 4);
     } else if (a.rfind("--k=", 0) == 0) {
@@ -455,12 +689,16 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
-  if (!pairs) {
+  if (pairs == mem) {
     usage();
     return 1;
   }
-  if (n <= 0 || k <= 0) {
-    std::fprintf(stderr, "s2c2-ascend-run: n and k must be positive\n");
+  if (pairs && k <= 0) {
+    std::fprintf(stderr, "s2c2-ascend-run: --pairs needs k > 0\n");
+    return 1;
+  }
+  if (n <= 0 || k < 0) {
+    std::fprintf(stderr, "s2c2-ascend-run: n must be positive; k >= 0\n");
     return 1;
   }
 
@@ -480,6 +718,12 @@ int main(int argc, char **argv) {
                "s2c2-ascend-run note workload-semantic-ne-kernel-backend\n");
   std::fprintf(stderr, "s2c2-ascend-run timing=host-wall-clock\n");
   std::fprintf(stderr, "s2c2-ascend-run timing completion=s0,s1\n");
+
+  int rc = 0;
+  if (mem) {
+    std::fprintf(stderr, "s2c2-ascend-run mem=r4\n");
+    rc = runMemP0(n, k, warmup, reps);
+  } else {
   std::fprintf(stderr, "s2c2-ascend-run n=%d k=%d bytes=%zu\n", n, k,
                sizeof(float) * static_cast<size_t>(n));
 
@@ -538,9 +782,10 @@ int main(int argc, char **argv) {
                  c.pair, c.a, c.b, c.par, pmax, psum, n, k);
     printRecord(c.pair, rel, cons, sizeRange);
   }
+  }
 
   aclrtDestroyContext(ctx);
   aclrtResetDevice(0);
   aclFinalize();
-  return 0;
+  return rc;
 }

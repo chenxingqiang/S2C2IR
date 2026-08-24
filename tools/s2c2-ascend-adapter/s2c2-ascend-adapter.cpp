@@ -71,6 +71,31 @@ static void printPairs() {
   std::fprintf(stderr, "s2c2-ascend-adapter semantics=unchanged\n");
 }
 
+static void printMem() {
+  std::fprintf(stderr, "s2c2-ascend-adapter mem=r4\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter mem map stor.host=pinned|pageable\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter mem map stor.pinned=aclrtMallocHost\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem map stor.pageable=malloc\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter mem map comm.copy=aclrtMemcpyAsync\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem map "
+                       "sched.concurrent=named-nonblocking\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem cell host-pinned\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem cell host-pageable\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter mem cell extra-hb=pageable-host\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem pair=C||HtoD\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem pair=C||DtoH\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem acceptance=storage-comm\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem note residency-ne-extra-hb\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem timing=host-wall-clock\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter mem semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
+}
+
 static void printCapSchema() {
   std::fprintf(stderr, "s2c2-ascend-adapter cap-schema=v1\n");
   std::fprintf(stderr,
@@ -188,8 +213,8 @@ static int emitRecord(const char *pair) {
 static void usage() {
   std::fprintf(stderr,
                "s2c2-ascend-adapter --dry-run [--pairs] [--workload] "
-               "[--cap-schema] [--classify=ta:tb:tpar] [--emit-record=<pair>] "
-               "[--accept-hardware=<id>]\n"
+               "[--cap-schema] [--mem] [--classify=ta:tb:tpar] "
+               "[--emit-record=<pair>] [--accept-hardware=<id>]\n"
                "Host protocol only. Timed AscendCL: runtime/ascend/\n");
 }
 
@@ -198,6 +223,7 @@ int main(int argc, char **argv) {
   bool pairs = false;
   bool workload = false;
   bool capSchema = false;
+  bool mem = false;
   const char *classify = nullptr;
   const char *emit = nullptr;
   const char *acceptHw = nullptr;
@@ -211,6 +237,8 @@ int main(int argc, char **argv) {
       workload = true;
     } else if (a == "--cap-schema") {
       capSchema = true;
+    } else if (a == "--mem") {
+      mem = true;
     } else if (a.rfind("--classify=", 0) == 0) {
       classify = argv[i] + 11;
     } else if (a.rfind("--emit-record=", 0) == 0) {
@@ -234,12 +262,12 @@ int main(int argc, char **argv) {
   }
 
   std::fprintf(stderr, "s2c2-ascend-adapter dry-run=1\n");
-  int modes = (int)pairs + (int)workload + (int)capSchema +
+  int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
               (int)(acceptHw != nullptr);
   if (modes > 1) {
     std::fprintf(stderr,
-                 "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/"
+                 "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
                  "--classify/--emit-record/--accept-hardware cannot combine\n");
     return 1;
   }
@@ -272,6 +300,10 @@ int main(int argc, char **argv) {
   if (emit)
     return emitRecord(emit);
 
+  if (mem) {
+    printMem();
+    return 0;
+  }
   if (capSchema) {
     printCapSchema();
     printMaps();

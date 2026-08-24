@@ -66,6 +66,7 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md),
 [`docs/design/backend-adapter-ascend.md`](docs/design/backend-adapter-ascend.md),
 [`docs/design/v3-ascend-catalog.md`](docs/design/v3-ascend-catalog.md),
+[`docs/design/v3-ascend-mem.md`](docs/design/v3-ascend-mem.md),
 [`docs/design/v3-capability-schema.md`](docs/design/v3-capability-schema.md),
 [`docs/design/capability-aware-schedule.md`](docs/design/capability-aware-schedule.md)
 
