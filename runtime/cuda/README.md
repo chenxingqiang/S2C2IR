@@ -26,6 +26,7 @@ S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_pipe.sh ./s2c2-cuda-r
 # calibration:  docs/design/v3-dataset/v3-matched-calibration.csv
 # capability:   docs/design/v3-dataset/v3-cap.jsonl
 # phase:        docs/design/v3-dataset/v3-phase.jsonl
+# pipeline:     docs/design/v3-dataset/v3-pipe.jsonl
 ```
 
 Do not commit hostnames, accounts, or passwords.

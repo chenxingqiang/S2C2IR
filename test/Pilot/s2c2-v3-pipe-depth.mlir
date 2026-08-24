@@ -2,6 +2,7 @@
 // RUN: s2c2-cuda-adapter --dry-run 2>&1 | FileCheck %s --check-prefix=ABC
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --print-pipe-schema | FileCheck %s --check-prefix=SCHEMA
 // RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-pipe %S/pipe-depth-fixture.jsonl | FileCheck %s --check-prefix=AN
+// RUN: python3 %S/../../runtime/cuda/record_v3.py --analyze-pipe %S/../../docs/design/v3-dataset/v3-pipe.jsonl | FileCheck %s --check-prefix=HW
 
 // Host + recorder protocol for C||HtoD pipeline depth.
 // No device, no microseconds FileCheck, no Cost change.
@@ -37,3 +38,11 @@ module {
 // AN: v3=not-claimed
 // AN-NOT: Cost v0.4
 // AN-NOT: password
+
+// Qualitative 4090 surface only. Do not FileCheck microseconds.
+// HW: v3-pipe v3=not-claimed cost=unchanged pair=C||HtoD tiles=8
+// HW: sat
+// HW: mean_sat_d4/d2
+// HW: v3=not-claimed
+// HW-NOT: Cost v0.4
+// HW-NOT: password
