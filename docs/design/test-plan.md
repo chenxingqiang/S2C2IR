@@ -703,3 +703,18 @@ rewrite license.
 | SA4 | `test/Analysis/s2c2-capability-size-band.mlir` | compiler lookup by payload; serial band `decision=keep` |
 | SA5 | same | flipping `rewrite_license=yes` serializes (fixture, not 910B) |
 
+## 910B C∥C rewrite-license A/B
+
+**Not Cost v0.4. Not PR-R3.** Design:
+[`v3-ascend-cc-rewrite.md`](v3-ascend-cc-rewrite.md).
+Concurrent vs sequential `C||C` at `r≈1`, `N≥32M`. `#69` untouched.
+`seq-slack=1.05` is measurement, not Cost.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| RW1 | `test/Pilot/s2c2-ascend-cc-rewrite.mlir` | `--dry-run --cc-rewrite` lists A/B |
+| RW2 | same | exclusive vs `--cc-size` |
+| RW3 | same fixture | `benefit=yes` → `rewrite_license=yes` |
+| RW4 | same fixture | `seq/par>1.05` → `rewrite_license=no` |
+| RW5 | same | `#69` `--query-cap C||C` still `underdetermined` |
+

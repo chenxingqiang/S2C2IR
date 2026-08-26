@@ -922,6 +922,81 @@ def analyze_cc_size(log: Path) -> int:
     return 0
 
 
+_CC_REWRITE_SLICE_RE = re.compile(
+    r"s2c2-ascend-run cc-rewrite slice r_target=(\S+) r_achieved=(\S+) "
+    r"k1=(\d+) k2=(\d+) pair_relation=(\S+) observed_constraint=(\S+) n=(\d+)"
+)
+_CC_REWRITE_RATIO_RE = re.compile(
+    r"s2c2-ascend-run cc-rewrite timing a=(\S+) b=(\S+) par=(\S+) "
+    r"seq=(\S+) seq_over_par=(\S+) par_over_seq=(\S+)"
+)
+SEQ_SLACK = 1.05
+
+
+def print_cc_rewrite_schema() -> int:
+    print("ascend-cc-rewrite pair=C||C")
+    print("r=1")
+    print("n=32M,64M,128M")
+    print("ab=par-vs-seq")
+    print("seq=s0-then-s1")
+    print("seq-slack=1.05")
+    print("note seq-slack-ne-cost")
+    print("note rewrite-loop")
+    print("r3-gate=closed")
+    print("note catalog-untouched")
+    print("semantics unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_cc_rewrite(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    slices: list[dict[str, Any]] = []
+    pending_rel: dict[str, Any] | None = None
+    for line in text.splitlines():
+        m = _CC_REWRITE_SLICE_RE.search(line)
+        if m:
+            pending_rel = {
+                "r_target": float(m.group(1)),
+                "pair_relation": m.group(5),
+                "observed_constraint": m.group(6),
+                "N": int(m.group(7)),
+            }
+            continue
+        r = _CC_REWRITE_RATIO_RE.search(line)
+        if r and pending_rel is not None:
+            pending_rel["seq_over_par"] = float(r.group(5))
+            slices.append(pending_rel)
+            pending_rel = None
+    if not slices:
+        print("record_ascend: no cc-rewrite slices in log", file=sys.stderr)
+        return 4
+    ns = sorted({s["N"] for s in slices})
+    rels = sorted({s["pair_relation"] for s in slices})
+    serial = all(s["pair_relation"] == "serial" for s in slices)
+    beneficial = all(0.0 < s["seq_over_par"] <= SEQ_SLACK for s in slices)
+    license = serial and beneficial
+    print(
+        "v3-ascend-cc-rewrite pair=C||C r=1 r3-gate=closed "
+        "note catalog-untouched semantics=unchanged "
+        "v3=not-claimed cost=unchanged"
+    )
+    print(f"n-grid={','.join(_n_label(n) for n in ns)}")
+    print(f"relations={','.join(rels)}")
+    print(f"seq-slack={SEQ_SLACK}")
+    print("note seq-slack-ne-cost")
+    print(f"benefit={'yes' if beneficial else 'no'}")
+    print(f"rewrite_license={'yes' if license else 'no'}")
+    print("r3-gate=closed")
+    print("note catalog-untouched")
+    print("note rewrite-loop")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Ascend CapabilityRecord host tools")
     p.add_argument("--print-cap-schema-v1", action="store_true")
@@ -947,6 +1022,8 @@ def main() -> int:
     p.add_argument("--analyze-cc-phase", type=Path)
     p.add_argument("--print-cc-size-schema", action="store_true")
     p.add_argument("--analyze-cc-size", type=Path)
+    p.add_argument("--print-cc-rewrite-schema", action="store_true")
+    p.add_argument("--analyze-cc-rewrite", type=Path)
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -967,6 +1044,8 @@ def main() -> int:
             args.analyze_cc_phase,
             args.print_cc_size_schema,
             args.analyze_cc_size,
+            args.print_cc_rewrite_schema,
+            args.analyze_cc_rewrite,
         )
     )
     if n != 1:
@@ -977,7 +1056,8 @@ def main() -> int:
             "--accept-hardware, --project-pairs, --query-cap, "
             "--print-mem-schema, --analyze-mem, "
             "--print-cc-phase-schema, --analyze-cc-phase, "
-            "--print-cc-size-schema, --analyze-cc-size",
+            "--print-cc-size-schema, --analyze-cc-size, "
+            "--print-cc-rewrite-schema, --analyze-cc-rewrite",
             file=sys.stderr,
         )
         return 2
@@ -1032,6 +1112,10 @@ def main() -> int:
         return print_cc_size_schema()
     if args.analyze_cc_size:
         return analyze_cc_size(args.analyze_cc_size)
+    if args.print_cc_rewrite_schema:
+        return print_cc_rewrite_schema()
+    if args.analyze_cc_rewrite:
+        return analyze_cc_rewrite(args.analyze_cc_rewrite)
     return accept_hardware(args.accept_hardware)
 
 

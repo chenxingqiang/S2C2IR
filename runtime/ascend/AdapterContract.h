@@ -72,6 +72,14 @@ inline constexpr const char *kSchemaFields[] = {
 
 inline constexpr int kSchemaFieldCount = 21;
 
+// seq/par slack for a sequential realization vs named concurrent.
+// Measurement threshold, not a Cost axiom.
+inline constexpr double kSeqSlack = 1.05;
+
+inline bool sequentialBeneficial(double seqOverPar) {
+  return seqOverPar > 0.0 && seqOverPar <= kSeqSlack;
+}
+
 // Same slack as runtime/cuda/record_v3.py _verdict. Not a Cost axiom.
 inline const char *classifyPair(double parOverMax, double parOverSum) {
   if (parOverSum >= 0.90)
