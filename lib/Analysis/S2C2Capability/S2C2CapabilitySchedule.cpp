@@ -1,10 +1,12 @@
 //===- S2C2CapabilitySchedule.cpp - Capability → schedule ---------*- C++ -*-===//
 //
 // Phase 3A. CapabilityProfile is compiler decision input, not an archive.
-// Query prints pair cells plus applicability. Schedule serializes only
-// when applicable=yes and pair_relation=serial. Does not invent sibling
-// HB, break StageOrder, promote arm_specific evidence to a global rule,
-// or change Cost.
+// Query prints pair cells plus applicability. A pair may have several
+// size-banded records; lookup picks the narrowest covering size_range.
+// Schedule serializes only when applicable=yes, pair_relation=serial,
+// and rewrite_license is not no. Does not invent sibling HB, break
+// StageOrder, promote arm_specific evidence to a global rule, or
+// change Cost.
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,6 +26,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
@@ -61,6 +64,9 @@ struct CapCell {
   std::string regime = "underdetermined";
   std::string sizeRange = "n/a";
   std::string synchronization = "named-nonblocking";
+  std::string note;
+  std::string phaseBand;
+  bool rewriteLicense = true;
 };
 
 struct QueryContext {
@@ -69,7 +75,7 @@ struct QueryContext {
 };
 
 struct CapCatalog {
-  llvm::StringMap<CapCell> pairs;
+  llvm::StringMap<SmallVector<CapCell, 4>> pairs;
 };
 
 enum class Role { Unknown, Compute, Silu, Gemm, HtoD, DtoH };
@@ -89,6 +95,22 @@ static std::optional<Space> bufferSpace(Value value) {
   return std::nullopt;
 }
 
+static void parseNoteOverlay(CapCell &cell) {
+  StringRef note = cell.note;
+  while (!note.empty()) {
+    auto [tok, rest] = note.split(';');
+    note = rest;
+    auto [key, val] = tok.split('=');
+    key = key.trim();
+    val = val.trim();
+    if (key.equals_insensitive("phase_band"))
+      cell.phaseBand = val.str();
+    else if (key.equals_insensitive("rewrite_license"))
+      cell.rewriteLicense = val.equals_insensitive("yes") ||
+                            val.equals_insensitive("true");
+  }
+}
+
 static void addCell(CapCatalog &cat, StringRef pair, StringRef relation,
                     StringRef constraint, StringRef confidence, StringRef regime,
                     StringRef sizeRange, StringRef synchronization) {
@@ -99,7 +121,8 @@ static void addCell(CapCatalog &cat, StringRef pair, StringRef relation,
   cell.regime = regime.str();
   cell.sizeRange = sizeRange.str();
   cell.synchronization = synchronization.str();
-  cat.pairs[pair] = std::move(cell);
+  parseNoteOverlay(cell);
+  cat.pairs[pair].push_back(std::move(cell));
 }
 
 static void loadBuiltinRtx4090(CapCatalog &cat) {
@@ -160,6 +183,7 @@ static LogicalResult loadJsonl(StringRef path, StringRef device,
     return failure();
   }
   StringRef text = fileOr.get()->getBuffer();
+  llvm::StringSet<> replacedInFile;
   while (!text.empty()) {
     auto [line, rest] = text.split('\n');
     text = rest;
@@ -194,7 +218,14 @@ static LogicalResult loadJsonl(StringRef path, StringRef device,
       cell.sizeRange = c->str();
     if (auto c = obj->getString("synchronization"))
       cell.synchronization = c->str();
-    cat.pairs[*pair] = std::move(cell);
+    if (auto c = obj->getString("note"))
+      cell.note = c->str();
+    parseNoteOverlay(cell);
+    // JSONL replaces builtin cells for this pair, but keeps every
+    // size-banded record that follows for the same pair.
+    if (replacedInFile.insert(*pair).second)
+      cat.pairs[*pair].clear();
+    cat.pairs[*pair].push_back(std::move(cell));
   }
   return success();
 }
@@ -211,12 +242,9 @@ static LogicalResult loadCatalog(StringRef device, StringRef profilePath,
   return success();
 }
 
-static CapCell lookupPair(const CapCatalog &cat, StringRef pair) {
-  auto it = cat.pairs.find(pair);
-  if (it != cat.pairs.end())
-    return it->second;
-  return CapCell{};
-}
+// Size-aware lookup is defined after parseSizeRange.
+static CapCell lookupPair(const CapCatalog &cat, StringRef pair,
+                          std::optional<int64_t> sizeBytes);
 
 static Role parseRole(StringRef raw) {
   std::string lower = raw.lower();
@@ -444,6 +472,68 @@ static SizeSpec parseSizeRange(StringRef raw) {
   return spec;
 }
 
+static CapCell lookupPair(const CapCatalog &cat, StringRef pair,
+                          std::optional<int64_t> sizeBytes) {
+  auto it = cat.pairs.find(pair);
+  if (it == cat.pairs.end() || it->second.empty())
+    return CapCell{};
+
+  const SmallVector<CapCell, 4> &cells = it->second;
+  if (!sizeBytes) {
+    if (cells.size() == 1)
+      return cells.front();
+    const CapCell *unconstrained = nullptr;
+    unsigned nUnconstrained = 0;
+    for (const CapCell &cell : cells) {
+      if (parseSizeRange(cell.sizeRange).kind == SizeSpecKind::Unconstrained) {
+        unconstrained = &cell;
+        ++nUnconstrained;
+      }
+    }
+    if (nUnconstrained == 1)
+      return *unconstrained;
+    if (nUnconstrained > 1)
+      return *unconstrained;
+    CapCell many;
+    many.relation = "underdetermined";
+    many.confidence = "measured";
+    many.regime = cells.front().regime;
+    many.sizeRange = "multiple";
+    many.synchronization = cells.front().synchronization;
+    many.rewriteLicense = false;
+    return many;
+  }
+
+  const CapCell *best = nullptr;
+  bool bestUnconstrained = true;
+  int64_t bestSpan = 0;
+  for (const CapCell &cell : cells) {
+    SizeSpec spec = parseSizeRange(cell.sizeRange);
+    bool unconstrained = spec.kind == SizeSpecKind::Unconstrained;
+    bool covers = unconstrained || (spec.kind == SizeSpecKind::Range &&
+                                    *sizeBytes >= spec.lo &&
+                                    *sizeBytes <= spec.hi);
+    if (!covers)
+      continue;
+    int64_t span = unconstrained ? 0 : spec.hi - spec.lo;
+    // Prefer a closed size band over a device-wide n/a cell.
+    if (!best || (bestUnconstrained && !unconstrained) ||
+        (!unconstrained && !bestUnconstrained && span < bestSpan)) {
+      best = &cell;
+      bestUnconstrained = unconstrained;
+      bestSpan = span;
+    }
+  }
+  if (best)
+    return *best;
+  // One ranged cell still describes the pair; applicability then
+  // reports no/unknown. Several bands with no covering range are an
+  // unmeasured size, not a last-write-wins guess.
+  if (cells.size() == 1)
+    return cells.front();
+  return CapCell{};
+}
+
 static Applicability isApplicable(const CapCell &cell, const QueryContext &ctx) {
   // Destructive decisions require measured evidence. arm_specific / inferred
   // remain queryable but are not global compiler rules.
@@ -499,13 +589,17 @@ static void printQueryJson(StringRef device, StringRef pair, const CapCell &cell
   obj["regime"] = cell.regime;
   obj["size_range"] = cell.sizeRange;
   obj["synchronization"] = cell.synchronization;
+  if (!cell.phaseBand.empty())
+    obj["phase_band"] = cell.phaseBand;
+  obj["rewrite_license"] = cell.rewriteLicense;
   obj["via"] = via.str();
   llvm::json::Value value(std::move(obj));
   llvm::errs() << "capability-query " << value << "\n";
 }
 
 static bool shouldSerialize(const CapCell &cell, Applicability app) {
-  return app == Applicability::Yes && cell.relation == "serial";
+  return app == Applicability::Yes && cell.relation == "serial" &&
+         cell.rewriteLicense;
 }
 
 static void flattenConcurrent(ConcurrentOp conc) {
@@ -551,18 +645,18 @@ static void walkAndQuery(ModuleOp module, StringRef device,
     std::string pair = classifyPair(tasks[0].getBody(), tasks[1].getBody());
     if (pair.empty())
       return;
-    CapCell cell = lookupPair(cat, pair);
     QueryContext ctx = contextFromRegions(tasks[0].getBody(), tasks[1].getBody(),
                                           pair);
+    CapCell cell = lookupPair(cat, pair, ctx.sizeBytes);
     printQueryJson(device, pair, cell, "concurrent", isApplicable(cell, ctx));
   });
   module.walk([&](OverlapOp ov) {
     std::string pair = classifyPair(ov.getCompute(), ov.getCommunicate());
     if (pair.empty())
       return;
-    CapCell cell = lookupPair(cat, pair);
     QueryContext ctx =
         contextFromRegions(ov.getCompute(), ov.getCommunicate(), pair);
+    CapCell cell = lookupPair(cat, pair, ctx.sizeBytes);
     printQueryJson(device, pair, cell, "overlap", isApplicable(cell, ctx));
   });
 }
@@ -578,15 +672,17 @@ static void applySchedule(ModuleOp module, StringRef device,
     std::string pair = classifyPair(tasks[0].getBody(), tasks[1].getBody());
     if (pair.empty())
       continue;
-    CapCell cell = lookupPair(cat, pair);
     QueryContext ctx = contextFromRegions(tasks[0].getBody(), tasks[1].getBody(),
                                           pair);
+    CapCell cell = lookupPair(cat, pair, ctx.sizeBytes);
     Applicability app = isApplicable(cell, ctx);
     bool serialize = shouldSerialize(cell, app);
     llvm::errs() << "capability-schedule device=" << device << " pair=" << pair
                  << " relation=" << cell.relation
                  << " observed_constraint=" << cell.constraint
                  << " confidence=" << cell.confidence
+                 << " size_range=" << cell.sizeRange
+                 << " rewrite_license=" << (cell.rewriteLicense ? "yes" : "no")
                  << " applicable=" << applicabilityStr(app)
                  << " decision=" << (serialize ? "serialize" : "keep") << "\n";
     if (serialize)
@@ -599,15 +695,17 @@ static void applySchedule(ModuleOp module, StringRef device,
     std::string pair = classifyPair(ov.getCompute(), ov.getCommunicate());
     if (pair.empty())
       continue;
-    CapCell cell = lookupPair(cat, pair);
     QueryContext ctx =
         contextFromRegions(ov.getCompute(), ov.getCommunicate(), pair);
+    CapCell cell = lookupPair(cat, pair, ctx.sizeBytes);
     Applicability app = isApplicable(cell, ctx);
     bool serialize = shouldSerialize(cell, app);
     llvm::errs() << "capability-schedule device=" << device << " pair=" << pair
                  << " relation=" << cell.relation
                  << " observed_constraint=" << cell.constraint
                  << " confidence=" << cell.confidence
+                 << " size_range=" << cell.sizeRange
+                 << " rewrite_license=" << (cell.rewriteLicense ? "yes" : "no")
                  << " applicable=" << applicabilityStr(app)
                  << " decision=" << (serialize ? "serialize" : "keep") << "\n";
     if (serialize)
@@ -635,9 +733,9 @@ struct S2C2CapabilityQuery
         signalPassFailure();
         return;
       }
-      CapCell cell = lookupPair(cat, pair);
-      printQueryJson(device, pair, cell, "catalog",
-                     isApplicable(cell, QueryContext{}));
+      QueryContext ctx;
+      CapCell cell = lookupPair(cat, pair, ctx.sizeBytes);
+      printQueryJson(device, pair, cell, "catalog", isApplicable(cell, ctx));
     }
     walkAndQuery(getOperation(), device, cat);
   }
