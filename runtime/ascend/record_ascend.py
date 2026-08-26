@@ -1006,6 +1006,20 @@ def analyze_cc_rewrite(log: Path) -> int:
     return 0
 
 
+def print_r3_contract() -> int:
+    print("pr-r3 pair-contract=same")
+    print("pr-r3 require-cc-disagree=no")
+    print("pr-r3 insufficient=keep")
+    print("pr-r3 guess=no")
+    print("pr-r3 note catalog-untouched")
+    print("pr-r3 note scoped-evidence")
+    print("pr-r3 npu-demo=not-witness")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("pr-r3 cost=unchanged")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Ascend CapabilityRecord host tools")
     p.add_argument("--print-cap-schema-v1", action="store_true")
@@ -1033,6 +1047,7 @@ def main() -> int:
     p.add_argument("--analyze-cc-size", type=Path)
     p.add_argument("--print-cc-rewrite-schema", action="store_true")
     p.add_argument("--analyze-cc-rewrite", type=Path)
+    p.add_argument("--print-r3-contract", action="store_true")
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -1055,6 +1070,7 @@ def main() -> int:
             args.analyze_cc_size,
             args.print_cc_rewrite_schema,
             args.analyze_cc_rewrite,
+            args.print_r3_contract,
         )
     )
     if n != 1:
@@ -1066,7 +1082,8 @@ def main() -> int:
             "--print-mem-schema, --analyze-mem, "
             "--print-cc-phase-schema, --analyze-cc-phase, "
             "--print-cc-size-schema, --analyze-cc-size, "
-            "--print-cc-rewrite-schema, --analyze-cc-rewrite",
+            "--print-cc-rewrite-schema, --analyze-cc-rewrite, "
+            "--print-r3-contract",
             file=sys.stderr,
         )
         return 2
@@ -1125,6 +1142,8 @@ def main() -> int:
         return print_cc_rewrite_schema()
     if args.analyze_cc_rewrite:
         return analyze_cc_rewrite(args.analyze_cc_rewrite)
+    if args.print_r3_contract:
+        return print_r3_contract()
     return accept_hardware(args.accept_hardware)
 
 

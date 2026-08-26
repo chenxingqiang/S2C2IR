@@ -180,9 +180,12 @@ more conservative realization, not a new semantic dependency.
 ```text
 Cost v0.4 ranking
 D2D / P2P as the next CUDA arm
-second real hardware (prefer ROCm after this lands)
+ROCm as a later third vendor
 breaking StageOrder
 changing Concurrent = NoOrderingRequirement
 letting arm_specific evidence rewrite IR
 using npu-demo inferred cells as production evidence
 ```
+
+4090 vs 910B scoped schedule is
+[`pr-r3-cross-vendor.md`](pr-r3-cross-vendor.md), not npu-demo.

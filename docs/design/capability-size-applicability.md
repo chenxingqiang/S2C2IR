@@ -104,10 +104,11 @@ compiler applicability fields parsed from `note`. Frozen Schema v1
 
 ```text
 Cost v0.4
-PR-R3 / cross-hardware schedule rewrite
 overwriting #69
 auto-serialize mixed/transition bands
 D2D / P2P / ROCm
 more 910B C||C random points
 Schema v1 extra keys (phase_band, applicable, …)
 ```
+
+Cross-vendor schedule is [`pr-r3-cross-vendor.md`](pr-r3-cross-vendor.md).

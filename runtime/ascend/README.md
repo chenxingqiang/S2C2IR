@@ -33,4 +33,5 @@ C||C size-boundary: `runtime/ascend/sweep_cc_size.sh`
 C||C rewrite A/B: `runtime/ascend/sweep_cc_rewrite.sh`
 Serial band `rewrite_license=yes` is from that A/B, not from `#69`.
 Size-band query: `python3 runtime/ascend/record_ascend.py --query-cap 'C||C' --cap-catalog docs/design/v3-dataset/ascend910b/cc-size-applicability.jsonl --n 33554432`
-Does not overwrite the #69 catalog. PR-R3 stays closed.
+Does not overwrite the #69 catalog. Cross-vendor schedule:
+`docs/design/pr-r3-cross-vendor.md`.
