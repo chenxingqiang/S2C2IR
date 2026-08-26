@@ -116,8 +116,8 @@ AND size_range is n/a or the static payload is inside the range
 
 A pair may have **several** `size_range` records. Lookup picks the
 narrowest covering band. Catalog query with no payload size and
-more than one ranged cell returns `underdetermined` /
-`size_range=multiple`. See
+more than one ranged cell, or more than one unconstrained `n/a`
+cell, returns `underdetermined` / `size_range=multiple`. See
 [`capability-size-applicability.md`](capability-size-applicability.md).
 
 Not used for destructive rewrite:

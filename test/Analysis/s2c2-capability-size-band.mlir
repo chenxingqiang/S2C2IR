@@ -5,6 +5,9 @@
 // RUN: s2c2-opt %s --s2c2-capability-schedule="device=ascend910b:ascend profile=%S/../../docs/design/v3-dataset/ascend910b/capability.jsonl" --check-s2c2-execution 2>&1 | grep capability-schedule | FileCheck %s --check-prefix=CAT69
 // RUN: s2c2-opt %s --s2c2-capability-schedule="device=fixture:size-band profile=%S/size-band-licensed.jsonl" --check-s2c2-execution 2>&1 | grep capability-schedule | FileCheck %s --check-prefix=LIC-LOG
 // RUN: s2c2-opt %s --s2c2-capability-schedule="device=fixture:size-band profile=%S/size-band-licensed.jsonl" --check-s2c2-execution | FileCheck %s --check-prefix=LIC
+// RUN: s2c2-opt %s --s2c2-capability-query="device=fixture:ambiguous profile=%S/size-band-ambiguous.jsonl producer=comp.silu consumer=comp.silu" 2>&1 | FileCheck %s --check-prefix=AMB-Q
+// RUN: s2c2-opt %s --s2c2-capability-schedule="device=fixture:ambiguous profile=%S/size-band-ambiguous.jsonl" --check-s2c2-execution 2>&1 | grep capability-schedule | FileCheck %s --check-prefix=AMB-LOG
+// RUN: s2c2-opt %s --s2c2-capability-schedule="device=fixture:ambiguous profile=%S/size-band-ambiguous.jsonl" --check-s2c2-execution | FileCheck %s --check-prefix=AMB
 
 // Size-banded C||C lookup. 910B overlay is queryable and does not
 // serialize N>=32M. A fixture with rewrite_license=yes shows the
@@ -63,6 +66,18 @@
 // LIC-LOG: decision=keep
 // LIC-LOG: decision=keep
 
+// Two unconstrained n/a cells for the same pair are ambiguous.
+// Do not pick the serial rewrite_license=yes cell.
+// AMB-Q: "applicable":"unknown"
+// AMB-Q-SAME: "pair":"C||C"
+// AMB-Q-SAME: "pair_relation":"underdetermined"
+// AMB-Q-SAME: "rewrite_license":false
+// AMB-Q-SAME: "size_range":"multiple"
+// AMB-LOG: pair=C||C relation=underdetermined
+// AMB-LOG: rewrite_license=no
+// AMB-LOG: decision=keep
+// AMB-LOG-NOT: decision=serialize
+
 module {
   // KEEP-LABEL: func.func @cc_mixed_16mib
   // KEEP: sched.concurrent
@@ -71,6 +86,8 @@ module {
   // LIC: sched.task
   // LIC: comp.elemwise
   // LIC-NOT: sched.concurrent
+  // AMB-LABEL: func.func @cc_mixed_16mib
+  // AMB: sched.concurrent
   func.func @cc_mixed_16mib(%x: tensor<4194304xf32>) {
     sched.concurrent {
       %ta = sched.task {

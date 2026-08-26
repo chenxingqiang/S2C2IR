@@ -518,6 +518,20 @@ def rewrite_licensed(rec: dict[str, Any]) -> bool:
     return val.lower() not in ("no", "false")
 
 
+def _ambiguous_pair_record(rec0: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "pair": rec0["pair"],
+        "pair_relation": "underdetermined",
+        "observed_constraint": "none",
+        "confidence": "measured",
+        "regime": rec0.get("regime", "underdetermined"),
+        "size_range": "multiple",
+        "synchronization": rec0.get("synchronization", "n/a"),
+        "hardware_id": rec0["hardware_id"],
+        "note": "phase_band=; rewrite_license=no; catalog query is ambiguous",
+    }
+
+
 def select_pair_record(
     hits: list[dict[str, Any]], size_bytes: int | None
 ) -> dict[str, Any] | None:
@@ -532,28 +546,23 @@ def select_pair_record(
             if parse_size_spec(str(rec.get("size_range", "n/a")))[0]
             == "unconstrained"
         ]
-        if unconstrained:
+        if len(unconstrained) == 1:
             return unconstrained[0]
-        rec0 = hits[0]
-        return {
-            "pair": rec0["pair"],
-            "pair_relation": "underdetermined",
-            "observed_constraint": "none",
-            "confidence": "measured",
-            "regime": rec0.get("regime", "underdetermined"),
-            "size_range": "multiple",
-            "synchronization": rec0.get("synchronization", "n/a"),
-            "hardware_id": rec0["hardware_id"],
-            "note": "phase_band=; rewrite_license=no; catalog query has no payload size",
-        }
+        return _ambiguous_pair_record(hits[0])
     covering: list[tuple[int, int, dict[str, Any]]] = []
+    n_unc = 0
+    n_range = 0
     for rec in hits:
         kind, lo, hi = parse_size_spec(str(rec.get("size_range", "n/a")))
         if kind == "unconstrained":
             covering.append((1, 0, rec))
+            n_unc += 1
         elif kind == "range" and lo is not None and hi is not None:
             if lo <= size_bytes <= hi:
                 covering.append((0, hi - lo, rec))
+                n_range += 1
+    if n_range == 0 and n_unc > 1:
+        return _ambiguous_pair_record(hits[0])
     if not covering:
         if len(hits) == 1:
             return hits[0]
