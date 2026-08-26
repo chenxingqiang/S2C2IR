@@ -112,6 +112,27 @@ static void printCCPhase() {
   std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
 }
 
+static void printCCRewrite() {
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite pair=C||C\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite r=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter cc-rewrite n=32M,64M,128M\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite k_ref=32\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite ab=par-vs-seq\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite seq=s0-then-s1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite seq-slack=1.05\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter cc-rewrite note seq-slack-ne-cost\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite note rewrite-loop\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite r3-gate=closed\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter cc-rewrite note catalog-untouched\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite cost=unchanged\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
+}
+
 static void printCCSize() {
   std::fprintf(stderr, "s2c2-ascend-adapter cc-size=1\n");
   std::fprintf(stderr, "s2c2-ascend-adapter cc-size pair=C||C\n");
@@ -244,7 +265,7 @@ static void usage() {
   std::fprintf(stderr,
                "s2c2-ascend-adapter --dry-run [--pairs] [--workload] "
                "[--cap-schema] [--mem] [--cc-phase] [--cc-size] "
-               "[--classify=ta:tb:tpar] "
+               "[--cc-rewrite] [--classify=ta:tb:tpar] "
                "[--emit-record=<pair>] [--accept-hardware=<id>]\n"
                "Host protocol only. Timed AscendCL: runtime/ascend/\n");
 }
@@ -257,6 +278,7 @@ int main(int argc, char **argv) {
   bool mem = false;
   bool ccPhase = false;
   bool ccSize = false;
+  bool ccRewrite = false;
   const char *classify = nullptr;
   const char *emit = nullptr;
   const char *acceptHw = nullptr;
@@ -276,6 +298,8 @@ int main(int argc, char **argv) {
       ccPhase = true;
     } else if (a == "--cc-size") {
       ccSize = true;
+    } else if (a == "--cc-rewrite") {
+      ccRewrite = true;
     } else if (a.rfind("--classify=", 0) == 0) {
       classify = argv[i] + 11;
     } else if (a.rfind("--emit-record=", 0) == 0) {
@@ -300,12 +324,13 @@ int main(int argc, char **argv) {
 
   std::fprintf(stderr, "s2c2-ascend-adapter dry-run=1\n");
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
-              (int)ccPhase + (int)ccSize + (int)(classify != nullptr) +
-              (int)(emit != nullptr) + (int)(acceptHw != nullptr);
+              (int)ccPhase + (int)ccSize + (int)ccRewrite +
+              (int)(classify != nullptr) + (int)(emit != nullptr) +
+              (int)(acceptHw != nullptr);
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
-                 "--cc-phase/--cc-size/--classify/--emit-record/"
+                 "--cc-phase/--cc-size/--cc-rewrite/--classify/--emit-record/"
                  "--accept-hardware cannot combine\n");
     return 1;
   }
@@ -348,6 +373,10 @@ int main(int argc, char **argv) {
   }
   if (ccSize) {
     printCCSize();
+    return 0;
+  }
+  if (ccRewrite) {
+    printCCRewrite();
     return 0;
   }
   if (capSchema) {

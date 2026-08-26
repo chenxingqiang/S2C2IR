@@ -692,14 +692,30 @@ PR-R3 stays closed. No FileCheck of microseconds.
 **Not Cost v0.4. Not PR-R3.** Design:
 [`capability-size-applicability.md`](capability-size-applicability.md).
 Multiple Schema v1 `size_range` cells per pair. `#69` catalog
-untouched. 910B `C||C` serial band is queryable and **not** a
-rewrite license.
+untouched. 910B `C||C` serial band is rewrite-licensed from the
+measured A/B; mixed / transition stay `keep`.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
 | SA1 | `test/Pilot/s2c2-ascend-size-app.mlir` | band catalog Schema v1; three `C||C` ranges |
 | SA2 | same | `--query-cap --n` mixed / transition / serial |
 | SA3 | same | `#69` `--query-cap C||C` still `underdetermined` |
-| SA4 | `test/Analysis/s2c2-capability-size-band.mlir` | compiler lookup by payload; serial band `decision=keep` |
-| SA5 | same | flipping `rewrite_license=yes` serializes (fixture, not 910B) |
+| SA4 | `test/Analysis/s2c2-capability-size-band.mlir` | mixed/transition `keep`; serial band `decision=serialize` |
+| SA5 | same | fixture `rewrite_license=yes` still serializes |
+
+## 910B C∥C rewrite-license A/B
+
+**Not Cost v0.4. Not PR-R3.** Design:
+[`v3-ascend-cc-rewrite.md`](v3-ascend-cc-rewrite.md).
+Concurrent vs sequential `C||C` at `r≈1`, `N≥32M`. `#69` untouched.
+`seq-slack=1.05` is measurement, not Cost.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| RW1 | `test/Pilot/s2c2-ascend-cc-rewrite.mlir` | `--dry-run --cc-rewrite` lists A/B |
+| RW2 | same | exclusive vs `--cc-size` |
+| RW3 | same fixture | `benefit=yes` → `rewrite_license=yes` |
+| RW4 | same fixture | `seq/par>1.05` → `rewrite_license=no` |
+| RW5 | same | `#69` `--query-cap C||C` still `underdetermined` |
+| RW6 | same | hardware `cc-rewrite.log` analyzer: `serial` + `benefit=yes` |
 

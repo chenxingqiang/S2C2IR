@@ -32,7 +32,9 @@ using s2c2::ascend_adapter::inferConstraint;
 using s2c2::ascend_adapter::kHardwareId;
 using s2c2::ascend_adapter::kMap;
 using s2c2::ascend_adapter::kSched;
+using s2c2::ascend_adapter::kSeqSlack;
 using s2c2::ascend_adapter::kSync;
+using s2c2::ascend_adapter::sequentialBeneficial;
 
 #define ACL_OK(expr)                                                           \
   do {                                                                         \
@@ -707,6 +709,47 @@ static double timeCC(Buf &b, int k0, int k1, int warmup, int reps) {
   return medianUs(samples);
 }
 
+// Sequential realization of C||C: complete C1 on s0, then C2 on s1.
+// Matches compiler flatten (parent IR order). Not a sibling wait op.
+static double timeCCSeq(Buf &b, int k0, int k1, int warmup, int reps) {
+  auto body = [&]() {
+    elemwiseLaunch(b, b.dev0, b.dev2, k0, b.s0);
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    elemwiseLaunch(b, b.dev1, b.dev3, k1, b.s1);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    fillHost(b.host0, b.n, i + 3);
+    fillHost(b.host1, b.n, i + 7);
+    provision(b, Arm::ComputeCompute);
+    body();
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    b.reapStaleWorkspace();
+  }
+  std::vector<double> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    fillHost(b.host0, b.n, i + 11);
+    fillHost(b.host1, b.n, i + 19);
+    provision(b, Arm::ComputeCompute);
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    auto start = std::chrono::steady_clock::now();
+    body();
+    ACL_OK(aclrtSynchronizeStream(b.s0));
+    ACL_OK(aclrtSynchronizeStream(b.s1));
+    auto stop = std::chrono::steady_clock::now();
+    b.reapStaleWorkspace();
+    samples.push_back(
+        std::chrono::duration<double, std::micro>(stop - start).count());
+    if (!checkCC(b, k0, k1)) {
+      std::fprintf(stderr, "s2c2-ascend-run correctness=0 arm=cc-rewrite\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
 static std::vector<double> parseRList(const char *raw) {
   std::vector<double> out;
   const char *p = raw;
@@ -782,13 +825,72 @@ static int runCCPhase(int n, int kRef, const std::vector<double> &rs,
   return 0;
 }
 
+static int runCCRewrite(int n, int kRef, double rTarget, int warmup, int reps) {
+  Buf b;
+  b.alloc(n);
+  fillHost(b.host0, b.n, 1);
+  fillHost(b.host1, b.n, 2);
+  provision(b, Arm::ComputeCompute);
+  elemwiseLaunch(b, b.dev0, b.dev2, 1, b.s0);
+  elemwiseLaunch(b, b.dev1, b.dev3, 1, b.s1);
+  ACL_OK(aclrtSynchronizeStream(b.s0));
+  ACL_OK(aclrtSynchronizeStream(b.s1));
+  b.reapStaleWorkspace();
+
+  int k2 = kRef;
+  int k1 = static_cast<int>(std::llround(rTarget * static_cast<double>(k2)));
+  if (k1 < 1)
+    k1 = 1;
+  double t1 = timeArm(b, Arm::Compute, warmup, reps, k1);
+  double t2 = timeArm(b, Arm::Compute, warmup, reps, k2);
+  double tpar = timeCC(b, k1, k2, warmup, reps);
+  double tseq = timeCCSeq(b, k1, k2, warmup, reps);
+  double mx = t1 > t2 ? t1 : t2;
+  double sum = t1 + t2;
+  double pmax = mx > 0 ? tpar / mx : 0;
+  double psum = sum > 0 ? tpar / sum : 0;
+  double rAch = t2 > 0 ? t1 / t2 : 0;
+  double seqOverPar = tpar > 0 ? tseq / tpar : 0;
+  double parOverSeq = tseq > 0 ? tpar / tseq : 0;
+  const char *rel = classifyPair(pmax, psum);
+  const char *cons = inferConstraint("C||C", rel);
+  bool benefit = sequentialBeneficial(seqOverPar);
+  bool license = std::strcmp(rel, "serial") == 0 && benefit;
+  std::fprintf(stderr, "s2c2-ascend-run cc-rewrite=1 pair=C||C\n");
+  std::fprintf(stderr, "s2c2-ascend-run cc-rewrite n=%d k_ref=%d r=1\n", n,
+               kRef);
+  std::fprintf(stderr, "s2c2-ascend-run cc-rewrite seq-slack=%.2f "
+                       "note seq-slack-ne-cost\n",
+               kSeqSlack);
+  std::fprintf(stderr,
+               "s2c2-ascend-run cc-rewrite slice r_target=%.3f "
+               "r_achieved=%.3f k1=%d k2=%d pair_relation=%s "
+               "observed_constraint=%s n=%d\n",
+               rTarget, rAch, k1, k2, rel, cons, n);
+  std::fprintf(stderr,
+               "s2c2-ascend-run cc-rewrite timing a=%.1f b=%.1f par=%.1f "
+               "seq=%.1f seq_over_par=%.3f par_over_seq=%.3f\n",
+               t1, t2, tpar, tseq, seqOverPar, parOverSeq);
+  std::fprintf(stderr, "s2c2-ascend-run cc-rewrite benefit=%s\n",
+               benefit ? "yes" : "no");
+  std::fprintf(stderr, "s2c2-ascend-run cc-rewrite rewrite_license=%s\n",
+               license ? "yes" : "no");
+  b.freeAll();
+  std::fprintf(stderr, "s2c2-ascend-run cc-rewrite correctness=1 "
+                       "cost=unchanged semantics=unchanged v3=not-claimed\n");
+  std::fprintf(stderr, "s2c2-ascend-run cc-rewrite r3-gate=closed "
+                       "note catalog-untouched\n");
+  return 0;
+}
+
 static void usage() {
   std::fprintf(
       stderr,
-      "s2c2-ascend-run --pairs|--mem|--cc-phase [--n=N] [--k=K|--k=0] "
-      "[--r=r1,r2,...] [--warmup=W] [--reps=R]\n"
+      "s2c2-ascend-run --pairs|--mem|--cc-phase|--cc-rewrite [--n=N] "
+      "[--k=K|--k=0] [--r=r1,r2,...] [--warmup=W] [--reps=R]\n"
       "--k=0 calibrates k from pinned HtoD / compute(k=1) (mem only). "
       "--cc-phase uses k as k_ref for C2. "
+      "--cc-rewrite A/B concurrent vs sequential C||C at r≈1. "
       "Do not FileCheck microseconds.\n");
 }
 
@@ -800,6 +902,7 @@ int main(int argc, char **argv) {
   bool pairs = false;
   bool mem = false;
   bool ccPhase = false;
+  bool ccRewrite = false;
   std::vector<double> rs = {0.5, 0.75, 1.0, 1.5, 2.0};
   bool rsSet = false;
   for (int i = 1; i < argc; ++i) {
@@ -810,6 +913,8 @@ int main(int argc, char **argv) {
       mem = true;
     } else if (a == "--cc-phase") {
       ccPhase = true;
+    } else if (a == "--cc-rewrite") {
+      ccRewrite = true;
     } else if (a.rfind("--n=", 0) == 0) {
       n = std::atoi(argv[i] + 4);
     } else if (a.rfind("--k=", 0) == 0) {
@@ -829,18 +934,28 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
-  int modes = (int)pairs + (int)mem + (int)ccPhase;
+  int modes = (int)pairs + (int)mem + (int)ccPhase + (int)ccRewrite;
   if (modes != 1) {
     usage();
     return 1;
   }
-  if ((pairs || ccPhase) && k <= 0) {
-    std::fprintf(stderr, "s2c2-ascend-run: --pairs/--cc-phase needs k > 0\n");
+  if ((pairs || ccPhase || ccRewrite) && k <= 0) {
+    std::fprintf(stderr,
+                 "s2c2-ascend-run: --pairs/--cc-phase/--cc-rewrite needs k > 0\n");
     return 1;
   }
   if (ccPhase && rs.empty()) {
     std::fprintf(stderr, "s2c2-ascend-run: --cc-phase needs r > 0\n");
     return 1;
+  }
+  if (ccRewrite) {
+    if (!rsSet)
+      rs = {1.0};
+    if (rs.size() != 1) {
+      std::fprintf(stderr,
+                   "s2c2-ascend-run: --cc-rewrite needs a single r\n");
+      return 1;
+    }
   }
   if (n <= 0 || k < 0) {
     std::fprintf(stderr, "s2c2-ascend-run: n must be positive; k >= 0\n");
@@ -871,6 +986,8 @@ int main(int argc, char **argv) {
     rc = runMemP0(n, k, warmup, reps);
   } else if (ccPhase) {
     rc = runCCPhase(n, k, rs, warmup, reps);
+  } else if (ccRewrite) {
+    rc = runCCRewrite(n, k, rs.front(), warmup, reps);
   } else {
   std::fprintf(stderr, "s2c2-ascend-run n=%d k=%d bytes=%zu\n", n, k,
                sizeof(float) * static_cast<size_t>(n));

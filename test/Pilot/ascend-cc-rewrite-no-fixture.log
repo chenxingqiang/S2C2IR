@@ -1,0 +1,6 @@
+s2c2-ascend-run cc-rewrite=1 pair=C||C
+s2c2-ascend-run cc-rewrite slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=33554432
+s2c2-ascend-run cc-rewrite timing a=100.0 b=100.0 par=180.0 seq=220.0 seq_over_par=1.222 par_over_seq=0.818
+s2c2-ascend-run cc-rewrite slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=67108864
+s2c2-ascend-run cc-rewrite timing a=100.0 b=100.0 par=180.0 seq=210.0 seq_over_par=1.167 par_over_seq=0.857
+s2c2-ascend-run cc-rewrite correctness=1 cost=unchanged semantics=unchanged v3=not-claimed

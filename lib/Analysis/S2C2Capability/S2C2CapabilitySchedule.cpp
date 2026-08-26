@@ -472,6 +472,17 @@ static SizeSpec parseSizeRange(StringRef raw) {
   return spec;
 }
 
+static CapCell ambiguousPairCell(const SmallVector<CapCell, 4> &cells) {
+  CapCell many;
+  many.relation = "underdetermined";
+  many.confidence = "measured";
+  many.regime = cells.front().regime;
+  many.sizeRange = "multiple";
+  many.synchronization = cells.front().synchronization;
+  many.rewriteLicense = false;
+  return many;
+}
+
 static CapCell lookupPair(const CapCatalog &cat, StringRef pair,
                           std::optional<int64_t> sizeBytes) {
   auto it = cat.pairs.find(pair);
@@ -492,21 +503,14 @@ static CapCell lookupPair(const CapCatalog &cat, StringRef pair,
     }
     if (nUnconstrained == 1)
       return *unconstrained;
-    if (nUnconstrained > 1)
-      return *unconstrained;
-    CapCell many;
-    many.relation = "underdetermined";
-    many.confidence = "measured";
-    many.regime = cells.front().regime;
-    many.sizeRange = "multiple";
-    many.synchronization = cells.front().synchronization;
-    many.rewriteLicense = false;
-    return many;
+    return ambiguousPairCell(cells);
   }
 
   const CapCell *best = nullptr;
   bool bestUnconstrained = true;
   int64_t bestSpan = 0;
+  unsigned nUncCover = 0;
+  unsigned nRangeCover = 0;
   for (const CapCell &cell : cells) {
     SizeSpec spec = parseSizeRange(cell.sizeRange);
     bool unconstrained = spec.kind == SizeSpecKind::Unconstrained;
@@ -515,6 +519,10 @@ static CapCell lookupPair(const CapCatalog &cat, StringRef pair,
                                     *sizeBytes <= spec.hi);
     if (!covers)
       continue;
+    if (unconstrained)
+      ++nUncCover;
+    else
+      ++nRangeCover;
     int64_t span = unconstrained ? 0 : spec.hi - spec.lo;
     // Prefer a closed size band over a device-wide n/a cell.
     if (!best || (bestUnconstrained && !unconstrained) ||
@@ -524,6 +532,8 @@ static CapCell lookupPair(const CapCatalog &cat, StringRef pair,
       bestSpan = span;
     }
   }
+  if (nRangeCover == 0 && nUncCover > 1)
+    return ambiguousPairCell(cells);
   if (best)
     return *best;
   // One ranged cell still describes the pair; applicability then

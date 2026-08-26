@@ -1,0 +1,4 @@
+N,k1,k2,r_target,r_achieved,pair_relation,observed_constraint,seq_over_par,benefit,rewrite_license
+33554432,32,32,1.000,0.996,serial,resource_contention,0.247,yes,yes
+67108864,32,32,1.000,1.000,serial,resource_contention,1.011,yes,yes
+134217728,32,32,1.000,1.000,serial,resource_contention,1.012,yes,yes

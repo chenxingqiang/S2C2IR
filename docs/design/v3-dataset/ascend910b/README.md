@@ -60,4 +60,7 @@ a single parallel cell.
 Pair catalog unchanged. PR-R3 closed.
 
 Size-banded applicability overlay (not `#69`): `cc-size-applicability.jsonl`.
-`rewrite_license=no`. Scheduler must not auto-serialize `N≥32M`.
+Mixed / transition stay `rewrite_license=no`. Serial band
+(`128MiB..512MiB`) is `rewrite_license=yes` from the sequential A/B
+(`cc-rewrite.log`, `cc-rewrite.csv`). `#69` `C||C` stays
+`underdetermined`. PR-R3 closed. Do not FileCheck microseconds.

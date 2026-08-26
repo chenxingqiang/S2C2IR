@@ -7,7 +7,8 @@
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --check-schema-identity | FileCheck %s --check-prefix=ID
 
 // Size-banded 910B C||C applicability overlay. Schema v1 only.
-// #69 catalog stays underdetermined. rewrite_license=no. Not Cost. Not PR-R3.
+// #69 catalog stays underdetermined. Mixed/transition unlicensed.
+// Serial band rewrite_license=yes from the A/B. Not Cost. Not PR-R3.
 module {
 }
 
@@ -48,14 +49,14 @@ module {
 // QT-NOT: "pair_relation":"serial"
 // QT-NOT: password
 
-// N=32M floats = 128MiB payload → serial evidence, not a rewrite license.
+// N=32M floats = 128MiB payload → serial band, rewrite licensed.
 // QS: "pair":"C||C"
 // QS: "pair_relation":"serial"
 // QS: "observed_constraint":"resource_contention"
 // QS: "phase_band":"serial"
 // QS: "size_range":"128MiB..512MiB"
 // QS: "applicable":true
-// QS: "rewrite_license":false
+// QS: "rewrite_license":true
 // QS-NOT: password
 
 // #69 C||C stays underdetermined.
