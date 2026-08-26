@@ -1,8 +1,10 @@
 # Size-banded Capability Applicability
 
 **Status:** compiler + catalog extension. Not Cost v0.4. Does **not**
-open PR-R3, change `#69` `capability.jsonl`, auto-serialize 910B
-`C||C` at `N≥32M`, add Schema v1 keys, or claim V3.
+open PR-R3, change `#69` `capability.jsonl`, add Schema v1 keys, or
+claim V3. The 910B `C||C` serial band is rewrite-licensed from the
+measured A/B in [`v3-ascend-cc-rewrite.md`](v3-ascend-cc-rewrite.md);
+mixed and transition bands stay `rewrite_license=no`.
 
 ```text
 Capability  ≠  DeviceProperty
@@ -37,7 +39,7 @@ Schema v1 fields only. Phase / license live in `note`:
 ```text
 phase_band=mixed|transition|serial
 regime_scope=r~1
-rewrite_license=no
+rewrite_license=no|yes
 ```
 
 `size_range` is **payload bytes** (`N` floats × 4), not the harness
@@ -47,7 +49,7 @@ rewrite_license=no
 | ---------- | ------- | ---- | ------------- | ------- |
 | 4M, 8M, 12M | 16MiB..48MiB | mixed | mixed | no |
 | [16M, 32M) | 64MiB..127MiB | transition | underdetermined | no |
-| 32M, 64M, 128M | 128MiB..512MiB | serial | serial / resource_contention | no |
+| 32M, 64M, 128M | 128MiB..512MiB | serial | serial / resource_contention | yes |
 
 Quote only **within r≈1**. Unmeasured N outside these closed ranges
 does not hit a band → `underdetermined`.
@@ -82,12 +84,15 @@ AND rewrite_license ≠ no
 ```
 
 Default `rewrite_license` is yes (4090 occupancy `C||C` with
-`size_range=n/a` still flattens). 910B size bands set
-`rewrite_license=no`, so a 128MiB `C||C` is queryable as serial
-and **kept concurrent**.
+`size_range=n/a` still flattens). 910B mixed / transition bands
+keep `rewrite_license=no`. The serial band is `yes` only because
+the A/B measured `seq/par ≤ 1.05` with `correctness=1` on every
+N in `{32M,64M,128M}`.
 
-Flipping that token to `yes` on a future measured band is the
-licensed scheduler rule. That is not this increment.
+```text
+Capability limitation  ≠  Optimization opportunity
+serial                 ≠  rewrite_license
+```
 
 ## Query overlay (not Schema v1 keys)
 
@@ -101,7 +106,7 @@ compiler applicability fields parsed from `note`. Frozen Schema v1
 Cost v0.4
 PR-R3 / cross-hardware schedule rewrite
 overwriting #69
-auto-serialize N≥32M
+auto-serialize mixed/transition bands
 D2D / P2P / ROCm
 more 910B C||C random points
 Schema v1 extra keys (phase_band, applicable, …)

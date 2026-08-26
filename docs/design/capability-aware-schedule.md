@@ -125,7 +125,7 @@ Not used for destructive rewrite:
 ```text
 confidence = arm_specific | inferred | unknown
 size_range present but payload unknown or outside the range
-rewrite_license=no in note (size-banded evidence, not yet licensed)
+rewrite_license=no in note (mixed / transition bands; unlicensed serial)
 ```
 
 4090:
@@ -135,6 +135,18 @@ C || HtoD     parallel   keep (and tiny IR is outside 16MiB..256MiB)
 SiLU || GEMM  serial     keep: arm_specific evidence, not a global rule
 C || C        serial     flatten measured occupancy cell (size_range n/a)
 ```
+
+910B overlay (`cc-size-applicability.jsonl`, not `#69`):
+
+```text
+C||C mixed       16MiB..48MiB     keep (rewrite_license=no)
+C||C transition  64MiB..127MiB    keep (underdetermined)
+C||C serial      128MiB..512MiB   flatten (A/B licensed)
+#69 C||C         underdetermined  keep
+```
+
+`seq-slack=1.05` is an optimizer policy threshold, not a Cost axiom.
+See [`v3-ascend-cc-rewrite.md`](v3-ascend-cc-rewrite.md).
 
 Synthetic `npu-demo` (not measured, `inferred`):
 

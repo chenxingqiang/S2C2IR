@@ -9,9 +9,10 @@
 // RUN: s2c2-opt %s --s2c2-capability-schedule="device=fixture:ambiguous profile=%S/size-band-ambiguous.jsonl" --check-s2c2-execution 2>&1 | grep capability-schedule | FileCheck %s --check-prefix=AMB-LOG
 // RUN: s2c2-opt %s --s2c2-capability-schedule="device=fixture:ambiguous profile=%S/size-band-ambiguous.jsonl" --check-s2c2-execution | FileCheck %s --check-prefix=AMB
 
-// Size-banded C||C lookup. 910B overlay is queryable and does not
-// serialize N>=32M. A fixture with rewrite_license=yes shows the
-// future licensed path. Not Cost. Not PR-R3. #69 stays underdetermined.
+// Size-banded C||C lookup. Mixed/transition stay concurrent.
+// Serial band is rewrite-licensed from the 910B A/B. A fixture
+// still shows rewrite_license=yes flattening. Not Cost. Not PR-R3.
+// #69 stays underdetermined.
 
 // Catalog query has no payload: do not pick mixed or serial.
 // Q-CAT: "applicable":"unknown"
@@ -33,12 +34,12 @@
 // Q-SAME: "phase_band":"transition"
 // Q-SAME: "rewrite_license":false
 // Q-SAME: "size_range":"64MiB..127MiB"
-// N=32M floats = 128MiB → serial evidence, rewrite_license=no.
+// N=32M floats = 128MiB → serial evidence, rewrite_license=yes.
 // Q: "applicable":true
 // Q-SAME: "pair":"C||C"
 // Q-SAME: "pair_relation":"serial"
 // Q-SAME: "phase_band":"serial"
-// Q-SAME: "rewrite_license":false
+// Q-SAME: "rewrite_license":true
 // Q-SAME: "size_range":"128MiB..512MiB"
 
 // KEEP-LOG: pair=C||C relation=mixed
@@ -47,9 +48,9 @@
 // KEEP-LOG: pair=C||C relation=underdetermined
 // KEEP-LOG: decision=keep
 // KEEP-LOG: pair=C||C relation=serial
-// KEEP-LOG: rewrite_license=no
+// KEEP-LOG: rewrite_license=yes
 // KEEP-LOG: applicable=yes
-// KEEP-LOG: decision=keep
+// KEEP-LOG: decision=serialize
 // KEEP-LOG: cost=unchanged
 
 // #69 catalog is still one underdetermined cell.
@@ -123,7 +124,11 @@ module {
   }
 
   // KEEP-LABEL: func.func @cc_serial_128mib
-  // KEEP: sched.concurrent
+  // KEEP: sched.task
+  // KEEP: comp.elemwise
+  // KEEP: sched.task
+  // KEEP: comp.elemwise
+  // KEEP-NOT: sched.concurrent
   // KEEP-NOT: sched.wait
   // LIC-LABEL: func.func @cc_serial_128mib
   // LIC: sched.concurrent

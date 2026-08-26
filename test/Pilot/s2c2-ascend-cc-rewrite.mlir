@@ -6,10 +6,11 @@
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-cc-rewrite %S/ascend-cc-rewrite-no-fixture.log | FileCheck %s --check-prefix=NO
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --query-cap 'C||C' --cap-catalog %S/../../docs/design/v3-dataset/ascend910b/capability.jsonl | FileCheck %s --check-prefix=QC
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --query-cap 'C||C' --cap-catalog %S/../../docs/design/v3-dataset/ascend910b/cc-size-applicability.jsonl --n 33554432 | FileCheck %s --check-prefix=QS
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-cc-rewrite %S/../../docs/design/v3-dataset/ascend910b/cc-rewrite.log | FileCheck %s --check-prefix=HW
 
 // Host protocol: concurrent vs sequential C||C A/B. No microseconds.
-// #69 stays underdetermined. rewrite_license on the overlay is measured
-// separately. Not Cost. R3 closed.
+// #69 stays underdetermined. Overlay serial band is rewrite-licensed
+// from the 910B A/B. Not Cost. R3 closed.
 module {
 }
 
@@ -68,7 +69,22 @@ module {
 // QC: "applicable":false
 // QC-NOT: password
 
-// Overlay serial band remains queryable. License token is measured later.
+// Overlay serial band is rewrite-licensed from the 910B A/B.
 // QS: "pair":"C||C"
 // QS: "pair_relation":"serial"
 // QS: "size_range":"128MiB..512MiB"
+// QS: "rewrite_license":true
+// QS-NOT: password
+
+// Hardware log: analyzer tokens only. Do not FileCheck microseconds.
+// HW: v3-ascend-cc-rewrite pair=C||C r=1 r3-gate=closed
+// HW: n-grid=32M,64M,128M
+// HW: relations=serial
+// HW: benefit=yes
+// HW: rewrite_license=yes
+// HW: r3-gate=closed
+// HW: note catalog-untouched
+// HW: v3=not-claimed
+// HW: cost=unchanged
+// HW-NOT: Cost v0.4
+// HW-NOT: password

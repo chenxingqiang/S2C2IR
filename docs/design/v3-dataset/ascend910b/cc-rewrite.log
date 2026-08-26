@@ -1,0 +1,48 @@
+sweep_cc_rewrite n=33554432 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-rewrite=1 pair=C||C
+s2c2-ascend-run cc-rewrite n=33554432 k_ref=32 r=1
+s2c2-ascend-run cc-rewrite seq-slack=1.05 note seq-slack-ne-cost
+s2c2-ascend-run cc-rewrite slice r_target=1.000 r_achieved=0.996 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=33554432
+s2c2-ascend-run cc-rewrite timing a=3294.4 b=3306.5 par=26937.6 seq=6651.9 seq_over_par=0.247 par_over_seq=4.050
+s2c2-ascend-run cc-rewrite benefit=yes
+s2c2-ascend-run cc-rewrite rewrite_license=yes
+s2c2-ascend-run cc-rewrite correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-rewrite r3-gate=closed note catalog-untouched
+sweep_cc_rewrite n=67108864 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-rewrite=1 pair=C||C
+s2c2-ascend-run cc-rewrite n=67108864 k_ref=32 r=1
+s2c2-ascend-run cc-rewrite seq-slack=1.05 note seq-slack-ne-cost
+s2c2-ascend-run cc-rewrite slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=67108864
+s2c2-ascend-run cc-rewrite timing a=28412.3 b=28412.5 par=56135.0 seq=56727.9 seq_over_par=1.011 par_over_seq=0.990
+s2c2-ascend-run cc-rewrite benefit=yes
+s2c2-ascend-run cc-rewrite rewrite_license=yes
+s2c2-ascend-run cc-rewrite correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-rewrite r3-gate=closed note catalog-untouched
+sweep_cc_rewrite n=134217728 k_ref=32 r=1
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run cc-rewrite=1 pair=C||C
+s2c2-ascend-run cc-rewrite n=134217728 k_ref=32 r=1
+s2c2-ascend-run cc-rewrite seq-slack=1.05 note seq-slack-ne-cost
+s2c2-ascend-run cc-rewrite slice r_target=1.000 r_achieved=1.000 k1=32 k2=32 pair_relation=serial observed_constraint=resource_contention n=134217728
+s2c2-ascend-run cc-rewrite timing a=56545.8 b=56525.3 par=112216.2 seq=113514.2 seq_over_par=1.012 par_over_seq=0.989
+s2c2-ascend-run cc-rewrite benefit=yes
+s2c2-ascend-run cc-rewrite rewrite_license=yes
+s2c2-ascend-run cc-rewrite correctness=1 cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run cc-rewrite r3-gate=closed note catalog-untouched
