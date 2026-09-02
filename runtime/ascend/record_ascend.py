@@ -1020,6 +1020,62 @@ def print_r3_contract() -> int:
     return 0
 
 
+def print_e2e_contract() -> int:
+    print("e2e evidence-bounded-schedule")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant semantic-ne-perf-serial")
+    print("invariant capability-ne-rewrite")
+    print("invariant scoped-ne-global")
+    print("invariant underdetermined-preserve")
+    print("invariant rewrite-preserves-hb")
+    print("slice ssd-prefetch||gated-mlp||C||C")
+    print("note t-opt-over-base-ne-cost")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_e2e_gain(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    slices: list[dict[str, Any]] = []
+    pending_rel: dict[str, Any] | None = None
+    for line in text.splitlines():
+        m = _CC_REWRITE_SLICE_RE.search(line)
+        if m:
+            pending_rel = {
+                "pair_relation": m.group(5),
+                "N": int(m.group(7)),
+            }
+            continue
+        r = _CC_REWRITE_RATIO_RE.search(line)
+        if r and pending_rel is not None:
+            pending_rel["seq_over_par"] = float(r.group(5))
+            slices.append(pending_rel)
+            pending_rel = None
+    if not slices:
+        print("record_ascend: no e2e C||C slices in log", file=sys.stderr)
+        return 4
+    ns = sorted({s["N"] for s in slices})
+    rels = sorted({s["pair_relation"] for s in slices})
+    serial = all(s["pair_relation"] == "serial" for s in slices)
+    beneficial = all(0.0 < s["seq_over_par"] <= SEQ_SLACK for s in slices)
+    print("e2e-slice pair=C||C band=128MiB..512MiB")
+    print(f"n-grid={','.join(_n_label(n) for n in ns)}")
+    print(f"relations={','.join(rels)}")
+    print(f"rewrite_license={'yes' if serial and beneficial else 'no'}")
+    print("t-opt-over-base-defined=yes")
+    print("note t-opt-is-t-seq")
+    print("note t-base-is-t-par")
+    print("note 32M-outlier-not-cost")
+    print("note seq-slack-ne-cost")
+    print("note not-cost-v04")
+    print("note stage-measurement-ne-full-model")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Ascend CapabilityRecord host tools")
     p.add_argument("--print-cap-schema-v1", action="store_true")
@@ -1048,6 +1104,8 @@ def main() -> int:
     p.add_argument("--print-cc-rewrite-schema", action="store_true")
     p.add_argument("--analyze-cc-rewrite", type=Path)
     p.add_argument("--print-r3-contract", action="store_true")
+    p.add_argument("--print-e2e-contract", action="store_true")
+    p.add_argument("--analyze-e2e-gain", type=Path)
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -1071,6 +1129,8 @@ def main() -> int:
             args.print_cc_rewrite_schema,
             args.analyze_cc_rewrite,
             args.print_r3_contract,
+            args.print_e2e_contract,
+            args.analyze_e2e_gain,
         )
     )
     if n != 1:
@@ -1083,7 +1143,7 @@ def main() -> int:
             "--print-cc-phase-schema, --analyze-cc-phase, "
             "--print-cc-size-schema, --analyze-cc-size, "
             "--print-cc-rewrite-schema, --analyze-cc-rewrite, "
-            "--print-r3-contract",
+            "--print-r3-contract, --print-e2e-contract, --analyze-e2e-gain",
             file=sys.stderr,
         )
         return 2
@@ -1144,6 +1204,10 @@ def main() -> int:
         return analyze_cc_rewrite(args.analyze_cc_rewrite)
     if args.print_r3_contract:
         return print_r3_contract()
+    if args.print_e2e_contract:
+        return print_e2e_contract()
+    if args.analyze_e2e_gain:
+        return analyze_e2e_gain(args.analyze_e2e_gain)
     return accept_hardware(args.accept_hardware)
 
 
