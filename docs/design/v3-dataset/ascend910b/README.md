@@ -48,8 +48,11 @@ Pinned vs pageable (R4): `mem.log`, `mem-slices.csv`, `mem.jsonl`.
 `counterexamples=0`. Extra HB was not observed. Rate may differ;
 that is not a Schedule rewrite. Memory records use
 `size_range=4MiB..64MiB` (`measured sizes = 4MiB,16MiB,64MiB`).
-Cross-vendor schedule (PR-R3) is not this catalog: `C||C` is not
-a single parallel cell.
+Cross-vendor schedule (PR-R3): same IR, scoped 4090 vs 910B
+evidence. `#69` `C||C` stays underdetermined; the overlay serial
+band may serialize. Insufficient evidence keeps concurrent. See
+[`pr-r3-cross-vendor.md`](../../pr-r3-cross-vendor.md).
+`C||C` is not a single parallel cell.
 
 `C||C` r-sweep: `cc-phase.log`, `cc-phase.csv`.
 `unique=no` (`mixed` at 4M, `serial` at 16M/64M for every
@@ -57,10 +60,10 @@ a single parallel cell.
 
 `C||C` size-boundary at `r≈1`: `cc-size.log`, `cc-size.csv`.
 `transition=mixed-to-serial 16M..32M`. 16M is a boundary band.
-Pair catalog unchanged. PR-R3 closed.
+Pair catalog unchanged.
 
 Size-banded applicability overlay (not `#69`): `cc-size-applicability.jsonl`.
 Mixed / transition stay `rewrite_license=no`. Serial band
 (`128MiB..512MiB`) is `rewrite_license=yes` from the sequential A/B
 (`cc-rewrite.log`, `cc-rewrite.csv`). `#69` `C||C` stays
-`underdetermined`. PR-R3 closed. Do not FileCheck microseconds.
+`underdetermined`. Do not FileCheck microseconds.

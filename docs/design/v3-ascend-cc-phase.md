@@ -66,7 +66,11 @@ proof that 910B contention equals 4090 SM occupancy.
 Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
 Do not store host / password / IP.
 
-## R3 Gate (frozen, not this PR)
+## R3 Gate (frozen for this measurement PR)
+
+The inequality form below is **sufficient but not required**.
+Opening R3 does not demand `C||C` disagree, and does not invent a
+910B parallel cell. See [`pr-r3-cross-vendor.md`](pr-r3-cross-vendor.md).
 
 ```text
 For the same semantic pair:
@@ -86,8 +90,8 @@ AND
 
 or the same relation with a different `observed_constraint`.
 
-Until that holds, PR-R3 stays closed. This increment does not
-compare 4090 vs 910B microseconds and does not rewrite schedules.
+This measurement PR did not open R3 and does not compare 4090 vs
+910B microseconds.
 
 ## Out of scope
 

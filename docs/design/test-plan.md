@@ -612,6 +612,20 @@ Same IR + different CapabilityProfile → different legal schedule.
 | CQ3 | same | npu-demo inferred keeps all concurrent |
 | CQ4 | `test/Integration/capability-schedule-stream.mlir` | gated-MLP / SSD stream e2e; JSONL profile load |
 
+## PR-R3 4090 vs 910B scoped schedule
+
+**Not Cost v0.4.** Design:
+[`pr-r3-cross-vendor.md`](pr-r3-cross-vendor.md). Same IR, same
+semantic contract. Does **not** require `C||C` to disagree. `#69`
+untouched. Insufficient evidence keeps concurrent.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| R3-1 | `test/Analysis/s2c2-r3-cross-vendor.mlir` | `--print-r3-contract` `require-cc-disagree=no` |
+| R3-2 | same | 16MiB: 4090 serialize, overlay keep mixed, `#69` keep |
+| R3-3 | same | 128MiB: 4090 serialize, overlay serialize, `#69` keep |
+| R3-4 | same | no sibling `sched.wait`; `--check-s2c2-execution` |
+
 ## Ascend 910B Capability Adapter (Phase 3B / PR-R1-Ascend)
 
 **Not Cost v0.4.** Design:
