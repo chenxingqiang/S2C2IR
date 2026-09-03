@@ -4,10 +4,28 @@
 HB axioms, `R`, Search, Transformation, Pilot A/B/C bodies, or any
 `--cuda-val*` timed body.
 
+Project narrative:
+[`evidence-bounded-optimizer.md`](evidence-bounded-optimizer.md).
+
+```text
+Evidence-backed, hardware-aware schedule realization
+No evidence  ⇒  no destructive optimization
+```
+
+Frozen invariants:
+
+```text
+1. Semantic dependency      ≠  performance serialization
+2. Capability classification ≠  rewrite authorization
+3. Scoped evidence          ≠  global rule
+4. Unknown / underdetermined  ⇒  preserve
+5. Rewrite preserves HB / semantic validity
+```
+
 ```text
 Same S²C² program
-+ different CUDA capability profiles
-→ automatically choose different legal schedules
++ different Capability profiles
+→ different legal schedule realizations
 ```
 
 Capability Matrix is **compiler decision input**, not a dataset archive.

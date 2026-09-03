@@ -626,6 +626,22 @@ untouched. Insufficient evidence keeps concurrent.
 | R3-3 | same | 128MiB: 4090 serialize, overlay serialize, `#69` keep |
 | R3-4 | same | no sibling `sched.wait`; `--check-s2c2-execution` |
 
+## End-to-end evidence-bounded slice
+
+**Not Cost v0.4.** Design:
+[`evidence-bounded-optimizer.md`](evidence-bounded-optimizer.md).
+SSD prefetch || Gated MLP plus `C||C` at 16MiB / 128MiB. `#69`
+untouched. `T_opt/T_base` is the licensed `C||C` A/B, not a
+full-model Cost score.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| E2E-1 | `test/Integration/e2e-evidence-bounded-slice.mlir` | five invariants; `no-evidence => no-destructive-optimization` |
+| E2E-2 | same | prefetch \|\| MLP keep on 4090 / overlay / `#69` |
+| E2E-3 | same | 16MiB serialize / keep / keep; 128MiB serialize / serialize / keep |
+| E2E-4 | same | `--s2c2-lower` after 4090 rewrite; no invented `sched.wait` |
+| E2E-5 | same | `--analyze-e2e-gain` on `cc-rewrite.log`; 32M outlier not Cost |
+
 ## Ascend 910B Capability Adapter (Phase 3B / PR-R1-Ascend)
 
 **Not Cost v0.4.** Design:

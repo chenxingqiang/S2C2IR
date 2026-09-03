@@ -78,6 +78,9 @@ A disagreement of `pair_relation` is allowed when both cells are
 applicable. It is **not** a requirement that `C||C` disagree.
 `npu-demo` inferred parallel is not production R3.
 
+End-to-end slice composition is
+[`evidence-bounded-optimizer.md`](evidence-bounded-optimizer.md).
+
 ## Out of scope
 
 ```text
