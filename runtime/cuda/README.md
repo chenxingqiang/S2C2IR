@@ -26,6 +26,7 @@ S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val_mem.sh ./s2c
 S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val_cc.sh ./s2c2-cuda-run ./v3-cuda-clight
 S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val_async.sh ./s2c2-cuda-run ./v3-cuda-async
 # capability schema (host): s2c2-cuda-adapter --dry-run --cap-schema
+# SSD+MLP program wall-clock (host): s2c2-cuda-adapter --dry-run --ssd-mlp-wallclock
 # capability query:         python3 runtime/cuda/record_v3.py --query-cap C||HtoD
 # writes JSONL/CSV; no host/password fields
 # --matched does not change A/B/C bodies or Score_3

@@ -241,6 +241,10 @@ Capability-Aware Schedule. Design:
 Same S²C² IR + different CapabilityProfile → different legal schedule
 ```
 
+Complete SSD+MLP program wall-clock (`T_evi/T_seq`) is opened
+in [`ssd-mlp-wallclock.md`](design/ssd-mlp-wallclock.md). It is
+not Cost v0.4 and does not overwrite `#69`.
+
 Cost v0.4 and a second hardware (ROCm first) stay later.
 D2D/P2P is not the next CUDA arm.
 

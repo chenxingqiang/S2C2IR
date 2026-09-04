@@ -112,6 +112,40 @@ static void printCCPhase() {
   std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
 }
 
+static void printSsdMlpWallclock() {
+  std::fprintf(stderr, "s2c2-ascend-adapter ssd-mlp-wallclock=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock note not-stage-ab\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter ssd-mlp-wallclock t-base=t-seq\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter ssd-mlp-wallclock t-opt=t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock n-htod=22528000\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock n-cc=33554432\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter ssd-mlp-wallclock k_ref=32\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock ab=seq-vs-evi\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock "
+               "evi=keep-C||HtoD,serialize-licensed-C||C\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock "
+               "note logical-ssd-ne-disk\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock "
+               "note 32M-outlier-not-cost\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter ssd-mlp-wallclock cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter ssd-mlp-wallclock semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
+}
+
 static void printCCRewrite() {
   std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite=1\n");
   std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite pair=C||C\n");
@@ -265,7 +299,8 @@ static void usage() {
   std::fprintf(stderr,
                "s2c2-ascend-adapter --dry-run [--pairs] [--workload] "
                "[--cap-schema] [--mem] [--cc-phase] [--cc-size] "
-               "[--cc-rewrite] [--classify=ta:tb:tpar] "
+               "[--cc-rewrite] [--ssd-mlp-wallclock] "
+               "[--classify=ta:tb:tpar] "
                "[--emit-record=<pair>] [--accept-hardware=<id>]\n"
                "Host protocol only. Timed AscendCL: runtime/ascend/\n");
 }
@@ -279,6 +314,7 @@ int main(int argc, char **argv) {
   bool ccPhase = false;
   bool ccSize = false;
   bool ccRewrite = false;
+  bool ssdMlp = false;
   const char *classify = nullptr;
   const char *emit = nullptr;
   const char *acceptHw = nullptr;
@@ -300,6 +336,8 @@ int main(int argc, char **argv) {
       ccSize = true;
     } else if (a == "--cc-rewrite") {
       ccRewrite = true;
+    } else if (a == "--ssd-mlp-wallclock") {
+      ssdMlp = true;
     } else if (a.rfind("--classify=", 0) == 0) {
       classify = argv[i] + 11;
     } else if (a.rfind("--emit-record=", 0) == 0) {
@@ -324,14 +362,14 @@ int main(int argc, char **argv) {
 
   std::fprintf(stderr, "s2c2-ascend-adapter dry-run=1\n");
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
-              (int)ccPhase + (int)ccSize + (int)ccRewrite +
+              (int)ccPhase + (int)ccSize + (int)ccRewrite + (int)ssdMlp +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
               (int)(acceptHw != nullptr);
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
-                 "--cc-phase/--cc-size/--cc-rewrite/--classify/--emit-record/"
-                 "--accept-hardware cannot combine\n");
+                 "--cc-phase/--cc-size/--cc-rewrite/--ssd-mlp-wallclock/"
+                 "--classify/--emit-record/--accept-hardware cannot combine\n");
     return 1;
   }
 
@@ -377,6 +415,10 @@ int main(int argc, char **argv) {
   }
   if (ccRewrite) {
     printCCRewrite();
+    return 0;
+  }
+  if (ssdMlp) {
+    printSsdMlpWallclock();
     return 0;
   }
   if (capSchema) {

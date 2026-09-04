@@ -32,6 +32,8 @@ C||C r-sweep: `./s2c2-ascend-run --cc-phase --n=4194304 --k=32 --r=0.5,0.75,1,1.
 C||C size-boundary: `runtime/ascend/sweep_cc_size.sh`
 C||C rewrite A/B: `runtime/ascend/sweep_cc_rewrite.sh`
 Serial band `rewrite_license=yes` is from that A/B, not from `#69`.
+SSD+MLP program wall-clock: `runtime/ascend/sweep_ssd_mlp_wallclock.sh`
+(`T_evi/T_seq`, not the stage A/B; `#69` untouched).
 Size-band query: `python3 runtime/ascend/record_ascend.py --query-cap 'C||C' --cap-catalog docs/design/v3-dataset/ascend910b/cc-size-applicability.jsonl --n 33554432`
 Does not overwrite the #69 catalog. Cross-vendor schedule:
 `docs/design/pr-r3-cross-vendor.md`.

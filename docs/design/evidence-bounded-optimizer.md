@@ -99,12 +99,16 @@ produces a sequential realization. Flattening is parent IR order.
 **stage measurement**, not a Cost axiom and not a full-model
 wall-clock claim. 32M `T_par` stays an outlier.
 
+The complete SSD+MLP **program** wall-clock (`T_evi / T_seq`)
+is a later measurement:
+[`ssd-mlp-wallclock.md`](ssd-mlp-wallclock.md). It does not
+replace this slice or reopen Cost v0.4.
+
 ## Out of scope
 
 ```text
 Cost v0.4 ranking of candidate schedules
 new 4090 / 910B Capability grid points
-full SSD+MLP device wall-clock campaign
 D2D / P2P / ROCm
 overwriting #69
 ```

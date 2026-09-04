@@ -1036,6 +1036,59 @@ def print_e2e_contract() -> int:
     return 0
 
 
+def print_ssd_mlp_wallclock_contract() -> int:
+    print("ssd-mlp-wallclock program-measurement=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant semantic-ne-perf-serial")
+    print("invariant capability-ne-rewrite")
+    print("invariant scoped-ne-global")
+    print("invariant underdetermined-preserve")
+    print("invariant rewrite-preserves-hb")
+    print("note not-stage-ab")
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note 32M-outlier-not-cost")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_SSD_MLP_TIMING_RE = re.compile(
+    r"ssd-mlp-wallclock timing seq=([0-9.]+) evi=([0-9.]+) "
+    r"par=([0-9.]+) opt_over_base=([0-9.]+)"
+)
+
+
+def analyze_ssd_mlp_wallclock(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    measured = bool(re.search(r"ssd-mlp-wallclock measured=yes\b", text))
+    timing = _SSD_MLP_TIMING_RE.search(text)
+    defined = measured and timing is not None
+    print("ssd-mlp-wallclock program-measurement=yes")
+    print("ssd-mlp-wallclock note not-stage-ab")
+    print(f"ssd-mlp-wallclock measured={'yes' if measured else 'no'}")
+    print(
+        "ssd-mlp-wallclock t-opt-over-base-defined="
+        f"{'yes' if defined else 'no'}"
+    )
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note not-stage-ab")
+    print("note 32M-outlier-not-cost")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-cost-v04")
+    if re.search(r"device-absent", text):
+        print("note device-absent")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
 def analyze_e2e_gain(log: Path) -> int:
     text = log.read_text(encoding="utf-8", errors="replace")
     slices: list[dict[str, Any]] = []
@@ -1106,6 +1159,8 @@ def main() -> int:
     p.add_argument("--print-r3-contract", action="store_true")
     p.add_argument("--print-e2e-contract", action="store_true")
     p.add_argument("--analyze-e2e-gain", type=Path)
+    p.add_argument("--print-ssd-mlp-wallclock-contract", action="store_true")
+    p.add_argument("--analyze-ssd-mlp-wallclock", type=Path)
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -1131,6 +1186,8 @@ def main() -> int:
             args.print_r3_contract,
             args.print_e2e_contract,
             args.analyze_e2e_gain,
+            args.print_ssd_mlp_wallclock_contract,
+            args.analyze_ssd_mlp_wallclock,
         )
     )
     if n != 1:
@@ -1143,7 +1200,9 @@ def main() -> int:
             "--print-cc-phase-schema, --analyze-cc-phase, "
             "--print-cc-size-schema, --analyze-cc-size, "
             "--print-cc-rewrite-schema, --analyze-cc-rewrite, "
-            "--print-r3-contract, --print-e2e-contract, --analyze-e2e-gain",
+            "--print-r3-contract, --print-e2e-contract, --analyze-e2e-gain, "
+            "--print-ssd-mlp-wallclock-contract, "
+            "--analyze-ssd-mlp-wallclock",
             file=sys.stderr,
         )
         return 2
@@ -1208,6 +1267,10 @@ def main() -> int:
         return print_e2e_contract()
     if args.analyze_e2e_gain:
         return analyze_e2e_gain(args.analyze_e2e_gain)
+    if args.print_ssd_mlp_wallclock_contract:
+        return print_ssd_mlp_wallclock_contract()
+    if args.analyze_ssd_mlp_wallclock:
+        return analyze_ssd_mlp_wallclock(args.analyze_ssd_mlp_wallclock)
     return accept_hardware(args.accept_hardware)
 
 
