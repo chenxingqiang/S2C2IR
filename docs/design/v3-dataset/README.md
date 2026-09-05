@@ -59,3 +59,7 @@ Ascend 910B uses the **same** Capability Schema v1. Measured
 catalog: `docs/design/v3-dataset/ascend910b/` (pairs + R4 mem).
 Topology only; do not FileCheck microseconds.
 
+Complete SSD+MLP program wall-clock log:
+`ssd-mlp-wallclock.log`. Device-absent hosts stay
+`measured=no`. Not Cost v0.4. `#69` untouched.
+

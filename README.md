@@ -85,7 +85,8 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/v3-capability-schema.md`](docs/design/v3-capability-schema.md),
 [`docs/design/capability-aware-schedule.md`](docs/design/capability-aware-schedule.md),
 [`docs/design/evidence-bounded-optimizer.md`](docs/design/evidence-bounded-optimizer.md),
-[`docs/design/pr-r3-cross-vendor.md`](docs/design/pr-r3-cross-vendor.md)
+[`docs/design/pr-r3-cross-vendor.md`](docs/design/pr-r3-cross-vendor.md),
+[`docs/design/ssd-mlp-wallclock.md`](docs/design/ssd-mlp-wallclock.md)
 
 Phase 2B execution semantics (Token / Concurrent / Pipeline /
 composition) are **frozen**. Realization Space `R(P, D)` is **frozen**

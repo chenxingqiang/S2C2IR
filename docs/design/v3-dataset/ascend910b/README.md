@@ -67,3 +67,8 @@ Mixed / transition stay `rewrite_license=no`. Serial band
 (`128MiB..512MiB`) is `rewrite_license=yes` from the sequential A/B
 (`cc-rewrite.log`, `cc-rewrite.csv`). `#69` `C||C` stays
 `underdetermined`. Do not FileCheck microseconds.
+
+Complete SSD+MLP **program** wall-clock (`T_evi/T_seq`, not the
+stage A/B): [`ssd-mlp-wallclock.md`](../../ssd-mlp-wallclock.md).
+Host log: `../ssd-mlp-wallclock.log`. A device-absent host is
+`measured=no`; do not invent a ratio.

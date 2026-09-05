@@ -1,0 +1,11 @@
+s2c2-ascend-run ssd-mlp-wallclock=1
+s2c2-ascend-run ssd-mlp-wallclock program-measurement=yes
+s2c2-ascend-run ssd-mlp-wallclock note not-stage-ab
+s2c2-ascend-run ssd-mlp-wallclock n-htod=22528000 n-cc=33554432 k_ref=32
+s2c2-ascend-run ssd-mlp-wallclock measured=yes
+s2c2-ascend-run ssd-mlp-wallclock timing seq=2000.0 evi=1200.0 par=1300.0 opt_over_base=0.600
+s2c2-ascend-run ssd-mlp-wallclock correctness=1
+s2c2-ascend-run ssd-mlp-wallclock note catalog-untouched
+s2c2-ascend-run ssd-mlp-wallclock note 32M-outlier-not-cost
+s2c2-ascend-run ssd-mlp-wallclock note logical-ssd-ne-disk
+s2c2-ascend-run ssd-mlp-wallclock cost=unchanged semantics=unchanged v3=not-claimed

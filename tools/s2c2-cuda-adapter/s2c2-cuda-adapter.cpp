@@ -152,6 +152,36 @@ static void printCudaValMem() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-mem semantics=unchanged\n");
 }
 
+static void printSsdMlpWallclock() {
+  std::fprintf(stderr, "s2c2-cuda-adapter ssd-mlp-wallclock=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock note not-stage-ab\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter ssd-mlp-wallclock t-base=t-seq\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter ssd-mlp-wallclock t-opt=t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock n-htod=22528000\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter ssd-mlp-wallclock n-cc=33554432\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter ssd-mlp-wallclock k_ref=32\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter ssd-mlp-wallclock ab=seq-vs-evi\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock "
+               "evi=keep-C||HtoD,serialize-licensed-C||C\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock note logical-ssd-ne-disk\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock note 32M-outlier-not-cost\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter ssd-mlp-wallclock cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter ssd-mlp-wallclock semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+}
+
 static void printCudaValCc() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc=p0\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc map C_light=kxSiLU\n");
@@ -295,6 +325,7 @@ int main(int argc, char **argv) {
   bool cudaValCc = false;
   bool cudaValAsync = false;
   bool capSchema = false;
+  bool ssdMlp = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -320,6 +351,8 @@ int main(int argc, char **argv) {
       cudaVal = true;
     } else if (a == "--cap-schema") {
       capSchema = true;
+    } else if (a == "--ssd-mlp-wallclock") {
+      ssdMlp = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
@@ -327,7 +360,7 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
                    "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
-                   "[--cuda-val-async] [--cap-schema]\n"
+                   "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -346,12 +379,13 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-cuda-adapter dry-run=1\n");
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
-              (int)cudaValCc + (int)cudaValAsync + (int)capSchema;
+              (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
+              (int)ssdMlp;
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-cuda-adapter: --cap-schema/--cuda-val-async/--cuda-val-cc/"
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
-                 "--matched cannot combine\n");
+                 "--matched/--ssd-mlp-wallclock cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -401,6 +435,11 @@ int main(int argc, char **argv) {
   }
   if (capSchema) {
     printCapSchema();
+    printMaps();
+    return 0;
+  }
+  if (ssdMlp) {
+    printSsdMlpWallclock();
     printMaps();
     return 0;
   }

@@ -883,26 +883,169 @@ static int runCCRewrite(int n, int kRef, double rTarget, int warmup, int reps) {
   return 0;
 }
 
+enum class ProgArm { Seq, Evi, Par };
+
+static void runSsdMlpProgram(Buf &prefetch, Buf &cc, int kMlp, int kCc,
+                             ProgArm arm) {
+  if (arm == ProgArm::Seq) {
+    runArm(prefetch, Arm::HtoD, kMlp);
+    ACL_OK(aclrtSynchronizeStream(prefetch.s0));
+    runArm(prefetch, Arm::Compute, kMlp);
+    ACL_OK(aclrtSynchronizeStream(prefetch.s0));
+    elemwiseLaunch(cc, cc.dev0, cc.dev2, kCc, cc.s0);
+    ACL_OK(aclrtSynchronizeStream(cc.s0));
+    elemwiseLaunch(cc, cc.dev1, cc.dev3, kCc, cc.s1);
+    ACL_OK(aclrtSynchronizeStream(cc.s1));
+    return;
+  }
+  runArm(prefetch, Arm::ComputeHtoD, kMlp);
+  ACL_OK(aclrtSynchronizeStream(prefetch.s0));
+  ACL_OK(aclrtSynchronizeStream(prefetch.s1));
+  if (arm == ProgArm::Evi) {
+    elemwiseLaunch(cc, cc.dev0, cc.dev2, kCc, cc.s0);
+    ACL_OK(aclrtSynchronizeStream(cc.s0));
+    elemwiseLaunch(cc, cc.dev1, cc.dev3, kCc, cc.s1);
+    ACL_OK(aclrtSynchronizeStream(cc.s1));
+    return;
+  }
+  runArm(cc, Arm::ComputeCompute, kCc);
+  ACL_OK(aclrtSynchronizeStream(cc.s0));
+  ACL_OK(aclrtSynchronizeStream(cc.s1));
+}
+
+static bool checkSsdMlp(Buf &prefetch, Buf &cc, int kMlp, int kCc,
+                        ProgArm arm) {
+  if (arm == ProgArm::Seq) {
+    if (!checkArm(prefetch, Arm::Compute, kMlp))
+      return false;
+  } else if (!checkArm(prefetch, Arm::ComputeHtoD, kMlp)) {
+    return false;
+  }
+  return checkCC(cc, kCc, kCc);
+}
+
+static double timeSsdMlp(Buf &prefetch, Buf &cc, int kMlp, int kCc, int warmup,
+                         int reps, ProgArm arm) {
+  auto prep = [&](int seedA, int seedB) {
+    fillHost(prefetch.host0, prefetch.n, seedA);
+    fillHost(prefetch.host1, prefetch.n, seedB);
+    fillHost(cc.host0, cc.n, seedA + 1);
+    fillHost(cc.host1, cc.n, seedB + 1);
+    provision(prefetch, arm == ProgArm::Seq ? Arm::HtoD : Arm::ComputeHtoD);
+    provision(cc, Arm::ComputeCompute);
+    ACL_OK(aclrtSynchronizeStream(prefetch.s0));
+    ACL_OK(aclrtSynchronizeStream(prefetch.s1));
+    ACL_OK(aclrtSynchronizeStream(cc.s0));
+    ACL_OK(aclrtSynchronizeStream(cc.s1));
+  };
+  for (int i = 0; i < warmup; ++i) {
+    prep(i + 3, i + 7);
+    runSsdMlpProgram(prefetch, cc, kMlp, kCc, arm);
+    prefetch.reapStaleWorkspace();
+    cc.reapStaleWorkspace();
+  }
+  std::vector<double> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    prep(i + 11, i + 19);
+    auto start = std::chrono::steady_clock::now();
+    runSsdMlpProgram(prefetch, cc, kMlp, kCc, arm);
+    auto stop = std::chrono::steady_clock::now();
+    prefetch.reapStaleWorkspace();
+    cc.reapStaleWorkspace();
+    samples.push_back(
+        std::chrono::duration<double, std::micro>(stop - start).count());
+    if (!checkSsdMlp(prefetch, cc, kMlp, kCc, arm)) {
+      std::fprintf(stderr,
+                   "s2c2-ascend-run correctness=0 arm=ssd-mlp-wallclock\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static int runSsdMlpWallclock(int nHtod, int nCc, int kRef, int warmup,
+                              int reps) {
+  Buf prefetch;
+  Buf cc;
+  prefetch.alloc(nHtod);
+  cc.alloc(nCc);
+  fillHost(prefetch.host0, prefetch.n, 1);
+  fillHost(prefetch.host1, prefetch.n, 2);
+  fillHost(cc.host0, cc.n, 1);
+  fillHost(cc.host1, cc.n, 2);
+  provision(prefetch, Arm::ComputeHtoD);
+  provision(cc, Arm::ComputeCompute);
+  elemwiseLaunch(prefetch, prefetch.dev1, prefetch.dev2, 1, prefetch.s0);
+  elemwiseLaunch(cc, cc.dev0, cc.dev2, 1, cc.s0);
+  elemwiseLaunch(cc, cc.dev1, cc.dev3, 1, cc.s1);
+  ACL_OK(aclrtSynchronizeStream(prefetch.s0));
+  ACL_OK(aclrtSynchronizeStream(cc.s0));
+  ACL_OK(aclrtSynchronizeStream(cc.s1));
+  prefetch.reapStaleWorkspace();
+  cc.reapStaleWorkspace();
+
+  double tSeq = timeSsdMlp(prefetch, cc, kRef, kRef, warmup, reps, ProgArm::Seq);
+  double tEvi = timeSsdMlp(prefetch, cc, kRef, kRef, warmup, reps, ProgArm::Evi);
+  double tPar = timeSsdMlp(prefetch, cc, kRef, kRef, warmup, reps, ProgArm::Par);
+  double ratio = tSeq > 0.0 ? tEvi / tSeq : 0.0;
+
+  std::fprintf(stderr, "s2c2-ascend-run ssd-mlp-wallclock=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run ssd-mlp-wallclock program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run ssd-mlp-wallclock note not-stage-ab\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run ssd-mlp-wallclock n-htod=%d n-cc=%d k_ref=%d\n",
+               nHtod, nCc, kRef);
+  std::fprintf(stderr, "s2c2-ascend-run ssd-mlp-wallclock measured=yes\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run ssd-mlp-wallclock timing seq=%.1f evi=%.1f "
+               "par=%.1f opt_over_base=%.3f\n",
+               tSeq, tEvi, tPar, ratio);
+  std::fprintf(stderr, "s2c2-ascend-run ssd-mlp-wallclock correctness=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run ssd-mlp-wallclock note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run ssd-mlp-wallclock note 32M-outlier-not-cost\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run ssd-mlp-wallclock note logical-ssd-ne-disk\n");
+  std::fprintf(stderr, "s2c2-ascend-run ssd-mlp-wallclock note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run ssd-mlp-wallclock cost=unchanged "
+               "semantics=unchanged v3=not-claimed\n");
+  prefetch.freeAll();
+  cc.freeAll();
+  return 0;
+}
+
 static void usage() {
   std::fprintf(
       stderr,
-      "s2c2-ascend-run --pairs|--mem|--cc-phase|--cc-rewrite [--n=N] "
+      "s2c2-ascend-run --pairs|--mem|--cc-phase|--cc-rewrite|"
+      "--ssd-mlp-wallclock [--n=N] [--n-cc=N] "
       "[--k=K|--k=0] [--r=r1,r2,...] [--warmup=W] [--reps=R]\n"
       "--k=0 calibrates k from pinned HtoD / compute(k=1) (mem only). "
       "--cc-phase uses k as k_ref for C2. "
       "--cc-rewrite A/B concurrent vs sequential C||C at r≈1. "
+      "--ssd-mlp-wallclock times T_evi/T_seq of the complete "
+      "SSD+MLP program (not the stage A/B). "
       "Do not FileCheck microseconds.\n");
 }
 
 int main(int argc, char **argv) {
   int n = 1 << 20;
   int k = 8;
+  bool kSet = false;
   int warmup = 1;
   int reps = 3;
   bool pairs = false;
   bool mem = false;
   bool ccPhase = false;
   bool ccRewrite = false;
+  bool ssdMlp = false;
+  int nHtod = 22528000;
+  int nCc = 33554432;
   std::vector<double> rs = {0.5, 0.75, 1.0, 1.5, 2.0};
   bool rsSet = false;
   for (int i = 1; i < argc; ++i) {
@@ -915,10 +1058,16 @@ int main(int argc, char **argv) {
       ccPhase = true;
     } else if (a == "--cc-rewrite") {
       ccRewrite = true;
+    } else if (a == "--ssd-mlp-wallclock") {
+      ssdMlp = true;
+    } else if (a.rfind("--n-cc=", 0) == 0) {
+      nCc = std::atoi(argv[i] + 7);
     } else if (a.rfind("--n=", 0) == 0) {
       n = std::atoi(argv[i] + 4);
+      nHtod = n;
     } else if (a.rfind("--k=", 0) == 0) {
       k = std::atoi(argv[i] + 4);
+      kSet = true;
     } else if (a.rfind("--r=", 0) == 0) {
       rs = parseRList(argv[i] + 4);
       rsSet = true;
@@ -934,14 +1083,21 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
-  int modes = (int)pairs + (int)mem + (int)ccPhase + (int)ccRewrite;
+  int modes = (int)pairs + (int)mem + (int)ccPhase + (int)ccRewrite +
+              (int)ssdMlp;
   if (modes != 1) {
     usage();
     return 1;
   }
-  if ((pairs || ccPhase || ccRewrite) && k <= 0) {
+  if ((pairs || ccPhase || ccRewrite || ssdMlp) && k <= 0) {
     std::fprintf(stderr,
-                 "s2c2-ascend-run: --pairs/--cc-phase/--cc-rewrite needs k > 0\n");
+                 "s2c2-ascend-run: --pairs/--cc-phase/--cc-rewrite/"
+                 "--ssd-mlp-wallclock needs k > 0\n");
+    return 1;
+  }
+  if (ssdMlp && (nHtod <= 0 || nCc <= 0)) {
+    std::fprintf(stderr,
+                 "s2c2-ascend-run: --ssd-mlp-wallclock needs n>0 and n-cc>0\n");
     return 1;
   }
   if (ccPhase && rs.empty()) {
@@ -988,6 +1144,10 @@ int main(int argc, char **argv) {
     rc = runCCPhase(n, k, rs, warmup, reps);
   } else if (ccRewrite) {
     rc = runCCRewrite(n, k, rs.front(), warmup, reps);
+  } else if (ssdMlp) {
+    if (!kSet)
+      k = 32;
+    rc = runSsdMlpWallclock(nHtod, nCc, k, warmup, reps);
   } else {
   std::fprintf(stderr, "s2c2-ascend-run n=%d k=%d bytes=%zu\n", n, k,
                sizeof(float) * static_cast<size_t>(n));

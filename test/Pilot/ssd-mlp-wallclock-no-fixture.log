@@ -1,0 +1,7 @@
+s2c2-ascend-run ssd-mlp-wallclock=1
+s2c2-ascend-run ssd-mlp-wallclock program-measurement=yes
+s2c2-ascend-run ssd-mlp-wallclock note not-stage-ab
+s2c2-ascend-run ssd-mlp-wallclock measured=no
+s2c2-ascend-run ssd-mlp-wallclock note device-absent
+s2c2-ascend-run ssd-mlp-wallclock note catalog-untouched
+s2c2-ascend-run ssd-mlp-wallclock cost=unchanged semantics=unchanged v3=not-claimed
