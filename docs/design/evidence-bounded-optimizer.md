@@ -73,6 +73,10 @@ HB Verification
 That is not Cost v0.4. `seq-slack=1.05` remains an optimizer
 policy threshold.
 
+Phase 3D puts this pipeline on `s2c2-opt` with named compiler
+profiles (`--profile=rtx4090|910B|unknown`):
+[`evidence-bounded-schedule.md`](evidence-bounded-schedule.md).
+
 ## End-to-end slice (this increment)
 
 One S²C² program with three stages:

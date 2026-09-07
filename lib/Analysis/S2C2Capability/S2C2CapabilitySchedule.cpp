@@ -1,12 +1,17 @@
 //===- S2C2CapabilitySchedule.cpp - Capability → schedule ---------*- C++ -*-===//
 //
-// Phase 3A. CapabilityProfile is compiler decision input, not an archive.
-// Query prints pair cells plus applicability. A pair may have several
-// size-banded records; lookup picks the narrowest covering size_range.
-// Schedule serializes only when applicable=yes, pair_relation=serial,
-// and rewrite_license is not no. Does not invent sibling HB, break
-// StageOrder, promote arm_specific evidence to a global rule, or
-// change Cost.
+// Phase 3A + 3D. CapabilityProfile is compiler decision input, not an
+// archive. Query prints pair cells plus applicability. A pair may have
+// several size-banded records; lookup picks the narrowest covering
+// size_range. Schedule serializes only when applicable=yes,
+// pair_relation=serial, and rewrite_license is not no.
+//
+// Generic rewrite pipeline (one inhabitant: concurrent→serial):
+//   RewriteCandidate → EvidenceQuery → Applicability
+//     → RewriteLicense → Rewrite → Verifier
+// Pair kind is selected by evidence, not by the flatten.
+// Does not invent sibling HB, break StageOrder, promote arm_specific
+// evidence to a global rule, or change Cost.
 //
 //===----------------------------------------------------------------------===//
 
@@ -27,8 +32,11 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/StringSet.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
@@ -36,9 +44,14 @@
 #include <string>
 #include <utility>
 
+#ifndef S2C2_SOURCE_DIR
+#define S2C2_SOURCE_DIR ""
+#endif
+
 namespace mlir::s2c2 {
 #define GEN_PASS_DEF_S2C2CAPABILITYQUERY
 #define GEN_PASS_DEF_S2C2CAPABILITYSCHEDULE
+#define GEN_PASS_DEF_S2C2EVIDENCEBOUNDEDSCHEDULE
 #include "s2c2/S2C2Passes.h.inc"
 
 using comm::CopyOp;
@@ -55,6 +68,17 @@ using stor::BufferType;
 using stor::Space;
 
 namespace {
+llvm::cl::opt<std::string> clS2C2Profile(
+    "profile",
+    llvm::cl::desc("S2C2 compiler profile: rtx4090, 910B, unknown, or a "
+                   "compiler-profile JSON path"),
+    llvm::cl::ValueRequired, llvm::cl::init(""));
+llvm::cl::opt<std::string> clS2C2Evidence(
+    "evidence",
+    llvm::cl::desc(
+        "S2C2 evidence JSONL override (compiler catalog, not a benchmark log)"),
+    llvm::cl::ValueRequired, llvm::cl::init(""));
+
 enum class Applicability { Yes, No, Unknown };
 
 struct CapCell {
@@ -113,7 +137,8 @@ static void parseNoteOverlay(CapCell &cell) {
 
 static void addCell(CapCatalog &cat, StringRef pair, StringRef relation,
                     StringRef constraint, StringRef confidence, StringRef regime,
-                    StringRef sizeRange, StringRef synchronization) {
+                    StringRef sizeRange, StringRef synchronization,
+                    bool rewriteLicense = true) {
   CapCell cell;
   cell.relation = relation.str();
   cell.constraint = constraint.str();
@@ -121,6 +146,7 @@ static void addCell(CapCatalog &cat, StringRef pair, StringRef relation,
   cell.regime = regime.str();
   cell.sizeRange = sizeRange.str();
   cell.synchronization = synchronization.str();
+  cell.rewriteLicense = rewriteLicense;
   parseNoteOverlay(cell);
   cat.pairs[pair].push_back(std::move(cell));
 }
@@ -155,6 +181,18 @@ static void loadBuiltinNpuDemo(CapCatalog &cat) {
           "synthetic", "named-nonblocking");
 }
 
+// Compiler-profile projection of
+// docs/design/v3-dataset/ascend910b/cc-size-applicability.jsonl.
+// Does not overwrite #69 capability.jsonl.
+static void loadBuiltin910B(CapCatalog &cat) {
+  addCell(cat, "C||C", "mixed", "none", "measured", "occupancy", "16MiB..48MiB",
+          "named-nonblocking", /*rewriteLicense=*/false);
+  addCell(cat, "C||C", "underdetermined", "none", "measured", "occupancy",
+          "64MiB..127MiB", "named-nonblocking", /*rewriteLicense=*/false);
+  addCell(cat, "C||C", "serial", "resource_contention", "measured", "occupancy",
+          "128MiB..512MiB", "named-nonblocking", /*rewriteLicense=*/true);
+}
+
 static StringRef canonicalDevice(StringRef device) {
   if (device.contains_insensitive("4090") ||
       device.contains_insensitive("rtx4090") ||
@@ -162,6 +200,11 @@ static StringRef canonicalDevice(StringRef device) {
     return "rtx4090";
   if (device.contains_insensitive("npu"))
     return "npu-demo";
+  if (device.equals_insensitive("unknown"))
+    return "unknown";
+  if (device.contains_insensitive("910b") ||
+      device.contains_insensitive("ascend910b"))
+    return "ascend910b:ascend";
   return device;
 }
 
@@ -172,6 +215,10 @@ static bool hardwareMatches(StringRef hardwareId, StringRef device) {
            hardwareId.contains_insensitive("sm89");
   if (canon == "npu-demo")
     return hardwareId.contains_insensitive("npu");
+  if (canon == "ascend910b:ascend")
+    return hardwareId.contains_insensitive("910b");
+  if (canon == "unknown")
+    return false;
   return hardwareId.contains_insensitive(device);
 }
 
@@ -239,6 +286,202 @@ static LogicalResult loadCatalog(StringRef device, StringRef profilePath,
     loadBuiltinNpuDemo(cat);
   if (!profilePath.empty() && failed(loadJsonl(profilePath, device, cat)))
     return failure();
+  return success();
+}
+
+struct ResolvedProfile {
+  std::string name;
+  std::string device;
+  std::string evidenceDesc;
+};
+
+static bool looksLikePath(StringRef s) {
+  return s.contains('/') || s.ends_with_insensitive(".json") ||
+         s.ends_with_insensitive(".jsonl");
+}
+
+static std::string resolveExistingPath(StringRef path, StringRef relativeToDir) {
+  if (path.empty())
+    return {};
+  if (llvm::sys::fs::exists(path))
+    return path.str();
+  llvm::SmallString<256> tmp;
+  if (!relativeToDir.empty()) {
+    llvm::sys::path::append(tmp, relativeToDir, path);
+    if (llvm::sys::fs::exists(tmp))
+      return std::string(tmp);
+  }
+  tmp.clear();
+  llvm::sys::path::append(tmp, S2C2_SOURCE_DIR, path);
+  if (llvm::sys::fs::exists(tmp))
+    return std::string(tmp);
+  return path.str();
+}
+
+static LogicalResult loadBuiltinEvidence(StringRef which, CapCatalog &cat) {
+  if (which.equals_insensitive("rtx4090") || which.equals_insensitive("4090")) {
+    loadBuiltinRtx4090(cat);
+    return success();
+  }
+  if (which.equals_insensitive("910B") || which.equals_insensitive("910b") ||
+      which.equals_insensitive("ascend910b")) {
+    loadBuiltin910B(cat);
+    return success();
+  }
+  if (which.equals_insensitive("npu-demo") || which.equals_insensitive("npu")) {
+    loadBuiltinNpuDemo(cat);
+    return success();
+  }
+  llvm::errs() << "s2c2-evidence-bounded-schedule: unknown builtin evidence "
+               << which << "\n";
+  return failure();
+}
+
+static LogicalResult loadInlineEvidence(const llvm::json::Array &arr,
+                                        CapCatalog &cat) {
+  for (const llvm::json::Value &item : arr) {
+    const llvm::json::Object *obj = item.getAsObject();
+    if (!obj)
+      continue;
+    auto pair = obj->getString("pair");
+    auto rel = obj->getString("pair_relation");
+    if (!pair || pair->empty() || !rel)
+      continue;
+    CapCell cell;
+    cell.relation = rel->str();
+    if (auto c = obj->getString("observed_constraint"))
+      cell.constraint = c->str();
+    if (auto c = obj->getString("confidence"))
+      cell.confidence = c->str();
+    if (auto c = obj->getString("regime"))
+      cell.regime = c->str();
+    if (auto c = obj->getString("size_range"))
+      cell.sizeRange = c->str();
+    if (auto c = obj->getString("synchronization"))
+      cell.synchronization = c->str();
+    if (auto b = obj->getBoolean("rewrite_license"))
+      cell.rewriteLicense = *b;
+    else if (auto s = obj->getString("rewrite_license"))
+      cell.rewriteLicense = s->equals_insensitive("yes") ||
+                            s->equals_insensitive("true");
+    cat.pairs[*pair].push_back(std::move(cell));
+  }
+  return success();
+}
+
+static LogicalResult loadCompilerProfileJson(StringRef path, CapCatalog &cat,
+                                             ResolvedProfile &out) {
+  auto fileOr = llvm::MemoryBuffer::getFile(path);
+  if (!fileOr) {
+    llvm::errs() << "s2c2-evidence-bounded-schedule: cannot read profile "
+                 << path << "\n";
+    return failure();
+  }
+  auto parsed = llvm::json::parse(fileOr.get()->getBuffer());
+  if (!parsed) {
+    llvm::errs() << "s2c2-evidence-bounded-schedule: invalid JSON in " << path
+                 << "\n";
+    return failure();
+  }
+  llvm::json::Object *obj = parsed->getAsObject();
+  if (!obj) {
+    llvm::errs()
+        << "s2c2-evidence-bounded-schedule: compiler profile must be an object\n";
+    return failure();
+  }
+  if (auto p = obj->getString("profile"))
+    out.name = p->str();
+  if (auto d = obj->getString("device"))
+    out.device = d->str();
+  if (out.device.empty())
+    out.device = out.name;
+
+  llvm::json::Value *ev = obj->get("evidence");
+  if (!ev) {
+    out.evidenceDesc = "empty";
+    return success();
+  }
+  if (std::optional<llvm::StringRef> spec = ev->getAsString()) {
+    if (spec->empty()) {
+      out.evidenceDesc = "empty";
+      return success();
+    }
+    if (spec->starts_with("builtin:")) {
+      StringRef which = spec->drop_front(StringRef("builtin:").size());
+      if (failed(loadBuiltinEvidence(which, cat)))
+        return failure();
+      out.evidenceDesc = spec->str();
+      return success();
+    }
+    llvm::SmallString<256> profileDir(path);
+    llvm::sys::path::remove_filename(profileDir);
+    std::string evPath = resolveExistingPath(*spec, profileDir);
+    if (failed(loadJsonl(evPath, out.device, cat)))
+      return failure();
+    out.evidenceDesc = evPath;
+    return success();
+  }
+  if (const llvm::json::Array *arr = ev->getAsArray()) {
+    if (failed(loadInlineEvidence(*arr, cat)))
+      return failure();
+    out.evidenceDesc = path.str() + ":inline";
+    return success();
+  }
+  llvm::errs() << "s2c2-evidence-bounded-schedule: evidence must be a builtin "
+                  "id, JSONL path, or array\n";
+  return failure();
+}
+
+static LogicalResult
+loadEvidenceBoundedCatalog(StringRef profileOpt, StringRef evidenceOpt,
+                           CapCatalog &cat, ResolvedProfile &out) {
+  std::string profile = profileOpt.str();
+  if (profile.empty() && !clS2C2Profile.empty())
+    profile = clS2C2Profile;
+  if (profile.empty())
+    profile = "unknown";
+
+  std::string evidence = evidenceOpt.str();
+  if (evidence.empty() && !clS2C2Evidence.empty())
+    evidence = clS2C2Evidence;
+
+  if (looksLikePath(profile)) {
+    std::string path = resolveExistingPath(profile, "");
+    if (failed(loadCompilerProfileJson(path, cat, out)))
+      return failure();
+    if (out.name.empty())
+      out.name = llvm::sys::path::filename(path).str();
+  } else if (StringRef(profile).equals_insensitive("rtx4090") ||
+             StringRef(profile).equals_insensitive("4090")) {
+    out.name = "rtx4090";
+    out.device = "rtx4090";
+    loadBuiltinRtx4090(cat);
+    out.evidenceDesc = "builtin:rtx4090";
+  } else if (StringRef(profile).equals_insensitive("910B") ||
+             StringRef(profile).equals_insensitive("910b") ||
+             StringRef(profile).equals_insensitive("ascend910b")) {
+    out.name = "910B";
+    out.device = "ascend910b:ascend";
+    loadBuiltin910B(cat);
+    out.evidenceDesc = "builtin:910B";
+  } else if (StringRef(profile).equals_insensitive("unknown")) {
+    out.name = "unknown";
+    out.device = "unknown";
+    out.evidenceDesc = "empty";
+  } else {
+    llvm::errs() << "s2c2-evidence-bounded-schedule: unknown profile '"
+                 << profile << "'\n";
+    return failure();
+  }
+
+  if (!evidence.empty()) {
+    std::string evPath = resolveExistingPath(evidence, "");
+    if (failed(loadJsonl(evPath, out.device, cat)))
+      return failure();
+    out.evidenceDesc = evPath;
+  }
+  if (out.device.empty())
+    out.device = "unknown";
   return success();
 }
 
@@ -612,7 +855,11 @@ static bool shouldSerialize(const CapCell &cell, Applicability app) {
          cell.rewriteLicense;
 }
 
-static void flattenConcurrent(ConcurrentOp conc) {
+// Generic licensed concurrent→serial rewrite. Not pair-specific.
+// Unbundle a 2-task sched.concurrent (or sched.overlap) into parent
+// IR order. EvidenceQuery + Applicability + RewriteLicense decide
+// whether to apply; this is only the Rewrite step.
+static void rewriteConcurrentToSerial(ConcurrentOp conc) {
   Block &body = conc.getBody().front();
   auto yield = dyn_cast<YieldOp>(body.getTerminator());
   if (!yield)
@@ -625,7 +872,7 @@ static void flattenConcurrent(ConcurrentOp conc) {
   conc.erase();
 }
 
-static void flattenOverlap(OverlapOp ov) {
+static void rewriteOverlapToSerial(OverlapOp ov) {
   Block &comm = ov.getCommunicate().front();
   Block &compute = ov.getCompute().front();
   auto yield = dyn_cast<YieldOp>(compute.getTerminator());
@@ -672,7 +919,14 @@ static void walkAndQuery(ModuleOp module, StringRef device,
 }
 
 static void applySchedule(ModuleOp module, StringRef device,
-                          const CapCatalog &cat) {
+                          const CapCatalog &cat,
+                          const ResolvedProfile *evi = nullptr) {
+  if (evi) {
+    llvm::errs() << "evidence-bounded-schedule profile=" << evi->name
+                 << " device=" << evi->device
+                 << " evidence=" << evi->evidenceDesc
+                 << " rewrite=concurrent-to-serial cost=unchanged\n";
+  }
   SmallVector<ConcurrentOp> concs;
   module.walk([&](ConcurrentOp conc) { concs.push_back(conc); });
   for (ConcurrentOp conc : concs) {
@@ -694,9 +948,12 @@ static void applySchedule(ModuleOp module, StringRef device,
                  << " size_range=" << cell.sizeRange
                  << " rewrite_license=" << (cell.rewriteLicense ? "yes" : "no")
                  << " applicable=" << applicabilityStr(app)
-                 << " decision=" << (serialize ? "serialize" : "keep") << "\n";
+                 << " decision=" << (serialize ? "serialize" : "keep");
     if (serialize)
-      flattenConcurrent(conc);
+      llvm::errs() << " rewrite=concurrent-to-serial";
+    llvm::errs() << "\n";
+    if (serialize)
+      rewriteConcurrentToSerial(conc);
   }
 
   SmallVector<OverlapOp> overlaps;
@@ -717,9 +974,12 @@ static void applySchedule(ModuleOp module, StringRef device,
                  << " size_range=" << cell.sizeRange
                  << " rewrite_license=" << (cell.rewriteLicense ? "yes" : "no")
                  << " applicable=" << applicabilityStr(app)
-                 << " decision=" << (serialize ? "serialize" : "keep") << "\n";
+                 << " decision=" << (serialize ? "serialize" : "keep");
     if (serialize)
-      flattenOverlap(ov);
+      llvm::errs() << " rewrite=concurrent-to-serial";
+    llvm::errs() << "\n";
+    if (serialize)
+      rewriteOverlapToSerial(ov);
   }
   llvm::errs() << "capability-schedule device=" << device
                << " semantics=unchanged v3=not-claimed cost=unchanged\n";
@@ -763,6 +1023,23 @@ struct S2C2CapabilitySchedule
       return;
     }
     applySchedule(getOperation(), device, cat);
+  }
+};
+
+struct S2C2EvidenceBoundedSchedule
+    : impl::S2C2EvidenceBoundedScheduleBase<S2C2EvidenceBoundedSchedule> {
+  using impl::S2C2EvidenceBoundedScheduleBase<
+      S2C2EvidenceBoundedSchedule>::S2C2EvidenceBoundedScheduleBase;
+
+  void runOnOperation() override {
+    CapCatalog cat;
+    ResolvedProfile resolved;
+    if (failed(loadEvidenceBoundedCatalog(profileName, evidencePath, cat,
+                                          resolved))) {
+      signalPassFailure();
+      return;
+    }
+    applySchedule(getOperation(), resolved.device, cat, &resolved);
   }
 };
 } // namespace

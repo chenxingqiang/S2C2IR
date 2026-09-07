@@ -52,7 +52,11 @@ This pass asks only:
 Which schedules are capability-compatible / worthwhile candidates?
 ```
 
-It does **not** ask which schedule is faster. Cost v0.4 is Phase 3C.
+It does **not** ask which schedule is faster. Cost v0.4 is closed.
+
+Phase 3D compiler entry:
+[`evidence-bounded-schedule.md`](evidence-bounded-schedule.md)
+(`--s2c2-evidence-bounded-schedule` / `--profile=`).
 
 ---
 

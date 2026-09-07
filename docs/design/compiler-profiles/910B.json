@@ -1,0 +1,6 @@
+{
+  "schema": "s2c2.compiler_profile.v1",
+  "profile": "910B",
+  "device": "ascend910b:ascend",
+  "evidence": "builtin:910B"
+}

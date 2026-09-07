@@ -16,3 +16,6 @@ add_mlir_library(S2C2Capability
   MLIRIR
   MLIRPass
 )
+
+target_compile_definitions(S2C2Capability PRIVATE
+  "S2C2_SOURCE_DIR=\"${PROJECT_SOURCE_DIR}\"")

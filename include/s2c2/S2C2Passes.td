@@ -418,6 +418,37 @@ def S2C2CapabilitySchedule : Pass<"s2c2-capability-schedule", "::mlir::ModuleOp"
   ];
 }
 
+def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir::ModuleOp"> {
+  let summary = "Profile + evidence licensed concurrent→serial rewrite";
+  let description = [{
+    Phase 3D compiler entry. Loads a named compiler profile
+    (`rtx4090`, `910B`, `unknown`) or a compiler-profile JSON file,
+    queries evidence, and applies the generic licensed
+    concurrent→serial rewrite. Does not invent semantic dependency,
+    rank by Cost, or read benchmark logs.
+
+      --profile=rtx4090  → builtin 4090 evidence
+      --profile=910B     → overlay projection (not #69 catalog)
+      --profile=unknown  → empty evidence, preserve every concurrent
+
+    Optional `--evidence=` JSONL overrides the profile catalog.
+    `--s2c2-capability-schedule=profile=<jsonl>` is unchanged.
+    After this pass, `--check-s2c2-execution` must still succeed.
+  }];
+  let dependentDialects = [
+    "mlir::s2c2::sched::ScheduleDialect",
+    "mlir::s2c2::comp::ComputeDialect",
+    "mlir::s2c2::comm::CommDialect",
+    "mlir::s2c2::stor::StorageDialect"
+  ];
+  let options = [
+    Option<"profileName", "profile", "std::string", /*default=*/"\"\"",
+           "Named profile (rtx4090|910B|unknown) or compiler-profile JSON">,
+    Option<"evidencePath", "evidence", "std::string", /*default=*/"\"\"",
+           "Optional evidence JSONL override (not a benchmark log)">
+  ];
+}
+
 def S2C2XForm : Pass<"s2c2-xform", "::mlir::ModuleOp"> {
   let summary = "Realization transformation T : P → P' (v0.5.1)";
   let description = [{

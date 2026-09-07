@@ -245,6 +245,11 @@ Complete SSD+MLP program wall-clock (`T_evi/T_seq`) is opened
 in [`ssd-mlp-wallclock.md`](design/ssd-mlp-wallclock.md). It is
 not Cost v0.4 and does not overwrite `#69`.
 
+Phase 3D: `s2c2-opt --profile=… --s2c2-evidence-bounded-schedule`.
+Design: [`evidence-bounded-schedule.md`](design/evidence-bounded-schedule.md).
+Named profiles (`rtx4090` / `910B` / `unknown`) plus a generic
+concurrent→serial rewrite. Cost v0.4 stays later.
+
 Cost v0.4 and a second hardware (ROCm first) stay later.
 D2D/P2P is not the next CUDA arm.
 
