@@ -15,7 +15,8 @@ means no destructive rewrite.
 
 [`docs/design/evidence-bounded-optimizer.md`](docs/design/evidence-bounded-optimizer.md),
 [`docs/design/evidence-bounded-schedule.md`](docs/design/evidence-bounded-schedule.md),
-[`docs/design/evidence-bounded-workload.md`](docs/design/evidence-bounded-workload.md)
+[`docs/design/evidence-bounded-workload.md`](docs/design/evidence-bounded-workload.md),
+[`docs/design/storage-aware-pipeline.md`](docs/design/storage-aware-pipeline.md)
 
 The four dialects remain:
 
@@ -89,6 +90,7 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/evidence-bounded-optimizer.md`](docs/design/evidence-bounded-optimizer.md),
 [`docs/design/evidence-bounded-schedule.md`](docs/design/evidence-bounded-schedule.md),
 [`docs/design/evidence-bounded-workload.md`](docs/design/evidence-bounded-workload.md),
+[`docs/design/storage-aware-pipeline.md`](docs/design/storage-aware-pipeline.md),
 [`docs/design/pr-r3-cross-vendor.md`](docs/design/pr-r3-cross-vendor.md),
 [`docs/design/ssd-mlp-wallclock.md`](docs/design/ssd-mlp-wallclock.md),
 [`docs/design/hardware-ledger.md`](docs/design/hardware-ledger.md)
@@ -174,6 +176,8 @@ Round-trip an example:
 ./build/bin/s2c2-opt test/Integration/evidence-bounded-schedule.mlir \
   --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution
 ./build/bin/s2c2-opt test/Integration/evidence-bounded-workload.mlir \
+  --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution
+./build/bin/s2c2-opt test/Integration/storage-aware-pipeline.mlir \
   --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution
 ```
 

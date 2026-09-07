@@ -251,11 +251,17 @@ Named profiles (`rtx4090` / `910B` / `unknown`) plus a generic
 concurrent→serial rewrite.
 
 Phase 3E: one semantic workload, compiler candidate discovery
-and KEEP/FLATTEN.
+and KEEP / FLATTEN / PRESERVE.
 Design: [`evidence-bounded-workload.md`](design/evidence-bounded-workload.md).
-Cost v0.4 stays later.
 
-Cost v0.4 and a second hardware (ROCm first) stay later.
+Phase 3F: two-tile SSD prefetch || compute, then sequential HtoD,
+then licensed C||C. Still storage-aware, not a generic scheduler.
+Design: [`storage-aware-pipeline.md`](design/storage-aware-pipeline.md).
+
+Phase 3G (later): storage hierarchy scheduling
+(SSD ↔ Host/DRAM ↔ HBM ↔ Compute).
+
+Cost v0.4 and a second hardware (ROCm first) stay in Phase 4.
 D2D/P2P is not the next CUDA arm.
 
 ```text

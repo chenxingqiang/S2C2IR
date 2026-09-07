@@ -662,17 +662,32 @@ Named compiler profiles on `s2c2-opt`. Same IR, three profiles.
 **Not Cost v0.4.** Design:
 [`evidence-bounded-workload.md`](evidence-bounded-workload.md).
 One semantic SSD→Host→HtoD∥Compute tile workload. Compiler
-discovers candidates and KEEP/FLATTEN. `#69` untouched. Does
+discovers candidates and KEEP / FLATTEN / PRESERVE. `#69` untouched. Does
 not FileCheck microseconds. Runtime witness is the existing
 SSD+MLP wall-clock, not a hand-written optimized IR.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
 | 3E-1 | `test/Integration/evidence-bounded-workload.mlir` | `--profile=rtx4090` KEEP C\|\|HtoD, FLATTEN 16MiB/128MiB C\|\|C |
-| 3E-2 | same | `--profile=910B` KEEP 16MiB C\|\|C, FLATTEN 128MiB C\|\|C |
-| 3E-3 | same | `--profile=unknown` KEEP all three candidates |
+| 3E-2 | same | `--profile=910B` KEEP C\|\|HtoD, PRESERVE 16MiB C\|\|C, FLATTEN 128MiB C\|\|C |
+| 3E-3 | same | `--profile=unknown` PRESERVE all three candidates |
 | 3E-4 | same | `dump-schedule` JSON + `--analyze-workload-schedule`; `--s2c2-lower` |
 | 3E-5 | same | adapter `--workload-schedule` source=s2c2-opt; existing wall-clock `measured=yes` |
+
+## Storage-aware pipeline (Phase 3F)
+
+**Not Cost v0.4.** Design:
+[`storage-aware-pipeline.md`](storage-aware-pipeline.md).
+Two-tile SSD prefetch || compute, sequential HtoD, then C||C.
+Compiler discovers `C||Storage` KEEP vs licensed C||C FLATTEN vs
+PRESERVE. Not a generic heterogeneous scheduler. `#69` untouched.
+Does not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3F-1 | `test/Integration/storage-aware-pipeline.mlir` | `--profile=rtx4090` KEEP C\|\|Storage, FLATTEN 16MiB/128MiB C\|\|C |
+| 3F-2 | same | `--profile=910B` KEEP C\|\|Storage, PRESERVE 16MiB C\|\|C, FLATTEN 128MiB |
+| 3F-3 | same | `--profile=unknown` PRESERVE all three; `--s2c2-lower`; adapters + wall-clock |
 
 ## Complete SSD + MLP program wall-clock
 

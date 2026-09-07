@@ -1038,10 +1038,11 @@ def print_e2e_contract() -> int:
 
 _WORKLOAD_CAND_RE = re.compile(
     r"workload-candidate #(\d+) pair=(\S+) payload=(\S+) relation=(\S+) "
-    r"decision=(KEEP|FLATTEN) reason=(\S+)"
+    r"decision=(KEEP|FLATTEN|PRESERVE) reason=(\S+)"
 )
 _WORKLOAD_SUM_RE = re.compile(
     r"workload-schedule candidates=(\d+) keep=(\d+) flatten=(\d+)"
+    r"(?: preserve=(\d+))?"
 )
 
 
@@ -1057,6 +1058,7 @@ def print_workload_schedule_contract() -> int:
     print("note runtime-witness=ssd-mlp-wallclock")
     print("note compiler-chosen-t-evi")
     print("note not-new-capability-grid")
+    print("note storage-data-movement-overlap")
     print("note not-cost-v04")
     print("semantics=unchanged")
     print("v3=not-claimed")
@@ -1065,12 +1067,17 @@ def print_workload_schedule_contract() -> int:
 
 
 def _print_workload_schedule_summary(
-    candidates: int, keep: int, flatten: int, decisions: list[dict[str, Any]]
+    candidates: int,
+    keep: int,
+    flatten: int,
+    preserve: int,
+    decisions: list[dict[str, Any]],
 ) -> int:
     print("workload-schedule compiler-driven=yes")
     print(f"workload-schedule candidates={candidates}")
     print(f"workload-schedule keep={keep}")
     print(f"workload-schedule flatten={flatten}")
+    print(f"workload-schedule preserve={preserve}")
     for d in decisions:
         print(
             f"workload-schedule candidate=#{d['id']} pair={d['pair']} "
@@ -1080,6 +1087,7 @@ def _print_workload_schedule_summary(
     print("note runtime-witness=ssd-mlp-wallclock")
     print("note compiler-chosen-t-evi")
     print("note not-new-capability-grid")
+    print("note storage-data-movement-overlap")
     print("note not-cost-v04")
     print("r3-gate=scoped-evidence")
     print("cost=unchanged")
@@ -1111,6 +1119,12 @@ def analyze_workload_schedule(path: Path) -> int:
                     sum(1 for d in decisions if d["decision"] == "FLATTEN"),
                 )
             ),
+            int(
+                obj.get(
+                    "preserve",
+                    sum(1 for d in decisions if d["decision"] == "PRESERVE"),
+                )
+            ),
             decisions,
         )
     decisions: list[dict[str, Any]] = []
@@ -1129,14 +1143,22 @@ def analyze_workload_schedule(path: Path) -> int:
         candidates = int(summary.group(1))
         keep = int(summary.group(2))
         flatten = int(summary.group(3))
+        preserve = (
+            int(summary.group(4))
+            if summary.group(4) is not None
+            else sum(1 for d in decisions if d["decision"] == "PRESERVE")
+        )
     else:
         candidates = len(decisions)
         keep = sum(1 for d in decisions if d["decision"] == "KEEP")
         flatten = sum(1 for d in decisions if d["decision"] == "FLATTEN")
+        preserve = sum(1 for d in decisions if d["decision"] == "PRESERVE")
     if candidates == 0 and not decisions:
         print("record_ascend: no workload-schedule candidates", file=sys.stderr)
         return 4
-    return _print_workload_schedule_summary(candidates, keep, flatten, decisions)
+    return _print_workload_schedule_summary(
+        candidates, keep, flatten, preserve, decisions
+    )
 
 
 def print_ssd_mlp_wallclock_contract() -> int:

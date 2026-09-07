@@ -6,6 +6,8 @@
 //
 // MustProve checker for Execution Semantics E1–E8. Not token lowering.
 // Concurrent sibling lexical order is not happens-before.
+// Validity of a stor.transfer result follows SSA through task /
+// concurrent yields onto the parent result (storage pipeline consume).
 //
 //===----------------------------------------------------------------------===//
 
@@ -34,6 +36,7 @@ using sched::PipelineOp;
 using sched::StageOp;
 using sched::TaskOp;
 using sched::WaitOp;
+using sched::YieldOp;
 using stor::PackOp;
 using stor::TransferOp;
 using stor::UnpackOp;
@@ -217,6 +220,46 @@ void CheckS2C2Execution::runOnOperation() {
       reads.push_back({op, unpack.getBuffer()});
     }
   });
+
+  // Validity follows SSA through task / concurrent yields. The inner
+  // transfer writes a region result; the parent SSA is a different
+  // Value but the same residency after the concurrent join.
+  bool aliased = true;
+  while (aliased) {
+    aliased = false;
+    getOperation()->walk([&](Operation *op) {
+      auto copyWrites = [&](Value from, Value to) {
+        if (from == to)
+          return;
+        for (Operation *write : syncWrites.lookup(from)) {
+          auto &dst = syncWrites[to];
+          if (!llvm::is_contained(dst, write)) {
+            dst.push_back(write);
+            aliased = true;
+          }
+        }
+      };
+      if (auto task = dyn_cast<TaskOp>(op)) {
+        if (task.getBody().empty())
+          return;
+        auto yield = dyn_cast<YieldOp>(task.getBody().front().getTerminator());
+        if (!yield)
+          return;
+        for (auto [from, to] :
+             llvm::zip(yield.getOperands(), task.getValues()))
+          copyWrites(from, to);
+      } else if (auto conc = dyn_cast<ConcurrentOp>(op)) {
+        if (conc.getBody().empty())
+          return;
+        auto yield = dyn_cast<YieldOp>(conc.getBody().front().getTerminator());
+        if (!yield)
+          return;
+        for (auto [from, to] :
+             llvm::zip(yield.getOperands(), conc.getResults()))
+          copyWrites(from, to);
+      }
+    });
+  }
 
   bool failed = false;
   for (auto [readOp, residency] : reads) {

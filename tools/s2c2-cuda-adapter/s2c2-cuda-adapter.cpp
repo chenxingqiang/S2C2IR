@@ -199,6 +199,9 @@ static void printWorkloadSchedule() {
                "s2c2-cuda-adapter workload-schedule "
                "note not-new-capability-grid\n");
   std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note storage-data-movement-overlap\n");
+  std::fprintf(stderr,
                "s2c2-cuda-adapter workload-schedule note not-cost-v04\n");
   std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule cost=unchanged\n");
   std::fprintf(stderr,

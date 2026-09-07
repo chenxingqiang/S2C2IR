@@ -13,7 +13,13 @@ s2c2-opt workload.mlir --profile=rtx4090 --s2c2-evidence-bounded-schedule
 ```
 
 The IR describes **semantic concurrent** only. The compiler
-discovers candidates and chooses KEEP / FLATTEN.
+discovers candidates and chooses KEEP / FLATTEN / PRESERVE:
+
+```text
+Storage/Communication can overlap     → KEEP
+Compute/Compute licensed contention   → FLATTEN
+No evidence                           → PRESERVE
+```
 
 ## Workload
 
@@ -30,11 +36,12 @@ Same MLIR, three named profiles:
 
 | Candidate | rtx4090 | 910B | unknown |
 | --------- | ------- | ---- | ------- |
-| #0 C\|\|HtoD | KEEP | KEEP | KEEP |
-| #1 C\|\|C 16MiB | FLATTEN | KEEP | KEEP |
-| #2 C\|\|C 128MiB | FLATTEN | FLATTEN | KEEP |
+| #0 C\|\|HtoD | KEEP | KEEP | PRESERVE |
+| #1 C\|\|C 16MiB | FLATTEN | PRESERVE | PRESERVE |
+| #2 C\|\|C 128MiB | FLATTEN | FLATTEN | PRESERVE |
 
-`910B` is the overlay projection, not `#69`. No evidence ⇒ KEEP.
+`910B` is the overlay projection, not `#69`. No evidence ⇒ PRESERVE.
+`910B` C||HtoD KEEP is inferred overlap, not a new measurement.
 
 ## Candidate discovery
 
@@ -42,16 +49,16 @@ Every 2-task `sched.concurrent` (and `sched.overlap`) is a
 candidate. The pass prints a machine line and a human report:
 
 ```text
-workload-candidate #0 pair=C||HtoD ... decision=KEEP reason=relation-parallel
+workload-candidate #0 pair=C||HtoD ... decision=KEEP reason=storage-communication-overlap
 candidate #0 : C || HtoD
     decision : KEEP
-    reason   : relation parallel
+    reason   : storage communication overlap
 
 candidate #1 : C || C
     decision : FLATTEN
-    reason   : licensed evidence
+    reason   : licensed compute contention
 
-workload-schedule candidates=3 keep=1 flatten=2
+workload-schedule candidates=3 keep=1 flatten=2 preserve=0
 HB verification : --check-s2c2-execution
 lowering        : --s2c2-lower
 ```
@@ -86,9 +93,11 @@ does not FileCheck microseconds.
 ## Out of scope
 
 ```text
-Phase 3F CLI freeze / isolating logs from the compiler interface
-Phase 4 extra rewrite kinds (C||HtoD flatten, pipeline, …)
-Cost v0.4 ranking
+Phase 3F two-tile SSD prefetch || compute
+  ([storage-aware-pipeline.md](storage-aware-pipeline.md))
+Phase 3G storage hierarchy scheduling
+Phase 4 Cost-based heterogeneous scheduling / Cost v0.4
+new rewrite kinds (C||HtoD flatten, pipeline, …)
 new 4090 / 910B Capability measurements
 overwriting #69
 ```
