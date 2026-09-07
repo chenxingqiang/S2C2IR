@@ -658,6 +658,20 @@ logs are `measured=no`.
 | WC-4 | same | `--s2c2-lower` after 4090 rewrite |
 | WC-5 | same | analyzer on yes-fixture / no-fixture / device-absent log |
 
+## Hardware measurement ledger
+
+**Not Cost v0.4.** Design:
+[`hardware-ledger.md`](hardware-ledger.md). Indexes existing
+4090 / 910B artifacts in place and checks them together.
+Does **not** move files or overwrite `#69`. Pending SSD+MLP
+wall-clock stays `device-absent`. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| HL-1 | `test/Pilot/s2c2-hw-ledger.mlir` | `--print-hw-ledger-contract`; keep-original-path |
+| HL-2 | same | `--check-hw-ledger` 18 measured + 1 device-absent; `#69` underdetermined |
+| HL-3 | same | missing path fixture fails; no password / Cost v0.4 |
+
 ## Ascend 910B Capability Adapter (Phase 3B / PR-R1-Ascend)
 
 **Not Cost v0.4.** Design:
