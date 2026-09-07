@@ -3,7 +3,7 @@
 // RUN: s2c2-opt %s --s2c2-evidence-bounded-schedule=profile=unknown --check-s2c2-execution 2>&1 | grep -E 'evidence-bounded-schedule|capability-schedule' | FileCheck %s --check-prefix=UNK-LOG
 // RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | grep evidence-bounded-schedule | FileCheck %s --check-prefix=CLI-LOG
 // RUN: s2c2-opt %s --s2c2-evidence-bounded-schedule=profile=%S/../../docs/design/compiler-profiles/910B.json --check-s2c2-execution 2>&1 | grep evidence-bounded-schedule | FileCheck %s --check-prefix=JSON-LOG
-// RUN: s2c2-opt %s --s2c2-evidence-bounded-schedule="profile=910B,evidence=%S/../../docs/design/v3-dataset/ascend910b/capability.jsonl" --check-s2c2-execution 2>&1 | grep -E 'evidence-bounded-schedule|capability-schedule' | FileCheck %s --check-prefix=CAT-LOG
+// RUN: s2c2-opt %s --s2c2-evidence-bounded-schedule="profile=910B evidence=%S/../../docs/design/v3-dataset/ascend910b/capability.jsonl" --check-s2c2-execution 2>&1 | grep -E 'evidence-bounded-schedule|capability-schedule' | FileCheck %s --check-prefix=CAT-LOG
 // RUN: s2c2-opt %s --s2c2-evidence-bounded-schedule=profile=rtx4090 --check-s2c2-execution | FileCheck %s --check-prefix=GPU
 // RUN: s2c2-opt %s --s2c2-evidence-bounded-schedule=profile=910B --check-s2c2-execution | FileCheck %s --check-prefix=NPU
 // RUN: s2c2-opt %s --s2c2-evidence-bounded-schedule=profile=unknown --check-s2c2-execution | FileCheck %s --check-prefix=UNK

@@ -296,6 +296,8 @@ struct ResolvedProfile {
 };
 
 static bool looksLikePath(StringRef s) {
+  if (s.contains(','))
+    return false;
   return s.contains('/') || s.ends_with_insensitive(".json") ||
          s.ends_with_insensitive(".jsonl");
 }

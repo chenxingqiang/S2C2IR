@@ -96,10 +96,11 @@ s2c2-opt input.mlir \
   --check-s2c2-execution
 ```
 
-Pass options override the top-level flags:
+Pass options override the top-level flags (space-separated, same
+as `--s2c2-capability-schedule`):
 
 ```text
---s2c2-evidence-bounded-schedule=profile=910B,evidence=/path/to.jsonl
+--s2c2-evidence-bounded-schedule="profile=910B evidence=/path/to.jsonl"
 --s2c2-evidence-bounded-schedule=profile=docs/design/compiler-profiles/910B.json
 ```
 
