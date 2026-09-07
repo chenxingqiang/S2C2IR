@@ -147,6 +147,12 @@ ssd-mlp-wallclock cost=unchanged
 A host without a device writes `measured=no`. That is a valid
 result, not a guessed ratio.
 
+The wall-clock log is indexed with the other hardware artifacts
+in [`v3-dataset/hardware-ledger.jsonl`](v3-dataset/hardware-ledger.jsonl).
+A later on-device run overwrites this same path, then
+`python3 runtime/record_hw_ledger.py --check-hw-ledger` re-checks
+the whole set together.
+
 ## Out of scope
 
 ```text

@@ -63,3 +63,8 @@ Complete SSD+MLP program wall-clock log:
 `ssd-mlp-wallclock.log`. Device-absent hosts stay
 `measured=no`. Not Cost v0.4. `#69` untouched.
 
+Batch index of every retained hardware artifact:
+[`hardware-ledger.jsonl`](hardware-ledger.jsonl). Check together
+with `python3 runtime/record_hw_ledger.py --check-hw-ledger`.
+Do not move campaign files. Do not FileCheck microseconds.
+
