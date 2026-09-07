@@ -55,7 +55,9 @@ Each row is an index record, not a Capability cell.
 `#69` `capability.jsonl` remains the pair catalog.
 `cc-size-applicability.jsonl` remains the overlay.
 `ssd-mlp-wallclock.log` is the 910B program wall-clock at
-**that same path** (`status=measured`). Do not FileCheck μs.
+**that same path** (`status=measured`).
+`ssd-mlp-wallclock-4090.log` is the 4090 counterpart and does
+not overwrite the 910B file. Do not FileCheck μs.
 
 ## Batch check
 
@@ -77,15 +79,17 @@ The checker:
 
 Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
 
-On-device fill (already applied for the 910B program row):
+On-device fill (910B and 4090 program rows):
 
 ```sh
 runtime/ascend/sweep_ssd_mlp_wallclock.sh ./s2c2-ascend-run \
   docs/design/v3-dataset/ssd-mlp-wallclock
+runtime/cuda/sweep_ssd_mlp_wallclock.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/ssd-mlp-wallclock-4090
 python3 runtime/record_hw_ledger.py --check-hw-ledger
 ```
 
-Overwrite the same log path. Set that ledger row to
+Keep each log on its own path. Set those ledger rows to
 `status=measured`. Do not FileCheck microseconds.
 
 ## Out of scope

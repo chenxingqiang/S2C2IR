@@ -136,7 +136,10 @@ def run_analyzer(rec: dict[str, Any], artifact: Path) -> None:
     tool = rec["tool"]
     if not analyze or tool == "none":
         return
-    if tool == "cuda":
+    if analyze == "ssd-mlp-wallclock":
+        flag = "--analyze-ssd-mlp-wallclock"
+        script = _ASCEND
+    elif tool == "cuda":
         flag = CUDA_ANALYZE.get(analyze)
         script = _CUDA
     elif tool == "ascend":

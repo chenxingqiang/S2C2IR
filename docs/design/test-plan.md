@@ -648,7 +648,8 @@ full-model Cost score.
 [`ssd-mlp-wallclock.md`](ssd-mlp-wallclock.md). Program
 measurement (`T_evi/T_seq`), not the `#76` stage A/B.
 `#69` untouched. Do not FileCheck microseconds. The 910B
-checked-in log is `measured=yes`.
+checked-in log is `measured=yes`. The 4090 counterpart is a
+separate path and is also `measured=yes`.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -656,7 +657,7 @@ checked-in log is `measured=yes`.
 | WC-2 | same | complete prefetch \|\| MLP keep on 4090 / overlay / `#69` |
 | WC-3 | same | 128MiB `C\|\|C` serialize / serialize / keep; no sibling wait |
 | WC-4 | same | `--s2c2-lower` after 4090 rewrite |
-| WC-5 | same | analyzer on yes-fixture / no-fixture / device-absent fixture / 910B measured log |
+| WC-5 | same | analyzer on yes-fixture / no-fixture / device-absent fixture / 910B log / 4090 log |
 
 ## Hardware measurement ledger
 
@@ -669,7 +670,7 @@ wall-clock is `measured`. Do not FileCheck microseconds.
 | ID | File | Checks |
 | -- | ---- | ------ |
 | HL-1 | `test/Pilot/s2c2-hw-ledger.mlir` | `--print-hw-ledger-contract`; keep-original-path |
-| HL-2 | same | `--check-hw-ledger` 19 measured + 0 device-absent; `#69` underdetermined |
+| HL-2 | same | `--check-hw-ledger` 20 measured + 0 device-absent; `#69` underdetermined |
 | HL-3 | same | missing path fixture fails; no password / Cost v0.4 |
 
 ## Ascend 910B Capability Adapter (Phase 3B / PR-R1-Ascend)

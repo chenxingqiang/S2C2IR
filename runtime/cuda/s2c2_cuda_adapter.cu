@@ -1962,6 +1962,194 @@ static std::vector<ValAsyncKind> parseValAsyncList(const char *name) {
   std::exit(1);
 }
 
+// Complete SSD+MLP program wall-clock. Same three arms as the 910B
+// timed path. Not a Pilot func, not Score_3, not Cost v0.4.
+enum class ProgArm { Seq, Evi, Par };
+
+static bool closeEnough(float a, float b) {
+  float d = std::fabs(a - b);
+  return d <= 1e-3f * (1.f + std::fabs(b));
+}
+
+static float hostSilu(float v, int k) {
+  for (int i = 0; i < k; ++i)
+    v = v / (1.f + expf(-v));
+  return v;
+}
+
+static void provisionSsd(CapBuf &b) {
+  CUDA_OK(cudaMemcpyAsync(b.dev0, b.host0, b.bytes(), cudaMemcpyHostToDevice,
+                          b.s0));
+  CUDA_OK(cudaMemcpyAsync(b.dev1, b.host1, b.bytes(), cudaMemcpyHostToDevice,
+                          b.s0));
+  CUDA_OK(cudaStreamSynchronize(b.s0));
+}
+
+static void runSsdMlpProgram(CapBuf &prefetch, CapBuf &cc, int kMlp, int kCc,
+                             ProgArm arm) {
+  size_t pbytes = prefetch.bytes();
+  if (arm == ProgArm::Seq) {
+    CUDA_OK(cudaMemcpyAsync(prefetch.dev0, prefetch.host0, pbytes,
+                            cudaMemcpyHostToDevice, prefetch.s0));
+    CUDA_OK(cudaStreamSynchronize(prefetch.s0));
+    siluLaunch(prefetch.dev0, prefetch.n, prefetch.s0, kMlp);
+    CUDA_OK(cudaStreamSynchronize(prefetch.s0));
+    siluLaunch(cc.dev0, cc.n, cc.s0, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc.s0));
+    siluLaunch(cc.dev1, cc.n, cc.s1, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc.s1));
+    return;
+  }
+  siluLaunch(prefetch.dev1, prefetch.n, prefetch.s0, kMlp);
+  CUDA_OK(cudaMemcpyAsync(prefetch.dev0, prefetch.host0, pbytes,
+                          cudaMemcpyHostToDevice, prefetch.s1));
+  CUDA_OK(cudaStreamSynchronize(prefetch.s0));
+  CUDA_OK(cudaStreamSynchronize(prefetch.s1));
+  if (arm == ProgArm::Evi) {
+    siluLaunch(cc.dev0, cc.n, cc.s0, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc.s0));
+    siluLaunch(cc.dev1, cc.n, cc.s1, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc.s1));
+    return;
+  }
+  siluLaunch(cc.dev0, cc.n, cc.s0, kCc);
+  siluLaunch(cc.dev1, cc.n, cc.s1, kCc);
+  CUDA_OK(cudaStreamSynchronize(cc.s0));
+  CUDA_OK(cudaStreamSynchronize(cc.s1));
+}
+
+static bool checkDevSilu(CapBuf &b, float *dev, const float *host, int k) {
+  CUDA_OK(cudaMemcpy(b.host2, dev, b.bytes(), cudaMemcpyDeviceToHost));
+  int step = b.n > 4096 ? b.n / 4096 : 1;
+  for (int i = 0; i < b.n; i += step) {
+    if (!closeEnough(b.host2[i], hostSilu(host[i], k)))
+      return false;
+  }
+  if (!closeEnough(b.host2[b.n - 1], hostSilu(host[b.n - 1], k)))
+    return false;
+  return true;
+}
+
+static bool checkDevCopy(CapBuf &b, float *dev, const float *host) {
+  CUDA_OK(cudaMemcpy(b.host2, dev, b.bytes(), cudaMemcpyDeviceToHost));
+  int step = b.n > 4096 ? b.n / 4096 : 1;
+  for (int i = 0; i < b.n; i += step) {
+    if (!closeEnough(b.host2[i], host[i]))
+      return false;
+  }
+  if (!closeEnough(b.host2[b.n - 1], host[b.n - 1]))
+    return false;
+  return true;
+}
+
+static bool checkSsdMlp(CapBuf &prefetch, CapBuf &cc, int kMlp, int kCc,
+                        ProgArm arm) {
+  if (arm == ProgArm::Seq) {
+    if (!checkDevSilu(prefetch, prefetch.dev0, prefetch.host0, kMlp))
+      return false;
+  } else {
+    if (!checkDevSilu(prefetch, prefetch.dev1, prefetch.host1, kMlp))
+      return false;
+    if (!checkDevCopy(prefetch, prefetch.dev0, prefetch.host0))
+      return false;
+  }
+  return checkDevSilu(cc, cc.dev0, cc.host0, kCc) &&
+         checkDevSilu(cc, cc.dev1, cc.host1, kCc);
+}
+
+static double timeSsdMlp(CapBuf &prefetch, CapBuf &cc, int kMlp, int kCc,
+                         int warmup, int reps, ProgArm arm) {
+  auto prep = [&](int seedA, int seedB) {
+    fillHost(prefetch.host0, prefetch.n, seedA);
+    fillHost(prefetch.host1, prefetch.n, seedB);
+    fillHost(cc.host0, cc.n, seedA + 1);
+    fillHost(cc.host1, cc.n, seedB + 1);
+    provisionSsd(prefetch);
+    provisionSsd(cc);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    prep(i + 3, i + 7);
+    runSsdMlpProgram(prefetch, cc, kMlp, kCc, arm);
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    prep(i + 11, i + 19);
+    auto start = std::chrono::steady_clock::now();
+    runSsdMlpProgram(prefetch, cc, kMlp, kCc, arm);
+    auto stop = std::chrono::steady_clock::now();
+    samples.push_back(static_cast<float>(
+        std::chrono::duration<double, std::micro>(stop - start).count()));
+    if (!checkSsdMlp(prefetch, cc, kMlp, kCc, arm)) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run correctness=0 arm=ssd-mlp-wallclock\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static int runSsdMlpWallclock(int nHtod, int nCc, int kRef, int warmup,
+                              int reps) {
+  CapBuf prefetch;
+  CapBuf cc;
+  prefetch.alloc(nHtod, false);
+  cc.alloc(nCc, false);
+  fillHost(prefetch.host0, prefetch.n, 1);
+  fillHost(prefetch.host1, prefetch.n, 2);
+  fillHost(cc.host0, cc.n, 1);
+  fillHost(cc.host1, cc.n, 2);
+  provisionSsd(prefetch);
+  provisionSsd(cc);
+  siluLaunch(prefetch.dev1, prefetch.n, prefetch.s0, 1);
+  siluLaunch(cc.dev0, cc.n, cc.s0, 1);
+  siluLaunch(cc.dev1, cc.n, cc.s1, 1);
+  CUDA_OK(cudaStreamSynchronize(prefetch.s0));
+  CUDA_OK(cudaStreamSynchronize(cc.s0));
+  CUDA_OK(cudaStreamSynchronize(cc.s1));
+
+  double tSeq = timeSsdMlp(prefetch, cc, kRef, kRef, warmup, reps, ProgArm::Seq);
+  double tEvi = timeSsdMlp(prefetch, cc, kRef, kRef, warmup, reps, ProgArm::Evi);
+  double tPar = timeSsdMlp(prefetch, cc, kRef, kRef, warmup, reps, ProgArm::Par);
+  double ratio = tSeq > 0.0 ? tEvi / tSeq : 0.0;
+
+  std::fprintf(stderr, "s2c2-cuda-run hardware_id=rtx4090:cuda sched=%s "
+                       "map=%s device=gpu sync=named-nonblocking\n",
+               kSched, kMap);
+  std::fprintf(stderr, "s2c2-cuda-run workload compute=elemwise\n");
+  std::fprintf(stderr, "s2c2-cuda-run workload transfer=host_to_device|"
+                       "device_to_host\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run note workload-semantic-ne-kernel-backend\n");
+  std::fprintf(stderr, "s2c2-cuda-run timing=host-wall-clock\n");
+  std::fprintf(stderr, "s2c2-cuda-run timing completion=s0,s1\n");
+  std::fprintf(stderr, "s2c2-cuda-run ssd-mlp-wallclock=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run ssd-mlp-wallclock program-measurement=yes\n");
+  std::fprintf(stderr, "s2c2-cuda-run ssd-mlp-wallclock note not-stage-ab\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run ssd-mlp-wallclock n-htod=%d n-cc=%d k_ref=%d\n",
+               nHtod, nCc, kRef);
+  std::fprintf(stderr, "s2c2-cuda-run ssd-mlp-wallclock measured=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run ssd-mlp-wallclock timing seq=%.1f evi=%.1f "
+               "par=%.1f opt_over_base=%.3f\n",
+               tSeq, tEvi, tPar, ratio);
+  std::fprintf(stderr, "s2c2-cuda-run ssd-mlp-wallclock correctness=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run ssd-mlp-wallclock note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run ssd-mlp-wallclock note 32M-outlier-not-cost\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run ssd-mlp-wallclock note logical-ssd-ne-disk\n");
+  std::fprintf(stderr, "s2c2-cuda-run ssd-mlp-wallclock note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run ssd-mlp-wallclock cost=unchanged "
+               "semantics=unchanged v3=not-claimed\n");
+  prefetch.freeAll();
+  cc.freeAll();
+  return 0;
+}
 
 int main(int argc, char **argv) {
   const char *func = "all";
@@ -1975,26 +2163,34 @@ int main(int argc, char **argv) {
   const char *valCcArg = "off";
   const char *valAsyncArg = "off";
   int n = 1 << 24;
+  int nCc = 33554432;
   int warmup = 5;
   int reps = 21;
   int k = 1;
   int m = 1;
   int tiles = 8;
   bool provisioned = false;
+  bool ssdMlp = false;
+  bool kSet = false;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     if (a.rfind("--func=", 0) == 0)
       func = argv[i] + 7;
     else if (a.rfind("--device=", 0) == 0)
       device = argv[i] + 9;
+    else if (a.rfind("--n-cc=", 0) == 0)
+      nCc = std::atoi(argv[i] + 7);
     else if (a.rfind("--n=", 0) == 0)
       n = std::atoi(argv[i] + 4);
     else if (a.rfind("--warmup=", 0) == 0)
       warmup = std::atoi(argv[i] + 9);
     else if (a.rfind("--reps=", 0) == 0)
       reps = std::atoi(argv[i] + 7);
-    else if (a.rfind("--k=", 0) == 0)
+    else if (a.rfind("--k=", 0) == 0) {
       k = std::atoi(argv[i] + 4);
+      kSet = true;
+    } else if (a == "--ssd-mlp-wallclock")
+      ssdMlp = true;
     else if (a.rfind("--matched=", 0) == 0)
       matchedArg = argv[i] + 10;
     else if (a.rfind("--cap=", 0) == 0)
@@ -2041,6 +2237,8 @@ int main(int argc, char **argv) {
                    "silu-silu --device=gpu --n=N --k=K --m=M\n"
                    "s2c2-cuda-run --cuda-val-async=p0|copy|compute|life-sync|"
                    "life-async|hb --device=gpu --n=N --k=K\n"
+                   "s2c2-cuda-run --ssd-mlp-wallclock [--n=N] [--n-cc=N] "
+                   "--k=K --warmup=W --reps=R\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
     } else {
@@ -2118,6 +2316,34 @@ int main(int argc, char **argv) {
                  "--cuda-val-cc/--cuda-val-mem/--cuda-val/"
                  "--pipe/--phase/--cap/--matched\n");
     return 1;
+  }
+  if (ssdMlp) {
+    if (matchedOn || !capArms.empty() || !phaseArms.empty() ||
+        !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
+        !valCcArms.empty() || !valAsyncArms.empty()) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --ssd-mlp-wallclock cannot combine with "
+                   "other timed modes\n");
+      return 1;
+    }
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --ssd-mlp-wallclock is gpu only\n");
+      return 1;
+    }
+    if (!kSet)
+      k = 32;
+    if (n <= 0 || nCc <= 0 || k <= 0) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --ssd-mlp-wallclock needs n>0 n-cc>0 k>0\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    return runSsdMlpWallclock(n, nCc, k, warmup, reps);
   }
   if (m != 1 && valCcArms.empty()) {
     std::fprintf(stderr, "s2c2-cuda-run: --m is --cuda-val-cc only\n");
