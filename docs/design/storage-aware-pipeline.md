@@ -87,10 +87,25 @@ Cost-based heterogeneous scheduling.
 
 ## Runtime witness
 
-Same protocol as Phase 3E: `s2c2-opt` produces the optimized IR.
-Adapters `--dry-run --workload-schedule` (`source=s2c2-opt`).
-Timed witness remains the checked-in SSD+MLP wall-clock logs.
-No new hardware, no new grid points, no FileCheck of microseconds.
+`s2c2-opt` produces the optimized IR. Host protocol:
+
+```text
+s2c2-cuda-adapter --dry-run --storage-pipeline
+s2c2-cuda-run --storage-pipeline
+```
+
+4090 timed log: `docs/design/v3-dataset/storage-pipeline-4090.log`
+(`measured=yes`). Logical SSD is a pageable host buffer, not NVMe.
+Do not FileCheck microseconds. Do not freeze `T_evi/T_seq` as Cost.
+`#69` untouched. Not a new Capability grid.
+
+```text
+T_seq  sequential SSD→Host→HtoD then compute then flattened C||C
+T_evi  KEEP C||Storage (SSD prefetch || compute); flatten licensed C||C
+T_par  as-written concurrent C||C after the same storage overlap
+```
+
+SSD+MLP wall-clock logs remain the previous complete-program witness.
 
 ## Out of scope
 

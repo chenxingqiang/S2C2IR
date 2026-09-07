@@ -688,6 +688,7 @@ Does not FileCheck microseconds.
 | 3F-1 | `test/Integration/storage-aware-pipeline.mlir` | `--profile=rtx4090` KEEP C\|\|Storage, FLATTEN 16MiB/128MiB C\|\|C |
 | 3F-2 | same | `--profile=910B` KEEP C\|\|Storage, PRESERVE 16MiB C\|\|C, FLATTEN 128MiB |
 | 3F-3 | same | `--profile=unknown` PRESERVE all three; `--s2c2-lower`; adapters + wall-clock |
+| 3F-4 | same | 4090 `storage-pipeline-4090.log` `measured=yes`; `--storage-pipeline` dry-run |
 
 ## Complete SSD + MLP program wall-clock
 

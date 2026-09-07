@@ -1214,6 +1214,54 @@ def analyze_ssd_mlp_wallclock(log: Path) -> int:
     return 0
 
 
+def print_storage_pipeline_contract() -> int:
+    print("storage-pipeline program-measurement=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant underdetermined-preserve")
+    print("note storage-prefetch||compute")
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_STORAGE_PIPE_TIMING_RE = re.compile(
+    r"storage-pipeline timing seq=([0-9.]+) evi=([0-9.]+) "
+    r"par=([0-9.]+) opt_over_base=([0-9.]+)"
+)
+
+
+def analyze_storage_pipeline(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    measured = bool(re.search(r"storage-pipeline measured=yes\b", text))
+    timing = _STORAGE_PIPE_TIMING_RE.search(text)
+    defined = measured and timing is not None
+    print("storage-pipeline program-measurement=yes")
+    print("storage-pipeline note storage-prefetch||compute")
+    print(f"storage-pipeline measured={'yes' if measured else 'no'}")
+    print(
+        "storage-pipeline t-opt-over-base-defined="
+        f"{'yes' if defined else 'no'}"
+    )
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    if re.search(r"device-absent", text):
+        print("note device-absent")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
 def analyze_e2e_gain(log: Path) -> int:
     text = log.read_text(encoding="utf-8", errors="replace")
     slices: list[dict[str, Any]] = []
@@ -1286,6 +1334,8 @@ def main() -> int:
     p.add_argument("--analyze-e2e-gain", type=Path)
     p.add_argument("--print-ssd-mlp-wallclock-contract", action="store_true")
     p.add_argument("--analyze-ssd-mlp-wallclock", type=Path)
+    p.add_argument("--print-storage-pipeline-contract", action="store_true")
+    p.add_argument("--analyze-storage-pipeline", type=Path)
     p.add_argument("--print-workload-schedule-contract", action="store_true")
     p.add_argument("--analyze-workload-schedule", type=Path)
     p.add_argument("--hardware", default="ascend910b")
@@ -1315,6 +1365,8 @@ def main() -> int:
             args.analyze_e2e_gain,
             args.print_ssd_mlp_wallclock_contract,
             args.analyze_ssd_mlp_wallclock,
+            args.print_storage_pipeline_contract,
+            args.analyze_storage_pipeline,
             args.print_workload_schedule_contract,
             args.analyze_workload_schedule,
         )
@@ -1332,6 +1384,8 @@ def main() -> int:
             "--print-r3-contract, --print-e2e-contract, --analyze-e2e-gain, "
             "--print-ssd-mlp-wallclock-contract, "
             "--analyze-ssd-mlp-wallclock, "
+            "--print-storage-pipeline-contract, "
+            "--analyze-storage-pipeline, "
             "--print-workload-schedule-contract, "
             "--analyze-workload-schedule",
             file=sys.stderr,
@@ -1402,6 +1456,10 @@ def main() -> int:
         return print_ssd_mlp_wallclock_contract()
     if args.analyze_ssd_mlp_wallclock:
         return analyze_ssd_mlp_wallclock(args.analyze_ssd_mlp_wallclock)
+    if args.print_storage_pipeline_contract:
+        return print_storage_pipeline_contract()
+    if args.analyze_storage_pipeline:
+        return analyze_storage_pipeline(args.analyze_storage_pipeline)
     if args.print_workload_schedule_contract:
         return print_workload_schedule_contract()
     if args.analyze_workload_schedule:

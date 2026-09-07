@@ -16,7 +16,10 @@
 // RUN: s2c2-opt %s --profile=910B --s2c2-evidence-bounded-schedule --check-s2c2-execution | grep -c sched.concurrent | FileCheck %s --check-prefix=NPU-N
 // RUN: s2c2-opt %s --profile=unknown --s2c2-evidence-bounded-schedule --check-s2c2-execution | grep -c sched.concurrent | FileCheck %s --check-prefix=UNK-N
 // RUN: s2c2-cuda-adapter --dry-run --workload-schedule 2>&1 | FileCheck %s --check-prefix=CUDA
+// RUN: s2c2-cuda-adapter --dry-run --storage-pipeline 2>&1 | FileCheck %s --check-prefix=CUDA-PIPE
 // RUN: s2c2-ascend-adapter --dry-run --workload-schedule 2>&1 | FileCheck %s --check-prefix=ASCEND
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --print-storage-pipeline-contract | FileCheck %s --check-prefix=PIPE-CONTRACT
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-storage-pipeline %S/../../docs/design/v3-dataset/storage-pipeline-4090.log | FileCheck %s --check-prefix=PIPE
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../../docs/design/v3-dataset/ssd-mlp-wallclock.log | FileCheck %s --check-prefix=RT
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../../docs/design/v3-dataset/ssd-mlp-wallclock-4090.log | FileCheck %s --check-prefix=RT4090
 
@@ -108,6 +111,32 @@
 // RT: cost=unchanged
 // RT4090: ssd-mlp-wallclock measured=yes
 // RT4090: cost=unchanged
+
+// PIPE-CONTRACT: storage-pipeline program-measurement=yes
+// PIPE-CONTRACT: note storage-prefetch||compute
+// PIPE-CONTRACT: note logical-ssd-ne-disk
+// PIPE-CONTRACT: cost=unchanged
+// PIPE-CONTRACT-NOT: Cost v0.4
+// PIPE-CONTRACT-NOT: password
+
+// PIPE: storage-pipeline measured=yes
+// PIPE: storage-pipeline t-opt-over-base-defined=yes
+// PIPE: note t-base-is-t-seq
+// PIPE: note t-opt-is-t-evi
+// PIPE: note catalog-untouched
+// PIPE: note logical-ssd-ne-disk
+// PIPE-NOT: measured=no
+// PIPE-NOT: note device-absent
+// PIPE: cost=unchanged
+// PIPE-NOT: Cost v0.4
+// PIPE-NOT: password
+
+// CUDA-PIPE: s2c2-cuda-adapter storage-pipeline=1
+// CUDA-PIPE: s2c2-cuda-adapter storage-pipeline note storage-prefetch||compute
+// CUDA-PIPE: s2c2-cuda-adapter storage-pipeline t-opt=t-evi
+// CUDA-PIPE: s2c2-cuda-adapter storage-pipeline cost=unchanged
+// CUDA-PIPE-NOT: Cost v0.4
+// CUDA-PIPE-NOT: password
 
 module {
   // GPU-LABEL: func.func @ssd_pipeline_two_tiles
