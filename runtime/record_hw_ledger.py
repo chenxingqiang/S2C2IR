@@ -42,6 +42,7 @@ LEDGER_ROLE = (
     "compiler-4090",
     "campaign",
     "pending-program",
+    "program",
 )
 FORBIDDEN = ("password",)
 VENDOR_KEY_PREFIX = ("acl_", "davinci_", "cube_", "vectorcore_")
