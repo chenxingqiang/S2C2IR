@@ -28,6 +28,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Visitors.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -857,6 +858,99 @@ static bool shouldSerialize(const CapCell &cell, Applicability app) {
          cell.rewriteLicense;
 }
 
+static std::string formatPayload(std::optional<int64_t> bytes) {
+  if (!bytes)
+    return "n/a";
+  const int64_t mib = 1024LL * 1024LL;
+  if (*bytes % mib == 0)
+    return std::to_string(*bytes / mib) + "MiB";
+  return std::to_string(*bytes) + "B";
+}
+
+static StringRef keepOrFlatten(bool serialize) {
+  return serialize ? "FLATTEN" : "KEEP";
+}
+
+static std::string decisionReason(const CapCell &cell, Applicability app,
+                                  bool serialize) {
+  if (serialize)
+    return "licensed-evidence";
+  if (app != Applicability::Yes)
+    return "not-applicable";
+  if (!cell.rewriteLicense)
+    return "rewrite-license-no";
+  if (cell.relation == "parallel")
+    return "relation-parallel";
+  if (cell.relation == "mixed")
+    return "relation-mixed";
+  if (cell.relation == "underdetermined")
+    return "underdetermined-preserve";
+  return "preserve";
+}
+
+struct WorkloadDecision {
+  unsigned id = 0;
+  std::string via;
+  std::string pair;
+  std::string payload;
+  std::string relation;
+  std::string reason;
+  bool flatten = false;
+  Applicability app = Applicability::Unknown;
+  bool rewriteLicense = true;
+};
+
+static void printWorkloadCandidate(const WorkloadDecision &d) {
+  llvm::errs() << "workload-candidate #" << d.id << " pair=" << d.pair
+               << " payload=" << d.payload << " relation=" << d.relation
+               << " decision=" << keepOrFlatten(d.flatten)
+               << " reason=" << d.reason << "\n";
+}
+
+static LogicalResult dumpWorkloadSchedule(StringRef path,
+                                          const ResolvedProfile &evi,
+                                          ArrayRef<WorkloadDecision> decs) {
+  llvm::json::Array cands;
+  unsigned keep = 0, flatten = 0;
+  for (const WorkloadDecision &d : decs) {
+    llvm::json::Object obj;
+    obj["id"] = (int64_t)d.id;
+    obj["via"] = d.via;
+    obj["pair"] = d.pair;
+    obj["payload"] = d.payload;
+    obj["pair_relation"] = d.relation;
+    obj["decision"] = keepOrFlatten(d.flatten).str();
+    obj["reason"] = d.reason;
+    obj["applicable"] = applicabilityStr(d.app).str();
+    obj["rewrite_license"] = d.rewriteLicense;
+    cands.push_back(std::move(obj));
+    if (d.flatten)
+      ++flatten;
+    else
+      ++keep;
+  }
+  llvm::json::Object root;
+  root["schema"] = "s2c2.workload_schedule.v1";
+  root["profile"] = evi.name;
+  root["device"] = evi.device;
+  root["evidence"] = evi.evidenceDesc;
+  root["rewrite"] = "concurrent-to-serial";
+  root["candidates"] = (int64_t)decs.size();
+  root["keep"] = (int64_t)keep;
+  root["flatten"] = (int64_t)flatten;
+  root["decisions"] = std::move(cands);
+  root["cost"] = "unchanged";
+  std::error_code ec;
+  llvm::raw_fd_ostream out(path, ec, llvm::sys::fs::OF_Text);
+  if (ec) {
+    llvm::errs() << "s2c2-evidence-bounded-schedule: cannot write "
+                 << path << ": " << ec.message() << "\n";
+    return failure();
+  }
+  out << llvm::json::Value(std::move(root)) << "\n";
+  return success();
+}
+
 // Generic licensed concurrent→serial rewrite. Not pair-specific.
 // Unbundle a 2-task sched.concurrent (or sched.overlap) into parent
 // IR order. EvidenceQuery + Applicability + RewriteLicense decide
@@ -920,15 +1014,19 @@ static void walkAndQuery(ModuleOp module, StringRef device,
   });
 }
 
-static void applySchedule(ModuleOp module, StringRef device,
-                          const CapCatalog &cat,
-                          const ResolvedProfile *evi = nullptr) {
+static LogicalResult applySchedule(ModuleOp module, StringRef device,
+                                   const CapCatalog &cat,
+                                   const ResolvedProfile *evi = nullptr,
+                                   StringRef dumpPath = {}) {
   if (evi) {
     llvm::errs() << "evidence-bounded-schedule profile=" << evi->name
                  << " device=" << evi->device
                  << " evidence=" << evi->evidenceDesc
                  << " rewrite=concurrent-to-serial cost=unchanged\n";
   }
+  SmallVector<WorkloadDecision> decisions;
+  unsigned nextId = 0;
+
   SmallVector<ConcurrentOp> concs;
   module.walk([&](ConcurrentOp conc) { concs.push_back(conc); });
   for (ConcurrentOp conc : concs) {
@@ -954,6 +1052,20 @@ static void applySchedule(ModuleOp module, StringRef device,
     if (serialize)
       llvm::errs() << " rewrite=concurrent-to-serial";
     llvm::errs() << "\n";
+    if (evi) {
+      WorkloadDecision d;
+      d.id = nextId++;
+      d.via = "concurrent";
+      d.pair = pair;
+      d.payload = formatPayload(ctx.sizeBytes);
+      d.relation = cell.relation;
+      d.reason = decisionReason(cell, app, serialize);
+      d.flatten = serialize;
+      d.app = app;
+      d.rewriteLicense = cell.rewriteLicense;
+      printWorkloadCandidate(d);
+      decisions.push_back(std::move(d));
+    }
     if (serialize)
       rewriteConcurrentToSerial(conc);
   }
@@ -980,11 +1092,41 @@ static void applySchedule(ModuleOp module, StringRef device,
     if (serialize)
       llvm::errs() << " rewrite=concurrent-to-serial";
     llvm::errs() << "\n";
+    if (evi) {
+      WorkloadDecision d;
+      d.id = nextId++;
+      d.via = "overlap";
+      d.pair = pair;
+      d.payload = formatPayload(ctx.sizeBytes);
+      d.relation = cell.relation;
+      d.reason = decisionReason(cell, app, serialize);
+      d.flatten = serialize;
+      d.app = app;
+      d.rewriteLicense = cell.rewriteLicense;
+      printWorkloadCandidate(d);
+      decisions.push_back(std::move(d));
+    }
     if (serialize)
       rewriteOverlapToSerial(ov);
   }
   llvm::errs() << "capability-schedule device=" << device
                << " semantics=unchanged v3=not-claimed cost=unchanged\n";
+  if (evi) {
+    unsigned keep = 0, flatten = 0;
+    for (const WorkloadDecision &d : decisions) {
+      if (d.flatten)
+        ++flatten;
+      else
+        ++keep;
+    }
+    llvm::errs() << "workload-schedule candidates=" << decisions.size()
+                 << " keep=" << keep << " flatten=" << flatten
+                 << " hb=verify-with-check-s2c2-execution cost=unchanged\n";
+    if (!dumpPath.empty() &&
+        failed(dumpWorkloadSchedule(dumpPath, *evi, decisions)))
+      return failure();
+  }
+  return success();
 }
 
 struct S2C2CapabilityQuery
@@ -1024,7 +1166,8 @@ struct S2C2CapabilitySchedule
       signalPassFailure();
       return;
     }
-    applySchedule(getOperation(), device, cat);
+    if (failed(applySchedule(getOperation(), device, cat)))
+      signalPassFailure();
   }
 };
 
@@ -1041,7 +1184,9 @@ struct S2C2EvidenceBoundedSchedule
       signalPassFailure();
       return;
     }
-    applySchedule(getOperation(), resolved.device, cat, &resolved);
+    if (failed(applySchedule(getOperation(), resolved.device, cat, &resolved,
+                             dumpSchedule)))
+      signalPassFailure();
   }
 };
 } // namespace

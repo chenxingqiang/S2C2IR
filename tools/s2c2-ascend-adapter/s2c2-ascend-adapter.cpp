@@ -146,6 +146,29 @@ static void printSsdMlpWallclock() {
   std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
 }
 
+static void printWorkloadSchedule() {
+  std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "note not-handwritten-optimized-ir\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "runtime-witness=ssd-mlp-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "note compiler-chosen-t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule semantics=unchanged\n");
+}
+
 static void printCCRewrite() {
   std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite=1\n");
   std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite pair=C||C\n");
@@ -299,7 +322,7 @@ static void usage() {
   std::fprintf(stderr,
                "s2c2-ascend-adapter --dry-run [--pairs] [--workload] "
                "[--cap-schema] [--mem] [--cc-phase] [--cc-size] "
-               "[--cc-rewrite] [--ssd-mlp-wallclock] "
+               "[--cc-rewrite] [--ssd-mlp-wallclock] [--workload-schedule] "
                "[--classify=ta:tb:tpar] "
                "[--emit-record=<pair>] [--accept-hardware=<id>]\n"
                "Host protocol only. Timed AscendCL: runtime/ascend/\n");
@@ -315,6 +338,7 @@ int main(int argc, char **argv) {
   bool ccSize = false;
   bool ccRewrite = false;
   bool ssdMlp = false;
+  bool workloadSched = false;
   const char *classify = nullptr;
   const char *emit = nullptr;
   const char *acceptHw = nullptr;
@@ -338,6 +362,8 @@ int main(int argc, char **argv) {
       ccRewrite = true;
     } else if (a == "--ssd-mlp-wallclock") {
       ssdMlp = true;
+    } else if (a == "--workload-schedule") {
+      workloadSched = true;
     } else if (a.rfind("--classify=", 0) == 0) {
       classify = argv[i] + 11;
     } else if (a.rfind("--emit-record=", 0) == 0) {
@@ -363,12 +389,14 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-ascend-adapter dry-run=1\n");
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
               (int)ccPhase + (int)ccSize + (int)ccRewrite + (int)ssdMlp +
+              (int)workloadSched +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
               (int)(acceptHw != nullptr);
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
                  "--cc-phase/--cc-size/--cc-rewrite/--ssd-mlp-wallclock/"
+                 "--workload-schedule/"
                  "--classify/--emit-record/--accept-hardware cannot combine\n");
     return 1;
   }
@@ -419,6 +447,10 @@ int main(int argc, char **argv) {
   }
   if (ssdMlp) {
     printSsdMlpWallclock();
+    return 0;
+  }
+  if (workloadSched) {
+    printWorkloadSchedule();
     return 0;
   }
   if (capSchema) {

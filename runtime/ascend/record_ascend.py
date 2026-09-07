@@ -1036,6 +1036,109 @@ def print_e2e_contract() -> int:
     return 0
 
 
+_WORKLOAD_CAND_RE = re.compile(
+    r"workload-candidate #(\d+) pair=(\S+) payload=(\S+) relation=(\S+) "
+    r"decision=(KEEP|FLATTEN) reason=(\S+)"
+)
+_WORKLOAD_SUM_RE = re.compile(
+    r"workload-schedule candidates=(\d+) keep=(\d+) flatten=(\d+)"
+)
+
+
+def print_workload_schedule_contract() -> int:
+    print("workload-schedule compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant semantic-ne-perf-serial")
+    print("invariant capability-ne-rewrite")
+    print("invariant scoped-ne-global")
+    print("invariant underdetermined-preserve")
+    print("invariant rewrite-preserves-hb")
+    print("note not-handwritten-optimized-ir")
+    print("note runtime-witness=ssd-mlp-wallclock")
+    print("note compiler-chosen-t-evi")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def _print_workload_schedule_summary(
+    candidates: int, keep: int, flatten: int, decisions: list[dict[str, Any]]
+) -> int:
+    print("workload-schedule compiler-driven=yes")
+    print(f"workload-schedule candidates={candidates}")
+    print(f"workload-schedule keep={keep}")
+    print(f"workload-schedule flatten={flatten}")
+    for d in decisions:
+        print(
+            f"workload-schedule candidate=#{d['id']} pair={d['pair']} "
+            f"decision={d['decision']}"
+        )
+    print("note not-handwritten-optimized-ir")
+    print("note runtime-witness=ssd-mlp-wallclock")
+    print("note compiler-chosen-t-evi")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_workload_schedule(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        decs = obj.get("decisions") or []
+        decisions = [
+            {
+                "id": d.get("id", i),
+                "pair": d.get("pair", "unknown"),
+                "decision": d.get("decision", "KEEP"),
+            }
+            for i, d in enumerate(decs)
+        ]
+        return _print_workload_schedule_summary(
+            int(obj.get("candidates", len(decisions))),
+            int(obj.get("keep", sum(1 for d in decisions if d["decision"] == "KEEP"))),
+            int(
+                obj.get(
+                    "flatten",
+                    sum(1 for d in decisions if d["decision"] == "FLATTEN"),
+                )
+            ),
+            decisions,
+        )
+    decisions: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        m = _WORKLOAD_CAND_RE.search(line)
+        if m:
+            decisions.append(
+                {
+                    "id": int(m.group(1)),
+                    "pair": m.group(2),
+                    "decision": m.group(5),
+                }
+            )
+    summary = _WORKLOAD_SUM_RE.search(text)
+    if summary:
+        candidates = int(summary.group(1))
+        keep = int(summary.group(2))
+        flatten = int(summary.group(3))
+    else:
+        candidates = len(decisions)
+        keep = sum(1 for d in decisions if d["decision"] == "KEEP")
+        flatten = sum(1 for d in decisions if d["decision"] == "FLATTEN")
+    if candidates == 0 and not decisions:
+        print("record_ascend: no workload-schedule candidates", file=sys.stderr)
+        return 4
+    return _print_workload_schedule_summary(candidates, keep, flatten, decisions)
+
+
 def print_ssd_mlp_wallclock_contract() -> int:
     print("ssd-mlp-wallclock program-measurement=yes")
     print("no-evidence => no-destructive-optimization")
@@ -1161,6 +1264,8 @@ def main() -> int:
     p.add_argument("--analyze-e2e-gain", type=Path)
     p.add_argument("--print-ssd-mlp-wallclock-contract", action="store_true")
     p.add_argument("--analyze-ssd-mlp-wallclock", type=Path)
+    p.add_argument("--print-workload-schedule-contract", action="store_true")
+    p.add_argument("--analyze-workload-schedule", type=Path)
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -1188,6 +1293,8 @@ def main() -> int:
             args.analyze_e2e_gain,
             args.print_ssd_mlp_wallclock_contract,
             args.analyze_ssd_mlp_wallclock,
+            args.print_workload_schedule_contract,
+            args.analyze_workload_schedule,
         )
     )
     if n != 1:
@@ -1202,7 +1309,9 @@ def main() -> int:
             "--print-cc-rewrite-schema, --analyze-cc-rewrite, "
             "--print-r3-contract, --print-e2e-contract, --analyze-e2e-gain, "
             "--print-ssd-mlp-wallclock-contract, "
-            "--analyze-ssd-mlp-wallclock",
+            "--analyze-ssd-mlp-wallclock, "
+            "--print-workload-schedule-contract, "
+            "--analyze-workload-schedule",
             file=sys.stderr,
         )
         return 2
@@ -1271,6 +1380,10 @@ def main() -> int:
         return print_ssd_mlp_wallclock_contract()
     if args.analyze_ssd_mlp_wallclock:
         return analyze_ssd_mlp_wallclock(args.analyze_ssd_mlp_wallclock)
+    if args.print_workload_schedule_contract:
+        return print_workload_schedule_contract()
+    if args.analyze_workload_schedule:
+        return analyze_workload_schedule(args.analyze_workload_schedule)
     return accept_hardware(args.accept_hardware)
 
 

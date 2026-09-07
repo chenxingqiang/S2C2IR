@@ -14,7 +14,8 @@ physical parallelism. No measured / applicable / licensed evidence
 means no destructive rewrite.
 
 [`docs/design/evidence-bounded-optimizer.md`](docs/design/evidence-bounded-optimizer.md),
-[`docs/design/evidence-bounded-schedule.md`](docs/design/evidence-bounded-schedule.md)
+[`docs/design/evidence-bounded-schedule.md`](docs/design/evidence-bounded-schedule.md),
+[`docs/design/evidence-bounded-workload.md`](docs/design/evidence-bounded-workload.md)
 
 The four dialects remain:
 
@@ -87,6 +88,7 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/capability-aware-schedule.md`](docs/design/capability-aware-schedule.md),
 [`docs/design/evidence-bounded-optimizer.md`](docs/design/evidence-bounded-optimizer.md),
 [`docs/design/evidence-bounded-schedule.md`](docs/design/evidence-bounded-schedule.md),
+[`docs/design/evidence-bounded-workload.md`](docs/design/evidence-bounded-workload.md),
 [`docs/design/pr-r3-cross-vendor.md`](docs/design/pr-r3-cross-vendor.md),
 [`docs/design/ssd-mlp-wallclock.md`](docs/design/ssd-mlp-wallclock.md),
 [`docs/design/hardware-ledger.md`](docs/design/hardware-ledger.md)
@@ -161,7 +163,7 @@ the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 ## Tools
 
-- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E8 and Token+Concurrent+Pipeline composition; `--convert-s2c2-token-to-async` / `--convert-s2c2-concurrent-to-async` / `--convert-s2c2-pipeline-to-async` for HB-preserving event lowering; `--s2c2-cost` for frozen v0.1 scores; `--s2c2-cost-hb` for frozen v0.2 HB-aware pair credit; `--s2c2-cost-cp` for v0.3 critical-path scores; `--s2c2-capability-query` / `--s2c2-capability-schedule` for Phase 3A CapabilityFilter; `--s2c2-evidence-bounded-schedule` / `--profile=` / `--evidence=` for Phase 3D named compiler profiles)
+- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E8 and Token+Concurrent+Pipeline composition; `--convert-s2c2-token-to-async` / `--convert-s2c2-concurrent-to-async` / `--convert-s2c2-pipeline-to-async` for HB-preserving event lowering; `--s2c2-cost` for frozen v0.1 scores; `--s2c2-cost-hb` for frozen v0.2 HB-aware pair credit; `--s2c2-cost-cp` for v0.3 critical-path scores; `--s2c2-capability-query` / `--s2c2-capability-schedule` for Phase 3A CapabilityFilter; `--s2c2-evidence-bounded-schedule` / `--profile=` / `--evidence=` for Phase 3D/3E named profiles and workload candidate discovery)
 - `s2c2-translate` — translation driver (stub)
 - `s2c2-cuda-adapter` — host `--dry-run` protocol for the CUDA Pilot stand-in (`runtime/cuda/` is the timed binary; V3 not claimed)
 
@@ -170,6 +172,8 @@ Round-trip an example:
 ```sh
 ./build/bin/s2c2-opt test/Integration/gated_mlp_ssd_stream.mlir
 ./build/bin/s2c2-opt test/Integration/evidence-bounded-schedule.mlir \
+  --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution
+./build/bin/s2c2-opt test/Integration/evidence-bounded-workload.mlir \
   --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution
 ```
 

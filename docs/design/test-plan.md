@@ -657,6 +657,23 @@ Named compiler profiles on `s2c2-opt`. Same IR, three profiles.
 | 3D-4 | same | top-level `--profile=` and compiler-profile JSON; `#69` evidence override keeps C\|\|C |
 | 3D-5 | same | `--check-s2c2-execution` after rewrite; no sibling `sched.wait` |
 
+## Evidence-bounded workload (Phase 3E)
+
+**Not Cost v0.4.** Design:
+[`evidence-bounded-workload.md`](evidence-bounded-workload.md).
+One semantic SSD→Host→HtoD∥Compute tile workload. Compiler
+discovers candidates and KEEP/FLATTEN. `#69` untouched. Does
+not FileCheck microseconds. Runtime witness is the existing
+SSD+MLP wall-clock, not a hand-written optimized IR.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3E-1 | `test/Integration/evidence-bounded-workload.mlir` | `--profile=rtx4090` KEEP C\|\|HtoD, FLATTEN 16MiB/128MiB C\|\|C |
+| 3E-2 | same | `--profile=910B` KEEP 16MiB C\|\|C, FLATTEN 128MiB C\|\|C |
+| 3E-3 | same | `--profile=unknown` KEEP all three candidates |
+| 3E-4 | same | `dump-schedule` JSON + `--analyze-workload-schedule`; `--s2c2-lower` |
+| 3E-5 | same | adapter `--workload-schedule` source=s2c2-opt; existing wall-clock `measured=yes` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

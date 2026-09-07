@@ -434,6 +434,10 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     Optional `--evidence=` JSONL overrides the profile catalog.
     `--s2c2-capability-schedule=profile=<jsonl>` is unchanged.
     After this pass, `--check-s2c2-execution` must still succeed.
+    Walks every 2-task `sched.concurrent` as a workload candidate
+    (Phase 3E). Prints `workload-candidate #N` KEEP/FLATTEN lines.
+    Optional `dump-schedule` writes the same decisions as JSON.
+    Does not add a new rewrite kind.
   }];
   let dependentDialects = [
     "mlir::s2c2::sched::ScheduleDialect",
@@ -445,7 +449,9 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     Option<"profileName", "profile", "std::string", /*default=*/"\"\"",
            "Named profile (rtx4090|910B|unknown) or compiler-profile JSON">,
     Option<"evidencePath", "evidence", "std::string", /*default=*/"\"\"",
-           "Optional evidence JSONL override (not a benchmark log)">
+           "Optional evidence JSONL override (not a benchmark log)">,
+    Option<"dumpSchedule", "dump-schedule", "std::string", /*default=*/"\"\"",
+           "Optional JSON dump of discovered candidates and decisions">
   ];
 }
 

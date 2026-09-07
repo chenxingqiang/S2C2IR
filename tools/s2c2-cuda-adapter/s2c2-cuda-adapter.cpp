@@ -182,6 +182,29 @@ static void printSsdMlpWallclock() {
   std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
 }
 
+static void printWorkloadSchedule() {
+  std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note not-handwritten-optimized-ir\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "runtime-witness=ssd-mlp-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note compiler-chosen-t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule semantics=unchanged\n");
+}
+
 static void printCudaValCc() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc=p0\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc map C_light=kxSiLU\n");
@@ -326,6 +349,7 @@ int main(int argc, char **argv) {
   bool cudaValAsync = false;
   bool capSchema = false;
   bool ssdMlp = false;
+  bool workloadSched = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -353,6 +377,8 @@ int main(int argc, char **argv) {
       capSchema = true;
     } else if (a == "--ssd-mlp-wallclock") {
       ssdMlp = true;
+    } else if (a == "--workload-schedule") {
+      workloadSched = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
@@ -360,7 +386,8 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
                    "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
-                   "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock]\n"
+                   "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
+                   "[--workload-schedule]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -380,12 +407,13 @@ int main(int argc, char **argv) {
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
-              (int)ssdMlp;
+              (int)ssdMlp + (int)workloadSched;
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-cuda-adapter: --cap-schema/--cuda-val-async/--cuda-val-cc/"
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
-                 "--matched/--ssd-mlp-wallclock cannot combine\n");
+                 "--matched/--ssd-mlp-wallclock/--workload-schedule "
+                 "cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -440,6 +468,11 @@ int main(int argc, char **argv) {
   }
   if (ssdMlp) {
     printSsdMlpWallclock();
+    printMaps();
+    return 0;
+  }
+  if (workloadSched) {
+    printWorkloadSchedule();
     printMaps();
     return 0;
   }
