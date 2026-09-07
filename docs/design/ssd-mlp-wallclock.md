@@ -1,10 +1,10 @@
 # Complete SSD + MLP program wall-clock
 
-**Status:** protocol + compiler witness. Device timing is
-`measured=no` until a 4090 / 910B run writes a log. Not Cost
-v0.4. Does **not** densify Capability matrices, overwrite
-`#69`, invent `910B C||C = parallel`, FileCheck microseconds,
-or claim full-model inference.
+**Status:** protocol + 910B host wall-clock (`measured=yes`).
+Not Cost v0.4. Does **not** densify Capability matrices,
+overwrite `#69`, invent `910B C||C = parallel`, FileCheck
+microseconds, or claim full-model inference. The ratio is a
+program measurement, not a Cost axiom.
 
 ```text
 Same complete SSD+MLP program
@@ -92,6 +92,7 @@ stage measurement and is not this ratio.
 T_evi < T_seq   →  kept C||HtoD overlap produced program gain
 T_evi ≈ T_seq   →  report honestly; do not invent a speedup
 device absent   →  measured=no; ratio undefined
+this 910B log   →  measured=yes; do not FileCheck μs
 ```
 
 Do not FileCheck microseconds. Do not freeze a ratio as Cost.
@@ -145,11 +146,11 @@ ssd-mlp-wallclock cost=unchanged
 ```
 
 A host without a device writes `measured=no`. That is a valid
-result, not a guessed ratio.
+result, not a guessed ratio. The checked-in 910B log is
+`measured=yes`. Do not FileCheck microseconds.
 
 The wall-clock log is indexed with the other hardware artifacts
 in [`v3-dataset/hardware-ledger.jsonl`](v3-dataset/hardware-ledger.jsonl).
-A later on-device run overwrites this same path, then
 `python3 runtime/record_hw_ledger.py --check-hw-ledger` re-checks
 the whole set together.
 

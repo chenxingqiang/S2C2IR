@@ -1,13 +1,19 @@
-# Complete SSD+MLP program wall-clock. Not Cost. Do not FileCheck μs.
-# This host has no 4090 / 910B. measured=no; ratio undefined.
+sweep_ssd_mlp_wallclock n-htod=22528000 n-cc=33554432 k_ref=32
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
 s2c2-ascend-run ssd-mlp-wallclock=1
 s2c2-ascend-run ssd-mlp-wallclock program-measurement=yes
 s2c2-ascend-run ssd-mlp-wallclock note not-stage-ab
-s2c2-ascend-run ssd-mlp-wallclock note t-base-is-t-seq
-s2c2-ascend-run ssd-mlp-wallclock note t-opt-is-t-evi
-s2c2-ascend-run ssd-mlp-wallclock measured=no
-s2c2-ascend-run ssd-mlp-wallclock note device-absent
+s2c2-ascend-run ssd-mlp-wallclock n-htod=22528000 n-cc=33554432 k_ref=32
+s2c2-ascend-run ssd-mlp-wallclock measured=yes
+s2c2-ascend-run ssd-mlp-wallclock timing seq=12682.1 evi=10435.5 par=28388.5 opt_over_base=0.823
+s2c2-ascend-run ssd-mlp-wallclock correctness=1
 s2c2-ascend-run ssd-mlp-wallclock note catalog-untouched
-s2c2-ascend-run ssd-mlp-wallclock note logical-ssd-ne-disk
 s2c2-ascend-run ssd-mlp-wallclock note 32M-outlier-not-cost
+s2c2-ascend-run ssd-mlp-wallclock note logical-ssd-ne-disk
+s2c2-ascend-run ssd-mlp-wallclock note not-cost-v04
 s2c2-ascend-run ssd-mlp-wallclock cost=unchanged semantics=unchanged v3=not-claimed

@@ -60,8 +60,8 @@ catalog: `docs/design/v3-dataset/ascend910b/` (pairs + R4 mem).
 Topology only; do not FileCheck microseconds.
 
 Complete SSD+MLP program wall-clock log:
-`ssd-mlp-wallclock.log`. Device-absent hosts stay
-`measured=no`. Not Cost v0.4. `#69` untouched.
+`ssd-mlp-wallclock.log`. 910B host wall-clock is
+`measured=yes`. Not Cost v0.4. `#69` untouched.
 
 Batch index of every retained hardware artifact:
 [`hardware-ledger.jsonl`](hardware-ledger.jsonl). Check together

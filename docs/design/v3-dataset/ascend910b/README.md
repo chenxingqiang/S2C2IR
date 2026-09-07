@@ -70,7 +70,7 @@ Mixed / transition stay `rewrite_license=no`. Serial band
 
 Complete SSD+MLP **program** wall-clock (`T_evi/T_seq`, not the
 stage A/B): [`ssd-mlp-wallclock.md`](../../ssd-mlp-wallclock.md).
-Host log: `../ssd-mlp-wallclock.log`. A device-absent host is
-`measured=no`; do not invent a ratio.
+Host log: `../ssd-mlp-wallclock.log` (`measured=yes` on 910B).
+Do not FileCheck microseconds. Do not invent a Cost ranking.
 Hardware artifacts stay in place and are indexed together by
 [`../hardware-ledger.jsonl`](../hardware-ledger.jsonl).

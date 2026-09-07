@@ -1,8 +1,9 @@
 # Hardware measurement ledger
 
-**Status:** index + batch host check. Not Cost v0.4. Does
-**not** move existing logs, densify Capability grids, overwrite
-`#69`, FileCheck microseconds, or invent `T_evi/T_seq`.
+**Status:** index + batch host check. SSD+MLP program row is
+`measured`. Not Cost v0.4. Does **not** move existing logs,
+densify Capability grids, overwrite `#69`, FileCheck
+microseconds, or invent a Cost ranking from `T_evi/T_seq`.
 
 ```text
 Hardware evidence stays where it was measured.
@@ -46,15 +47,15 @@ Each row is an index record, not a Capability cell.
 | `path` | repo-relative artifact |
 | `tool` | `cuda` / `ascend` / `none` |
 | `analyze` | existing `--analyze-*` name, or empty |
-| `catalog_role` | `catalog-69` / `overlay` / `compiler-4090` / `campaign` / `pending-program` |
+| `catalog_role` | `catalog-69` / `overlay` / `compiler-4090` / `campaign` / `pending-program` / `program` |
 | `note` | free text; no host / password / IP |
 | `cost` | `unchanged` |
 | `semantics` | `unchanged` |
 
 `#69` `capability.jsonl` remains the pair catalog.
 `cc-size-applicability.jsonl` remains the overlay.
-`ssd-mlp-wallclock.log` remains `device-absent` until a
-4090 / 910B run overwrites **that same path**.
+`ssd-mlp-wallclock.log` is the 910B program wall-clock at
+**that same path** (`status=measured`). Do not FileCheck μs.
 
 ## Batch check
 
@@ -72,11 +73,11 @@ The checker:
    Analyzer stdout is not FileChecked.
 5. Queries `#69` `C||C` and requires `underdetermined`.
 6. Prints tokens only: counts, `catalog-69=underdetermined`,
-   `ssd-mlp-wallclock=device-absent`, `cost=unchanged`.
+   `cost=unchanged`. Do not FileCheck microseconds.
 
 Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
 
-A later device run:
+On-device fill (already applied for the 910B program row):
 
 ```sh
 runtime/ascend/sweep_ssd_mlp_wallclock.sh ./s2c2-ascend-run \
@@ -84,8 +85,8 @@ runtime/ascend/sweep_ssd_mlp_wallclock.sh ./s2c2-ascend-run \
 python3 runtime/record_hw_ledger.py --check-hw-ledger
 ```
 
-Then update that ledger row to `status=measured`. Until then
-the batch test must keep `device-absent`.
+Overwrite the same log path. Set that ledger row to
+`status=measured`. Do not FileCheck microseconds.
 
 ## Out of scope
 

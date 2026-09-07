@@ -23,16 +23,15 @@ module {
 // LEDGER: hw-ledger id=ascend910b-catalog-69 status=measured files=ok
 // LEDGER: hw-ledger id=ascend910b-overlay status=measured files=ok
 // LEDGER: hw-ledger id=ascend910b-cc-rewrite status=measured files=ok
-// LEDGER: hw-ledger id=ssd-mlp-wallclock status=device-absent files=ok
+// LEDGER: hw-ledger id=ssd-mlp-wallclock status=measured files=ok
 // LEDGER: hw-ledger records=19
-// LEDGER: hw-ledger measured=18
-// LEDGER: hw-ledger device-absent=1
+// LEDGER: hw-ledger measured=19
+// LEDGER: hw-ledger device-absent=0
 // LEDGER: hw-ledger catalog-69=underdetermined
 // LEDGER: hw-ledger catalog-untouched=yes
 // LEDGER: hw-ledger secrets=0
 // LEDGER: hw-ledger analyzers=ok
 // LEDGER: hw-ledger npu-demo=not-ledger
-// LEDGER: hw-ledger ssd-mlp-wallclock=device-absent
 // LEDGER: cost=unchanged
 // LEDGER-NOT: Cost v0.4
 // LEDGER-NOT: password
