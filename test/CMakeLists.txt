@@ -8,6 +8,8 @@ configure_lit_site_cfg(
 set(S2C2_TEST_DEPENDS
   s2c2-opt
   s2c2-translate
+  s2c2-cuda-adapter
+  s2c2-ascend-adapter
 )
 if(TARGET FileCheck)
   list(APPEND S2C2_TEST_DEPENDS FileCheck count not)

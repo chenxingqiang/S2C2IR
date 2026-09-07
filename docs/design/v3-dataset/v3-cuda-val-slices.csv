@@ -1,0 +1,7 @@
+N,k,stream,r,T_copy_us,T_compute_us,T_seq_us,T_ovl_us,ovl_over_max,ovl_over_sum,verdict,extra_hb
+4194304,36,named,0.607,670.0,406.6,1075.8,740.6,1.105,0.688,parallel,none
+4194304,36,default,0.610,670.0,408.9,1075.3,1078.8,1.610,1.000,serial,legacy-default
+16777216,42,named,1.102,2660.2,2931.4,5635.9,2987.2,1.019,0.534,parallel,none
+16777216,42,default,1.102,2659.6,2930.9,5630.1,5570.5,1.901,0.996,serial,legacy-default
+67108864,20,named,1.093,10611.5,11593.6,22199.3,11903.3,1.027,0.536,parallel,none
+67108864,20,default,1.093,10613.3,11597.1,22202.8,22207.6,1.915,1.000,serial,legacy-default

@@ -23,5 +23,6 @@ config.excludes = ["Inputs", "CMakeLists.txt", "README.txt", "LICENSE.txt"]
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 
 tool_dirs = [config.s2c2_tools_dir, config.llvm_tools_dir]
-tools = ["s2c2-opt", "s2c2-translate"]
+tools = ["s2c2-opt", "s2c2-translate", "s2c2-cuda-adapter",
+         "s2c2-ascend-adapter"]
 llvm_config.add_tool_substitutions(tools, tool_dirs)

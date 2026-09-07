@@ -76,8 +76,9 @@ def Sched_ConcurrentOp : Sched_Op<"concurrent", [
     degeneration, not schedule preservation.
 
     Phase 2A / v0.1: the body may contain only `sched.task` ops plus the
-    terminator. Nested `sched.pipeline` / `sched.overlap` / `sched.concurrent`
-    is rejected until structured-schedule lowering exists.
+    terminator. After token lowering, a lowered event may appear as
+    `async.execute` next to remaining tasks. Nested `sched.pipeline` /
+    `sched.overlap` / `sched.concurrent` is rejected.
 
     Results match this op's `sched.yield` operands.
 
@@ -145,8 +146,14 @@ def Sched_PipelineOp : Sched_Op<"pipeline", [
     SingleBlockImplicitTerminator<"YieldOp">
   ]> {
   let summary = "Ordered pipeline of named stages";
+  let description = [{
+    v0.1: valueless. The body yield and each `sched.stage` yield must
+    have zero operands. Stage-to-stage data moves through residencies
+    and events, not SSA results. `StageResult` is a future feature.
+  }];
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "attr-dict-with-keyword $body";
+  let hasVerifier = 1;
 }
 
 def Sched_StageOp : Sched_Op<"stage", [
@@ -154,9 +161,14 @@ def Sched_StageOp : Sched_Op<"stage", [
     SingleBlockImplicitTerminator<"YieldOp">
   ]> {
   let summary = "Named pipeline stage";
+  let description = [{
+    v0.1: valueless. `sched.yield` in the stage body must have zero
+    operands.
+  }];
   let arguments = (ins StrAttr:$name);
   let regions = (region SizedRegion<1>:$body);
   let assemblyFormat = "$name attr-dict-with-keyword $body";
+  let hasVerifier = 1;
 }
 
 #endif // S2C2_SCHEDULE_OPS

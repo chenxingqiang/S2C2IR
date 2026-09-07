@@ -1,0 +1,9 @@
+s2c2-ascend-run mem case=htod-pinned n=4194304 k=8 us=1000.0
+s2c2-ascend-run mem case=htod-pageable n=4194304 k=8 us=2500.0
+s2c2-ascend-run mem case=dtoh-pinned n=4194304 k=8 us=1000.0
+s2c2-ascend-run mem case=dtoh-pageable n=4194304 k=8 us=2500.0
+s2c2-ascend-run mem case=compute n=4194304 k=8 us=1000.0
+s2c2-ascend-run mem slice pair=C||HtoD residency=pinned pair_relation=parallel extra_hb=none ovl_over_max=1.050 ovl_over_sum=0.525 n=4194304 k=8
+s2c2-ascend-run mem slice pair=C||HtoD residency=pageable pair_relation=serial extra_hb=pageable-host ovl_over_max=1.980 ovl_over_sum=0.990 n=4194304 k=8
+s2c2-ascend-run mem slice pair=C||DtoH residency=pinned pair_relation=parallel extra_hb=none ovl_over_max=1.040 ovl_over_sum=0.520 n=4194304 k=8
+s2c2-ascend-run mem slice pair=C||DtoH residency=pageable pair_relation=mixed extra_hb=none ovl_over_max=1.020 ovl_over_sum=0.800 n=4194304 k=8

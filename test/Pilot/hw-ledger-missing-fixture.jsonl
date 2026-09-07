@@ -1,0 +1,1 @@
+{"id":"missing-row","hardware":"rtx4090","kind":"campaign","status":"measured","path":"docs/design/v3-dataset/does-not-exist.jsonl","tool":"none","analyze":"","catalog_role":"campaign","note":"fixture: missing file must fail the batch check","cost":"unchanged","semantics":"unchanged"}

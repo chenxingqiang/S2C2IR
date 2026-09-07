@@ -11,7 +11,7 @@ func.func @task_yield_mismatch(%v: tensor<4xf32>) {
 // -----
 
 func.func @concurrent_rejects_nested_pipeline() {
-  // expected-error@+1 {{body may only contain sched.task ops before the terminator}}
+  // expected-error@+1 {{body may only contain sched.task or async.execute ops before the terminator}}
   sched.concurrent {
     sched.pipeline {
       sched.yield
@@ -24,7 +24,7 @@ func.func @concurrent_rejects_nested_pipeline() {
 // -----
 
 func.func @concurrent_rejects_nested_concurrent() {
-  // expected-error@+1 {{body may only contain sched.task ops before the terminator}}
+  // expected-error@+1 {{body may only contain sched.task or async.execute ops before the terminator}}
   sched.concurrent {
     sched.concurrent {
       sched.yield
@@ -37,7 +37,7 @@ func.func @concurrent_rejects_nested_concurrent() {
 // -----
 
 func.func @concurrent_rejects_bare_ops(%v: tensor<4xf32>) -> tensor<4xf32> {
-  // expected-error@+1 {{body may only contain sched.task ops before the terminator}}
+  // expected-error@+1 {{body may only contain sched.task or async.execute ops before the terminator}}
   %y = sched.concurrent -> tensor<4xf32> {
     %t = sched.task {
       sched.yield
@@ -46,4 +46,30 @@ func.func @concurrent_rejects_bare_ops(%v: tensor<4xf32>) -> tensor<4xf32> {
     sched.yield %v : tensor<4xf32>
   }
   return %y : tensor<4xf32>
+}
+
+// -----
+
+func.func @stage_rejects_yield_value(%v: tensor<4xf32>) {
+  sched.pipeline {
+    // expected-error@+1 {{yield operands must match result types}}
+    sched.stage "s" {
+      sched.yield %v : tensor<4xf32>
+    }
+    sched.yield
+  }
+  return
+}
+
+// -----
+
+func.func @pipeline_rejects_yield_value(%v: tensor<4xf32>) {
+  // expected-error@+1 {{yield operands must match result types}}
+  sched.pipeline {
+    sched.stage "s" {
+      sched.yield
+    }
+    sched.yield %v : tensor<4xf32>
+  }
+  return
 }

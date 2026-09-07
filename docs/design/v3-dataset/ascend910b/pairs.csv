@@ -1,0 +1,10 @@
+N,k,pair,A_us,B_us,par_us,par_over_max,par_over_sum,verdict,observed_constraint
+4194304,32,C||HtoD,742.0,721.0,1007.4,1.358,0.689,mixed,none
+4194304,32,C||C,742.0,742.0,1139.1,1.535,0.768,mixed,none
+4194304,32,HtoD||DtoH,721.0,698.4,1091.5,1.514,0.769,mixed,none
+16777216,32,C||HtoD,1830.6,2891.1,3019.7,1.044,0.640,parallel,none
+16777216,32,C||C,1830.6,1830.6,3759.6,2.054,1.027,serial,resource_contention
+16777216,32,HtoD||DtoH,2891.1,2840.7,4518.6,1.563,0.788,mixed,none
+67108864,32,C||HtoD,26427.4,9767.2,27323.0,1.034,0.755,mixed,none
+67108864,32,C||C,26427.4,26427.4,55961.7,2.118,1.059,serial,resource_contention
+67108864,32,HtoD||DtoH,9767.2,9992.7,16637.7,1.665,0.842,mixed,none

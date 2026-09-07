@@ -10,5 +10,6 @@ __pycache__/
 *.pyc
 install/
 third_party/llvm-project/
+third_party/llvm-build/
 third_party/llvm-install/
 third_party/*.deb

@@ -42,12 +42,13 @@ LogicalResult ConcurrentOp::verify() {
   if (failed(verifyYieldMatches(getOperation(), getBody(), getResults())))
     return failure();
 
-  // Phase 2A / v0.1: concurrent children must be direct sched.task ops.
+  // v0.1: direct sched.task, or async.execute after token lowering.
   // Nested structured schedule (pipeline, overlap, concurrent) is deferred.
   for (Operation &child : getBody().front().without_terminator()) {
-    if (!isa<TaskOp>(child))
-      return emitOpError(
-          "body may only contain sched.task ops before the terminator");
+    if (!isa<TaskOp>(child) &&
+        child.getName().getStringRef() != "async.execute")
+      return emitOpError("body may only contain sched.task or async.execute "
+                         "ops before the terminator");
   }
   return success();
 }
@@ -68,4 +69,20 @@ LogicalResult OverlapOp::verify() {
       return emitOpError("yield operand types must match overlap results");
   }
   return success();
+}
+
+LogicalResult PipelineOp::verify() {
+  // v0.1: valueless. StageResult / cross-stage SSA is a future feature.
+  if (failed(verifyYieldMatches(getOperation(), getBody(), {})))
+    return failure();
+  for (Operation &child : getBody().front().without_terminator()) {
+    if (!isa<StageOp>(child))
+      return emitOpError(
+          "body may only contain sched.stage ops before the terminator");
+  }
+  return success();
+}
+
+LogicalResult StageOp::verify() {
+  return verifyYieldMatches(getOperation(), getBody(), {});
 }

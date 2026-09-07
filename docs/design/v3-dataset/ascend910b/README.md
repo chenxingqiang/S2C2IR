@@ -1,0 +1,76 @@
+# Ascend 910B Capability catalog (PR-R2)
+
+Measured Capability Schema v1 cells for three pairs on one
+Ascend 910B. Not Cost v0.4. Not V3. Not a scheduler change.
+
+```text
+Same Schema v1 as docs/design/v3-dataset/v3-cap-schema-4090.jsonl
+hardware_id = ascend910b:ascend
+confidence  = measured
+```
+
+| File | Role |
+| ---- | ---- |
+| `capability.jsonl` | one projected cell per pair |
+| `pairs.csv` | per-(N,k) classifier inputs (not FileChecked) |
+
+Grid: `N ∈ {4M,16M,64M}` floats, `k=32`, pinned host, named streams,
+`T_pair = completion(s0,s1)`. aclnn executors primed before timed
+samples.
+
+Per-size topology (classifier slack unchanged):
+
+| N | `C\|\|HtoD` | `C\|\|C` | `HtoD\|\|DtoH` |
+| -- | --- | --- | --- |
+| 4M | mixed | mixed | mixed |
+| 16M | parallel | serial | mixed |
+| 64M | mixed | serial | mixed |
+
+Projected cells (`size_range=16MiB..256MiB`):
+
+| Pair | pair_relation | observed_constraint |
+| ---- | ------------- | ------------------- |
+| `C\|\|HtoD` | underdetermined | none |
+| `C\|\|C` | underdetermined | none |
+| `HtoD\|\|DtoH` | mixed | none |
+
+Sizes that disagree stay `underdetermined`. That is the catalog
+answer, not a majority vote.
+
+Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
+Do not store host / password / IP.
+
+`HtoD||DtoH` keeps `direction=host_to_device` because that is the
+frozen Schema v1 pair-record convention used by the 4090 catalog,
+not a 910B-specific interpretation.
+
+Pinned vs pageable (R4): `mem.log`, `mem-slices.csv`, `mem.jsonl`.
+`counterexamples=0`. Extra HB was not observed. Rate may differ;
+that is not a Schedule rewrite. Memory records use
+`size_range=4MiB..64MiB` (`measured sizes = 4MiB,16MiB,64MiB`).
+Cross-vendor schedule (PR-R3): same IR, scoped 4090 vs 910B
+evidence. `#69` `C||C` stays underdetermined; the overlay serial
+band may serialize. Insufficient evidence keeps concurrent. See
+[`pr-r3-cross-vendor.md`](../../pr-r3-cross-vendor.md).
+`C||C` is not a single parallel cell.
+
+`C||C` r-sweep: `cc-phase.log`, `cc-phase.csv`.
+`unique=no` (`mixed` at 4M, `serial` at 16M/64M for every
+`r ∈ {0.5,0.75,1,1.5,2}`). Pair catalog unchanged.
+
+`C||C` size-boundary at `r≈1`: `cc-size.log`, `cc-size.csv`.
+`transition=mixed-to-serial 16M..32M`. 16M is a boundary band.
+Pair catalog unchanged.
+
+Size-banded applicability overlay (not `#69`): `cc-size-applicability.jsonl`.
+Mixed / transition stay `rewrite_license=no`. Serial band
+(`128MiB..512MiB`) is `rewrite_license=yes` from the sequential A/B
+(`cc-rewrite.log`, `cc-rewrite.csv`). `#69` `C||C` stays
+`underdetermined`. Do not FileCheck microseconds.
+
+Complete SSD+MLP **program** wall-clock (`T_evi/T_seq`, not the
+stage A/B): [`ssd-mlp-wallclock.md`](../../ssd-mlp-wallclock.md).
+Host log: `../ssd-mlp-wallclock.log`. A device-absent host is
+`measured=no`; do not invent a ratio.
+Hardware artifacts stay in place and are indexed together by
+[`../hardware-ledger.jsonl`](../hardware-ledger.jsonl).

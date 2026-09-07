@@ -1,0 +1,3 @@
+add_subdirectory(CheckS2C2Execution)
+add_subdirectory(S2C2Cost)
+add_subdirectory(S2C2Capability)

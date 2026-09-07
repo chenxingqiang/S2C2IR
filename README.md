@@ -3,8 +3,26 @@
 Out-of-tree MLIR dialect family for:
 
 ```text
-S²C² = Storage + Schedule + Compute + Communication
+S²C² = Semantic Execution IR
+     + Hardware Capability Model
+     + Evidence-Bounded Schedule Optimizer
 ```
+
+Schedule realization is evidence-backed and hardware-aware.
+`sched.concurrent` is `NoOrderingRequirement`, not a promise of
+physical parallelism. No measured / applicable / licensed evidence
+means no destructive rewrite.
+
+[`docs/design/evidence-bounded-optimizer.md`](docs/design/evidence-bounded-optimizer.md)
+
+The four dialects remain:
+
+```text
+S²C² = Storage + Compute + Communication + Execution Semantics
+```
+
+Schedule is the happens-before / event constraint layer among the three
+data and compute dimensions, not a fourth data dialect.
 
 This repository follows the official MLIR `examples/standalone` project
 layout. It does **not** fork XLA, TVM, or IREE. IREE is a Phase 3 runtime
@@ -36,7 +54,75 @@ normalization and native lowering).
 definition and not async lowering.
 
 Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/phase1.5-semantic-normalization.md),
-[`docs/design/phase2a-sequential-lowering.md`](docs/design/phase2a-sequential-lowering.md)
+[`docs/design/phase2a-sequential-lowering.md`](docs/design/phase2a-sequential-lowering.md),
+[`docs/design/execution-semantics.md`](docs/design/execution-semantics.md),
+[`docs/design/pipeline-semantics.md`](docs/design/pipeline-semantics.md),
+[`docs/design/phase2b-composition.md`](docs/design/phase2b-composition.md),
+[`docs/design/capability-mapping.md`](docs/design/capability-mapping.md),
+[`docs/design/cost-resource-model.md`](docs/design/cost-resource-model.md),
+[`docs/design/cost-resource-model-v02.md`](docs/design/cost-resource-model-v02.md),
+[`docs/design/cost-resource-model-v03.md`](docs/design/cost-resource-model-v03.md),
+[`docs/design/realization-space.md`](docs/design/realization-space.md),
+[`docs/design/search-pareto.md`](docs/design/search-pareto.md),
+[`docs/design/realization-enumerator.md`](docs/design/realization-enumerator.md),
+[`docs/design/realization-argmin-pass.md`](docs/design/realization-argmin-pass.md),
+[`docs/design/search-space.md`](docs/design/search-space.md),
+[`docs/design/search-algorithm-contract.md`](docs/design/search-algorithm-contract.md),
+[`docs/design/search-start-policy.md`](docs/design/search-start-policy.md),
+[`docs/design/search-algorithm.md`](docs/design/search-algorithm.md),
+[`docs/design/search-walk-n1.md`](docs/design/search-walk-n1.md),
+[`docs/design/search-restart-complete.md`](docs/design/search-restart-complete.md),
+[`docs/design/search-pareto-nxt.md`](docs/design/search-pareto-nxt.md),
+[`docs/design/search-verification.md`](docs/design/search-verification.md),
+[`docs/design/realization-transform.md`](docs/design/realization-transform.md),
+[`docs/design/realization-transform-reorder.md`](docs/design/realization-transform-reorder.md),
+[`docs/design/realization-transform-compose.md`](docs/design/realization-transform-compose.md),
+[`docs/design/pilot-benchmark.md`](docs/design/pilot-benchmark.md),
+[`docs/design/backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md),
+[`docs/design/backend-adapter-ascend.md`](docs/design/backend-adapter-ascend.md),
+[`docs/design/v3-ascend-catalog.md`](docs/design/v3-ascend-catalog.md),
+[`docs/design/v3-ascend-mem.md`](docs/design/v3-ascend-mem.md),
+[`docs/design/v3-capability-schema.md`](docs/design/v3-capability-schema.md),
+[`docs/design/capability-aware-schedule.md`](docs/design/capability-aware-schedule.md),
+[`docs/design/evidence-bounded-optimizer.md`](docs/design/evidence-bounded-optimizer.md),
+[`docs/design/pr-r3-cross-vendor.md`](docs/design/pr-r3-cross-vendor.md),
+[`docs/design/ssd-mlp-wallclock.md`](docs/design/ssd-mlp-wallclock.md),
+[`docs/design/hardware-ledger.md`](docs/design/hardware-ledger.md)
+
+Phase 2B execution semantics (Token / Concurrent / Pipeline /
+composition) are **frozen**. Realization Space `R(P, D)` is **frozen**
+(`HB_M = HB_source`). Hardware capability mapping verifies legal
+realizations; `--s2c2-cost` scores them against a device table and must
+not redefine `→HB`. Search / Pareto may only select among `R`. A
+Realization Enumerator (**v0.4.2 frozen**) may only list `R ∩ F` for a
+declared finite family `F`; `--s2c2-enumerate` prints that set.
+`--s2c2-argmin` prints set-valued `ArgMin_F` / `Pareto_F` over it.
+Search Space / `Neighbor` (v0.4.5) generate candidates in `F` and
+accept only `R ∩ F`. The Search Algorithm Contract (v0.4.6) names
+the walk objects. StartPolicy / RestartPolicy (v0.4.7) name how a
+walk enters `X`. The Algorithm object (v0.4.8) is
+`A = (N, S, Rst, Nxt, Acc)`. `--s2c2-walk` (v0.4.9) is its first
+inhabitant. v0.4.10 witnesses `LocalStop ⇏ ArgMin_F`. v0.4.11
+adds `Nxt = first(Pareto(Frontier))` without changing Cost / HB /
+`R` / Neighbor / Start / Restart. v0.4.12 verifies those
+inhabitants (`--s2c2-walk=verify`). v0.5.0 (**frozen**) opens
+`T : P → P' ∪ {⊥}` with `HB(P') = HB(P)` only when `T(P) ≠ ⊥`,
+and rebuilt `X'` (`--s2c2-xform=kind=id`). v0.5.1 (**frozen**) adds
+`--s2c2-xform=kind=concurrent-reorder` (HB-independent sibling
+swap; executable HB equality). v0.5.2 (**frozen**) is the docs-only
+composition contract `(T_b ∘ T_a)`: each step re-proves
+`HB(P_i) = HB(P_0)` and rebuilds `X_i`. The Pilot
+([`pilot-benchmark.md`](docs/design/pilot-benchmark.md)) is the
+**frozen V1–V2** validation entry: three stand-in workloads on
+that stack. It is not a new Search or Transform kind. A CUDA measurement adapter
+([`backend-adapter-cuda.md`](docs/design/backend-adapter-cuda.md))
+binds those shapes to one legal `M`; it is a stand-in, not a
+CUDA backend. An Ascend 910B capability adapter
+([`backend-adapter-ascend.md`](docs/design/backend-adapter-ascend.md))
+fills the same Capability Schema for three pairs; it does not
+change the scheduler or Cost. Measured 910B cells live in
+[`v3-ascend-catalog.md`](docs/design/v3-ascend-catalog.md). V3 is a
+calibration probe, not claimed.
 
 ## Requirements
 
@@ -73,8 +159,9 @@ the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 ## Tools
 
-- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A)
+- `s2c2-opt` — parse, verify, and transform S²C² IR (`--s2c2-lower` for Phase 2A; `--check-s2c2-execution` for E1–E8 and Token+Concurrent+Pipeline composition; `--convert-s2c2-token-to-async` / `--convert-s2c2-concurrent-to-async` / `--convert-s2c2-pipeline-to-async` for HB-preserving event lowering; `--s2c2-cost` for frozen v0.1 scores; `--s2c2-cost-hb` for frozen v0.2 HB-aware pair credit; `--s2c2-cost-cp` for v0.3 critical-path scores; `--s2c2-capability-query` / `--s2c2-capability-schedule` for Phase 3A CapabilityFilter)
 - `s2c2-translate` — translation driver (stub)
+- `s2c2-cuda-adapter` — host `--dry-run` protocol for the CUDA Pilot stand-in (`runtime/cuda/` is the timed binary; V3 not claimed)
 
 Round-trip an example:
 

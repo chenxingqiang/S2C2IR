@@ -1,0 +1,13 @@
+N,k,pair,residency,r,T_copy_us,T_compute_us,T_ovl_us,ovl_over_max,ovl_over_sum,verdict,extra_hb
+4194304,31,C||HtoD,pinned,0.528,670.9,353.9,734.3,1.094,0.717,parallel,none
+4194304,31,C||HtoD,pageable,0.276,1280.1,353.9,1316.4,1.028,0.806,mixed,none
+4194304,31,C||DtoH,pinned,0.545,649.3,353.9,712.8,1.098,0.711,parallel,none
+4194304,31,C||DtoH,pageable,0.186,1897.9,353.9,1957.9,1.032,0.869,mixed,none
+16777216,20,C||HtoD,pinned,0.548,2659.7,1456.6,2718.0,1.022,0.660,parallel,none
+16777216,20,C||HtoD,pageable,0.236,6162.2,1456.6,6261.3,1.016,0.822,mixed,none
+16777216,20,C||DtoH,pinned,0.568,2566.4,1456.6,2699.7,1.052,0.671,parallel,none
+16777216,20,C||DtoH,pageable,0.210,6934.9,1456.6,6990.0,1.008,0.833,mixed,none
+67108864,20,C||HtoD,pinned,1.092,10620.0,11602.3,11918.9,1.027,0.536,parallel,none
+67108864,20,C||HtoD,pageable,0.468,24814.7,11602.3,24776.9,0.998,0.680,parallel,none
+67108864,20,C||DtoH,pinned,1.134,10233.1,11602.3,11973.9,1.032,0.548,parallel,none
+67108864,20,C||DtoH,pageable,0.378,30686.6,11602.3,30695.3,1.000,0.726,parallel,none
