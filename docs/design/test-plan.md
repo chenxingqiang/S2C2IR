@@ -642,6 +642,21 @@ full-model Cost score.
 | E2E-4 | same | `--s2c2-lower` after 4090 rewrite; no invented `sched.wait` |
 | E2E-5 | same | `--analyze-e2e-gain` on `cc-rewrite.log`; 32M outlier not Cost |
 
+## Evidence-bounded schedule (Phase 3D)
+
+**Not Cost v0.4.** Design:
+[`evidence-bounded-schedule.md`](evidence-bounded-schedule.md).
+Named compiler profiles on `s2c2-opt`. Same IR, three profiles.
+`#69` untouched. Does not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3D-1 | `test/Integration/evidence-bounded-schedule.mlir` | `--profile=rtx4090` serializes 16MiB/128MiB C\|\|C and HtoD\|\|HtoD; keeps prefetch \|\| MLP |
+| 3D-2 | same | `--profile=910B` keeps 16MiB C\|\|C, serializes 128MiB C\|\|C |
+| 3D-3 | same | `--profile=unknown` preserves every concurrent |
+| 3D-4 | same | top-level `--profile=` and compiler-profile JSON; `#69` evidence override keeps C\|\|C |
+| 3D-5 | same | `--check-s2c2-execution` after rewrite; no sibling `sched.wait` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
