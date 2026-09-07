@@ -900,11 +900,36 @@ struct WorkloadDecision {
   bool rewriteLicense = true;
 };
 
+static std::string prettyPair(StringRef pair) {
+  std::string out;
+  for (size_t i = 0; i < pair.size(); ++i) {
+    if (i + 1 < pair.size() && pair[i] == '|' && pair[i + 1] == '|') {
+      out += " || ";
+      ++i;
+    } else {
+      out += pair[i];
+    }
+  }
+  return out;
+}
+
+static std::string prettyReason(StringRef reason) {
+  std::string out = reason.str();
+  for (char &c : out) {
+    if (c == '-')
+      c = ' ';
+  }
+  return out;
+}
+
 static void printWorkloadCandidate(const WorkloadDecision &d) {
   llvm::errs() << "workload-candidate #" << d.id << " pair=" << d.pair
                << " payload=" << d.payload << " relation=" << d.relation
                << " decision=" << keepOrFlatten(d.flatten)
                << " reason=" << d.reason << "\n";
+  llvm::errs() << "candidate #" << d.id << " : " << prettyPair(d.pair) << "\n";
+  llvm::errs() << "    decision : " << keepOrFlatten(d.flatten) << "\n";
+  llvm::errs() << "    reason   : " << prettyReason(d.reason) << "\n";
 }
 
 static LogicalResult dumpWorkloadSchedule(StringRef path,
@@ -1122,6 +1147,8 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     llvm::errs() << "workload-schedule candidates=" << decisions.size()
                  << " keep=" << keep << " flatten=" << flatten
                  << " hb=verify-with-check-s2c2-execution cost=unchanged\n";
+    llvm::errs() << "HB verification : --check-s2c2-execution\n";
+    llvm::errs() << "lowering        : --s2c2-lower\n";
     if (!dumpPath.empty() &&
         failed(dumpWorkloadSchedule(dumpPath, *evi, decisions)))
       return failure();

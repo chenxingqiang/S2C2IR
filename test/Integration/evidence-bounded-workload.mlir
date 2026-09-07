@@ -1,7 +1,8 @@
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --print-workload-schedule-contract | FileCheck %s --check-prefix=CONTRACT
-// RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | grep -E 'workload-candidate|workload-schedule' | FileCheck %s --check-prefix=GPU-LOG
-// RUN: s2c2-opt %s --profile=910B --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | grep -E 'workload-candidate|workload-schedule' | FileCheck %s --check-prefix=NPU-LOG
-// RUN: s2c2-opt %s --profile=unknown --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | grep -E 'workload-candidate|workload-schedule' | FileCheck %s --check-prefix=UNK-LOG
+// RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | grep -E 'workload-candidate|workload-schedule|candidate #' | FileCheck %s --check-prefix=GPU-LOG
+// RUN: s2c2-opt %s --profile=910B --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | grep -E 'workload-candidate|workload-schedule|candidate #' | FileCheck %s --check-prefix=NPU-LOG
+// RUN: s2c2-opt %s --profile=unknown --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | grep -E 'workload-candidate|workload-schedule|candidate #' | FileCheck %s --check-prefix=UNK-LOG
+// RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | FileCheck %s --check-prefix=GPU-PRETTY
 // RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution 2> %t.gpu.err | FileCheck %s --check-prefix=GPU
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-workload-schedule %t.gpu.err | FileCheck %s --check-prefix=GPU-AN
 // RUN: s2c2-opt %s --profile=910B --s2c2-evidence-bounded-schedule --check-s2c2-execution 2> %t.npu.err | FileCheck %s --check-prefix=NPU
@@ -47,6 +48,17 @@
 // GPU-LOG-SAME: decision=FLATTEN
 // GPU-LOG-SAME: reason=licensed-evidence
 // GPU-LOG: workload-schedule candidates=3 keep=1 flatten=2
+
+// GPU-PRETTY: candidate #0 : C || HtoD
+// GPU-PRETTY-NEXT:     decision : KEEP
+// GPU-PRETTY: candidate #1 : C || C
+// GPU-PRETTY-NEXT:     decision : FLATTEN
+// GPU-PRETTY-NEXT:     reason   : licensed evidence
+// GPU-PRETTY: candidate #2 : C || C
+// GPU-PRETTY-NEXT:     decision : FLATTEN
+// GPU-PRETTY-NEXT:     reason   : licensed evidence
+// GPU-PRETTY: HB verification : --check-s2c2-execution
+// GPU-PRETTY: lowering        : --s2c2-lower
 
 // NPU-LOG: workload-candidate #0 pair=C||HtoD
 // NPU-LOG-SAME: decision=KEEP

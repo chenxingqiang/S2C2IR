@@ -39,12 +39,21 @@ Same MLIR, three named profiles:
 ## Candidate discovery
 
 Every 2-task `sched.concurrent` (and `sched.overlap`) is a
-candidate. The pass prints:
+candidate. The pass prints a machine line and a human report:
 
 ```text
 workload-candidate #0 pair=C||HtoD ... decision=KEEP reason=relation-parallel
-workload-candidate #1 pair=C||C payload=16MiB ... decision=FLATTEN reason=licensed-evidence
-workload-schedule candidates=3 keep=1 flatten=2 hb=verify-with-check-s2c2-execution
+candidate #0 : C || HtoD
+    decision : KEEP
+    reason   : relation parallel
+
+candidate #1 : C || C
+    decision : FLATTEN
+    reason   : licensed evidence
+
+workload-schedule candidates=3 keep=1 flatten=2
+HB verification : --check-s2c2-execution
+lowering        : --s2c2-lower
 ```
 
 Optional JSON dump (`dump-schedule=`), schema
