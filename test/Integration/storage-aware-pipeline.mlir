@@ -31,9 +31,9 @@
 // CONTRACT: workload-schedule compiler-driven=yes
 // CONTRACT: no-evidence => no-destructive-optimization
 // CONTRACT: invariant underdetermined-preserve
-// CONTRACT: note storage-data-movement-overlap
 // CONTRACT: note not-handwritten-optimized-ir
 // CONTRACT: note runtime-witness=ssd-mlp-wallclock
+// CONTRACT: note storage-data-movement-overlap
 // CONTRACT: cost=unchanged
 // CONTRACT-NOT: Cost v0.4
 // CONTRACT-NOT: password
@@ -115,8 +115,8 @@ module {
   // UNK-LABEL: func.func @ssd_pipeline_two_tiles
   // GPU: stor.transfer
   // GPU: sched.concurrent
-  // GPU: stor.transfer
   // GPU: comp.gated_mlp
+  // GPU: stor.transfer
   // GPU: sched.task
   // GPU: comp.elemwise
   // GPU-NOT: sched.wait
