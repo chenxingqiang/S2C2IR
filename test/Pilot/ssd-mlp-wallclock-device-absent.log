@@ -1,0 +1,13 @@
+# Device-absent SSD+MLP wall-clock fixture. Not Cost. Do not FileCheck μs.
+# Host has no 4090 / 910B. measured=no; ratio undefined.
+s2c2-ascend-run ssd-mlp-wallclock=1
+s2c2-ascend-run ssd-mlp-wallclock program-measurement=yes
+s2c2-ascend-run ssd-mlp-wallclock note not-stage-ab
+s2c2-ascend-run ssd-mlp-wallclock note t-base-is-t-seq
+s2c2-ascend-run ssd-mlp-wallclock note t-opt-is-t-evi
+s2c2-ascend-run ssd-mlp-wallclock measured=no
+s2c2-ascend-run ssd-mlp-wallclock note device-absent
+s2c2-ascend-run ssd-mlp-wallclock note catalog-untouched
+s2c2-ascend-run ssd-mlp-wallclock note logical-ssd-ne-disk
+s2c2-ascend-run ssd-mlp-wallclock note 32M-outlier-not-cost
+s2c2-ascend-run ssd-mlp-wallclock cost=unchanged semantics=unchanged v3=not-claimed

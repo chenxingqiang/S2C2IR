@@ -146,8 +146,10 @@ ssd-mlp-wallclock cost=unchanged
 ```
 
 A host without a device writes `measured=no`. That is a valid
-result, not a guessed ratio. The checked-in 910B log is
-`measured=yes`. Do not FileCheck microseconds.
+result, not a guessed ratio. The protocol is covered by
+`test/Pilot/ssd-mlp-wallclock-device-absent.log`. The
+checked-in 910B log is `measured=yes` only. Do not FileCheck
+microseconds.
 
 The wall-clock log is indexed with the other hardware artifacts
 in [`v3-dataset/hardware-ledger.jsonl`](v3-dataset/hardware-ledger.jsonl).

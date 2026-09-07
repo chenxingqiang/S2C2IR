@@ -656,7 +656,7 @@ checked-in log is `measured=yes`.
 | WC-2 | same | complete prefetch \|\| MLP keep on 4090 / overlay / `#69` |
 | WC-3 | same | 128MiB `C\|\|C` serialize / serialize / keep; no sibling wait |
 | WC-4 | same | `--s2c2-lower` after 4090 rewrite |
-| WC-5 | same | analyzer on yes-fixture / no-fixture / 910B measured log |
+| WC-5 | same | analyzer on yes-fixture / no-fixture / device-absent fixture / 910B measured log |
 
 ## Hardware measurement ledger
 

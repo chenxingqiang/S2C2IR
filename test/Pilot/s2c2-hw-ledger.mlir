@@ -32,6 +32,7 @@ module {
 // LEDGER: hw-ledger secrets=0
 // LEDGER: hw-ledger analyzers=ok
 // LEDGER: hw-ledger npu-demo=not-ledger
+// LEDGER-NOT: hw-ledger ssd-mlp-wallclock=device-absent
 // LEDGER: cost=unchanged
 // LEDGER-NOT: Cost v0.4
 // LEDGER-NOT: password

@@ -1,6 +1,7 @@
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --print-ssd-mlp-wallclock-contract | FileCheck %s --check-prefix=CONTRACT
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../Pilot/ssd-mlp-wallclock-yes-fixture.log | FileCheck %s --check-prefix=YES
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../Pilot/ssd-mlp-wallclock-no-fixture.log | FileCheck %s --check-prefix=NO
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../Pilot/ssd-mlp-wallclock-device-absent.log | FileCheck %s --check-prefix=ABSENT
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../../docs/design/v3-dataset/ssd-mlp-wallclock.log | FileCheck %s --check-prefix=HW
 // RUN: s2c2-ascend-adapter --dry-run --ssd-mlp-wallclock 2>&1 | FileCheck %s --check-prefix=ASCEND
 // RUN: s2c2-cuda-adapter --dry-run --ssd-mlp-wallclock 2>&1 | FileCheck %s --check-prefix=CUDA
@@ -15,6 +16,8 @@
 
 // Complete SSD prefetch || Gated MLP plus licensed C||C at 128MiB.
 // Program wall-clock is T_evi/T_seq, not the #76 stage A/B.
+// Analyzer: NO / ABSENT / HW are disjoint files. ABSENT is a
+// Pilot fixture, not the checked-in 910B log.
 // No sibling wait. Not Cost. Do not FileCheck microseconds.
 
 // CONTRACT: ssd-mlp-wallclock program-measurement=yes
@@ -51,14 +54,23 @@
 // NO: cost=unchanged
 // NO-NOT: Cost v0.4
 
+// ABSENT: ssd-mlp-wallclock measured=no
+// ABSENT: ssd-mlp-wallclock t-opt-over-base-defined=no
+// ABSENT: note catalog-untouched
+// ABSENT: note device-absent
+// ABSENT: cost=unchanged
+// ABSENT-NOT: Cost v0.4
+// ABSENT-NOT: password
+
 // HW: ssd-mlp-wallclock program-measurement=yes
 // HW: ssd-mlp-wallclock measured=yes
 // HW: ssd-mlp-wallclock t-opt-over-base-defined=yes
 // HW: note t-base-is-t-seq
 // HW: note t-opt-is-t-evi
 // HW: note catalog-untouched
-// HW: cost=unchanged
+// HW-NOT: measured=no
 // HW-NOT: note device-absent
+// HW: cost=unchanged
 // HW-NOT: Cost v0.4
 // HW-NOT: password
 
