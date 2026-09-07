@@ -1,10 +1,11 @@
 # Complete SSD + MLP program wall-clock
 
-**Status:** protocol + 910B host wall-clock (`measured=yes`).
+**Status:** protocol + 910B and 4090 host wall-clock (`measured=yes`).
 Not Cost v0.4. Does **not** densify Capability matrices,
 overwrite `#69`, invent `910B C||C = parallel`, FileCheck
 microseconds, or claim full-model inference. The ratio is a
-program measurement, not a Cost axiom.
+program measurement, not a Cost axiom. Do not FileCheck 4090
+μs against 910B μs.
 
 ```text
 Same complete SSD+MLP program
@@ -148,8 +149,9 @@ ssd-mlp-wallclock cost=unchanged
 A host without a device writes `measured=no`. That is a valid
 result, not a guessed ratio. The protocol is covered by
 `test/Pilot/ssd-mlp-wallclock-device-absent.log`. The
-checked-in 910B log is `measured=yes` only. Do not FileCheck
-microseconds.
+checked-in 910B log is `measured=yes` only. The 4090 counterpart
+is `docs/design/v3-dataset/ssd-mlp-wallclock-4090.log` and does
+**not** overwrite the 910B path. Do not FileCheck microseconds.
 
 The wall-clock log is indexed with the other hardware artifacts
 in [`v3-dataset/hardware-ledger.jsonl`](v3-dataset/hardware-ledger.jsonl).

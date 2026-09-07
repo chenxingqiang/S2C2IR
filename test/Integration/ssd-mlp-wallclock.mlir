@@ -3,6 +3,7 @@
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../Pilot/ssd-mlp-wallclock-no-fixture.log | FileCheck %s --check-prefix=NO
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../Pilot/ssd-mlp-wallclock-device-absent.log | FileCheck %s --check-prefix=ABSENT
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../../docs/design/v3-dataset/ssd-mlp-wallclock.log | FileCheck %s --check-prefix=HW
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../../docs/design/v3-dataset/ssd-mlp-wallclock-4090.log | FileCheck %s --check-prefix=HW4090
 // RUN: s2c2-ascend-adapter --dry-run --ssd-mlp-wallclock 2>&1 | FileCheck %s --check-prefix=ASCEND
 // RUN: s2c2-cuda-adapter --dry-run --ssd-mlp-wallclock 2>&1 | FileCheck %s --check-prefix=CUDA
 // RUN: not s2c2-ascend-adapter --dry-run --ssd-mlp-wallclock --cc-rewrite 2>&1 | FileCheck %s --check-prefix=EXCL
@@ -16,8 +17,8 @@
 
 // Complete SSD prefetch || Gated MLP plus licensed C||C at 128MiB.
 // Program wall-clock is T_evi/T_seq, not the #76 stage A/B.
-// Analyzer: NO / ABSENT / HW are disjoint files. ABSENT is a
-// Pilot fixture, not the checked-in 910B log.
+// Analyzer: NO / ABSENT / HW / HW4090 are disjoint files. ABSENT is a
+// Pilot fixture, not a checked-in hardware log.
 // No sibling wait. Not Cost. Do not FileCheck microseconds.
 
 // CONTRACT: ssd-mlp-wallclock program-measurement=yes
@@ -73,6 +74,18 @@
 // HW: cost=unchanged
 // HW-NOT: Cost v0.4
 // HW-NOT: password
+
+// HW4090: ssd-mlp-wallclock program-measurement=yes
+// HW4090: ssd-mlp-wallclock measured=yes
+// HW4090: ssd-mlp-wallclock t-opt-over-base-defined=yes
+// HW4090: note t-base-is-t-seq
+// HW4090: note t-opt-is-t-evi
+// HW4090: note catalog-untouched
+// HW4090-NOT: measured=no
+// HW4090-NOT: note device-absent
+// HW4090: cost=unchanged
+// HW4090-NOT: Cost v0.4
+// HW4090-NOT: password
 
 // ASCEND: s2c2-ascend-adapter ssd-mlp-wallclock=1
 // ASCEND: s2c2-ascend-adapter ssd-mlp-wallclock program-measurement=yes
