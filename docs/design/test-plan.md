@@ -778,9 +778,10 @@ is frozen. Cost does not rank or license. `#69` untouched.
 | ID | File | Checks |
 | -- | ---- | ------ |
 | 4B-1 | `test/Integration/storage-joint.mlir` | `--print-storage-joint-contract`; `default-3g-frozen` |
-| 4B-2 | same | 4090 object-1 `legal=8` selected `MATERIALIZE\|PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY` |
-| 4B-3 | same | `--profile=unknown` object-1 `legal=4` selected uses `PRESERVE`; no `PREFETCH` |
+| 4B-2 | same | 4090 contiguous obj1 run `sites=4,5,6,7 legal=8` selected `PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY`; not `sites=0,2,3` |
+| 4B-3 | same | `--profile=unknown` that run `legal=4` selected uses `PRESERVE`; no `PREFETCH` |
 | 4B-4 | same | adapters `--storage-joint`; exclusive vs `--storage-schedule` |
+| 4B-5 | same | `A B A` interleave: chains `sites=0`, `sites=1`, `sites=2`; not `sites=0,2` |
 
 ## Complete SSD + MLP program wall-clock
 

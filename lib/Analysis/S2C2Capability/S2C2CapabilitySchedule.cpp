@@ -21,8 +21,9 @@
 // Phase 4A enumerates the legal action set F(site) and selects the
 // default-3G inhabitant. Cost does not rank, license, or decide
 // legality. Selection is not a rewrite license.
-// Phase 4B jointly enumerates F(chain) over consecutive sites of
-// one storage object. default-3g still reproduces the 3G tuple;
+// Phase 4B jointly enumerates F(chain) over maximal contiguous
+// runs of one storage object in program order. Interleaving
+// starts a new chain. default-3g still reproduces the 3G tuple;
 // it is frozen and is not a Cost policy. Cost may later rank
 // F(chain) under policy=cost-v04.
 //
@@ -1601,43 +1602,50 @@ static bool sameAssignment(ArrayRef<HierarchyAction> a,
   return true;
 }
 
-/// Group consecutive movement sites of one storage object. F(chain) is
-/// the compatible product of F(site). default-3g selects the historical
-/// 3G tuple; it does not re-decide legality and is not Cost.
+/// Maximal contiguous runs of the same objectKey in program order.
+/// Interleaved objects start a new chain; the same object later is a
+/// new chain, not a splice. F(chain) is the compatible product of
+/// F(site). default-3g selects the historical 3G tuple; it does not
+/// re-decide legality and is not Cost.
+static void finalizeJointChain(JointChain &c, ArrayRef<HierarchySite> sites) {
+  c.policy = "default-3g";
+  SmallVector<HierarchyAction, 8> cur;
+  enumerateJoint(sites, c.siteIds, 0, cur, c.legal);
+  SmallVector<HierarchyAction, 8> preferred;
+  for (unsigned id : c.siteIds)
+    preferred.push_back(sites[id].action);
+  bool found = false;
+  for (const auto &asn : c.legal) {
+    if (sameAssignment(asn, preferred)) {
+      c.selected.assign(asn.begin(), asn.end());
+      found = true;
+      break;
+    }
+  }
+  if (!found && !c.legal.empty())
+    c.selected = c.legal.front();
+}
+
 static SmallVector<JointChain, 4>
 planJointChains(ArrayRef<HierarchySite> sites) {
-  SmallVector<unsigned, 8> order;
-  llvm::DenseMap<unsigned, SmallVector<unsigned, 8>> groups;
-  for (const HierarchySite &s : sites) {
-    if (!groups.count(s.objectKey))
-      order.push_back(s.objectKey);
-    groups[s.objectKey].push_back(s.id);
-  }
   SmallVector<JointChain, 4> chains;
-  unsigned nextId = 0;
-  for (unsigned key : order) {
-    JointChain c;
-    c.id = nextId++;
-    c.objectKey = key;
-    c.siteIds = groups[key];
-    c.policy = "default-3g";
-    SmallVector<HierarchyAction, 8> cur;
-    enumerateJoint(sites, c.siteIds, 0, cur, c.legal);
-    SmallVector<HierarchyAction, 8> preferred;
-    for (unsigned id : c.siteIds)
-      preferred.push_back(sites[id].action);
-    bool found = false;
-    for (const auto &asn : c.legal) {
-      if (sameAssignment(asn, preferred)) {
-        c.selected.assign(asn.begin(), asn.end());
-        found = true;
-        break;
-      }
-    }
-    if (!found && !c.legal.empty())
-      c.selected = c.legal.front();
-    chains.push_back(std::move(c));
+  JointChain cur;
+  auto flush = [&]() {
+    if (cur.siteIds.empty())
+      return;
+    cur.id = static_cast<unsigned>(chains.size());
+    finalizeJointChain(cur, sites);
+    chains.push_back(std::move(cur));
+    cur = JointChain();
+  };
+  for (const HierarchySite &s : sites) {
+    if (!cur.siteIds.empty() && cur.objectKey != s.objectKey)
+      flush();
+    if (cur.siteIds.empty())
+      cur.objectKey = s.objectKey;
+    cur.siteIds.push_back(s.id);
   }
+  flush();
   return chains;
 }
 
