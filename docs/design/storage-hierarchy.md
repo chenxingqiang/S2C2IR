@@ -39,12 +39,15 @@ PRESERVE         no overlap evidence — leave the site as written
 inferred overlap  →  PREFETCH (KEEP only)
 inferred overlap  ↛  FLATTEN / serialize / rematerialize rewrite
 unknown           →  PRESERVE the overlap site
-live SSA residency → KEEP_RESIDENCY (report, not a new rewrite)
+live SSA residency → KEEP_RESIDENCY (report; reuse only if proven)
 ```
 
 `KEEP_RESIDENCY` means the schedule's intended copy is the already
-valid host or HBM replica. It does **not** delete the rematerialize
-temptation and does **not** invent sibling `sched.wait`.
+valid host or HBM replica. Phase 3H reuses that replica only when
+dominance, type, object identity, and no intervening pack/dealloc
+are proven. It does **not** flatten `C||Storage` and does **not**
+invent sibling `sched.wait`. N-tile realization:
+[`storage-ntile.md`](storage-ntile.md).
 
 ## Workload
 
@@ -87,9 +90,11 @@ microseconds. Do not freeze `T_evi/T_seq` as Cost. `#69` untouched.
 ## Out of scope
 
 ```text
-full N-tile double-buffering loop
-new rewrite kinds (pipeline realization, C||Storage flatten,
-  rematerialize elision)
+Phase 3H N-tile pipeline + proven-safe reuse
+  ([storage-ntile.md](storage-ntile.md))
+generic rematerialize elimination
+C||Storage flatten
+full software-pipelined loop (scf.for)
 Phase 4 Cost-based heterogeneous scheduling / Cost v0.4
 new 4090 / 910B Capability measurements
 overwriting #69

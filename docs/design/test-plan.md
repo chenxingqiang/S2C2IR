@@ -707,6 +707,20 @@ log, not a new grid.
 | 3G-3 | same | `--profile=unknown` PRESERVE prefetch; KEEP_RESIDENCY still reported |
 | 3G-4 | same | `dump-schedule` JSON + adapters; existing `storage-pipeline-4090.log` |
 
+## N-tile storage pipeline (Phase 3H)
+
+**Not Cost v0.4.** Design:
+[`storage-ntile.md`](storage-ntile.md).
+Three-tile compute || prefetch, sequential HtoD, proven-safe
+KEEP_RESIDENCY reuse. `#69` untouched. Does not FileCheck
+microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3H-1 | `test/Integration/storage-ntile.mlir` | `--profile=rtx4090` two PREFETCH, reuse-applied=2, two concurrent |
+| 3H-2 | same | `--profile=unknown` PRESERVE prefetch; reuse still applied |
+| 3H-3 | same | `--s2c2-lower`; adapters; existing `storage-pipeline-4090.log` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

@@ -14,6 +14,8 @@
 // RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --s2c2-lower | FileCheck %s --check-prefix=LOWER
 // RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution | grep -c sched.concurrent | FileCheck %s --check-prefix=GPU-N
 // RUN: s2c2-opt %s --profile=unknown --s2c2-evidence-bounded-schedule --check-s2c2-execution | grep -c sched.concurrent | FileCheck %s --check-prefix=UNK-N
+// RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution 2>&1 | grep hierarchy-reuse | FileCheck %s --check-prefix=REUSE
+// RUN: s2c2-opt %s --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution | grep -c stor.transfer | FileCheck %s --check-prefix=GPU-XFER
 // RUN: s2c2-cuda-adapter --dry-run --storage-hierarchy 2>&1 | FileCheck %s --check-prefix=CUDA
 // RUN: s2c2-ascend-adapter --dry-run --storage-hierarchy 2>&1 | FileCheck %s --check-prefix=ASCEND
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-storage-pipeline %S/../../docs/design/v3-dataset/storage-pipeline-4090.log | FileCheck %s --check-prefix=RT
@@ -21,7 +23,8 @@
 // Phase 3G: storage hierarchy scheduling. IR is semantic only.
 // Compiler decides when to materialize / prefetch / transfer / keep
 // residency. Inferred C||Storage overlap authorizes PREFETCH (KEEP)
-// only. KEEP_RESIDENCY is not a rematerialize rewrite.
+// only. KEEP_RESIDENCY reuse applies only when a live replica is
+// proven safe. Not C||Storage flatten.
 // Not Cost v0.4. No new Capability grid. Do not FileCheck microseconds.
 
 // CONTRACT: storage-hierarchy compiler-driven=yes
@@ -95,6 +98,7 @@
 // GPU-AN: storage-hierarchy preserve=0
 // GPU-AN: note keep-residency-ne-rematerialize
 // GPU-AN: note inferred-overlap-ne-flatten
+// GPU-AN: storage-hierarchy reuse-applied=2
 // GPU-AN: cost=unchanged
 // GPU-AN-NOT: Cost v0.4
 
@@ -108,6 +112,11 @@
 
 // GPU-N: 1
 // UNK-N: 1
+// GPU-XFER: 4
+// REUSE: hierarchy-reuse applied=2
+// REUSE: hierarchy-reuse note proven-live-residency
+// REUSE: hierarchy-reuse note not-c-storage-flatten
+// REUSE-NOT: sched.wait
 
 // CUDA: s2c2-cuda-adapter storage-hierarchy=1
 // CUDA: s2c2-cuda-adapter storage-hierarchy note ssd-host-hbm-compute

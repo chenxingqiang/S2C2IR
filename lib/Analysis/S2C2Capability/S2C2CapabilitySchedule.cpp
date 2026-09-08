@@ -13,7 +13,8 @@
 // Phase 3G walks stor.materialize / stor.transfer and prints a
 // hierarchy plan: MATERIALIZE / PREFETCH / TRANSFER / KEEP_RESIDENCY
 // / PRESERVE. Inferred overlap authorizes PREFETCH (KEEP) only.
-// KEEP_RESIDENCY is not a rematerialize rewrite.
+// Phase 3H applies KEEP_RESIDENCY only when a dominating, unmutated,
+// same-type live replica is proven; not C||Storage flatten.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -77,7 +78,9 @@ using sched::OverlapOp;
 using sched::TaskOp;
 using sched::YieldOp;
 using stor::BufferType;
+using stor::DeallocOp;
 using stor::MaterializeOp;
+using stor::PackOp;
 using stor::Space;
 using stor::TransferOp;
 
@@ -1232,6 +1235,117 @@ static bool hasLiveResidency(
   return it->second.count(static_cast<unsigned>(*space));
 }
 
+static Value getLiveResidency(
+    const llvm::DenseMap<Value, llvm::DenseMap<unsigned, Value>> &live,
+    Value object, std::optional<Space> space) {
+  if (!object || !space)
+    return Value();
+  auto it = live.find(object);
+  if (it == live.end())
+    return Value();
+  auto slot = it->second.find(static_cast<unsigned>(*space));
+  if (slot == it->second.end())
+    return Value();
+  return slot->second;
+}
+
+// Prefer the concurrent result that aliases an inner transfer, so
+// later consumers reuse a dominating parent-block SSA value.
+static Value outwardResidency(Value inner) {
+  for (OpOperand &use : inner.getUses()) {
+    auto yield = dyn_cast<YieldOp>(use.getOwner());
+    if (!yield)
+      continue;
+    auto task = dyn_cast<TaskOp>(yield->getParentOp());
+    if (!task)
+      continue;
+    unsigned yIdx = use.getOperandNumber();
+    if (yIdx >= task.getValues().size())
+      continue;
+    Value taskVal = task.getValues()[yIdx];
+    for (OpOperand &tUse : taskVal.getUses()) {
+      auto cy = dyn_cast<YieldOp>(tUse.getOwner());
+      if (!cy)
+        continue;
+      auto conc = dyn_cast<ConcurrentOp>(cy->getParentOp());
+      if (!conc)
+        continue;
+      unsigned cIdx = tUse.getOperandNumber();
+      if (cIdx < conc.getNumResults())
+        return conc.getResult(cIdx);
+    }
+  }
+  return inner;
+}
+
+static bool sameBlockDominates(Value live, Operation *op) {
+  Operation *def = live.getDefiningOp();
+  if (!def || !op)
+    return false;
+  return def->getBlock() == op->getBlock() && def->isBeforeInBlock(op);
+}
+
+static bool mutatedBetween(Value buf, Operation *from, Operation *to) {
+  if (!from || !to || from->getBlock() != to->getBlock())
+    return true;
+  for (Operation *cur = from->getNextNode(); cur && cur != to;
+       cur = cur->getNextNode()) {
+    if (auto pack = dyn_cast<PackOp>(cur)) {
+      if (pack.getBuffer() == buf)
+        return true;
+    }
+    if (auto dealloc = dyn_cast<DeallocOp>(cur)) {
+      if (dealloc.getBuffer() == buf)
+        return true;
+    }
+  }
+  return false;
+}
+
+struct ReuseStats {
+  unsigned applied = 0;
+  unsigned skipped = 0;
+};
+
+// Proven-safe KEEP_RESIDENCY only: sequential rematerialize of a
+// dominating, unmutated, same-type live replica. Not C||Storage
+// flatten. Does not invent sibling sched.wait.
+static ReuseStats applyProvenResidencyReuse(ModuleOp module) {
+  llvm::DenseMap<Value, llvm::DenseMap<unsigned, Value>> live;
+  SmallVector<TransferOp> erase;
+  ReuseStats st;
+  module.walk([&](Operation *op) {
+    if (auto mat = dyn_cast<MaterializeOp>(op)) {
+      recordLiveResidency(live, mat.getObject(), mat.getStorageSpace(),
+                          mat.getBuffer());
+      return;
+    }
+    auto xfer = dyn_cast<TransferOp>(op);
+    if (!xfer)
+      return;
+    Value object = objectIdentity(xfer.getSource());
+    auto dstSpace = bufferSpace(xfer.getBuffer());
+    Value liveBuf = getLiveResidency(live, object, dstSpace);
+    if (liveBuf && !enclosingConcurrent(xfer)) {
+      bool safe = liveBuf.getType() == xfer.getBuffer().getType() &&
+                  sameBlockDominates(liveBuf, xfer) &&
+                  !mutatedBetween(liveBuf, liveBuf.getDefiningOp(), xfer);
+      if (safe) {
+        xfer.getBuffer().replaceAllUsesWith(liveBuf);
+        erase.push_back(xfer);
+        ++st.applied;
+        return;
+      }
+      ++st.skipped;
+    }
+    recordLiveResidency(live, object, dstSpace,
+                        outwardResidency(xfer.getBuffer()));
+  });
+  for (TransferOp x : erase)
+    x.erase();
+  return st;
+}
+
 static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
                                                        const CapCatalog &cat) {
   SmallVector<HierarchySite> sites;
@@ -1297,7 +1411,8 @@ static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
       s.when = "sequential";
       s.reason = "consume-requires-device";
     }
-    recordLiveResidency(live, object, dstSpace, xfer.getBuffer());
+    recordLiveResidency(live, object, dstSpace,
+                        outwardResidency(xfer.getBuffer()));
     sites.push_back(std::move(s));
   });
   return sites;
@@ -1306,7 +1421,8 @@ static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
 static LogicalResult dumpWorkloadSchedule(StringRef path,
                                           const ResolvedProfile &evi,
                                           ArrayRef<WorkloadDecision> decs,
-                                          ArrayRef<HierarchySite> sites) {
+                                          ArrayRef<HierarchySite> sites,
+                                          ReuseStats reuse) {
   llvm::json::Array cands;
   unsigned keep = 0, flatten = 0, preserve = 0;
   for (const WorkloadDecision &d : decs) {
@@ -1367,6 +1483,8 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   root["hierarchy_transfer"] = (int64_t)hXfer;
   root["hierarchy_keep_residency"] = (int64_t)hKeep;
   root["hierarchy_preserve"] = (int64_t)hPres;
+  root["hierarchy_reuse_applied"] = (int64_t)reuse.applied;
+  root["hierarchy_reuse_skipped"] = (int64_t)reuse.skipped;
   root["cost"] = "unchanged";
   std::error_code ec;
   llvm::raw_fd_ostream out(path, ec, llvm::sys::fs::OF_Text);
@@ -1544,8 +1662,15 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
                  << " transfer=" << hXfer << " keep-residency=" << hKeep
                  << " preserve=" << hPres
                  << " focus=ssd-host-hbm-compute cost=unchanged\n";
+    ReuseStats reuse = applyProvenResidencyReuse(module);
+    llvm::errs() << "hierarchy-reuse applied=" << reuse.applied
+                 << " skipped=" << reuse.skipped
+                 << " note proven-live-residency\n";
+    llvm::errs() << "hierarchy-reuse note not-c-storage-flatten\n";
+    llvm::errs() << "hierarchy-reuse note no-invented-wait\n";
+    llvm::errs() << "hierarchy-reuse note not-cost-v04 cost=unchanged\n";
     if (!dumpPath.empty() &&
-        failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites)))
+        failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites, reuse)))
       return failure();
   }
   return success();
