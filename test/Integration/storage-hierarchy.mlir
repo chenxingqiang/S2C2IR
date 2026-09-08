@@ -96,9 +96,9 @@
 // GPU-AN: storage-hierarchy transfer=2
 // GPU-AN: storage-hierarchy keep-residency=2
 // GPU-AN: storage-hierarchy preserve=0
+// GPU-AN: storage-hierarchy reuse-applied=2
 // GPU-AN: note keep-residency-ne-rematerialize
 // GPU-AN: note inferred-overlap-ne-flatten
-// GPU-AN: storage-hierarchy reuse-applied=2
 // GPU-AN: cost=unchanged
 // GPU-AN-NOT: Cost v0.4
 
@@ -114,7 +114,7 @@
 // UNK-N: 1
 // GPU-XFER: 4
 // REUSE: hierarchy-reuse applied=2
-// REUSE: hierarchy-reuse note proven-live-residency
+// REUSE-SAME: note proven-live-residency
 // REUSE: hierarchy-reuse note not-c-storage-flatten
 // REUSE-NOT: sched.wait
 

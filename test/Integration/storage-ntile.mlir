@@ -47,7 +47,8 @@
 // GPU-LOG: hierarchy-schedule sites=11 materialize=4 prefetch=2 transfer=3 keep-residency=2 preserve=0
 // GPU-LOG: hierarchy-reuse applied=2
 // GPU-LOG-SAME: skipped=0
-// GPU-LOG: hierarchy-reuse note proven-live-residency
+// GPU-LOG-SAME: note proven-live-residency
+// GPU-LOG: hierarchy-reuse note not-c-storage-flatten
 // GPU-LOG-NOT: action=FLATTEN
 
 // NPU-LOG: hierarchy-schedule sites=11 materialize=4 prefetch=2 transfer=3 keep-residency=2 preserve=0
