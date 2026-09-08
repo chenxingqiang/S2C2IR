@@ -18,6 +18,9 @@
 // Phase 3I reports scf.for software-pipeline structure and lifts
 // reuse across a dominating prologue replica when the loop does not
 // pack/dealloc it. For-iter-args stay underdetermined.
+// Phase 4A enumerates the legal action set F(site) and selects the
+// default-3G inhabitant. Cost does not rank, license, or decide
+// legality. Selection is not a rewrite license.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -58,6 +61,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -1062,6 +1066,8 @@ struct HierarchySite {
   std::string when;
   std::string reason;
   HierarchyAction action = HierarchyAction::Preserve;
+  SmallVector<HierarchyAction, 4> legal;
+  std::string policy = "default-3g";
 };
 
 static StringRef spaceName(std::optional<Space> space) {
@@ -1100,6 +1106,33 @@ static StringRef hierarchyActionStr(HierarchyAction action) {
     return "PRESERVE";
   }
   return "PRESERVE";
+}
+
+static std::string joinActions(ArrayRef<HierarchyAction> acts) {
+  std::string out;
+  for (size_t i = 0; i < acts.size(); ++i) {
+    if (i)
+      out += ",";
+    out += hierarchyActionStr(acts[i]).str();
+  }
+  return out;
+}
+
+static HierarchyAction selectDefault3G(ArrayRef<HierarchyAction> legal,
+                                       HierarchyAction preferred) {
+  for (HierarchyAction a : legal) {
+    if (a == preferred)
+      return a;
+  }
+  return legal.empty() ? HierarchyAction::Preserve : legal.front();
+}
+
+static void setLegalSelect(HierarchySite &s,
+                           std::initializer_list<HierarchyAction> legal,
+                           HierarchyAction preferred) {
+  s.legal.assign(legal.begin(), legal.end());
+  s.policy = "default-3g";
+  s.action = selectDefault3G(s.legal, preferred);
 }
 
 static StringRef movementPair(std::optional<Space> src,
@@ -1191,6 +1224,14 @@ static void printHierarchySite(const HierarchySite &s) {
   llvm::errs() << "    action   : " << hierarchyActionStr(s.action) << "\n";
   llvm::errs() << "    when     : " << prettyReason(s.when) << "\n";
   llvm::errs() << "    reason   : " << prettyReason(s.reason) << "\n";
+  llvm::errs() << "    candidates: " << joinActions(s.legal) << "\n";
+  llvm::errs() << "    selected  : " << hierarchyActionStr(s.action) << "\n";
+  llvm::errs() << "    policy    : " << s.policy << "\n";
+  llvm::errs() << "hierarchy-candidates #" << s.id
+               << " legal=" << joinActions(s.legal)
+               << " selected=" << hierarchyActionStr(s.action)
+               << " policy=" << s.policy
+               << " note selection-ne-cost\n";
 }
 
 static void countHierarchy(ArrayRef<HierarchySite> sites, unsigned &materialize,
@@ -1394,9 +1435,9 @@ static ReuseStats applyProvenResidencyReuse(ModuleOp module) {
   return st;
 }
 
-static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
+static SmallVector<HierarchySite, 16> planStorageHierarchy(ModuleOp module,
                                                        const CapCatalog &cat) {
-  SmallVector<HierarchySite> sites;
+  SmallVector<HierarchySite, 16> sites;
   llvm::DenseMap<Value, llvm::DenseMap<unsigned, Value>> live;
   unsigned nextId = 0;
   module.walk([&](Operation *op) {
@@ -1407,7 +1448,8 @@ static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
       s.src = "none";
       s.dst = spaceName(mat.getStorageSpace()).str();
       s.pair = "n/a";
-      s.action = HierarchyAction::Materialize;
+      setLegalSelect(s, {HierarchyAction::Materialize},
+                     HierarchyAction::Materialize);
       s.when = "eager";
       s.reason = "object-residency";
       recordLiveResidency(live, mat.getObject(), mat.getStorageSpace(),
@@ -1428,7 +1470,9 @@ static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
     s.dst = spaceName(dstSpace).str();
     s.pair = movementPair(srcSpace, dstSpace).str();
     if (hasLiveResidency(live, object, dstSpace)) {
-      s.action = HierarchyAction::KeepResidency;
+      setLegalSelect(s,
+                     {HierarchyAction::KeepResidency, HierarchyAction::Transfer},
+                     HierarchyAction::KeepResidency);
       s.when = "reuse";
       s.reason = (dstSpace && isDeviceLike(*dstSpace))
                      ? "live-device-residency"
@@ -1441,21 +1485,26 @@ static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
       if (!pair.empty())
         s.pair = pair;
       if (kind == DecisionKind::Keep && isStorageCommOverlap(pair)) {
-        s.action = HierarchyAction::Prefetch;
+        setLegalSelect(s,
+                       {HierarchyAction::Prefetch, HierarchyAction::Preserve},
+                       HierarchyAction::Prefetch);
         s.when = "overlap";
         s.reason = reason;
       } else {
-        s.action = HierarchyAction::Preserve;
+        setLegalSelect(s, {HierarchyAction::Preserve},
+                       HierarchyAction::Preserve);
         s.when = "as-written";
         s.reason = reason;
       }
     } else if (srcSpace && *srcSpace == Space::SSD && dstSpace &&
                isHostLike(*dstSpace)) {
-      s.action = HierarchyAction::Materialize;
+      setLegalSelect(s, {HierarchyAction::Materialize},
+                     HierarchyAction::Materialize);
       s.when = "eager";
       s.reason = "first-host-residency";
     } else {
-      s.action = HierarchyAction::Transfer;
+      setLegalSelect(s, {HierarchyAction::Transfer},
+                     HierarchyAction::Transfer);
       s.when = "sequential";
       s.reason = "consume-requires-device";
     }
@@ -1571,6 +1620,12 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
     obj["action"] = hierarchyActionStr(s.action).str();
     obj["when"] = s.when;
     obj["reason"] = s.reason;
+    llvm::json::Array legal;
+    for (HierarchyAction a : s.legal)
+      legal.push_back(hierarchyActionStr(a).str());
+    obj["legal"] = std::move(legal);
+    obj["selected"] = hierarchyActionStr(s.action).str();
+    obj["policy"] = s.policy;
     hier.push_back(std::move(obj));
   }
   root["hierarchy"] = std::move(hier);
@@ -1580,6 +1635,21 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   root["hierarchy_transfer"] = (int64_t)hXfer;
   root["hierarchy_keep_residency"] = (int64_t)hKeep;
   root["hierarchy_preserve"] = (int64_t)hPres;
+  unsigned multi = 0;
+  bool inLegal = true;
+  for (const HierarchySite &s : sites) {
+    if (s.legal.size() > 1)
+      ++multi;
+    bool found = false;
+    for (HierarchyAction a : s.legal)
+      if (a == s.action)
+        found = true;
+    if (!found)
+      inLegal = false;
+  }
+  root["hierarchy_multi_candidate"] = (int64_t)multi;
+  root["hierarchy_selected_in_legal"] = inLegal ? "yes" : "no";
+  root["hierarchy_policy"] = "default-3g";
   root["hierarchy_reuse_applied"] = (int64_t)reuse.applied;
   root["hierarchy_reuse_skipped"] = (int64_t)reuse.skipped;
   root["cost"] = "unchanged";
@@ -1749,7 +1819,7 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
                  << " hb=verify-with-check-s2c2-execution cost=unchanged\n";
     llvm::errs() << "HB verification : --check-s2c2-execution\n";
     llvm::errs() << "lowering        : --s2c2-lower\n";
-    SmallVector<HierarchySite> sites = planStorageHierarchy(module, cat);
+    SmallVector<HierarchySite, 16> sites = planStorageHierarchy(module, cat);
     unsigned hMat = 0, hPref = 0, hXfer = 0, hKeep = 0, hPres = 0;
     countHierarchy(sites, hMat, hPref, hXfer, hKeep, hPres);
     for (const HierarchySite &s : sites)
@@ -1757,7 +1827,22 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     llvm::errs() << "hierarchy-schedule sites=" << sites.size()
                  << " materialize=" << hMat << " prefetch=" << hPref
                  << " transfer=" << hXfer << " keep-residency=" << hKeep
-                 << " preserve=" << hPres
+                 << " preserve=" << hPres;
+    unsigned multi = 0;
+    bool inLegal = true;
+    for (const HierarchySite &s : sites) {
+      if (s.legal.size() > 1)
+        ++multi;
+      bool found = false;
+      for (HierarchyAction a : s.legal)
+        if (a == s.action)
+          found = true;
+      if (!found)
+        inLegal = false;
+    }
+    llvm::errs() << " multi-candidate=" << multi
+                 << " selected-in-legal=" << (inLegal ? "yes" : "no")
+                 << " policy=default-3g note selection-ne-cost"
                  << " focus=ssd-host-hbm-compute cost=unchanged\n";
     ReuseStats reuse = applyProvenResidencyReuse(module);
     llvm::errs() << "hierarchy-reuse applied=" << reuse.applied

@@ -1289,6 +1289,79 @@ def analyze_storage_loop_wallclock(log: Path) -> int:
     return 0
 
 
+def print_storage_schedule_contract() -> int:
+    print("storage-schedule compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note legal-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note policy=default-3g")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_CAND_RE = re.compile(
+    r"hierarchy-candidates #(\d+) legal=(\S+) selected=(\S+) policy=(\S+)"
+)
+_HIER_SCHED_MULTI_RE = re.compile(
+    r"hierarchy-schedule .* multi-candidate=(\d+) selected-in-legal=(yes|no)"
+)
+
+
+def analyze_storage_schedule(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    multi = 0
+    in_legal = "no"
+    sites = 0
+    policy = "default-3g"
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        sites = int(obj.get("hierarchy_sites", len(obj.get("hierarchy") or [])))
+        multi = int(obj.get("hierarchy_multi_candidate", 0))
+        in_legal = str(obj.get("hierarchy_selected_in_legal", "no"))
+        policy = str(obj.get("hierarchy_policy", "default-3g"))
+    else:
+        found = _HIER_CAND_RE.findall(text)
+        sites = len(found)
+        in_legal = "yes" if found else "no"
+        for _sid, legal, selected, pol in found:
+            policy = pol
+            acts = legal.split(",")
+            if len(acts) > 1:
+                multi += 1
+            if selected not in acts:
+                in_legal = "no"
+        m = _HIER_SCHED_MULTI_RE.search(text)
+        if m:
+            multi = int(m.group(1))
+            in_legal = m.group(2)
+    print("storage-schedule compiler-driven=yes")
+    print(f"storage-schedule sites={sites}")
+    print(f"storage-schedule multi-candidate={multi}")
+    print(f"storage-schedule selected-in-legal={in_legal}")
+    print(f"storage-schedule policy={policy}")
+    print("note legal-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
 def print_storage_ntile_contract() -> int:
     print("storage-ntile compiler-driven=yes")
     print("no-evidence => no-destructive-optimization")
@@ -1534,6 +1607,8 @@ def main() -> int:
     p.add_argument("--analyze-storage-pipeline", type=Path)
     p.add_argument("--print-storage-hierarchy-contract", action="store_true")
     p.add_argument("--analyze-storage-hierarchy", type=Path)
+    p.add_argument("--print-storage-schedule-contract", action="store_true")
+    p.add_argument("--analyze-storage-schedule", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
     p.add_argument("--print-storage-loop-contract", action="store_true")
     p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
@@ -1571,6 +1646,8 @@ def main() -> int:
             args.analyze_storage_pipeline,
             args.print_storage_hierarchy_contract,
             args.analyze_storage_hierarchy,
+            args.print_storage_schedule_contract,
+            args.analyze_storage_schedule,
             args.print_storage_ntile_contract,
             args.print_storage_loop_contract,
             args.print_storage_loop_wallclock_contract,
@@ -1596,6 +1673,8 @@ def main() -> int:
             "--analyze-storage-pipeline, "
             "--print-storage-hierarchy-contract, "
             "--analyze-storage-hierarchy, "
+            "--print-storage-schedule-contract, "
+            "--analyze-storage-schedule, "
             "--print-storage-ntile-contract, "
             "--print-storage-loop-contract, "
             "--print-storage-loop-wallclock-contract, "
@@ -1678,6 +1757,10 @@ def main() -> int:
         return print_storage_hierarchy_contract()
     if args.analyze_storage_hierarchy:
         return analyze_storage_hierarchy(args.analyze_storage_hierarchy)
+    if args.print_storage_schedule_contract:
+        return print_storage_schedule_contract()
+    if args.analyze_storage_schedule:
+        return analyze_storage_schedule(args.analyze_storage_schedule)
     if args.print_storage_ntile_contract:
         return print_storage_ntile_contract()
     if args.print_storage_loop_contract:
