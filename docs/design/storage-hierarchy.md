@@ -94,7 +94,8 @@ Phase 3H N-tile contract + N=3 unrolled realization
   ([storage-ntile.md](storage-ntile.md))
 generic rematerialize elimination
 C||Storage flatten
-full software-pipelined loop (scf.for)
+Phase 3I scf.for software pipeline
+  ([storage-loop.md](storage-loop.md))
 Phase 4 Cost-based heterogeneous scheduling / Cost v0.4
 new 4090 / 910B Capability measurements
 overwriting #69

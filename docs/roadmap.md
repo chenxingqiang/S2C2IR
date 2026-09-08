@@ -267,6 +267,11 @@ Phase 3H: N-tile contract + N=3 unrolled realization, plus
 proven-safe residency reuse. Not a generic `scf.for` pipeline.
 Design: [`storage-ntile.md`](design/storage-ntile.md).
 
+Phase 3I: `scf.for` storage pipeline + loop-carried residency.
+SSA iter_args are the double buffer. Not in-place transfer
+overwrite and not a new wall-clock.
+Design: [`storage-loop.md`](design/storage-loop.md).
+
 Cost v0.4 and a second hardware (ROCm first) stay in Phase 4.
 D2D/P2P is not the next CUDA arm.
 

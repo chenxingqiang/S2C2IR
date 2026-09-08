@@ -1214,6 +1214,29 @@ def analyze_ssd_mlp_wallclock(log: Path) -> int:
     return 0
 
 
+def print_storage_loop_contract() -> int:
+    print("storage-loop compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note scf-for-software-pipeline")
+    print("note ssa-iter-args-double-buffer")
+    print("note loop-carried-lifetime")
+    print("note not-in-place-transfer-overwrite")
+    print("note compute-then-prefetch-next")
+    print("note proven-live-residency")
+    print("note not-c-storage-flatten")
+    print("note no-invented-wait")
+    print("note runtime-witness=storage-pipeline")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
 def print_storage_ntile_contract() -> int:
     print("storage-ntile compiler-driven=yes")
     print("no-evidence => no-destructive-optimization")
@@ -1460,6 +1483,7 @@ def main() -> int:
     p.add_argument("--print-storage-hierarchy-contract", action="store_true")
     p.add_argument("--analyze-storage-hierarchy", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
+    p.add_argument("--print-storage-loop-contract", action="store_true")
     p.add_argument("--print-workload-schedule-contract", action="store_true")
     p.add_argument("--analyze-workload-schedule", type=Path)
     p.add_argument("--hardware", default="ascend910b")
@@ -1494,6 +1518,7 @@ def main() -> int:
             args.print_storage_hierarchy_contract,
             args.analyze_storage_hierarchy,
             args.print_storage_ntile_contract,
+            args.print_storage_loop_contract,
             args.print_workload_schedule_contract,
             args.analyze_workload_schedule,
         )
@@ -1516,6 +1541,7 @@ def main() -> int:
             "--print-storage-hierarchy-contract, "
             "--analyze-storage-hierarchy, "
             "--print-storage-ntile-contract, "
+            "--print-storage-loop-contract, "
             "--print-workload-schedule-contract, "
             "--analyze-workload-schedule",
             file=sys.stderr,
@@ -1596,6 +1622,8 @@ def main() -> int:
         return analyze_storage_hierarchy(args.analyze_storage_hierarchy)
     if args.print_storage_ntile_contract:
         return print_storage_ntile_contract()
+    if args.print_storage_loop_contract:
+        return print_storage_loop_contract()
     if args.print_workload_schedule_contract:
         return print_workload_schedule_contract()
     if args.analyze_workload_schedule:

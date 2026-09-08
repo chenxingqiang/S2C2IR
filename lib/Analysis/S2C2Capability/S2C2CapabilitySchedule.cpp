@@ -15,6 +15,9 @@
 // / PRESERVE. Inferred overlap authorizes PREFETCH (KEEP) only.
 // Phase 3H applies KEEP_RESIDENCY only when a dominating, unmutated,
 // same-type live replica is proven; not C||Storage flatten.
+// Phase 3I reports scf.for software-pipeline structure and lifts
+// reuse across a dominating prologue replica when the loop does not
+// pack/dealloc it. For-iter-args stay underdetermined.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -36,6 +39,8 @@
 #include "s2c2/Storage/StorageOps.h"
 #include "s2c2/Storage/StorageTypes.h"
 
+#include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Visitors.h"
@@ -1278,11 +1283,37 @@ static Value outwardResidency(Value inner) {
   return inner;
 }
 
+static bool isForIterArg(Value value) {
+  auto barg = dyn_cast<BlockArgument>(value);
+  if (!barg)
+    return false;
+  return isa<scf::ForOp>(barg.getOwner()->getParentOp());
+}
+
 static bool sameBlockDominates(Value live, Operation *op) {
+  if (isForIterArg(live))
+    return false;
   Operation *def = live.getDefiningOp();
   if (!def || !op)
     return false;
   return def->getBlock() == op->getBlock() && def->isBeforeInBlock(op);
+}
+
+static bool mutatesBuffer(Operation *op, Value buf) {
+  if (auto pack = dyn_cast<PackOp>(op))
+    return pack.getBuffer() == buf;
+  if (auto dealloc = dyn_cast<DeallocOp>(op))
+    return dealloc.getBuffer() == buf;
+  return false;
+}
+
+static bool regionMutates(Operation *root, Value buf) {
+  bool mut = false;
+  root->walk([&](Operation *op) {
+    if (mutatesBuffer(op, buf))
+      mut = true;
+  });
+  return mut;
 }
 
 static bool mutatedBetween(Value buf, Operation *from, Operation *to) {
@@ -1290,16 +1321,34 @@ static bool mutatedBetween(Value buf, Operation *from, Operation *to) {
     return true;
   for (Operation *cur = from->getNextNode(); cur && cur != to;
        cur = cur->getNextNode()) {
-    if (auto pack = dyn_cast<PackOp>(cur)) {
-      if (pack.getBuffer() == buf)
-        return true;
-    }
-    if (auto dealloc = dyn_cast<DeallocOp>(cur)) {
-      if (dealloc.getBuffer() == buf)
-        return true;
-    }
+    if (mutatesBuffer(cur, buf) || regionMutates(cur, buf))
+      return true;
   }
   return false;
+}
+
+/// Prologue residency that dominates an enclosing `scf.for` and is
+/// not packed/deallocated inside the loop (loop-invariant replica).
+static bool provenLiveAcrossLoop(Value live, Operation *op) {
+  if (!live || !op || isForIterArg(live) || llvm::isa<BlockArgument>(live))
+    return false;
+  Operation *def = live.getDefiningOp();
+  if (!def)
+    return false;
+  auto forOp = op->getParentOfType<scf::ForOp>();
+  if (!forOp)
+    return false;
+  if (def->getBlock() != forOp->getBlock() || !def->isBeforeInBlock(forOp))
+    return false;
+  return !regionMutates(forOp, live);
+}
+
+static bool provenLiveAcross(Value live, Operation *op) {
+  if (isForIterArg(live))
+    return false;
+  if (sameBlockDominates(live, op))
+    return !mutatedBetween(live, live.getDefiningOp(), op);
+  return provenLiveAcrossLoop(live, op);
 }
 
 struct ReuseStats {
@@ -1328,8 +1377,7 @@ static ReuseStats applyProvenResidencyReuse(ModuleOp module) {
     Value liveBuf = getLiveResidency(live, object, dstSpace);
     if (liveBuf && !enclosingConcurrent(xfer)) {
       bool safe = liveBuf.getType() == xfer.getBuffer().getType() &&
-                  sameBlockDominates(liveBuf, xfer) &&
-                  !mutatedBetween(liveBuf, liveBuf.getDefiningOp(), xfer);
+                  provenLiveAcross(liveBuf, xfer);
       if (safe) {
         xfer.getBuffer().replaceAllUsesWith(liveBuf);
         erase.push_back(xfer);
@@ -1416,6 +1464,55 @@ static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
     sites.push_back(std::move(s));
   });
   return sites;
+}
+
+static bool isStorageOverlapConcurrent(ConcurrentOp conc) {
+  SmallVector<TaskOp> tasks(conc.getBody().front().getOps<TaskOp>());
+  if (tasks.size() != 2)
+    return false;
+  return isStorageCommOverlap(
+      classifyPair(tasks[0].getBody(), tasks[1].getBody()));
+}
+
+/// Report `scf.for` storage-pipeline structure. Does not rewrite the loop.
+static void reportLoopPipeline(ModuleOp module) {
+  unsigned loops = 0;
+  module.walk([&](scf::ForOp forOp) {
+    loops += 1;
+    int64_t trip = -1;
+    auto lb = forOp.getLowerBound().getDefiningOp<arith::ConstantIndexOp>();
+    auto ub = forOp.getUpperBound().getDefiningOp<arith::ConstantIndexOp>();
+    auto st = forOp.getStep().getDefiningOp<arith::ConstantIndexOp>();
+    if (lb && ub && st && st.value() != 0) {
+      int64_t step = st.value();
+      trip = (ub.value() - lb.value() + step - 1) / step;
+    }
+
+    unsigned prefetchSites = 0;
+    unsigned consumeSites = 0;
+    unsigned concurrent = 0;
+    forOp.walk([&](ConcurrentOp conc) {
+      concurrent += 1;
+      if (isStorageOverlapConcurrent(conc))
+        prefetchSites += 1;
+    });
+    forOp.walk([&](TransferOp t) {
+      auto dst = bufferSpace(t.getBuffer());
+      if (dst && isDeviceLike(*dst))
+        consumeSites += 1;
+    });
+
+    llvm::errs() << "loop-pipeline op=scf.for";
+    if (trip >= 0)
+      llvm::errs() << " trip=" << trip;
+    llvm::errs() << " iter-args=" << forOp.getNumRegionIterArgs();
+    llvm::errs() << " prefetch-sites=" << prefetchSites;
+    llvm::errs() << " consume-sites=" << consumeSites;
+    llvm::errs() << " concurrent=" << concurrent;
+    llvm::errs() << " note software-pipeline-storage\n";
+  });
+  llvm::errs() << "loop-pipeline loops=" << loops
+               << " note loop-carried-lifetime cost=unchanged\n";
 }
 
 static LogicalResult dumpWorkloadSchedule(StringRef path,
@@ -1668,7 +1765,9 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
                  << " note proven-live-residency\n";
     llvm::errs() << "hierarchy-reuse note not-c-storage-flatten\n";
     llvm::errs() << "hierarchy-reuse note no-invented-wait\n";
+    llvm::errs() << "hierarchy-reuse note loop-carried-underdetermined\n";
     llvm::errs() << "hierarchy-reuse note not-cost-v04 cost=unchanged\n";
+    reportLoopPipeline(module);
     if (!dumpPath.empty() &&
         failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites, reuse)))
       return failure();
