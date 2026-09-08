@@ -123,11 +123,13 @@ Reuse remains Phase 3H/3I proven live replica.
 ```text
 Cost v0.4 ranking / policy=cost-v04
 changing the meaning of default-3g
+changing the chain definition
+Phase 4C global F(program)
+  ([storage-global.md](storage-global.md))
 new 4090 / 910B Capability grid points
 overwriting #69
 C||Storage flatten
 invented sibling sched.wait
 arbitrary runtime-N / alias-complete overwrite
-cross-object global search
 changing the 3J wall-clock logs
 ```

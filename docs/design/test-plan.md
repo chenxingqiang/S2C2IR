@@ -783,6 +783,22 @@ is frozen. Cost does not rank or license. `#69` untouched.
 | 4B-4 | same | adapters `--storage-joint`; exclusive vs `--storage-schedule` |
 | 4B-5 | same | `A B A` interleave: chains `sites=0`, `sites=1`, `sites=2`; not `sites=0,2` |
 
+## Storage global schedule (Phase 4C)
+
+**Not Cost v0.4.** Design:
+[`storage-global.md`](storage-global.md). Legal global set
+\(F(\text{program}) \subseteq \prod F(\text{chain})\).
+`policy=default-3g` selects the historical tuple. Chain
+definition is frozen. Cost does not rank or license. `#69`
+untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4C-1 | `test/Integration/storage-global.mlir` | `--print-storage-global-contract`; `chain-def-frozen` |
+| 4C-2 | same | 4090 `legal=8` selected ends `PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY` |
+| 4C-3 | same | `--profile=unknown` `legal=4` selected uses `PRESERVE`; no `PREFETCH` |
+| 4C-4 | same | adapters `--storage-global`; exclusive vs `--storage-joint` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

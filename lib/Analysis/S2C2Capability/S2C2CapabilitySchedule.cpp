@@ -24,8 +24,10 @@
 // Phase 4B jointly enumerates F(chain) over maximal contiguous
 // runs of one storage object in program order. Interleaving
 // starts a new chain. default-3g still reproduces the 3G tuple;
-// it is frozen and is not a Cost policy. Cost may later rank
-// F(chain) under policy=cost-v04.
+// Phase 4C composes F(program) as the product of F(chain) over all
+// chains in program order. Chain definition stays frozen. default-3g
+// selects the historical tuple; it is not Cost. Cost may later rank
+// F(program) under policy=cost-v04.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -1085,6 +1087,14 @@ struct JointChain {
   std::string policy = "default-3g";
 };
 
+using ChainAssignment = SmallVector<HierarchyAction, 8>;
+
+struct GlobalSchedule {
+  SmallVector<SmallVector<ChainAssignment, 4>, 16> legal;
+  SmallVector<ChainAssignment, 4> selected;
+  std::string policy = "default-3g";
+};
+
 static StringRef spaceName(std::optional<Space> space) {
   if (!space)
     return "none";
@@ -1139,6 +1149,16 @@ static std::string joinIds(ArrayRef<unsigned> ids) {
     if (i)
       out += ",";
     out += std::to_string(ids[i]);
+  }
+  return out;
+}
+
+static std::string joinGlobal(ArrayRef<ChainAssignment> asns) {
+  std::string out;
+  for (size_t i = 0; i < asns.size(); ++i) {
+    if (i)
+      out += "//";
+    out += joinActions(asns[i], '|');
   }
   return out;
 }
@@ -1685,6 +1705,84 @@ static void printJointSchedule(ArrayRef<JointChain> chains) {
                << " note default-3g-frozen cost=unchanged\n";
 }
 
+/// F(program) is the product of F(chain) in program order. Does not
+/// splice chains or change the contiguous-run definition. default-3g
+/// selects the historical per-chain tuple. Cost does not prune or
+/// invent members.
+static bool sameGlobal(ArrayRef<ChainAssignment> a,
+                       ArrayRef<ChainAssignment> b) {
+  if (a.size() != b.size())
+    return false;
+  for (size_t i = 0; i < a.size(); ++i)
+    if (!sameAssignment(a[i], b[i]))
+      return false;
+  return true;
+}
+
+static void enumerateGlobal(ArrayRef<JointChain> chains, unsigned idx,
+                            SmallVectorImpl<ChainAssignment> &cur,
+                            SmallVectorImpl<SmallVector<ChainAssignment, 4>> &out) {
+  constexpr unsigned kCap = 64;
+  if (out.size() >= kCap)
+    return;
+  if (idx == chains.size()) {
+    out.emplace_back(cur.begin(), cur.end());
+    return;
+  }
+  if (chains[idx].legal.empty()) {
+    cur.push_back(ChainAssignment());
+    enumerateGlobal(chains, idx + 1, cur, out);
+    cur.pop_back();
+    return;
+  }
+  for (const auto &asn : chains[idx].legal) {
+    cur.push_back(asn);
+    enumerateGlobal(chains, idx + 1, cur, out);
+    cur.pop_back();
+  }
+}
+
+static GlobalSchedule planGlobalSchedule(ArrayRef<JointChain> chains) {
+  GlobalSchedule g;
+  g.policy = "default-3g";
+  SmallVector<ChainAssignment, 4> cur;
+  enumerateGlobal(chains, 0, cur, g.legal);
+  SmallVector<ChainAssignment, 4> preferred;
+  for (const JointChain &c : chains)
+    preferred.push_back(c.selected);
+  bool found = false;
+  for (const auto &asn : g.legal) {
+    if (sameGlobal(asn, preferred)) {
+      g.selected.assign(asn.begin(), asn.end());
+      found = true;
+      break;
+    }
+  }
+  if (!found && !g.legal.empty())
+    g.selected.assign(g.legal.front().begin(), g.legal.front().end());
+  return g;
+}
+
+static void printGlobalSchedule(const GlobalSchedule &g, unsigned nChains) {
+  bool inLegal = false;
+  for (const auto &asn : g.legal)
+    if (sameGlobal(asn, g.selected))
+      inLegal = true;
+  llvm::errs() << "hierarchy-global selected=" << joinGlobal(g.selected)
+               << " legal=" << g.legal.size() << " policy=" << g.policy
+               << " note selection-ne-cost note default-3g-frozen"
+               << " note chain-def-frozen\n";
+  llvm::errs() << "hierarchy-global-schedule chains=" << nChains
+               << " legal=" << g.legal.size()
+               << " selected-in-legal=" << (inLegal ? "yes" : "no")
+               << " policy=default-3g note selection-ne-cost"
+               << " note default-3g-frozen note chain-def-frozen"
+               << " cost=unchanged\n";
+  for (const auto &asn : g.legal)
+    llvm::errs() << "hierarchy-global-candidate actions="
+                 << joinGlobal(asn) << "\n";
+}
+
 static bool isStorageOverlapConcurrent(ConcurrentOp conc) {
   SmallVector<TaskOp> tasks(conc.getBody().front().getOps<TaskOp>());
   if (tasks.size() != 2)
@@ -1861,6 +1959,35 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   root["hierarchy_joint_legal"] = (int64_t)jointProduct;
   root["hierarchy_joint_selected_in_legal"] = jointInLegal ? "yes" : "no";
   root["hierarchy_joint_policy"] = "default-3g";
+  GlobalSchedule glob = planGlobalSchedule(chains);
+  llvm::json::Array globLegal;
+  for (const auto &asn : glob.legal) {
+    llvm::json::Array chainsAsn;
+    for (const auto &chainAsn : asn) {
+      llvm::json::Array acts;
+      for (HierarchyAction a : chainAsn)
+        acts.push_back(hierarchyActionStr(a).str());
+      chainsAsn.push_back(std::move(acts));
+    }
+    globLegal.push_back(std::move(chainsAsn));
+  }
+  llvm::json::Array globSelected;
+  for (const auto &chainAsn : glob.selected) {
+    llvm::json::Array acts;
+    for (HierarchyAction a : chainAsn)
+      acts.push_back(hierarchyActionStr(a).str());
+    globSelected.push_back(std::move(acts));
+  }
+  bool globInLegal = false;
+  for (const auto &asn : glob.legal)
+    if (sameGlobal(asn, glob.selected))
+      globInLegal = true;
+  root["hierarchy_global"] = std::move(globLegal);
+  root["hierarchy_global_selected"] = std::move(globSelected);
+  root["hierarchy_global_chains"] = (int64_t)chains.size();
+  root["hierarchy_global_legal"] = (int64_t)glob.legal.size();
+  root["hierarchy_global_selected_in_legal"] = globInLegal ? "yes" : "no";
+  root["hierarchy_global_policy"] = "default-3g";
   root["hierarchy_reuse_applied"] = (int64_t)reuse.applied;
   root["hierarchy_reuse_skipped"] = (int64_t)reuse.skipped;
   root["cost"] = "unchanged";
@@ -2059,6 +2186,8 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     for (const JointChain &c : chains)
       printJointChain(c);
     printJointSchedule(chains);
+    GlobalSchedule glob = planGlobalSchedule(chains);
+    printGlobalSchedule(glob, chains.size());
     ReuseStats reuse = applyProvenResidencyReuse(module);
     llvm::errs() << "hierarchy-reuse applied=" << reuse.applied
                  << " skipped=" << reuse.skipped
