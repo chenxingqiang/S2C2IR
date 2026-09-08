@@ -96,7 +96,9 @@ generic rematerialize elimination
 C||Storage flatten
 Phase 3I scf.for software pipeline
   ([storage-loop.md](storage-loop.md))
-Phase 4 Cost-based heterogeneous scheduling / Cost v0.4
+Phase 4A storage candidate scheduling
+  ([storage-schedule.md](storage-schedule.md))
+Phase 4 Cost-based ranking / Cost v0.4
 new 4090 / 910B Capability measurements
 overwriting #69
 ```

@@ -277,7 +277,12 @@ realization (`T_evi / T_seq`) on 4090 / 910B. Static trip.
 Not Cost v0.4 and not a new Capability rule.
 Design: [`storage-loop-wallclock.md`](design/storage-loop-wallclock.md).
 
-Cost v0.4 and a second hardware (ROCm first) stay in Phase 4.
+Phase 4A: legal storage action set \(F(\text{site})\), then
+select the default-3G inhabitant. Cost does not rank or license.
+Design: [`storage-schedule.md`](design/storage-schedule.md).
+
+Cost v0.4 ranking stays frozen. A second hardware (ROCm first)
+stays later in Phase 4.
 D2D/P2P is not the next CUDA arm.
 
 ```text

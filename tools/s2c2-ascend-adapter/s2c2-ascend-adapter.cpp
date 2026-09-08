@@ -268,6 +268,32 @@ static void printStorageHierarchy() {
                "s2c2-ascend-adapter storage-hierarchy semantics=unchanged\n");
 }
 
+static void printStorageSchedule() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-schedule=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-schedule source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule "
+               "note legal-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule "
+               "note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-schedule cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -448,6 +474,7 @@ static void usage() {
                "s2c2-ascend-adapter --dry-run [--pairs] [--workload] "
                "[--cap-schema] [--mem] [--cc-phase] [--cc-size] "
                "[--cc-rewrite] [--ssd-mlp-wallclock] [--storage-hierarchy] "
+               "[--storage-schedule] "
                "[--storage-ntile] [--storage-loop] "
                "[--storage-loop-wallclock] [--workload-schedule] "
                "[--classify=ta:tb:tpar] "
@@ -466,6 +493,7 @@ int main(int argc, char **argv) {
   bool ccRewrite = false;
   bool ssdMlp = false;
   bool storageHier = false;
+  bool storageSched = false;
   bool storageNtile = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
@@ -495,6 +523,8 @@ int main(int argc, char **argv) {
       ssdMlp = true;
     } else if (a == "--storage-hierarchy") {
       storageHier = true;
+    } else if (a == "--storage-schedule") {
+      storageSched = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
     } else if (a == "--storage-loop") {
@@ -528,7 +558,8 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-ascend-adapter dry-run=1\n");
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
               (int)ccPhase + (int)ccSize + (int)ccRewrite + (int)ssdMlp +
-              (int)storageHier + (int)storageNtile + (int)storageLoop +
+              (int)storageHier + (int)storageSched + (int)storageNtile +
+              (int)storageLoop +
               (int)storageLoopWc + (int)workloadSched +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
               (int)(acceptHw != nullptr);
@@ -536,7 +567,8 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
                  "--cc-phase/--cc-size/--cc-rewrite/--ssd-mlp-wallclock/"
-                 "--storage-hierarchy/--storage-ntile/--storage-loop/"
+                 "--storage-hierarchy/--storage-schedule/--storage-ntile/"
+                 "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule/"
                  "--classify/--emit-record/"
                  "--accept-hardware cannot combine\n");
@@ -593,6 +625,10 @@ int main(int argc, char **argv) {
   }
   if (storageHier) {
     printStorageHierarchy();
+    return 0;
+  }
+  if (storageSched) {
+    printStorageSchedule();
     return 0;
   }
   if (storageNtile) {

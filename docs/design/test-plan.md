@@ -753,6 +753,20 @@ Do not compare 4090 μs to 910B μs.
 | 3J-3 | same | adapters `--storage-loop-wallclock`; exclusive vs `--storage-loop` |
 | 3J-4 | same | 3I IR KEEP prefetch on 4090 / 910B; PRESERVE on unknown; `--s2c2-lower` keeps `scf.for` |
 
+## Storage candidate scheduling (Phase 4A)
+
+**Not Cost v0.4.** Design:
+[`storage-schedule.md`](storage-schedule.md). Legal action set
+\(F(\text{site})\), then `policy=default-3g` select. Cost does
+not rank or license. `#69` untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4A-1 | `test/Integration/storage-schedule.mlir` | `--print-storage-schedule-contract`; `selection-ne-cost` |
+| 4A-2 | same | 4090 overlap `legal=PREFETCH,PRESERVE selected=PREFETCH`; rematerialize `KEEP_RESIDENCY,TRANSFER`; `multi-candidate=3` |
+| 4A-3 | same | `--profile=unknown` overlap `legal=PRESERVE`; `multi-candidate=2` |
+| 4A-4 | same | adapters `--storage-schedule`; exclusive vs `--storage-hierarchy` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
