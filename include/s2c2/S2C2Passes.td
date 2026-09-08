@@ -19,6 +19,8 @@ def ConvertStorToMemref : Pass<"convert-stor-to-memref", "::mlir::ModuleOp"> {
     `comm.stream` to `memref.copy` (**Phase 2A blocking approximation**;
     not event-preserving comm lowering), and `stor.pack` / `stor.unpack`
     to `bufferization.to_memref` / `bufferization.to_tensor`.
+    `scf.for` / `scf.if` that carry `!stor.buffer` are structurally
+    retargeted to memref (Phase 3I loop pipeline).
 
     `stor.materialize` is allocation only (contents unspecified).
     `stor.transfer` / copy / stream establish valid destination contents.
@@ -33,7 +35,8 @@ def ConvertStorToMemref : Pass<"convert-stor-to-memref", "::mlir::ModuleOp"> {
   }];
   let dependentDialects = [
     "mlir::memref::MemRefDialect",
-    "mlir::bufferization::BufferizationDialect"
+    "mlir::bufferization::BufferizationDialect",
+    "mlir::scf::SCFDialect"
   ];
   let options = [
     Option<"spaceMap", "space-map", "std::string", /*default=*/"\"\"",
@@ -84,7 +87,8 @@ def ConvertCommToMemref : Pass<"convert-comm-to-memref", "::mlir::ModuleOp"> {
   }];
   let dependentDialects = [
     "mlir::memref::MemRefDialect",
-    "mlir::bufferization::BufferizationDialect"
+    "mlir::bufferization::BufferizationDialect",
+    "mlir::scf::SCFDialect"
   ];
   let options = [
     Option<"spaceMap", "space-map", "std::string", /*default=*/"\"\"",
@@ -111,7 +115,8 @@ def LowerS2C2 : Pass<"s2c2-lower", "::mlir::ModuleOp"> {
     "mlir::arith::ArithDialect",
     "mlir::math::MathDialect",
     "mlir::memref::MemRefDialect",
-    "mlir::bufferization::BufferizationDialect"
+    "mlir::bufferization::BufferizationDialect",
+    "mlir::scf::SCFDialect"
   ];
   let options = [
     Option<"spaceMap", "space-map", "std::string", /*default=*/"\"\"",
@@ -442,14 +447,20 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     KEEP_RESIDENCY / PRESERVE. Inferred overlap authorizes PREFETCH
     only; it does not flatten C||Storage. KEEP_RESIDENCY reuse
     applies only when a dominating, unmutated, same-type live
-    replica is proven. Optional `dump-schedule` writes the same
-    decisions as JSON. Does not flatten C||Storage.
+    replica is proven, including a prologue replica that dominates
+    an enclosing `scf.for` and is not packed/deallocated in the
+    loop. For-iter-args stay underdetermined. Prints `loop-pipeline`
+    for each `scf.for` (report only; the loop is not rewritten).
+    Optional `dump-schedule` writes the same decisions as JSON.
+    Does not flatten C||Storage.
   }];
   let dependentDialects = [
     "mlir::s2c2::sched::ScheduleDialect",
     "mlir::s2c2::comp::ComputeDialect",
     "mlir::s2c2::comm::CommDialect",
-    "mlir::s2c2::stor::StorageDialect"
+    "mlir::s2c2::stor::StorageDialect",
+    "mlir::scf::SCFDialect",
+    "mlir::arith::ArithDialect"
   ];
   let options = [
     Option<"profileName", "profile", "std::string", /*default=*/"\"\"",

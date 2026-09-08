@@ -94,6 +94,7 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/storage-aware-pipeline.md`](docs/design/storage-aware-pipeline.md),
 [`docs/design/storage-hierarchy.md`](docs/design/storage-hierarchy.md),
 [`docs/design/storage-ntile.md`](docs/design/storage-ntile.md),
+[`docs/design/storage-loop.md`](docs/design/storage-loop.md),
 [`docs/design/pr-r3-cross-vendor.md`](docs/design/pr-r3-cross-vendor.md),
 [`docs/design/ssd-mlp-wallclock.md`](docs/design/ssd-mlp-wallclock.md),
 [`docs/design/hardware-ledger.md`](docs/design/hardware-ledger.md)
@@ -185,6 +186,8 @@ Round-trip an example:
 ./build/bin/s2c2-opt test/Integration/storage-hierarchy.mlir \
   --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution
 ./build/bin/s2c2-opt test/Integration/storage-ntile.mlir \
+  --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution
+./build/bin/s2c2-opt test/Integration/storage-loop.mlir \
   --profile=rtx4090 --s2c2-evidence-bounded-schedule --check-s2c2-execution
 ```
 

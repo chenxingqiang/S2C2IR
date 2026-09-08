@@ -722,6 +722,21 @@ Runtime witness is the inherited 3F log, not a new 3H wall-clock.
 | 3H-2 | same | `--profile=unknown` PRESERVE prefetch; reuse still applied |
 | 3H-3 | same | `--s2c2-lower`; adapters; existing `storage-pipeline-4090.log` |
 
+## scf.for storage pipeline (Phase 3I)
+
+**Not Cost v0.4.** Design:
+[`storage-loop.md`](storage-loop.md).
+`scf.for` software-pipeline realization with SSA iter_args as
+the double buffer. Loop-invariant KEEP_RESIDENCY reuse.
+Not a new loop wall-clock. `#69` untouched. Does not FileCheck
+microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3I-1 | `test/Integration/storage-loop.mlir` | `--profile=rtx4090` one PREFETCH, reuse-applied=3, one concurrent, `scf.for` trip=2 |
+| 3I-2 | same | `--profile=unknown` PRESERVE prefetch; reuse still applied |
+| 3I-3 | same | `--s2c2-lower` keeps `scf.for`; adapters; existing `storage-pipeline-4090.log` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

@@ -207,6 +207,38 @@ static void printStoragePipeline() {
   std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
 }
 
+static void printStorageLoop() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note scf-for-software-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note ssa-iter-args-double-buffer\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note loop-carried-lifetime\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note not-in-place-transfer-overwrite\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop note no-invented-wait\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "runtime-witness=storage-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop semantics=unchanged\n");
+}
+
 static void printStorageNtile() {
   std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile=1\n");
   std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile source=s2c2-opt\n");
@@ -431,6 +463,7 @@ int main(int argc, char **argv) {
   bool storagePipe = false;
   bool storageHier = false;
   bool storageNtile = false;
+  bool storageLoop = false;
   bool workloadSched = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
@@ -465,6 +498,8 @@ int main(int argc, char **argv) {
       storageHier = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
+    } else if (a == "--storage-loop") {
+      storageLoop = true;
     } else if (a == "--workload-schedule") {
       workloadSched = true;
     } else if (a.rfind("--func=", 0) == 0) {
@@ -476,7 +511,8 @@ int main(int argc, char **argv) {
                    "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
                    "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
                    "[--storage-pipeline] [--storage-hierarchy] "
-                   "[--storage-ntile] [--workload-schedule]\n"
+                   "[--storage-ntile] [--storage-loop] "
+                   "[--workload-schedule]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -497,14 +533,14 @@ int main(int argc, char **argv) {
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
               (int)ssdMlp + (int)storagePipe + (int)storageHier +
-              (int)storageNtile + (int)workloadSched;
+              (int)storageNtile + (int)storageLoop + (int)workloadSched;
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-cuda-adapter: --cap-schema/--cuda-val-async/--cuda-val-cc/"
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
                  "--matched/--ssd-mlp-wallclock/--storage-pipeline/"
-                 "--storage-hierarchy/--storage-ntile/--workload-schedule "
-                 "cannot combine\n");
+                 "--storage-hierarchy/--storage-ntile/--storage-loop/"
+                 "--workload-schedule cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -574,6 +610,11 @@ int main(int argc, char **argv) {
   }
   if (storageNtile) {
     printStorageNtile();
+    printMaps();
+    return 0;
+  }
+  if (storageLoop) {
+    printStorageLoop();
     printMaps();
     return 0;
   }

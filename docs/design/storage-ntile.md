@@ -81,7 +81,8 @@ NVMe. Do not FileCheck microseconds.
 ```text
 generic rematerialize elimination / alias-incomplete DCE
 C||Storage flatten
-arbitrary-N / scf.for double-buffer software pipeline
+Phase 3I scf.for software pipeline
+  ([storage-loop.md](storage-loop.md))
 Phase 4 Cost v0.4
 new 4090 / 910B Capability measurements
 overwriting #69
