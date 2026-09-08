@@ -361,6 +361,36 @@ static void printStorageSchedule() {
                "s2c2-cuda-adapter storage-schedule semantics=unchanged\n");
 }
 
+static void printStorageJoint() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-joint=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-joint source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint "
+               "note joint-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint "
+               "note cost-ranking-is-policy-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-joint cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -534,6 +564,7 @@ int main(int argc, char **argv) {
   bool storagePipe = false;
   bool storageHier = false;
   bool storageSched = false;
+  bool storageJoint = false;
   bool storageNtile = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
@@ -571,6 +602,8 @@ int main(int argc, char **argv) {
       storageHier = true;
     } else if (a == "--storage-schedule") {
       storageSched = true;
+    } else if (a == "--storage-joint") {
+      storageJoint = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
     } else if (a == "--storage-loop") {
@@ -588,7 +621,7 @@ int main(int argc, char **argv) {
                    "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
                    "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
                    "[--storage-pipeline] [--storage-hierarchy] "
-                   "[--storage-schedule] "
+                   "[--storage-schedule] [--storage-joint] "
                    "[--storage-ntile] [--storage-loop] "
                    "[--storage-loop-wallclock] "
                    "[--workload-schedule]\n"
@@ -612,7 +645,7 @@ int main(int argc, char **argv) {
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
               (int)ssdMlp + (int)storagePipe + (int)storageHier +
-              (int)storageSched +
+              (int)storageSched + (int)storageJoint +
               (int)storageNtile + (int)storageLoop + (int)storageLoopWc +
               (int)workloadSched;
   if (modes > 1) {
@@ -620,7 +653,8 @@ int main(int argc, char **argv) {
                  "s2c2-cuda-adapter: --cap-schema/--cuda-val-async/--cuda-val-cc/"
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
                  "--matched/--ssd-mlp-wallclock/--storage-pipeline/"
-                 "--storage-hierarchy/--storage-schedule/--storage-ntile/"
+                 "--storage-hierarchy/--storage-schedule/--storage-joint/"
+                 "--storage-ntile/"
                  "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule "
                  "cannot combine\n");
@@ -693,6 +727,11 @@ int main(int argc, char **argv) {
   }
   if (storageSched) {
     printStorageSchedule();
+    printMaps();
+    return 0;
+  }
+  if (storageJoint) {
+    printStorageJoint();
     printMaps();
     return 0;
   }

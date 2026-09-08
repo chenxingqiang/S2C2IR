@@ -98,6 +98,8 @@ Phase 3I scf.for software pipeline
   ([storage-loop.md](storage-loop.md))
 Phase 4A storage candidate scheduling
   ([storage-schedule.md](storage-schedule.md))
+Phase 4B storage joint candidate scheduling
+  ([storage-joint.md](storage-joint.md))
 Phase 4 Cost-based ranking / Cost v0.4
 new 4090 / 910B Capability measurements
 overwriting #69

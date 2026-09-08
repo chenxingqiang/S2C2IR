@@ -294,6 +294,36 @@ static void printStorageSchedule() {
                "s2c2-ascend-adapter storage-schedule semantics=unchanged\n");
 }
 
+static void printStorageJoint() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-joint=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-joint source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint "
+               "note joint-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint "
+               "note cost-ranking-is-policy-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-joint cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -474,7 +504,7 @@ static void usage() {
                "s2c2-ascend-adapter --dry-run [--pairs] [--workload] "
                "[--cap-schema] [--mem] [--cc-phase] [--cc-size] "
                "[--cc-rewrite] [--ssd-mlp-wallclock] [--storage-hierarchy] "
-               "[--storage-schedule] "
+               "[--storage-schedule] [--storage-joint] "
                "[--storage-ntile] [--storage-loop] "
                "[--storage-loop-wallclock] [--workload-schedule] "
                "[--classify=ta:tb:tpar] "
@@ -494,6 +524,7 @@ int main(int argc, char **argv) {
   bool ssdMlp = false;
   bool storageHier = false;
   bool storageSched = false;
+  bool storageJoint = false;
   bool storageNtile = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
@@ -525,6 +556,8 @@ int main(int argc, char **argv) {
       storageHier = true;
     } else if (a == "--storage-schedule") {
       storageSched = true;
+    } else if (a == "--storage-joint") {
+      storageJoint = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
     } else if (a == "--storage-loop") {
@@ -558,7 +591,8 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-ascend-adapter dry-run=1\n");
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
               (int)ccPhase + (int)ccSize + (int)ccRewrite + (int)ssdMlp +
-              (int)storageHier + (int)storageSched + (int)storageNtile +
+              (int)storageHier + (int)storageSched + (int)storageJoint +
+              (int)storageNtile +
               (int)storageLoop +
               (int)storageLoopWc + (int)workloadSched +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
@@ -567,7 +601,8 @@ int main(int argc, char **argv) {
     std::fprintf(stderr,
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
                  "--cc-phase/--cc-size/--cc-rewrite/--ssd-mlp-wallclock/"
-                 "--storage-hierarchy/--storage-schedule/--storage-ntile/"
+                 "--storage-hierarchy/--storage-schedule/--storage-joint/"
+                 "--storage-ntile/"
                  "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule/"
                  "--classify/--emit-record/"
@@ -629,6 +664,10 @@ int main(int argc, char **argv) {
   }
   if (storageSched) {
     printStorageSchedule();
+    return 0;
+  }
+  if (storageJoint) {
+    printStorageJoint();
     return 0;
   }
   if (storageNtile) {

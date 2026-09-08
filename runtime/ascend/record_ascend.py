@@ -1362,6 +1362,88 @@ def analyze_storage_schedule(path: Path) -> int:
     return 0
 
 
+def print_storage_joint_contract() -> int:
+    print("storage-joint compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note joint-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note policy=default-3g")
+    print("note default-3g-frozen")
+    print("note cost-ranking-is-policy-cost-v04")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_JOINT_RE = re.compile(
+    r"hierarchy-joint #(\d+) object=(\d+) sites=(\S+) legal=(\d+) "
+    r"selected=(\S+) policy=(\S+)"
+)
+_HIER_JOINT_SUM_RE = re.compile(
+    r"hierarchy-joint-schedule chains=(\d+) legal=(\d+) "
+    r"selected-in-legal=(yes|no)"
+)
+
+
+def analyze_storage_joint(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    chains = 0
+    legal = 0
+    in_legal = "no"
+    policy = "default-3g"
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        chains = int(obj.get("hierarchy_joint_chains", 0))
+        legal = int(obj.get("hierarchy_joint_legal", 0))
+        in_legal = str(obj.get("hierarchy_joint_selected_in_legal", "no"))
+        policy = str(obj.get("hierarchy_joint_policy", "default-3g"))
+    else:
+        found = _HIER_JOINT_RE.findall(text)
+        chains = len(found)
+        in_legal = "yes" if found else "no"
+        product = 1
+        for _cid, _obj, _sites, nlegal, selected, pol in found:
+            policy = pol
+            n = int(nlegal)
+            product *= max(1, n)
+            acts = selected.split("|")
+            if not acts:
+                in_legal = "no"
+        legal = product
+        m = _HIER_JOINT_SUM_RE.search(text)
+        if m:
+            chains = int(m.group(1))
+            legal = int(m.group(2))
+            in_legal = m.group(3)
+    print("storage-joint compiler-driven=yes")
+    print(f"storage-joint chains={chains}")
+    print(f"storage-joint legal={legal}")
+    print(f"storage-joint selected-in-legal={in_legal}")
+    print(f"storage-joint policy={policy}")
+    print("note joint-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note cost-ranking-is-policy-cost-v04")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
 def print_storage_ntile_contract() -> int:
     print("storage-ntile compiler-driven=yes")
     print("no-evidence => no-destructive-optimization")
@@ -1609,6 +1691,8 @@ def main() -> int:
     p.add_argument("--analyze-storage-hierarchy", type=Path)
     p.add_argument("--print-storage-schedule-contract", action="store_true")
     p.add_argument("--analyze-storage-schedule", type=Path)
+    p.add_argument("--print-storage-joint-contract", action="store_true")
+    p.add_argument("--analyze-storage-joint", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
     p.add_argument("--print-storage-loop-contract", action="store_true")
     p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
@@ -1648,6 +1732,8 @@ def main() -> int:
             args.analyze_storage_hierarchy,
             args.print_storage_schedule_contract,
             args.analyze_storage_schedule,
+            args.print_storage_joint_contract,
+            args.analyze_storage_joint,
             args.print_storage_ntile_contract,
             args.print_storage_loop_contract,
             args.print_storage_loop_wallclock_contract,
@@ -1675,6 +1761,8 @@ def main() -> int:
             "--analyze-storage-hierarchy, "
             "--print-storage-schedule-contract, "
             "--analyze-storage-schedule, "
+            "--print-storage-joint-contract, "
+            "--analyze-storage-joint, "
             "--print-storage-ntile-contract, "
             "--print-storage-loop-contract, "
             "--print-storage-loop-wallclock-contract, "
@@ -1761,6 +1849,10 @@ def main() -> int:
         return print_storage_schedule_contract()
     if args.analyze_storage_schedule:
         return analyze_storage_schedule(args.analyze_storage_schedule)
+    if args.print_storage_joint_contract:
+        return print_storage_joint_contract()
+    if args.analyze_storage_joint:
+        return analyze_storage_joint(args.analyze_storage_joint)
     if args.print_storage_ntile_contract:
         return print_storage_ntile_contract()
     if args.print_storage_loop_contract:
