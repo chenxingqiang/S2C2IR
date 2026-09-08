@@ -30,6 +30,7 @@
 // CONTRACT: note loop-carried-lifetime
 // CONTRACT: note proven-live-residency
 // CONTRACT: note not-c-storage-flatten
+// CONTRACT: note runtime-witness=storage-loop-wallclock
 // CONTRACT: cost=unchanged
 // CONTRACT-NOT: Cost v0.4
 // CONTRACT-NOT: password
@@ -93,12 +94,14 @@
 // CUDA: s2c2-cuda-adapter storage-loop note ssa-iter-args-double-buffer
 // CUDA: s2c2-cuda-adapter storage-loop note loop-carried-lifetime
 // CUDA: s2c2-cuda-adapter storage-loop note not-c-storage-flatten
+// CUDA: s2c2-cuda-adapter storage-loop runtime-witness=storage-loop-wallclock
 // CUDA: s2c2-cuda-adapter storage-loop cost=unchanged
 // CUDA-NOT: Cost v0.4
 // CUDA-NOT: password
 
 // ASCEND: s2c2-ascend-adapter storage-loop=1
 // ASCEND: s2c2-ascend-adapter storage-loop note loop-carried-lifetime
+// ASCEND: s2c2-ascend-adapter storage-loop runtime-witness=storage-loop-wallclock
 // ASCEND: s2c2-ascend-adapter storage-loop cost=unchanged
 
 // RT: storage-pipeline measured=yes

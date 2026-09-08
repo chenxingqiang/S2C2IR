@@ -7,7 +7,9 @@ and loop-carried KEEP_RESIDENCY safety. Not an in-place
 `C||Storage`, invent sibling `sched.wait`, densify Capability
 matrices, or overwrite `#69`. This increment is compiler /
 integration semantics. The checked-in `storage-pipeline-4090.log`
-is the inherited 3F program witness, not a new loop wall-clock.
+is the inherited 3F two-tile witness. The 3I loop program
+wall-clock is Phase 3J
+([`storage-loop-wallclock.md`](storage-loop-wallclock.md)).
 
 Phase 3H entry:
 [`storage-ntile.md`](storage-ntile.md).
@@ -33,7 +35,7 @@ select is **underdetermined**.
 ✅ loop-invariant prologue reuse
 ❌ arbitrary runtime-N / alias-complete dynamic scheduler
 ❌ in-place stor.transfer slot overwrite
-❌ new hardware wall-clock
+❌ new hardware wall-clock (see 3J)
 ```
 
 ## Loop-carried reuse
@@ -88,9 +90,10 @@ after loop: rematerialize t1   MATERIALIZE (switch identity unknown)
 | sequential HtoD | TRANSFER | TRANSFER | TRANSFER |
 | prologue rematerialize | reuse | reuse | reuse |
 
-Runtime witness remains the inherited 3F log
-`storage-pipeline-4090.log` (`measured=yes`). It is **not** a new
-loop wall-clock. Logical SSD is a pageable host buffer, not NVMe.
+Runtime witness of the **loop program** is Phase 3J
+([`storage-loop-wallclock.md`](storage-loop-wallclock.md)).
+The inherited 3F log `storage-pipeline-4090.log` remains the
+two-tile witness. Logical SSD is a pageable host buffer, not NVMe.
 Do not FileCheck microseconds. `--s2c2-lower` keeps `scf.for` /
 `scf.if` and converts `!stor.buffer` carried through `scf.if` to
 memref. It does not invent `sched.wait`.

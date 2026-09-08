@@ -728,14 +728,30 @@ Runtime witness is the inherited 3F log, not a new 3H wall-clock.
 [`storage-loop.md`](storage-loop.md).
 `scf.for` software-pipeline realization with SSA iter_args as
 the double buffer. Loop-invariant KEEP_RESIDENCY reuse.
-Not a new loop wall-clock. `#69` untouched. Does not FileCheck
-microseconds.
+Loop program wall-clock is Phase 3J. `#69` untouched. Does not
+FileCheck microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
 | 3I-1 | `test/Integration/storage-loop.mlir` | `--profile=rtx4090` one PREFETCH, reuse-applied=3, one concurrent, `scf.for` trip=2 |
 | 3I-2 | same | `--profile=unknown` PRESERVE prefetch; reuse still applied |
-| 3I-3 | same | `--s2c2-lower` keeps `scf.for`; adapters; existing `storage-pipeline-4090.log` |
+| 3I-3 | same | `--s2c2-lower` keeps `scf.for`; adapters; 3J is the loop wall-clock |
+
+## scf.for loop-pipeline wall-clock (Phase 3J)
+
+**Not Cost v0.4.** Design:
+[`storage-loop-wallclock.md`](storage-loop-wallclock.md).
+Program measurement (`T_evi/T_seq`) of the 3I `scf.for`
+realization. Static trip=2. Not an arbitrary runtime-N
+scheduler. `#69` untouched. Do not FileCheck microseconds.
+Do not compare 4090 μs to 910B μs.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3J-1 | `test/Integration/storage-loop-wallclock.mlir` | `--print-storage-loop-wallclock-contract`; `not-arbitrary-runtime-n` |
+| 3J-2 | same | analyzer on yes-fixture / no-fixture / device-absent fixture |
+| 3J-3 | same | adapters `--storage-loop-wallclock`; exclusive vs `--storage-loop` |
+| 3J-4 | same | 3I IR KEEP prefetch on 4090 / 910B; PRESERVE on unknown; `--s2c2-lower` keeps `scf.for` |
 
 ## Complete SSD + MLP program wall-clock
 
@@ -765,7 +781,7 @@ wall-clock is `measured`. Do not FileCheck microseconds.
 | ID | File | Checks |
 | -- | ---- | ------ |
 | HL-1 | `test/Pilot/s2c2-hw-ledger.mlir` | `--print-hw-ledger-contract`; keep-original-path |
-| HL-2 | same | `--check-hw-ledger` 20 measured + 0 device-absent; `#69` underdetermined |
+| HL-2 | same | `--check-hw-ledger` counts + `#69` underdetermined; 3J rows allowed `device-absent` |
 | HL-3 | same | missing path fixture fails; no password / Cost v0.4 |
 
 ## Ascend 910B Capability Adapter (Phase 3B / PR-R1-Ascend)

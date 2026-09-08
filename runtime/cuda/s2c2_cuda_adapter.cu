@@ -2371,6 +2371,157 @@ static int runStoragePipelineWallclock(int nTile, int nCc, int kRef, int warmup,
   return 0;
 }
 
+// 3I scf.for realization wall-clock. Prologue tile 0, then two
+// iterations of compute(i) || prefetch(i+1) and sequential HtoD.
+// T_evi keeps C||Storage. T_par is the same schedule (no C||C).
+// Logical SSD is a pageable host buffer. Not Cost v0.4.
+static void runStorageLoop(PipeTile t[3], cudaStream_t sCompute,
+                           cudaStream_t sCopy, int k, ProgArm arm) {
+  ssdPrefetch(t[0]);
+  tileHtoD(t[0], sCopy);
+  CUDA_OK(cudaStreamSynchronize(sCopy));
+  for (int i = 0; i < 2; ++i) {
+    int next = i + 1;
+    if (arm == ProgArm::Seq) {
+      siluLaunch(t[i].dev, t[i].n, sCompute, k);
+      CUDA_OK(cudaStreamSynchronize(sCompute));
+      ssdPrefetch(t[next]);
+      tileHtoD(t[next], sCopy);
+      CUDA_OK(cudaStreamSynchronize(sCopy));
+    } else {
+      siluLaunch(t[i].dev, t[i].n, sCompute, k);
+      ssdPrefetch(t[next]);
+      CUDA_OK(cudaStreamSynchronize(sCompute));
+      tileHtoD(t[next], sCopy);
+      CUDA_OK(cudaStreamSynchronize(sCopy));
+    }
+  }
+}
+
+static bool checkStorageLoop(PipeTile t[3], float *check, int k) {
+  int step = t[0].n > 4096 ? t[0].n / 4096 : 1;
+  for (int tile = 0; tile < 2; ++tile) {
+    CUDA_OK(cudaMemcpy(check, t[tile].dev, t[tile].bytes(),
+                       cudaMemcpyDeviceToHost));
+    for (int i = 0; i < t[tile].n; i += step) {
+      if (!closeEnough(check[i], hostSilu(t[tile].ssd[i], k)))
+        return false;
+    }
+  }
+  CUDA_OK(cudaMemcpy(check, t[2].dev, t[2].bytes(), cudaMemcpyDeviceToHost));
+  for (int i = 0; i < t[2].n; i += step) {
+    if (!closeEnough(check[i], t[2].ssd[i]))
+      return false;
+  }
+  return true;
+}
+
+static double timeStorageLoop(PipeTile t[3], cudaStream_t sCompute,
+                              cudaStream_t sCopy, float *check, int k,
+                              int warmup, int reps, ProgArm arm) {
+  auto prep = [&](int seed) {
+    for (int i = 0; i < 3; ++i)
+      fillHost(t[i].ssd, t[i].n, seed + i);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    prep(i + 3);
+    runStorageLoop(t, sCompute, sCopy, k, arm);
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    prep(i + 11);
+    auto start = std::chrono::steady_clock::now();
+    runStorageLoop(t, sCompute, sCopy, k, arm);
+    auto stop = std::chrono::steady_clock::now();
+    samples.push_back(static_cast<float>(
+        std::chrono::duration<double, std::micro>(stop - start).count()));
+    if (!checkStorageLoop(t, check, k)) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run correctness=0 arm=storage-loop-wallclock\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static int runStorageLoopWallclock(int nTile, int kRef, int warmup, int reps) {
+  PipeTile t[3];
+  for (int i = 0; i < 3; ++i)
+    t[i].alloc(nTile);
+  float *check = nullptr;
+  CUDA_OK(cudaHostAlloc(&check, t[0].bytes(), cudaHostAllocDefault));
+  cudaStream_t sCompute = nullptr;
+  cudaStream_t sCopy = nullptr;
+  CUDA_OK(cudaStreamCreate(&sCompute));
+  CUDA_OK(cudaStreamCreate(&sCopy));
+  for (int i = 0; i < 3; ++i)
+    fillHost(t[i].ssd, t[i].n, i + 1);
+  siluLaunch(t[0].dev, t[0].n, sCompute, 1);
+  CUDA_OK(cudaStreamSynchronize(sCompute));
+
+  double tSeq =
+      timeStorageLoop(t, sCompute, sCopy, check, kRef, warmup, reps,
+                      ProgArm::Seq);
+  double tEvi =
+      timeStorageLoop(t, sCompute, sCopy, check, kRef, warmup, reps,
+                      ProgArm::Evi);
+  double tPar =
+      timeStorageLoop(t, sCompute, sCopy, check, kRef, warmup, reps,
+                      ProgArm::Par);
+  double ratio = tSeq > 0.0 ? tEvi / tSeq : 0.0;
+
+  std::fprintf(stderr, "s2c2-cuda-run hardware_id=rtx4090:cuda sched=%s "
+                       "map=%s device=gpu sync=named-nonblocking\n",
+               kSched, kMap);
+  std::fprintf(stderr, "s2c2-cuda-run workload compute=elemwise\n");
+  std::fprintf(stderr, "s2c2-cuda-run workload transfer=storage_to_host|"
+                       "host_to_device\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run note workload-semantic-ne-kernel-backend\n");
+  std::fprintf(stderr, "s2c2-cuda-run timing=host-wall-clock\n");
+  std::fprintf(stderr, "s2c2-cuda-run storage-loop-wallclock=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock "
+               "note scf-for-software-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock "
+               "note not-arbitrary-runtime-n\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock "
+               "note compute-then-prefetch-next\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock n-tile=%d tiles=3 "
+               "trip=2 k_ref=%d\n",
+               nTile, kRef);
+  std::fprintf(stderr, "s2c2-cuda-run storage-loop-wallclock measured=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock timing seq=%.1f evi=%.1f "
+               "par=%.1f opt_over_base=%.3f\n",
+               tSeq, tEvi, tPar, ratio);
+  std::fprintf(stderr, "s2c2-cuda-run storage-loop-wallclock correctness=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock evi=keep-C||Storage\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock note evi-eq-par\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock note logical-ssd-ne-disk\n");
+  std::fprintf(stderr, "s2c2-cuda-run storage-loop-wallclock note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-wallclock cost=unchanged "
+               "semantics=unchanged v3=not-claimed\n");
+  cudaStreamDestroy(sCompute);
+  cudaStreamDestroy(sCopy);
+  cudaFreeHost(check);
+  for (int i = 0; i < 3; ++i)
+    t[i].freeAll();
+  return 0;
+}
+
 int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
@@ -2392,6 +2543,7 @@ int main(int argc, char **argv) {
   bool provisioned = false;
   bool ssdMlp = false;
   bool storagePipe = false;
+  bool storageLoop = false;
   bool kSet = false;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -2414,6 +2566,8 @@ int main(int argc, char **argv) {
       ssdMlp = true;
     else if (a == "--storage-pipeline")
       storagePipe = true;
+    else if (a == "--storage-loop-wallclock")
+      storageLoop = true;
     else if (a.rfind("--matched=", 0) == 0)
       matchedArg = argv[i] + 10;
     else if (a.rfind("--cap=", 0) == 0)
@@ -2463,6 +2617,8 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-run --ssd-mlp-wallclock [--n=N] [--n-cc=N] "
                    "--k=K --warmup=W --reps=R\n"
                    "s2c2-cuda-run --storage-pipeline [--n=N] [--n-cc=N] "
+                   "--k=K --warmup=W --reps=R\n"
+                   "s2c2-cuda-run --storage-loop-wallclock [--n=N] "
                    "--k=K --warmup=W --reps=R\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
@@ -2545,7 +2701,8 @@ int main(int argc, char **argv) {
   if (ssdMlp) {
     if (matchedOn || !capArms.empty() || !phaseArms.empty() ||
         !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
-        !valCcArms.empty() || !valAsyncArms.empty() || storagePipe) {
+        !valCcArms.empty() || !valAsyncArms.empty() || storagePipe ||
+        storageLoop) {
       std::fprintf(stderr,
                    "s2c2-cuda-run: --ssd-mlp-wallclock cannot combine with "
                    "other timed modes\n");
@@ -2573,7 +2730,7 @@ int main(int argc, char **argv) {
   if (storagePipe) {
     if (ssdMlp || matchedOn || !capArms.empty() || !phaseArms.empty() ||
         !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
-        !valCcArms.empty() || !valAsyncArms.empty()) {
+        !valCcArms.empty() || !valAsyncArms.empty() || storageLoop) {
       std::fprintf(stderr,
                    "s2c2-cuda-run: --storage-pipeline cannot combine with "
                    "other timed modes\n");
@@ -2599,6 +2756,37 @@ int main(int argc, char **argv) {
       return 2;
     }
     return runStoragePipelineWallclock(n, nCc, k, warmup, reps);
+  }
+  if (storageLoop) {
+    if (ssdMlp || storagePipe || matchedOn || !capArms.empty() ||
+        !phaseArms.empty() || !pipeArms.empty() || !valArms.empty() ||
+        !valMemArms.empty() || !valCcArms.empty() || !valAsyncArms.empty()) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --storage-loop-wallclock cannot combine "
+                   "with other timed modes\n");
+      return 1;
+    }
+    if (!gpu) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --storage-loop-wallclock is gpu only\n");
+      return 1;
+    }
+    if (!kSet)
+      k = 32;
+    if (n == (1 << 24))
+      n = 4194304;
+    if (n <= 0 || k <= 0) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --storage-loop-wallclock needs n>0 k>0\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    return runStorageLoopWallclock(n, k, warmup, reps);
   }
   if (m != 1 && valCcArms.empty()) {
     std::fprintf(stderr, "s2c2-cuda-run: --m is --cuda-val-cc only\n");
