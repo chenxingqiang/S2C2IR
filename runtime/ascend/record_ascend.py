@@ -1573,6 +1573,8 @@ def print_storage_cost_contract() -> int:
     print("note not-c-storage-flatten")
     print("note catalog-untouched")
     print("note not-new-capability-grid")
+    print("note structural-ticks-not-wallclock")
+    print("note runtime-correlation-not-applicable")
     print("semantics=unchanged")
     print("v3=not-claimed")
     print("cost=unchanged")
@@ -1586,6 +1588,9 @@ _HIER_COST_SUM_RE = re.compile(
     r"hierarchy-global-cost-schedule enumerated=(yes|no) truncated=(yes|no) "
     r"ranked-in-legal=(\S+) ranked-eq-default-3g=(\S+) argmin-size=(\S+)"
 )
+_HIER_COST_COIN_RE = re.compile(
+    r"hierarchy-global-cost-coincide diverge=(\S+)"
+)
 
 
 def analyze_storage_cost(path: Path) -> int:
@@ -1598,6 +1603,7 @@ def analyze_storage_cost(path: Path) -> int:
     eq_default = "n/a"
     argmin = "n/a"
     policy = "cost-v04"
+    diverge = "n/a"
     if text.startswith("{"):
         obj = json.loads(text.splitlines()[0])
         if obj.get("schema") != "s2c2.workload_schedule.v1":
@@ -1613,9 +1619,11 @@ def analyze_storage_cost(path: Path) -> int:
         policy = str(obj.get("hierarchy_global_cost_policy", "cost-v04"))
         enumerated = str(obj.get("hierarchy_global_enumerated", "no"))
         truncated = str(obj.get("hierarchy_global_truncated", "yes"))
+        diverge = str(obj.get("hierarchy_global_cost_diverge", "n/a"))
     else:
         m = _HIER_COST_SUM_RE.search(text)
         g = _HIER_COST_RE.search(text)
+        c = _HIER_COST_COIN_RE.search(text)
         if g:
             ranked = g.group(1)
             score = g.group(2)
@@ -1626,6 +1634,8 @@ def analyze_storage_cost(path: Path) -> int:
             in_legal = m.group(3)
             eq_default = m.group(4)
             argmin = m.group(5)
+        if c:
+            diverge = c.group(1)
     print("storage-cost compiler-driven=yes")
     print(f"storage-cost ranked={ranked}")
     print(f"storage-cost score={score}")
@@ -1634,6 +1644,7 @@ def analyze_storage_cost(path: Path) -> int:
     print(f"storage-cost ranked-in-legal={in_legal}")
     print(f"storage-cost ranked-eq-default-3g={eq_default}")
     print(f"storage-cost argmin-size={argmin}")
+    print(f"storage-cost diverge={diverge}")
     print(f"storage-cost policy={policy}")
     print("note cost-ranks-enumerated-F-only")
     print("note cost-ne-legality")
@@ -1646,6 +1657,8 @@ def analyze_storage_cost(path: Path) -> int:
     print("note not-c-storage-flatten")
     print("note catalog-untouched")
     print("note not-new-capability-grid")
+    print("note structural-ticks-not-wallclock")
+    print("note runtime-correlation-not-applicable")
     print("r3-gate=scoped-evidence")
     print("cost=unchanged")
     return 0

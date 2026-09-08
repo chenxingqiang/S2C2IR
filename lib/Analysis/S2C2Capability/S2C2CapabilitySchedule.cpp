@@ -1959,6 +1959,10 @@ static void printGlobalCostRank(const GlobalCostRank &r,
                  << " argmin-size=n/a policy=cost-v04"
                  << " note cost-does-not-rank-truncated-F"
                  << " note default-3g-frozen\n";
+    llvm::errs() << "hierarchy-global-cost-coincide diverge=n/a"
+                 << " note cost-does-not-rank-truncated-F"
+                 << " note structural-ticks-not-wallclock"
+                 << " note runtime-correlation-not-applicable\n";
     return;
   }
   llvm::errs() << "hierarchy-global-cost ranked=" << joinGlobal(r.ranked)
@@ -1973,6 +1977,10 @@ static void printGlobalCostRank(const GlobalCostRank &r,
                << (r.rankedEqDefault3g ? "yes" : "no")
                << " argmin-size=" << r.argminSize << " policy=cost-v04"
                << " note cost-ne-legality note default-3g-frozen\n";
+  llvm::errs() << "hierarchy-global-cost-coincide diverge="
+               << (r.rankedEqDefault3g ? "no" : "yes")
+               << " note structural-ticks-not-wallclock"
+               << " note runtime-correlation-not-applicable\n";
   for (unsigned i = 0; i < g.legal.size(); ++i)
     llvm::errs() << "hierarchy-global-cost-candidate actions="
                  << joinGlobal(g.legal[i]) << " score=" << r.candidateScores[i]
@@ -2202,6 +2210,7 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
     root["hierarchy_global_cost_ranked_in_legal"] = "n/a";
     root["hierarchy_global_cost_ranked_eq_default_3g"] = "n/a";
     root["hierarchy_global_cost_argmin_size"] = "n/a";
+    root["hierarchy_global_cost_diverge"] = "n/a";
   } else {
     root["hierarchy_global_cost_ranked"] = joinGlobal(costRank.ranked);
     root["hierarchy_global_cost_score"] = costRank.score;
@@ -2210,6 +2219,8 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
     root["hierarchy_global_cost_ranked_eq_default_3g"] =
         costRank.rankedEqDefault3g ? "yes" : "no";
     root["hierarchy_global_cost_argmin_size"] = (int64_t)costRank.argminSize;
+    root["hierarchy_global_cost_diverge"] =
+        costRank.rankedEqDefault3g ? "no" : "yes";
     llvm::json::Array costCands;
     for (unsigned i = 0; i < glob.legal.size(); ++i) {
       llvm::json::Object obj;
