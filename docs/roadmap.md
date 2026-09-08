@@ -285,8 +285,13 @@ choice.
 
 Phase 4B: joint legal set \(F(\text{chain})\) over consecutive
 sites of one storage object. `default-3g` selects the historical
-3G tuple. Cost still does not rank.
+3G tuple. Cost still does not rank. **Chain definition is frozen.**
 Design: [`storage-joint.md`](design/storage-joint.md).
+
+Phase 4C: global \(F(\text{program})\) as the product of
+\(F(\text{chain})\) in program order. `default-3g` selects the
+historical tuple. Cost still does not rank or decide legality.
+Design: [`storage-global.md`](design/storage-global.md).
 
 Cost v0.4 ranking stays frozen. A second hardware (ROCm first)
 stays later in Phase 4.

@@ -391,6 +391,44 @@ static void printStorageJoint() {
                "s2c2-cuda-adapter storage-joint semantics=unchanged\n");
 }
 
+static void printStorageGlobal() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-global=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-global source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note global-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note chain-def-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note truncated-ne-complete-F\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note historical-tuple-or-fail\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note cost-ranking-is-policy-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-global cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -565,6 +603,7 @@ int main(int argc, char **argv) {
   bool storageHier = false;
   bool storageSched = false;
   bool storageJoint = false;
+  bool storageGlobal = false;
   bool storageNtile = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
@@ -604,6 +643,8 @@ int main(int argc, char **argv) {
       storageSched = true;
     } else if (a == "--storage-joint") {
       storageJoint = true;
+    } else if (a == "--storage-global") {
+      storageGlobal = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
     } else if (a == "--storage-loop") {
@@ -621,7 +662,7 @@ int main(int argc, char **argv) {
                    "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
                    "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
                    "[--storage-pipeline] [--storage-hierarchy] "
-                   "[--storage-schedule] [--storage-joint] "
+                   "[--storage-schedule] [--storage-joint] [--storage-global] "
                    "[--storage-ntile] [--storage-loop] "
                    "[--storage-loop-wallclock] "
                    "[--workload-schedule]\n"
@@ -645,7 +686,7 @@ int main(int argc, char **argv) {
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
               (int)ssdMlp + (int)storagePipe + (int)storageHier +
-              (int)storageSched + (int)storageJoint +
+              (int)storageSched + (int)storageJoint + (int)storageGlobal +
               (int)storageNtile + (int)storageLoop + (int)storageLoopWc +
               (int)workloadSched;
   if (modes > 1) {
@@ -654,7 +695,7 @@ int main(int argc, char **argv) {
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
                  "--matched/--ssd-mlp-wallclock/--storage-pipeline/"
                  "--storage-hierarchy/--storage-schedule/--storage-joint/"
-                 "--storage-ntile/"
+                 "--storage-global/--storage-ntile/"
                  "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule "
                  "cannot combine\n");
@@ -732,6 +773,11 @@ int main(int argc, char **argv) {
   }
   if (storageJoint) {
     printStorageJoint();
+    printMaps();
+    return 0;
+  }
+  if (storageGlobal) {
+    printStorageGlobal();
     printMaps();
     return 0;
   }

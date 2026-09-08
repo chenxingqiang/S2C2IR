@@ -783,6 +783,25 @@ is frozen. Cost does not rank or license. `#69` untouched.
 | 4B-4 | same | adapters `--storage-joint`; exclusive vs `--storage-schedule` |
 | 4B-5 | same | `A B A` interleave: chains `sites=0`, `sites=1`, `sites=2`; not `sites=0,2` |
 
+## Storage global schedule (Phase 4C)
+
+**Not Cost v0.4.** Design:
+[`storage-global.md`](storage-global.md). Legal global set
+\(F(\text{program}) \subseteq \prod F(\text{chain})\) when the
+product is fully enumerated (`product ≤ 64`). A larger product
+is `legal=not-enumerated`, not a truncated `legal=64`.
+`policy=default-3g` selects the historical tuple or fails.
+Chain definition is frozen. Cost does not rank or license. `#69`
+untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4C-1 | `test/Integration/storage-global.mlir` | `--print-storage-global-contract`; `chain-def-frozen`; `truncated-ne-complete-F`; `historical-tuple-or-fail` |
+| 4C-2 | same | 4090 `product=8 enumerated=yes truncated=no legal=8` selected ends `PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY` |
+| 4C-3 | same | `--profile=unknown` `product=4 enumerated=yes truncated=no legal=4` selected uses `PRESERVE`; no `PREFETCH` |
+| 4C-4 | same | adapters `--storage-global`; exclusive vs `--storage-joint` |
+| 4C-5 | same | seven rematerialize chains: `product=128 enumerated=no truncated=yes legal=not-enumerated`; not `legal=64`; no candidates |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

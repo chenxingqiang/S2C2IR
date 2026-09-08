@@ -24,8 +24,12 @@
 // Phase 4B jointly enumerates F(chain) over maximal contiguous
 // runs of one storage object in program order. Interleaving
 // starts a new chain. default-3g still reproduces the 3G tuple;
-// it is frozen and is not a Cost policy. Cost may later rank
-// F(chain) under policy=cost-v04.
+// Phase 4C composes F(program) as the product of F(chain) over all
+// chains in program order when that product is at most 64. A larger
+// product is not enumerated and is not reported as legal. Chain
+// definition stays frozen. default-3g must inhabit F; otherwise the
+// pass fails. It is not Cost. Cost may later rank a fully
+// enumerated F(program) under policy=cost-v04.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -66,6 +70,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <initializer_list>
 #include <optional>
 #include <string>
@@ -1085,6 +1090,25 @@ struct JointChain {
   std::string policy = "default-3g";
 };
 
+using ChainAssignment = SmallVector<HierarchyAction, 8>;
+
+struct GlobalSchedule {
+  /// Populated only when the product is fully enumerated.
+  /// A truncated product is not F(program) and stays empty.
+  SmallVector<SmallVector<ChainAssignment, 4>, 16> legal;
+  SmallVector<ChainAssignment, 4> selected;
+  uint64_t product = 1;
+  bool productOverflow = false;
+  bool truncated = false;
+  bool enumerated = false;
+  bool historicalInF = false;
+  std::string policy = "default-3g";
+};
+
+/// Completeness cap for constructing F(program). Exceeding it means
+/// the compiler does not claim a complete legal set.
+static constexpr uint64_t kGlobalFEnumerateCap = 64;
+
 static StringRef spaceName(std::optional<Space> space) {
   if (!space)
     return "none";
@@ -1139,6 +1163,16 @@ static std::string joinIds(ArrayRef<unsigned> ids) {
     if (i)
       out += ",";
     out += std::to_string(ids[i]);
+  }
+  return out;
+}
+
+static std::string joinGlobal(ArrayRef<ChainAssignment> asns) {
+  std::string out;
+  for (size_t i = 0; i < asns.size(); ++i) {
+    if (i)
+      out += "//";
+    out += joinActions(asns[i], '|');
   }
   return out;
 }
@@ -1685,6 +1719,129 @@ static void printJointSchedule(ArrayRef<JointChain> chains) {
                << " note default-3g-frozen cost=unchanged\n";
 }
 
+/// F(program) is the product of F(chain) in program order, and only
+/// when that product is fully enumerated. Does not splice chains or
+/// change the contiguous-run definition. default-3g is the historical
+/// per-chain tuple; if that tuple is not in F, it is an invariant
+/// failure, not a first-tuple fallback. Cost does not prune or invent
+/// members.
+static bool sameGlobal(ArrayRef<ChainAssignment> a,
+                       ArrayRef<ChainAssignment> b) {
+  if (a.size() != b.size())
+    return false;
+  for (size_t i = 0; i < a.size(); ++i)
+    if (!sameAssignment(a[i], b[i]))
+      return false;
+  return true;
+}
+
+static bool chainSelectedInF(const JointChain &c) {
+  for (const auto &asn : c.legal)
+    if (sameAssignment(asn, c.selected))
+      return true;
+  return false;
+}
+
+static bool historicalTupleInChains(ArrayRef<JointChain> chains) {
+  for (const JointChain &c : chains)
+    if (!chainSelectedInF(c))
+      return false;
+  return true;
+}
+
+static void enumerateGlobal(ArrayRef<JointChain> chains, unsigned idx,
+                            SmallVectorImpl<ChainAssignment> &cur,
+                            SmallVectorImpl<SmallVector<ChainAssignment, 4>> &out) {
+  if (idx == chains.size()) {
+    out.emplace_back(cur.begin(), cur.end());
+    return;
+  }
+  // An empty F(chain) makes the product empty. Do not invent a
+  // placeholder assignment.
+  if (chains[idx].legal.empty())
+    return;
+  for (const auto &asn : chains[idx].legal) {
+    cur.push_back(asn);
+    enumerateGlobal(chains, idx + 1, cur, out);
+    cur.pop_back();
+  }
+}
+
+static std::string globalProductLabel(const GlobalSchedule &g) {
+  if (g.productOverflow)
+    return "overflow";
+  return std::to_string(g.product);
+}
+
+static std::string globalLegalLabel(const GlobalSchedule &g) {
+  if (g.truncated)
+    return "not-enumerated";
+  return std::to_string(g.legal.size());
+}
+
+static GlobalSchedule planGlobalSchedule(ArrayRef<JointChain> chains) {
+  GlobalSchedule g;
+  g.policy = "default-3g";
+  g.product = 1;
+  for (const JointChain &c : chains) {
+    uint64_t n = c.legal.size();
+    if (n == 0) {
+      g.product = 0;
+      break;
+    }
+    if (g.product > UINT64_MAX / n) {
+      g.productOverflow = true;
+      break;
+    }
+    g.product *= n;
+  }
+  g.truncated = g.productOverflow || g.product > kGlobalFEnumerateCap;
+  g.enumerated = !g.truncated;
+  for (const JointChain &c : chains)
+    g.selected.push_back(c.selected);
+  g.historicalInF = historicalTupleInChains(chains);
+  if (g.enumerated) {
+    SmallVector<ChainAssignment, 4> cur;
+    enumerateGlobal(chains, 0, cur, g.legal);
+    if (g.historicalInF) {
+      bool inProduct = false;
+      for (const auto &asn : g.legal)
+        if (sameGlobal(asn, g.selected))
+          inProduct = true;
+      g.historicalInF = inProduct;
+    }
+  }
+  return g;
+}
+
+static void printGlobalSchedule(const GlobalSchedule &g, unsigned nChains) {
+  if (!g.historicalInF)
+    llvm::errs() << "hierarchy-global-error historical-tuple-not-in-F\n";
+  llvm::errs() << "hierarchy-global selected=" << joinGlobal(g.selected)
+               << " product=" << globalProductLabel(g)
+               << " enumerated=" << (g.enumerated ? "yes" : "no")
+               << " truncated=" << (g.truncated ? "yes" : "no")
+               << " legal=" << globalLegalLabel(g) << " policy=" << g.policy
+               << " note selection-ne-cost note default-3g-frozen"
+               << " note chain-def-frozen note truncated-ne-complete-F"
+               << " note historical-tuple-or-fail\n";
+  llvm::errs() << "hierarchy-global-schedule chains=" << nChains
+               << " product=" << globalProductLabel(g)
+               << " enumerated=" << (g.enumerated ? "yes" : "no")
+               << " truncated=" << (g.truncated ? "yes" : "no")
+               << " legal=" << globalLegalLabel(g)
+               << " selected-in-legal=" << (g.historicalInF ? "yes" : "no")
+               << " policy=default-3g note selection-ne-cost"
+               << " note default-3g-frozen note chain-def-frozen"
+               << " note truncated-ne-complete-F"
+               << " note historical-tuple-or-fail cost=unchanged\n";
+  if (!g.enumerated)
+    return;
+  for (const auto &asn : g.legal)
+    llvm::errs() << "hierarchy-global-candidate actions="
+                 << joinGlobal(asn) << "\n";
+}
+
 static bool isStorageOverlapConcurrent(ConcurrentOp conc) {
   SmallVector<TaskOp> tasks(conc.getBody().front().getOps<TaskOp>());
   if (tasks.size() != 2)
@@ -1861,6 +2018,45 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   root["hierarchy_joint_legal"] = (int64_t)jointProduct;
   root["hierarchy_joint_selected_in_legal"] = jointInLegal ? "yes" : "no";
   root["hierarchy_joint_policy"] = "default-3g";
+  GlobalSchedule glob = planGlobalSchedule(chains);
+  llvm::json::Array globLegal;
+  if (glob.enumerated) {
+    for (const auto &asn : glob.legal) {
+      llvm::json::Array chainsAsn;
+      for (const auto &chainAsn : asn) {
+        llvm::json::Array acts;
+        for (HierarchyAction a : chainAsn)
+          acts.push_back(hierarchyActionStr(a).str());
+        chainsAsn.push_back(std::move(acts));
+      }
+      globLegal.push_back(std::move(chainsAsn));
+    }
+  }
+  llvm::json::Array globSelected;
+  for (const auto &chainAsn : glob.selected) {
+    llvm::json::Array acts;
+    for (HierarchyAction a : chainAsn)
+      acts.push_back(hierarchyActionStr(a).str());
+    globSelected.push_back(std::move(acts));
+  }
+  root["hierarchy_global"] = std::move(globLegal);
+  root["hierarchy_global_selected"] = std::move(globSelected);
+  root["hierarchy_global_chains"] = (int64_t)chains.size();
+  if (glob.productOverflow)
+    root["hierarchy_global_product"] = "overflow";
+  else
+    root["hierarchy_global_product"] = (int64_t)glob.product;
+  root["hierarchy_global_enumerated"] = glob.enumerated ? "yes" : "no";
+  root["hierarchy_global_truncated"] = glob.truncated ? "yes" : "no";
+  if (glob.truncated)
+    root["hierarchy_global_legal"] = "not-enumerated";
+  else
+    root["hierarchy_global_legal"] = (int64_t)glob.legal.size();
+  root["hierarchy_global_selected_in_legal"] =
+      glob.historicalInF ? "yes" : "no";
+  root["hierarchy_global_policy"] = "default-3g";
+  if (!glob.historicalInF)
+    root["hierarchy_global_error"] = "historical-tuple-not-in-F";
   root["hierarchy_reuse_applied"] = (int64_t)reuse.applied;
   root["hierarchy_reuse_skipped"] = (int64_t)reuse.skipped;
   root["cost"] = "unchanged";
@@ -2059,6 +2255,8 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     for (const JointChain &c : chains)
       printJointChain(c);
     printJointSchedule(chains);
+    GlobalSchedule glob = planGlobalSchedule(chains);
+    printGlobalSchedule(glob, chains.size());
     ReuseStats reuse = applyProvenResidencyReuse(module);
     llvm::errs() << "hierarchy-reuse applied=" << reuse.applied
                  << " skipped=" << reuse.skipped
@@ -2071,6 +2269,8 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     if (!dumpPath.empty() &&
         failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites, chains,
                                     reuse)))
+      return failure();
+    if (!glob.historicalInF)
       return failure();
   }
   return success();
