@@ -269,8 +269,13 @@ Design: [`storage-ntile.md`](design/storage-ntile.md).
 
 Phase 3I: `scf.for` storage pipeline + loop-carried residency.
 SSA iter_args are the double buffer. Not in-place transfer
-overwrite and not a new wall-clock.
+overwrite and not a generic runtime-N scheduler.
 Design: [`storage-loop.md`](design/storage-loop.md).
+
+Phase 3J: program-level wall-clock of the 3I `scf.for`
+realization (`T_evi / T_seq`) on 4090 / 910B. Static trip.
+Not Cost v0.4 and not a new Capability rule.
+Design: [`storage-loop-wallclock.md`](design/storage-loop-wallclock.md).
 
 Cost v0.4 and a second hardware (ROCm first) stay in Phase 4.
 D2D/P2P is not the next CUDA arm.

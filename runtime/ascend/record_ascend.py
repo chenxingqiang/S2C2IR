@@ -1227,12 +1227,64 @@ def print_storage_loop_contract() -> int:
     print("note proven-live-residency")
     print("note not-c-storage-flatten")
     print("note no-invented-wait")
-    print("note runtime-witness=storage-pipeline")
+    print("note runtime-witness=storage-loop-wallclock")
     print("note catalog-untouched")
     print("note not-new-capability-grid")
     print("note not-cost-v04")
     print("semantics=unchanged")
     print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_loop_wallclock_contract() -> int:
+    print("storage-loop-wallclock program-measurement=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant underdetermined-preserve")
+    print("note scf-for-software-pipeline")
+    print("note not-arbitrary-runtime-n")
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note evi-eq-par")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_STORAGE_LOOP_TIMING_RE = re.compile(
+    r"storage-loop-wallclock timing seq=([0-9.]+) evi=([0-9.]+) "
+    r"par=([0-9.]+) opt_over_base=([0-9.]+)"
+)
+
+
+def analyze_storage_loop_wallclock(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    measured = bool(re.search(r"storage-loop-wallclock measured=yes\b", text))
+    timing = _STORAGE_LOOP_TIMING_RE.search(text)
+    defined = measured and timing is not None
+    print("storage-loop-wallclock program-measurement=yes")
+    print("storage-loop-wallclock note scf-for-software-pipeline")
+    print(f"storage-loop-wallclock measured={'yes' if measured else 'no'}")
+    print(
+        "storage-loop-wallclock t-opt-over-base-defined="
+        f"{'yes' if defined else 'no'}"
+    )
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note evi-eq-par")
+    print("note not-arbitrary-runtime-n")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    if re.search(r"device-absent", text):
+        print("note device-absent")
+    print("r3-gate=scoped-evidence")
     print("cost=unchanged")
     return 0
 
@@ -1484,6 +1536,8 @@ def main() -> int:
     p.add_argument("--analyze-storage-hierarchy", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
     p.add_argument("--print-storage-loop-contract", action="store_true")
+    p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
+    p.add_argument("--analyze-storage-loop-wallclock", type=Path)
     p.add_argument("--print-workload-schedule-contract", action="store_true")
     p.add_argument("--analyze-workload-schedule", type=Path)
     p.add_argument("--hardware", default="ascend910b")
@@ -1519,6 +1573,8 @@ def main() -> int:
             args.analyze_storage_hierarchy,
             args.print_storage_ntile_contract,
             args.print_storage_loop_contract,
+            args.print_storage_loop_wallclock_contract,
+            args.analyze_storage_loop_wallclock,
             args.print_workload_schedule_contract,
             args.analyze_workload_schedule,
         )
@@ -1542,6 +1598,8 @@ def main() -> int:
             "--analyze-storage-hierarchy, "
             "--print-storage-ntile-contract, "
             "--print-storage-loop-contract, "
+            "--print-storage-loop-wallclock-contract, "
+            "--analyze-storage-loop-wallclock, "
             "--print-workload-schedule-contract, "
             "--analyze-workload-schedule",
             file=sys.stderr,
@@ -1624,6 +1682,10 @@ def main() -> int:
         return print_storage_ntile_contract()
     if args.print_storage_loop_contract:
         return print_storage_loop_contract()
+    if args.print_storage_loop_wallclock_contract:
+        return print_storage_loop_wallclock_contract()
+    if args.analyze_storage_loop_wallclock:
+        return analyze_storage_loop_wallclock(args.analyze_storage_loop_wallclock)
     if args.print_workload_schedule_contract:
         return print_workload_schedule_contract()
     if args.analyze_workload_schedule:

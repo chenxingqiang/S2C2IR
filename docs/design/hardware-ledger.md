@@ -59,7 +59,11 @@ Each row is an index record, not a Capability cell.
 `ssd-mlp-wallclock-4090.log` is the 4090 counterpart and does
 not overwrite the 910B file.
 `storage-pipeline-4090.log` is the 4090 two-tile SSD prefetch
-|| compute program wall-clock. Do not FileCheck μs.
+|| compute program wall-clock.
+`storage-loop-wallclock-4090.log` / `storage-loop-wallclock.log`
+are the 3I `scf.for` loop-program wall-clock (4090 / 910B).
+A missing device is `device-absent`, not a guessed ratio.
+Do not FileCheck μs.
 
 ## Batch check
 
@@ -90,6 +94,10 @@ runtime/cuda/sweep_ssd_mlp_wallclock.sh ./s2c2-cuda-run \
   docs/design/v3-dataset/ssd-mlp-wallclock-4090
 runtime/cuda/sweep_storage_pipeline.sh ./s2c2-cuda-run \
   docs/design/v3-dataset/storage-pipeline-4090
+runtime/cuda/sweep_storage_loop_wallclock.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/storage-loop-wallclock-4090
+runtime/ascend/sweep_storage_loop_wallclock.sh ./s2c2-ascend-run \
+  docs/design/v3-dataset/storage-loop-wallclock
 python3 runtime/record_hw_ledger.py --check-hw-ledger
 ```
 

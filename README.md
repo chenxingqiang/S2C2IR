@@ -95,6 +95,7 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/storage-hierarchy.md`](docs/design/storage-hierarchy.md),
 [`docs/design/storage-ntile.md`](docs/design/storage-ntile.md),
 [`docs/design/storage-loop.md`](docs/design/storage-loop.md),
+[`docs/design/storage-loop-wallclock.md`](docs/design/storage-loop-wallclock.md),
 [`docs/design/pr-r3-cross-vendor.md`](docs/design/pr-r3-cross-vendor.md),
 [`docs/design/ssd-mlp-wallclock.md`](docs/design/ssd-mlp-wallclock.md),
 [`docs/design/hardware-ledger.md`](docs/design/hardware-ledger.md)
