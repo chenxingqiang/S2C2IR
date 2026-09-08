@@ -690,6 +690,23 @@ Does not FileCheck microseconds.
 | 3F-3 | same | `--profile=unknown` PRESERVE all three; `--s2c2-lower`; adapters + wall-clock |
 | 3F-4 | same | 4090 `storage-pipeline-4090.log` `measured=yes`; `--storage-pipeline` dry-run |
 
+## Storage hierarchy scheduling (Phase 3G)
+
+**Not Cost v0.4.** Design:
+[`storage-hierarchy.md`](storage-hierarchy.md).
+Compiler decides MATERIALIZE / PREFETCH / TRANSFER /
+KEEP_RESIDENCY / PRESERVE on SSD↔Host↔HBM. Inferred overlap
+authorizes PREFETCH only. `#69` untouched. Does not FileCheck
+microseconds. Runtime witness is the existing 4090 storage-pipeline
+log, not a new grid.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3G-1 | `test/Integration/storage-hierarchy.mlir` | `--profile=rtx4090` PREFETCH C\|\|Storage, KEEP_RESIDENCY rematerialize |
+| 3G-2 | same | `--profile=910B` same hierarchy counts as 4090 |
+| 3G-3 | same | `--profile=unknown` PRESERVE prefetch; KEEP_RESIDENCY still reported |
+| 3G-4 | same | `dump-schedule` JSON + adapters; existing `storage-pipeline-4090.log` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

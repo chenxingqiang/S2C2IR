@@ -96,6 +96,7 @@ does not FileCheck microseconds.
 Phase 3F two-tile SSD prefetch || compute
   ([storage-aware-pipeline.md](storage-aware-pipeline.md))
 Phase 3G storage hierarchy scheduling
+  ([storage-hierarchy.md](storage-hierarchy.md))
 Phase 4 Cost-based heterogeneous scheduling / Cost v0.4
 new rewrite kinds (C||HtoD flatten, pipeline, …)
 new 4090 / 910B Capability measurements

@@ -258,8 +258,10 @@ Phase 3F: two-tile SSD prefetch || compute, then sequential HtoD,
 then licensed C||C. Still storage-aware, not a generic scheduler.
 Design: [`storage-aware-pipeline.md`](design/storage-aware-pipeline.md).
 
-Phase 3G (later): storage hierarchy scheduling
-(SSD ↔ Host/DRAM ↔ HBM ↔ Compute).
+Phase 3G: storage hierarchy scheduling
+(SSD ↔ Host/DRAM ↔ HBM ↔ Compute) — when to materialize,
+prefetch, keep residency, or overlap a movement.
+Design: [`storage-hierarchy.md`](design/storage-hierarchy.md).
 
 Cost v0.4 and a second hardware (ROCm first) stay in Phase 4.
 D2D/P2P is not the next CUDA arm.
