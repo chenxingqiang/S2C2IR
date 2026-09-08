@@ -67,10 +67,13 @@
 // HW-NOT: password
 
 // HW4090: storage-loop-wallclock program-measurement=yes
-// HW4090: storage-loop-wallclock measured=no
-// HW4090: storage-loop-wallclock t-opt-over-base-defined=no
+// HW4090: storage-loop-wallclock measured=yes
+// HW4090: storage-loop-wallclock t-opt-over-base-defined=yes
+// HW4090: note t-base-is-t-seq
+// HW4090: note t-opt-is-t-evi
 // HW4090: note catalog-untouched
-// HW4090: note device-absent
+// HW4090-NOT: measured=no
+// HW4090-NOT: note device-absent
 // HW4090: cost=unchanged
 // HW4090-NOT: Cost v0.4
 // HW4090-NOT: password

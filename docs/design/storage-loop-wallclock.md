@@ -1,10 +1,10 @@
 # scf.for loop-pipeline wall-clock (Phase 3J)
 
 **Status:** program-level witness of the **3I `scf.for` realization**.
-This increment's checked-in 4090 / 910B logs are `device-absent`
-(this host has no GPU/NPU, and the 4090 SSH helper was
-rejected). That is a valid result, not a guessed ratio.
-Static trip in the witness. SSA `iter_args` are the double buffer.
+4090 host wall-clock is `measured=yes`. The 910B log is still
+`device-absent` (no NPU path on this increment). That is a
+valid result, not a guessed ratio. Static trip in the witness.
+SSA `iter_args` are the double buffer.
 Conservative loop-carried lifetime is inherited, not expanded.
 Not Cost v0.4. Does **not** densify Capability matrices,
 overwrite `#69`, invent sibling `sched.wait`, FileCheck
@@ -82,7 +82,8 @@ ratio = T_evi / T_seq
 ```text
 T_evi < T_seq   →  kept C||Storage overlap produced program gain
 T_evi ≈ T_seq   →  report honestly; do not invent a speedup
-device absent   →  measured=no; ratio undefined
+this 4090 log   →  measured=yes; do not FileCheck μs
+this 910B log   →  device-absent; ratio undefined
 ```
 
 Do not FileCheck microseconds. Do not freeze a ratio as Cost.

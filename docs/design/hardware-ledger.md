@@ -60,10 +60,10 @@ Each row is an index record, not a Capability cell.
 not overwrite the 910B file.
 `storage-pipeline-4090.log` is the 4090 two-tile SSD prefetch
 || compute program wall-clock.
-`storage-loop-wallclock-4090.log` / `storage-loop-wallclock.log`
-are the 3I `scf.for` loop-program wall-clock (4090 / 910B).
-A missing device is `device-absent`, not a guessed ratio.
-Do not FileCheck μs.
+`storage-loop-wallclock-4090.log` is the 4090 3I `scf.for`
+loop-program wall-clock (`measured=yes`).
+`storage-loop-wallclock.log` is the 910B counterpart and is
+`device-absent` until a real 910B run. Do not FileCheck μs.
 
 ## Batch check
 
