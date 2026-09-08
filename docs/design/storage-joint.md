@@ -113,7 +113,8 @@ Cost = unchanged
 
 `default-3g` reproduces the 4A per-site 3G choices as one
 assignment. Do **not** retarget it when Cost arrives. Add
-`policy=cost-v04` instead.
+`policy=cost-v04` instead. See
+[`storage-cost.md`](storage-cost.md).
 
 Selecting `KEEP_RESIDENCY` on a chain is still not a rewrite.
 Reuse remains Phase 3H/3I proven live replica.

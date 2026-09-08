@@ -429,6 +429,42 @@ static void printStorageGlobal() {
                "s2c2-cuda-adapter storage-global semantics=unchanged\n");
 }
 
+static void printStorageCost() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-cost=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-cost source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note cost-ranks-enumerated-F-only\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note cost-ne-legality\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note cost-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost policy=cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note truncated-ne-ranked\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note not-s2c2-argmin\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note not-score3\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note chain-def-frozen\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-cost cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -604,6 +640,7 @@ int main(int argc, char **argv) {
   bool storageSched = false;
   bool storageJoint = false;
   bool storageGlobal = false;
+  bool storageCost = false;
   bool storageNtile = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
@@ -645,6 +682,8 @@ int main(int argc, char **argv) {
       storageJoint = true;
     } else if (a == "--storage-global") {
       storageGlobal = true;
+    } else if (a == "--storage-cost") {
+      storageCost = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
     } else if (a == "--storage-loop") {
@@ -663,6 +702,7 @@ int main(int argc, char **argv) {
                    "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
                    "[--storage-pipeline] [--storage-hierarchy] "
                    "[--storage-schedule] [--storage-joint] [--storage-global] "
+                   "[--storage-cost] "
                    "[--storage-ntile] [--storage-loop] "
                    "[--storage-loop-wallclock] "
                    "[--workload-schedule]\n"
@@ -687,7 +727,7 @@ int main(int argc, char **argv) {
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
               (int)ssdMlp + (int)storagePipe + (int)storageHier +
               (int)storageSched + (int)storageJoint + (int)storageGlobal +
-              (int)storageNtile + (int)storageLoop + (int)storageLoopWc +
+              (int)storageCost + (int)storageNtile + (int)storageLoop + (int)storageLoopWc +
               (int)workloadSched;
   if (modes > 1) {
     std::fprintf(stderr,
@@ -695,7 +735,7 @@ int main(int argc, char **argv) {
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
                  "--matched/--ssd-mlp-wallclock/--storage-pipeline/"
                  "--storage-hierarchy/--storage-schedule/--storage-joint/"
-                 "--storage-global/--storage-ntile/"
+                 "--storage-global/--storage-cost/--storage-ntile/"
                  "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule "
                  "cannot combine\n");
@@ -778,6 +818,11 @@ int main(int argc, char **argv) {
   }
   if (storageGlobal) {
     printStorageGlobal();
+    printMaps();
+    return 0;
+  }
+  if (storageCost) {
+    printStorageCost();
     printMaps();
     return 0;
   }

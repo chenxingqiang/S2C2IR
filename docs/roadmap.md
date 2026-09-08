@@ -290,11 +290,18 @@ Design: [`storage-joint.md`](design/storage-joint.md).
 
 Phase 4C: global \(F(\text{program})\) as the product of
 \(F(\text{chain})\) in program order. `default-3g` selects the
-historical tuple. Cost still does not rank or decide legality.
+historical tuple. Cost still does not decide legality.
 Design: [`storage-global.md`](design/storage-global.md).
 
-Cost v0.4 ranking stays frozen. A second hardware (ROCm first)
-stays later in Phase 4.
+Phase 4D: rank a fully enumerated \(F(\text{program})\) under
+`policy=cost-v04`. Does not invent members, does not retarget
+`default-3g`, and does not rank a truncated product. Frozen
+`--s2c2-cost` / `--s2c2-argmin` stay untouched. No new Capability
+measurements.
+Design: [`storage-cost.md`](design/storage-cost.md).
+
+Cost v0.4 Search (`--s2c2-argmin` / `--s2c2-walk`) stays frozen.
+A second hardware (ROCm first) stays later in Phase 4.
 D2D/P2P is not the next CUDA arm.
 
 ```text

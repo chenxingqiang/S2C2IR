@@ -802,6 +802,23 @@ untouched.
 | 4C-4 | same | adapters `--storage-global`; exclusive vs `--storage-joint` |
 | 4C-5 | same | seven rematerialize chains: `product=128 enumerated=no truncated=yes legal=not-enumerated`; not `legal=64`; no candidates |
 
+## Storage cost ranking (Phase 4D)
+
+**Not new Capability measurements.** Design:
+[`storage-cost.md`](storage-cost.md). Rank enumerated
+\(F(\text{program})\) under `policy=cost-v04`. Does not invent
+members, does not retarget `default-3g`, and does not rank a
+truncated product. Frozen `--s2c2-cost` / `--s2c2-argmin` /
+Score_3 untouched. `#69` untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4D-1 | `test/Integration/storage-cost.mlir` | `--print-storage-cost-contract`; `cost-ne-legality`; `truncated-ne-ranked`; `default-3g-frozen` |
+| 4D-2 | same | 4090 `ranked` ends `PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY` `score=0` `ranked-eq-default-3g=yes` |
+| 4D-3 | same | `--profile=unknown` ranked uses `PRESERVE`; no `PREFETCH` |
+| 4D-4 | same | adapters `--storage-cost`; exclusive vs `--storage-global` |
+| 4D-5 | same | seven rematerialize chains: `ranked=not-enumerated`; no cost candidates |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
