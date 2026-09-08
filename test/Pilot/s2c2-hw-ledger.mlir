@@ -27,10 +27,10 @@ module {
 // LEDGER: hw-ledger id=ssd-mlp-wallclock-4090 status=measured files=ok
 // LEDGER: hw-ledger id=storage-pipeline-4090 status=measured files=ok
 // LEDGER: hw-ledger id=storage-loop-wallclock-4090 status=measured files=ok
-// LEDGER: hw-ledger id=storage-loop-wallclock status=device-absent files=ok
+// LEDGER: hw-ledger id=storage-loop-wallclock status=measured files=ok
 // LEDGER: hw-ledger records=23
-// LEDGER: hw-ledger measured=22
-// LEDGER: hw-ledger device-absent=1
+// LEDGER: hw-ledger measured=23
+// LEDGER: hw-ledger device-absent=0
 // LEDGER: hw-ledger catalog-69=underdetermined
 // LEDGER: hw-ledger catalog-untouched=yes
 // LEDGER: hw-ledger secrets=0
@@ -40,7 +40,7 @@ module {
 // LEDGER-NOT: hw-ledger ssd-mlp-wallclock-4090=device-absent
 // LEDGER-NOT: hw-ledger storage-pipeline-4090=device-absent
 // LEDGER-NOT: hw-ledger storage-loop-wallclock-4090=device-absent
-// LEDGER-NOT: hw-ledger storage-loop-wallclock=measured
+// LEDGER-NOT: hw-ledger storage-loop-wallclock=device-absent
 // LEDGER: cost=unchanged
 // LEDGER-NOT: Cost v0.4
 // LEDGER-NOT: password

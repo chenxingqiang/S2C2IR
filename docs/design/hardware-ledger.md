@@ -62,8 +62,9 @@ not overwrite the 910B file.
 || compute program wall-clock.
 `storage-loop-wallclock-4090.log` is the 4090 3I `scf.for`
 loop-program wall-clock (`measured=yes`).
-`storage-loop-wallclock.log` is the 910B counterpart and is
-`device-absent` until a real 910B run. Do not FileCheck μs.
+`storage-loop-wallclock.log` is the 910B counterpart
+(`measured=yes`) and does not overwrite the 4090 file.
+Do not FileCheck μs. Do not compare 4090 μs to 910B μs.
 
 ## Batch check
 

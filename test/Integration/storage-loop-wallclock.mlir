@@ -58,10 +58,13 @@
 // ABSENT-NOT: password
 
 // HW: storage-loop-wallclock program-measurement=yes
-// HW: storage-loop-wallclock measured=no
-// HW: storage-loop-wallclock t-opt-over-base-defined=no
+// HW: storage-loop-wallclock measured=yes
+// HW: storage-loop-wallclock t-opt-over-base-defined=yes
+// HW: note t-base-is-t-seq
+// HW: note t-opt-is-t-evi
 // HW: note catalog-untouched
-// HW: note device-absent
+// HW-NOT: measured=no
+// HW-NOT: note device-absent
 // HW: cost=unchanged
 // HW-NOT: Cost v0.4
 // HW-NOT: password

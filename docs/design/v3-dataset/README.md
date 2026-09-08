@@ -63,9 +63,9 @@ Complete SSD+MLP program wall-clock logs:
 `ssd-mlp-wallclock.log` (910B) and `ssd-mlp-wallclock-4090.log`
 (4090). Both `measured=yes`. Two-tile SSD prefetch || compute:
 `storage-pipeline-4090.log` (4090, `measured=yes`). 3I loop
-program wall-clock: `storage-loop-wallclock-4090.log` (4090,
-`measured=yes`) and `storage-loop-wallclock.log` (910B,
-`device-absent`). Not Cost v0.4.
+program wall-clock: `storage-loop-wallclock-4090.log` (4090)
+and `storage-loop-wallclock.log` (910B). Both `measured=yes`.
+Not Cost v0.4.
 `#69` untouched. Do not FileCheck microseconds. Do not compare
 4090 μs to 910B μs.
 
