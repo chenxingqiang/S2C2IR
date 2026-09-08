@@ -343,6 +343,12 @@ static void printStorageGlobal() {
                "s2c2-ascend-adapter storage-global note chain-def-frozen\n");
   std::fprintf(stderr,
                "s2c2-ascend-adapter storage-global "
+               "note truncated-ne-complete-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global "
+               "note historical-tuple-or-fail\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global "
                "note cost-ranking-is-policy-cost-v04\n");
   std::fprintf(stderr,
                "s2c2-ascend-adapter storage-global "

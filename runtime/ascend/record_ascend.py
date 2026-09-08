@@ -1460,6 +1460,8 @@ def print_storage_global_contract() -> int:
     print("note catalog-untouched")
     print("note not-new-capability-grid")
     print("note not-cost-v04")
+    print("note truncated-ne-complete-F")
+    print("note historical-tuple-or-fail")
     print("semantics=unchanged")
     print("v3=not-claimed")
     print("cost=unchanged")
@@ -1467,50 +1469,84 @@ def print_storage_global_contract() -> int:
 
 
 _HIER_GLOB_RE = re.compile(
-    r"hierarchy-global selected=(\S+) legal=(\d+) policy=(\S+)"
+    r"hierarchy-global selected=(\S+) product=(\S+) "
+    r"enumerated=(yes|no) truncated=(yes|no) legal=(\S+) policy=(\S+)"
 )
 _HIER_GLOB_SUM_RE = re.compile(
-    r"hierarchy-global-schedule chains=(\d+) legal=(\d+) "
+    r"hierarchy-global-schedule chains=(\d+) product=(\S+) "
+    r"enumerated=(yes|no) truncated=(yes|no) legal=(\S+) "
     r"selected-in-legal=(yes|no)"
 )
+_HIER_GLOB_ERR_RE = re.compile(r"hierarchy-global-error (\S+)")
+
+
+def _global_legal_label(value) -> str:
+    if value == "not-enumerated":
+        return "not-enumerated"
+    if isinstance(value, str) and value == "overflow":
+        return value
+    return str(int(value))
 
 
 def analyze_storage_global(path: Path) -> int:
     text = path.read_text(encoding="utf-8", errors="replace").lstrip()
     chains = 0
-    legal = 0
+    product = "0"
+    enumerated = "no"
+    truncated = "no"
+    legal = "0"
     in_legal = "no"
     policy = "default-3g"
+    error = ""
     if text.startswith("{"):
         obj = json.loads(text.splitlines()[0])
         if obj.get("schema") != "s2c2.workload_schedule.v1":
             print("record_ascend: not a workload_schedule dump", file=sys.stderr)
             return 4
         chains = int(obj.get("hierarchy_global_chains", 0))
-        legal = int(obj.get("hierarchy_global_legal", 0))
+        product = str(obj.get("hierarchy_global_product", "0"))
+        enumerated = str(obj.get("hierarchy_global_enumerated", "no"))
+        truncated = str(obj.get("hierarchy_global_truncated", "no"))
+        legal = _global_legal_label(obj.get("hierarchy_global_legal", 0))
         in_legal = str(obj.get("hierarchy_global_selected_in_legal", "no"))
         policy = str(obj.get("hierarchy_global_policy", "default-3g"))
+        error = str(obj.get("hierarchy_global_error", "") or "")
     else:
         m = _HIER_GLOB_SUM_RE.search(text)
         g = _HIER_GLOB_RE.search(text)
         if m:
             chains = int(m.group(1))
-            legal = int(m.group(2))
-            in_legal = m.group(3)
+            product = m.group(2)
+            enumerated = m.group(3)
+            truncated = m.group(4)
+            legal = m.group(5)
+            in_legal = m.group(6)
         if g:
-            legal = int(g.group(2))
-            policy = g.group(3)
-            in_legal = "yes"
+            product = g.group(2)
+            enumerated = g.group(3)
+            truncated = g.group(4)
+            legal = g.group(5)
+            policy = g.group(6)
+        err = _HIER_GLOB_ERR_RE.search(text)
+        if err:
+            error = err.group(1)
     print("storage-global compiler-driven=yes")
     print(f"storage-global chains={chains}")
+    print(f"storage-global product={product}")
+    print(f"storage-global enumerated={enumerated}")
+    print(f"storage-global truncated={truncated}")
     print(f"storage-global legal={legal}")
     print(f"storage-global selected-in-legal={in_legal}")
     print(f"storage-global policy={policy}")
+    if error:
+        print(f"storage-global-error {error}")
     print("note global-candidates-then-select")
     print("note selection-ne-cost")
     print("note selection-ne-rewrite-license")
     print("note default-3g-frozen")
     print("note chain-def-frozen")
+    print("note truncated-ne-complete-F")
+    print("note historical-tuple-or-fail")
     print("note cost-ranking-is-policy-cost-v04")
     print("note not-c-storage-flatten")
     print("note catalog-untouched")
