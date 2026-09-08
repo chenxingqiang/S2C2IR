@@ -440,9 +440,10 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     Also walks `stor.materialize` / `stor.transfer` and prints a
     hierarchy plan: MATERIALIZE / PREFETCH / TRANSFER /
     KEEP_RESIDENCY / PRESERVE. Inferred overlap authorizes PREFETCH
-    only; it does not flatten C||Storage. KEEP_RESIDENCY is not a
-    rematerialize rewrite. Optional `dump-schedule` writes the same
-    decisions as JSON. Does not add a new rewrite kind.
+    only; it does not flatten C||Storage. KEEP_RESIDENCY reuse
+    applies only when a dominating, unmutated, same-type live
+    replica is proven. Optional `dump-schedule` writes the same
+    decisions as JSON. Does not flatten C||Storage.
   }];
   let dependentDialects = [
     "mlir::s2c2::sched::ScheduleDialect",

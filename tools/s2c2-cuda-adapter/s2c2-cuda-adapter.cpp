@@ -207,6 +207,32 @@ static void printStoragePipeline() {
   std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
 }
 
+static void printStorageNtile() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile "
+               "note compute-then-prefetch-next\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile "
+               "note proven-live-residency\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile note no-invented-wait\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile "
+               "runtime-witness=storage-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile semantics=unchanged\n");
+}
+
 static void printStorageHierarchy() {
   std::fprintf(stderr, "s2c2-cuda-adapter storage-hierarchy=1\n");
   std::fprintf(stderr,
@@ -404,6 +430,7 @@ int main(int argc, char **argv) {
   bool ssdMlp = false;
   bool storagePipe = false;
   bool storageHier = false;
+  bool storageNtile = false;
   bool workloadSched = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
@@ -436,6 +463,8 @@ int main(int argc, char **argv) {
       storagePipe = true;
     } else if (a == "--storage-hierarchy") {
       storageHier = true;
+    } else if (a == "--storage-ntile") {
+      storageNtile = true;
     } else if (a == "--workload-schedule") {
       workloadSched = true;
     } else if (a.rfind("--func=", 0) == 0) {
@@ -447,7 +476,7 @@ int main(int argc, char **argv) {
                    "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
                    "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
                    "[--storage-pipeline] [--storage-hierarchy] "
-                   "[--workload-schedule]\n"
+                   "[--storage-ntile] [--workload-schedule]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -468,13 +497,13 @@ int main(int argc, char **argv) {
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
               (int)ssdMlp + (int)storagePipe + (int)storageHier +
-              (int)workloadSched;
+              (int)storageNtile + (int)workloadSched;
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-cuda-adapter: --cap-schema/--cuda-val-async/--cuda-val-cc/"
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
                  "--matched/--ssd-mlp-wallclock/--storage-pipeline/"
-                 "--storage-hierarchy/--workload-schedule "
+                 "--storage-hierarchy/--storage-ntile/--workload-schedule "
                  "cannot combine\n");
     return 1;
   }
@@ -540,6 +569,11 @@ int main(int argc, char **argv) {
   }
   if (storageHier) {
     printStorageHierarchy();
+    printMaps();
+    return 0;
+  }
+  if (storageNtile) {
+    printStorageNtile();
     printMaps();
     return 0;
   }
