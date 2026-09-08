@@ -49,9 +49,9 @@
 // GPU-LOG-SAME: action=TRANSFER
 // GPU-LOG-SAME: when=sequential
 // GPU-LOG: hierarchy-site #4 op=stor.transfer src=ssd dst=host
+// GPU-LOG-SAME: pair=C{{[|][|]}}Storage
 // GPU-LOG-SAME: action=PREFETCH
 // GPU-LOG-SAME: when=overlap
-// GPU-LOG-SAME: pair=C||Storage
 // GPU-LOG-SAME: reason=storage-communication-overlap
 // GPU-LOG: hierarchy-site #5 op=stor.transfer src=host dst=hbm
 // GPU-LOG-SAME: action=TRANSFER
