@@ -818,6 +818,7 @@ Score_3 untouched. `#69` untouched.
 | 4D-3 | same | `--profile=unknown` ranked uses `PRESERVE`; no `PREFETCH` |
 | 4D-4 | same | adapters `--storage-cost`; exclusive vs `--storage-global` |
 | 4D-5 | same | seven rematerialize chains: `ranked=not-enumerated`; no cost candidates |
+| 4D-6 | `test/Integration/storage-cost-coincide.mlir` | enumerated Storage fixtures `diverge=no`; truncated `diverge=n/a`; `runtime-correlation-not-applicable` |
 
 ## Complete SSD + MLP program wall-clock
 

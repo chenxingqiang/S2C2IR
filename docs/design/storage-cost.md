@@ -94,6 +94,42 @@ ranked=not-enumerated score=n/a truncated=yes
 
 No `hierarchy-global-cost-candidate` dump. Not a 64-prefix ranking.
 
+## Coincide with default-3g
+
+On every **enumerated** Storage fixture currently in tree,
+`policy=cost-v04` ArgMin **is** the historical `default-3g`
+tuple (`diverge=no`, `argmin-size=1`):
+
+| Workload | Profile | product | diverge |
+| -------- | ------- | ------- | ------- |
+| `@ssd_hierarchy_lifetime` | 4090 / 910B | 8 | no |
+| `@ssd_hierarchy_lifetime` | unknown | 4 | no |
+| N-tile hierarchy | 4090 | 4 | no |
+| `scf.for` loop hierarchy | 4090 | 4 | no |
+| storage-aware pipeline | 4090 | 2 | no |
+| `A B A` interleave | 4090 | 1 | no |
+| `@seven_binary_chains` | 4090 | 128 truncated | n/a |
+
+This is not a hardware result. `default-3g` prefers
+`PREFETCH` / `KEEP_RESIDENCY` whenever those actions are in
+\(F(\text{site})\), and those are exactly the 0-tick actions.
+Therefore the historical tuple is the unique structural ArgMin
+whenever it inhabits enumerated \(F(\text{program})\).
+
+```text
+diverge=no
+    ≠  Cost became default-3g
+    =  current ticks pick the same inhabitant as 3G
+runtime correlation
+    =  not applicable (no second legal schedule to time)
+new Cost dimensions
+    =  not this cut
+```
+
+A later **measured** cost table is a new policy. It must still
+rank only enumerated \(F\), must not invent members, and must
+not retarget `default-3g`. Do not FileCheck microseconds here.
+
 ## Policy
 
 ```text
@@ -108,6 +144,8 @@ Capability grid = unchanged
 
 ```text
 new 4090 / 910B Capability measurements
+wrapping structural ticks as wall-clock
+FileCheck of microseconds
 changing --s2c2-cost / --s2c2-cost-hb / --s2c2-cost-cp numbers
 changing --s2c2-argmin / --s2c2-walk
 retargeting default-3g
