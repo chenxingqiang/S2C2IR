@@ -90,7 +90,7 @@ microseconds. Do not freeze `T_evi/T_seq` as Cost. `#69` untouched.
 ## Out of scope
 
 ```text
-Phase 3H N-tile pipeline + proven-safe reuse
+Phase 3H N-tile contract + N=3 unrolled realization
   ([storage-ntile.md](storage-ntile.md))
 generic rematerialize elimination
 C||Storage flatten

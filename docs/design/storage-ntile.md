@@ -71,15 +71,17 @@ rematerialize tile 1           KEEP_RESIDENCY → reuse if proven
 | sequential HtoD | TRANSFER | TRANSFER | TRANSFER |
 | rematerialize temptation | reuse | reuse | reuse |
 
-Runtime witness remains `storage-pipeline-4090.log`. Logical SSD is
-a pageable host buffer, not NVMe. Do not FileCheck microseconds.
+Runtime witness remains the inherited 3F log
+`storage-pipeline-4090.log` (`measured=yes`). It is **not** a new
+three-tile wall-clock. Logical SSD is a pageable host buffer, not
+NVMe. Do not FileCheck microseconds.
 
 ## Out of scope
 
 ```text
 generic rematerialize elimination / alias-incomplete DCE
 C||Storage flatten
-full software-pipelined loop (scf.for + double buffers)
+arbitrary-N / scf.for double-buffer software pipeline
 Phase 4 Cost v0.4
 new 4090 / 910B Capability measurements
 overwriting #69
