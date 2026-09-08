@@ -1038,10 +1038,11 @@ def print_e2e_contract() -> int:
 
 _WORKLOAD_CAND_RE = re.compile(
     r"workload-candidate #(\d+) pair=(\S+) payload=(\S+) relation=(\S+) "
-    r"decision=(KEEP|FLATTEN) reason=(\S+)"
+    r"decision=(KEEP|FLATTEN|PRESERVE) reason=(\S+)"
 )
 _WORKLOAD_SUM_RE = re.compile(
     r"workload-schedule candidates=(\d+) keep=(\d+) flatten=(\d+)"
+    r"(?: preserve=(\d+))?"
 )
 
 
@@ -1057,6 +1058,7 @@ def print_workload_schedule_contract() -> int:
     print("note runtime-witness=ssd-mlp-wallclock")
     print("note compiler-chosen-t-evi")
     print("note not-new-capability-grid")
+    print("note storage-data-movement-overlap")
     print("note not-cost-v04")
     print("semantics=unchanged")
     print("v3=not-claimed")
@@ -1065,12 +1067,17 @@ def print_workload_schedule_contract() -> int:
 
 
 def _print_workload_schedule_summary(
-    candidates: int, keep: int, flatten: int, decisions: list[dict[str, Any]]
+    candidates: int,
+    keep: int,
+    flatten: int,
+    preserve: int,
+    decisions: list[dict[str, Any]],
 ) -> int:
     print("workload-schedule compiler-driven=yes")
     print(f"workload-schedule candidates={candidates}")
     print(f"workload-schedule keep={keep}")
     print(f"workload-schedule flatten={flatten}")
+    print(f"workload-schedule preserve={preserve}")
     for d in decisions:
         print(
             f"workload-schedule candidate=#{d['id']} pair={d['pair']} "
@@ -1080,6 +1087,7 @@ def _print_workload_schedule_summary(
     print("note runtime-witness=ssd-mlp-wallclock")
     print("note compiler-chosen-t-evi")
     print("note not-new-capability-grid")
+    print("note storage-data-movement-overlap")
     print("note not-cost-v04")
     print("r3-gate=scoped-evidence")
     print("cost=unchanged")
@@ -1111,6 +1119,12 @@ def analyze_workload_schedule(path: Path) -> int:
                     sum(1 for d in decisions if d["decision"] == "FLATTEN"),
                 )
             ),
+            int(
+                obj.get(
+                    "preserve",
+                    sum(1 for d in decisions if d["decision"] == "PRESERVE"),
+                )
+            ),
             decisions,
         )
     decisions: list[dict[str, Any]] = []
@@ -1129,14 +1143,22 @@ def analyze_workload_schedule(path: Path) -> int:
         candidates = int(summary.group(1))
         keep = int(summary.group(2))
         flatten = int(summary.group(3))
+        preserve = (
+            int(summary.group(4))
+            if summary.group(4) is not None
+            else sum(1 for d in decisions if d["decision"] == "PRESERVE")
+        )
     else:
         candidates = len(decisions)
         keep = sum(1 for d in decisions if d["decision"] == "KEEP")
         flatten = sum(1 for d in decisions if d["decision"] == "FLATTEN")
+        preserve = sum(1 for d in decisions if d["decision"] == "PRESERVE")
     if candidates == 0 and not decisions:
         print("record_ascend: no workload-schedule candidates", file=sys.stderr)
         return 4
-    return _print_workload_schedule_summary(candidates, keep, flatten, decisions)
+    return _print_workload_schedule_summary(
+        candidates, keep, flatten, preserve, decisions
+    )
 
 
 def print_ssd_mlp_wallclock_contract() -> int:
@@ -1184,6 +1206,54 @@ def analyze_ssd_mlp_wallclock(log: Path) -> int:
     print("note 32M-outlier-not-cost")
     print("note catalog-untouched")
     print("note logical-ssd-ne-disk")
+    print("note not-cost-v04")
+    if re.search(r"device-absent", text):
+        print("note device-absent")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_pipeline_contract() -> int:
+    print("storage-pipeline program-measurement=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant underdetermined-preserve")
+    print("note storage-prefetch||compute")
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_STORAGE_PIPE_TIMING_RE = re.compile(
+    r"storage-pipeline timing seq=([0-9.]+) evi=([0-9.]+) "
+    r"par=([0-9.]+) opt_over_base=([0-9.]+)"
+)
+
+
+def analyze_storage_pipeline(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    measured = bool(re.search(r"storage-pipeline measured=yes\b", text))
+    timing = _STORAGE_PIPE_TIMING_RE.search(text)
+    defined = measured and timing is not None
+    print("storage-pipeline program-measurement=yes")
+    print("storage-pipeline note storage-prefetch||compute")
+    print(f"storage-pipeline measured={'yes' if measured else 'no'}")
+    print(
+        "storage-pipeline t-opt-over-base-defined="
+        f"{'yes' if defined else 'no'}"
+    )
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
     print("note not-cost-v04")
     if re.search(r"device-absent", text):
         print("note device-absent")
@@ -1264,6 +1334,8 @@ def main() -> int:
     p.add_argument("--analyze-e2e-gain", type=Path)
     p.add_argument("--print-ssd-mlp-wallclock-contract", action="store_true")
     p.add_argument("--analyze-ssd-mlp-wallclock", type=Path)
+    p.add_argument("--print-storage-pipeline-contract", action="store_true")
+    p.add_argument("--analyze-storage-pipeline", type=Path)
     p.add_argument("--print-workload-schedule-contract", action="store_true")
     p.add_argument("--analyze-workload-schedule", type=Path)
     p.add_argument("--hardware", default="ascend910b")
@@ -1293,6 +1365,8 @@ def main() -> int:
             args.analyze_e2e_gain,
             args.print_ssd_mlp_wallclock_contract,
             args.analyze_ssd_mlp_wallclock,
+            args.print_storage_pipeline_contract,
+            args.analyze_storage_pipeline,
             args.print_workload_schedule_contract,
             args.analyze_workload_schedule,
         )
@@ -1310,6 +1384,8 @@ def main() -> int:
             "--print-r3-contract, --print-e2e-contract, --analyze-e2e-gain, "
             "--print-ssd-mlp-wallclock-contract, "
             "--analyze-ssd-mlp-wallclock, "
+            "--print-storage-pipeline-contract, "
+            "--analyze-storage-pipeline, "
             "--print-workload-schedule-contract, "
             "--analyze-workload-schedule",
             file=sys.stderr,
@@ -1380,6 +1456,10 @@ def main() -> int:
         return print_ssd_mlp_wallclock_contract()
     if args.analyze_ssd_mlp_wallclock:
         return analyze_ssd_mlp_wallclock(args.analyze_ssd_mlp_wallclock)
+    if args.print_storage_pipeline_contract:
+        return print_storage_pipeline_contract()
+    if args.analyze_storage_pipeline:
+        return analyze_storage_pipeline(args.analyze_storage_pipeline)
     if args.print_workload_schedule_contract:
         return print_workload_schedule_contract()
     if args.analyze_workload_schedule:

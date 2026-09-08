@@ -2151,6 +2151,226 @@ static int runSsdMlpWallclock(int nHtod, int nCc, int kRef, int warmup,
   return 0;
 }
 
+// Two-tile storage-aware pipeline wall-clock. Logical SSD is a
+// pageable host buffer, not NVMe. T_evi keeps C||Storage overlap
+// and flattens licensed C||C. Not Cost v0.4.
+struct PipeTile {
+  float *ssd = nullptr;
+  float *host = nullptr;
+  float *dev = nullptr;
+  int n = 0;
+
+  void alloc(int n_) {
+    n = n_;
+    size_t bytes = sizeof(float) * static_cast<size_t>(n);
+    ssd = static_cast<float *>(std::malloc(bytes));
+    if (!ssd) {
+      std::fprintf(stderr, "s2c2-cuda-run: ssd alloc failed\n");
+      std::exit(2);
+    }
+    CUDA_OK(cudaHostAlloc(&host, bytes, cudaHostAllocDefault));
+    CUDA_OK(cudaMalloc(&dev, bytes));
+  }
+
+  void freeAll() {
+    cudaFree(dev);
+    cudaFreeHost(host);
+    std::free(ssd);
+  }
+
+  size_t bytes() const { return sizeof(float) * static_cast<size_t>(n); }
+};
+
+static void ssdPrefetch(PipeTile &t) {
+  std::memcpy(t.host, t.ssd, t.bytes());
+}
+
+static void tileHtoD(PipeTile &t, cudaStream_t stream) {
+  CUDA_OK(cudaMemcpyAsync(t.dev, t.host, t.bytes(), cudaMemcpyHostToDevice,
+                          stream));
+}
+
+static void runStoragePipeline(PipeTile &t0, PipeTile &t1, CapBuf &cc16,
+                               CapBuf &cc128, int kTile, int kCc, ProgArm arm) {
+  if (arm == ProgArm::Seq) {
+    ssdPrefetch(t0);
+    tileHtoD(t0, cc16.s0);
+    CUDA_OK(cudaStreamSynchronize(cc16.s0));
+    siluLaunch(t0.dev, t0.n, cc16.s0, kTile);
+    CUDA_OK(cudaStreamSynchronize(cc16.s0));
+    ssdPrefetch(t1);
+    tileHtoD(t1, cc16.s0);
+    CUDA_OK(cudaStreamSynchronize(cc16.s0));
+    siluLaunch(cc16.dev0, cc16.n, cc16.s0, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc16.s0));
+    siluLaunch(cc16.dev1, cc16.n, cc16.s1, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc16.s1));
+    siluLaunch(cc128.dev0, cc128.n, cc128.s0, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc128.s0));
+    siluLaunch(cc128.dev1, cc128.n, cc128.s1, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc128.s1));
+    return;
+  }
+  ssdPrefetch(t0);
+  tileHtoD(t0, cc16.s0);
+  CUDA_OK(cudaStreamSynchronize(cc16.s0));
+  siluLaunch(t0.dev, t0.n, cc16.s0, kTile);
+  ssdPrefetch(t1);
+  CUDA_OK(cudaStreamSynchronize(cc16.s0));
+  tileHtoD(t1, cc16.s1);
+  CUDA_OK(cudaStreamSynchronize(cc16.s1));
+  if (arm == ProgArm::Evi) {
+    siluLaunch(cc16.dev0, cc16.n, cc16.s0, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc16.s0));
+    siluLaunch(cc16.dev1, cc16.n, cc16.s1, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc16.s1));
+    siluLaunch(cc128.dev0, cc128.n, cc128.s0, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc128.s0));
+    siluLaunch(cc128.dev1, cc128.n, cc128.s1, kCc);
+    CUDA_OK(cudaStreamSynchronize(cc128.s1));
+    return;
+  }
+  siluLaunch(cc16.dev0, cc16.n, cc16.s0, kCc);
+  siluLaunch(cc16.dev1, cc16.n, cc16.s1, kCc);
+  CUDA_OK(cudaStreamSynchronize(cc16.s0));
+  CUDA_OK(cudaStreamSynchronize(cc16.s1));
+  siluLaunch(cc128.dev0, cc128.n, cc128.s0, kCc);
+  siluLaunch(cc128.dev1, cc128.n, cc128.s1, kCc);
+  CUDA_OK(cudaStreamSynchronize(cc128.s0));
+  CUDA_OK(cudaStreamSynchronize(cc128.s1));
+}
+
+static bool checkStoragePipeline(PipeTile &t0, PipeTile &t1, CapBuf &cc16,
+                                 CapBuf &cc128, int kTile, int kCc) {
+  CUDA_OK(cudaMemcpy(cc16.host2, t0.dev, t0.bytes(), cudaMemcpyDeviceToHost));
+  int step = t0.n > 4096 ? t0.n / 4096 : 1;
+  for (int i = 0; i < t0.n; i += step) {
+    if (!closeEnough(cc16.host2[i], hostSilu(t0.ssd[i], kTile)))
+      return false;
+  }
+  CUDA_OK(cudaMemcpy(cc16.host2, t1.dev, t1.bytes(), cudaMemcpyDeviceToHost));
+  for (int i = 0; i < t1.n; i += step) {
+    if (!closeEnough(cc16.host2[i], t1.ssd[i]))
+      return false;
+  }
+  return checkDevSilu(cc16, cc16.dev0, cc16.host0, kCc) &&
+         checkDevSilu(cc16, cc16.dev1, cc16.host1, kCc) &&
+         checkDevSilu(cc128, cc128.dev0, cc128.host0, kCc) &&
+         checkDevSilu(cc128, cc128.dev1, cc128.host1, kCc);
+}
+
+static double timeStoragePipeline(PipeTile &t0, PipeTile &t1, CapBuf &cc16,
+                                  CapBuf &cc128, int kTile, int kCc,
+                                  int warmup, int reps, ProgArm arm) {
+  auto prep = [&](int seed) {
+    fillHost(t0.ssd, t0.n, seed);
+    fillHost(t1.ssd, t1.n, seed + 1);
+    fillHost(cc16.host0, cc16.n, seed + 2);
+    fillHost(cc16.host1, cc16.n, seed + 3);
+    fillHost(cc128.host0, cc128.n, seed + 4);
+    fillHost(cc128.host1, cc128.n, seed + 5);
+    provisionSsd(cc16);
+    provisionSsd(cc128);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    prep(i + 3);
+    runStoragePipeline(t0, t1, cc16, cc128, kTile, kCc, arm);
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    prep(i + 11);
+    auto start = std::chrono::steady_clock::now();
+    runStoragePipeline(t0, t1, cc16, cc128, kTile, kCc, arm);
+    auto stop = std::chrono::steady_clock::now();
+    samples.push_back(static_cast<float>(
+        std::chrono::duration<double, std::micro>(stop - start).count()));
+    if (!checkStoragePipeline(t0, t1, cc16, cc128, kTile, kCc)) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run correctness=0 arm=storage-pipeline\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static int runStoragePipelineWallclock(int nTile, int nCc, int kRef, int warmup,
+                                       int reps) {
+  PipeTile t0;
+  PipeTile t1;
+  CapBuf cc16;
+  CapBuf cc128;
+  t0.alloc(nTile);
+  t1.alloc(nTile);
+  cc16.alloc(nTile, false);
+  cc128.alloc(nCc, false);
+  fillHost(t0.ssd, t0.n, 1);
+  fillHost(t1.ssd, t1.n, 2);
+  fillHost(cc16.host0, cc16.n, 1);
+  fillHost(cc16.host1, cc16.n, 2);
+  fillHost(cc128.host0, cc128.n, 1);
+  fillHost(cc128.host1, cc128.n, 2);
+  provisionSsd(cc16);
+  provisionSsd(cc128);
+  siluLaunch(t0.dev, t0.n, cc16.s0, 1);
+  siluLaunch(cc16.dev0, cc16.n, cc16.s0, 1);
+  siluLaunch(cc128.dev0, cc128.n, cc128.s0, 1);
+  CUDA_OK(cudaStreamSynchronize(cc16.s0));
+  CUDA_OK(cudaStreamSynchronize(cc128.s0));
+
+  double tSeq =
+      timeStoragePipeline(t0, t1, cc16, cc128, kRef, kRef, warmup, reps,
+                          ProgArm::Seq);
+  double tEvi =
+      timeStoragePipeline(t0, t1, cc16, cc128, kRef, kRef, warmup, reps,
+                          ProgArm::Evi);
+  double tPar =
+      timeStoragePipeline(t0, t1, cc16, cc128, kRef, kRef, warmup, reps,
+                          ProgArm::Par);
+  double ratio = tSeq > 0.0 ? tEvi / tSeq : 0.0;
+
+  std::fprintf(stderr, "s2c2-cuda-run hardware_id=rtx4090:cuda sched=%s "
+                       "map=%s device=gpu sync=named-nonblocking\n",
+               kSched, kMap);
+  std::fprintf(stderr, "s2c2-cuda-run workload compute=elemwise\n");
+  std::fprintf(stderr, "s2c2-cuda-run workload transfer=storage_to_host|"
+                       "host_to_device\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run note workload-semantic-ne-kernel-backend\n");
+  std::fprintf(stderr, "s2c2-cuda-run timing=host-wall-clock\n");
+  std::fprintf(stderr, "s2c2-cuda-run storage-pipeline=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-pipeline program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-pipeline note storage-prefetch||compute\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-pipeline n-tile=%d n-cc16=%d n-cc128=%d "
+               "k_ref=%d\n",
+               nTile, nTile, nCc, kRef);
+  std::fprintf(stderr, "s2c2-cuda-run storage-pipeline measured=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-pipeline timing seq=%.1f evi=%.1f "
+               "par=%.1f opt_over_base=%.3f\n",
+               tSeq, tEvi, tPar, ratio);
+  std::fprintf(stderr, "s2c2-cuda-run storage-pipeline correctness=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-pipeline evi=keep-C||Storage,"
+               "serialize-licensed-C||C\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-pipeline note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-pipeline note logical-ssd-ne-disk\n");
+  std::fprintf(stderr, "s2c2-cuda-run storage-pipeline note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-pipeline cost=unchanged "
+               "semantics=unchanged v3=not-claimed\n");
+  t0.freeAll();
+  t1.freeAll();
+  cc16.freeAll();
+  cc128.freeAll();
+  return 0;
+}
+
 int main(int argc, char **argv) {
   const char *func = "all";
   const char *device = kDevice;
@@ -2171,6 +2391,7 @@ int main(int argc, char **argv) {
   int tiles = 8;
   bool provisioned = false;
   bool ssdMlp = false;
+  bool storagePipe = false;
   bool kSet = false;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -2191,6 +2412,8 @@ int main(int argc, char **argv) {
       kSet = true;
     } else if (a == "--ssd-mlp-wallclock")
       ssdMlp = true;
+    else if (a == "--storage-pipeline")
+      storagePipe = true;
     else if (a.rfind("--matched=", 0) == 0)
       matchedArg = argv[i] + 10;
     else if (a.rfind("--cap=", 0) == 0)
@@ -2238,6 +2461,8 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-run --cuda-val-async=p0|copy|compute|life-sync|"
                    "life-async|hb --device=gpu --n=N --k=K\n"
                    "s2c2-cuda-run --ssd-mlp-wallclock [--n=N] [--n-cc=N] "
+                   "--k=K --warmup=W --reps=R\n"
+                   "s2c2-cuda-run --storage-pipeline [--n=N] [--n-cc=N] "
                    "--k=K --warmup=W --reps=R\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
@@ -2320,7 +2545,7 @@ int main(int argc, char **argv) {
   if (ssdMlp) {
     if (matchedOn || !capArms.empty() || !phaseArms.empty() ||
         !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
-        !valCcArms.empty() || !valAsyncArms.empty()) {
+        !valCcArms.empty() || !valAsyncArms.empty() || storagePipe) {
       std::fprintf(stderr,
                    "s2c2-cuda-run: --ssd-mlp-wallclock cannot combine with "
                    "other timed modes\n");
@@ -2344,6 +2569,36 @@ int main(int argc, char **argv) {
       return 2;
     }
     return runSsdMlpWallclock(n, nCc, k, warmup, reps);
+  }
+  if (storagePipe) {
+    if (ssdMlp || matchedOn || !capArms.empty() || !phaseArms.empty() ||
+        !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
+        !valCcArms.empty() || !valAsyncArms.empty()) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --storage-pipeline cannot combine with "
+                   "other timed modes\n");
+      return 1;
+    }
+    if (!gpu) {
+      std::fprintf(stderr, "s2c2-cuda-run: --storage-pipeline is gpu only\n");
+      return 1;
+    }
+    if (!kSet)
+      k = 32;
+    if (n == (1 << 24))
+      n = 4194304;
+    if (n <= 0 || nCc <= 0 || k <= 0) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --storage-pipeline needs n>0 n-cc>0 k>0\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    return runStoragePipelineWallclock(n, nCc, k, warmup, reps);
   }
   if (m != 1 && valCcArms.empty()) {
     std::fprintf(stderr, "s2c2-cuda-run: --m is --cuda-val-cc only\n");

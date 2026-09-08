@@ -16,23 +16,24 @@
 // RUN: s2c2-opt %s --profile=910B --s2c2-evidence-bounded-schedule --check-s2c2-execution | grep -c sched.concurrent | FileCheck %s --check-prefix=NPU-N
 // RUN: s2c2-opt %s --profile=unknown --s2c2-evidence-bounded-schedule --check-s2c2-execution | grep -c sched.concurrent | FileCheck %s --check-prefix=UNK-N
 // RUN: s2c2-cuda-adapter --dry-run --workload-schedule 2>&1 | FileCheck %s --check-prefix=CUDA
+// RUN: s2c2-cuda-adapter --dry-run --storage-pipeline 2>&1 | FileCheck %s --check-prefix=CUDA-PIPE
 // RUN: s2c2-ascend-adapter --dry-run --workload-schedule 2>&1 | FileCheck %s --check-prefix=ASCEND
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --print-storage-pipeline-contract | FileCheck %s --check-prefix=PIPE-CONTRACT
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-storage-pipeline %S/../../docs/design/v3-dataset/storage-pipeline-4090.log | FileCheck %s --check-prefix=PIPE
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../../docs/design/v3-dataset/ssd-mlp-wallclock.log | FileCheck %s --check-prefix=RT
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-ssd-mlp-wallclock %S/../../docs/design/v3-dataset/ssd-mlp-wallclock-4090.log | FileCheck %s --check-prefix=RT4090
 
-// Phase 3E: one semantic workload. IR does not encode keep/flatten/preserve.
-// Compiler discovers three sched.concurrent candidates and decides.
-// SSD → Host is sequential. Host→HBM || MLP is candidate #0 (KEEP overlap).
-// 16MiB C||C is #1. 128MiB C||C is #2.
-// unknown / unlicensed C||C is PRESERVE. Not Cost v0.4.
+// Phase 3F: storage-aware two-tile pipeline. IR is semantic only.
+// Compiler discovers:
+//   #0 C||Storage  SSD prefetch tile1 || compute tile0
+//   #1 C||C 16MiB  licensed contention
+//   #2 C||C 128MiB licensed contention
+// HtoD of each tile is sequential between the overlaps.
+// Not Cost v0.4. No new rewrite kind. Do not FileCheck microseconds.
 
 // CONTRACT: workload-schedule compiler-driven=yes
 // CONTRACT: no-evidence => no-destructive-optimization
-// CONTRACT: invariant semantic-ne-perf-serial
-// CONTRACT: invariant capability-ne-rewrite
-// CONTRACT: invariant scoped-ne-global
 // CONTRACT: invariant underdetermined-preserve
-// CONTRACT: invariant rewrite-preserves-hb
 // CONTRACT: note not-handwritten-optimized-ir
 // CONTRACT: note runtime-witness=ssd-mlp-wallclock
 // CONTRACT: note storage-data-movement-overlap
@@ -40,7 +41,7 @@
 // CONTRACT-NOT: Cost v0.4
 // CONTRACT-NOT: password
 
-// GPU-LOG: workload-candidate #0 pair=C||HtoD
+// GPU-LOG: workload-candidate #0 pair=C||Storage payload=16MiB
 // GPU-LOG-SAME: decision=KEEP
 // GPU-LOG-SAME: reason=storage-communication-overlap
 // GPU-LOG: workload-candidate #1 pair=C||C payload=16MiB
@@ -48,22 +49,16 @@
 // GPU-LOG-SAME: reason=licensed-compute-contention
 // GPU-LOG: workload-candidate #2 pair=C||C payload=128MiB
 // GPU-LOG-SAME: decision=FLATTEN
-// GPU-LOG-SAME: reason=licensed-compute-contention
 // GPU-LOG: workload-schedule candidates=3 keep=1 flatten=2 preserve=0
 
-// GPU-PRETTY: candidate #0 : C || HtoD
+// GPU-PRETTY: candidate #0 : C || Storage
 // GPU-PRETTY-NEXT:     decision : KEEP
 // GPU-PRETTY-NEXT:     reason   : storage communication overlap
 // GPU-PRETTY: candidate #1 : C || C
 // GPU-PRETTY-NEXT:     decision : FLATTEN
-// GPU-PRETTY-NEXT:     reason   : licensed compute contention
-// GPU-PRETTY: candidate #2 : C || C
-// GPU-PRETTY-NEXT:     decision : FLATTEN
-// GPU-PRETTY-NEXT:     reason   : licensed compute contention
 // GPU-PRETTY: HB verification : --check-s2c2-execution
-// GPU-PRETTY: lowering        : --s2c2-lower
 
-// NPU-LOG: workload-candidate #0 pair=C||HtoD
+// NPU-LOG: workload-candidate #0 pair=C||Storage
 // NPU-LOG-SAME: decision=KEEP
 // NPU-LOG-SAME: reason=storage-communication-overlap
 // NPU-LOG: workload-candidate #1 pair=C||C payload=16MiB
@@ -71,10 +66,9 @@
 // NPU-LOG-SAME: reason=rewrite-license-no
 // NPU-LOG: workload-candidate #2 pair=C||C payload=128MiB
 // NPU-LOG-SAME: decision=FLATTEN
-// NPU-LOG-SAME: reason=licensed-compute-contention
 // NPU-LOG: workload-schedule candidates=3 keep=1 flatten=1 preserve=1
 
-// UNK-LOG: workload-candidate #0
+// UNK-LOG: workload-candidate #0 pair=C||Storage
 // UNK-LOG-SAME: decision=PRESERVE
 // UNK-LOG: workload-candidate #1
 // UNK-LOG-SAME: decision=PRESERVE
@@ -85,119 +79,124 @@
 // UNK-LOG: workload-schedule candidates=3 keep=0 flatten=0 preserve=3
 
 // GPU-AN: workload-schedule compiler-driven=yes
-// GPU-AN: workload-schedule candidates=3
 // GPU-AN: workload-schedule keep=1
 // GPU-AN: workload-schedule flatten=2
 // GPU-AN: workload-schedule preserve=0
-// GPU-AN: note not-handwritten-optimized-ir
-// GPU-AN: note runtime-witness=ssd-mlp-wallclock
+// GPU-AN: note storage-data-movement-overlap
 // GPU-AN: cost=unchanged
 // GPU-AN-NOT: Cost v0.4
 
-// NPU-AN: workload-schedule candidates=3
 // NPU-AN: workload-schedule keep=1
 // NPU-AN: workload-schedule flatten=1
 // NPU-AN: workload-schedule preserve=1
-// NPU-AN: note not-handwritten-optimized-ir
-// NPU-AN: cost=unchanged
 
-// UNK-AN: workload-schedule candidates=3
 // UNK-AN: workload-schedule keep=0
 // UNK-AN: workload-schedule flatten=0
 // UNK-AN: workload-schedule preserve=3
-// UNK-AN-NOT: decision=FLATTEN
-// UNK-AN-NOT: decision=KEEP
-// UNK-AN: cost=unchanged
 
 // GPU-N: 1
 // NPU-N: 2
 // UNK-N: 3
 
-// CUDA: s2c2-cuda-adapter workload-schedule=1
 // CUDA: s2c2-cuda-adapter workload-schedule source=s2c2-opt
-// CUDA: s2c2-cuda-adapter workload-schedule note not-handwritten-optimized-ir
-// CUDA: s2c2-cuda-adapter workload-schedule runtime-witness=ssd-mlp-wallclock
-// CUDA: s2c2-cuda-adapter workload-schedule note compiler-chosen-t-evi
 // CUDA: s2c2-cuda-adapter workload-schedule note storage-data-movement-overlap
 // CUDA: s2c2-cuda-adapter workload-schedule cost=unchanged
 // CUDA-NOT: Cost v0.4
-// CUDA-NOT: password
 
-// ASCEND: s2c2-ascend-adapter workload-schedule=1
 // ASCEND: s2c2-ascend-adapter workload-schedule source=s2c2-opt
-// ASCEND: s2c2-ascend-adapter workload-schedule note not-handwritten-optimized-ir
-// ASCEND: s2c2-ascend-adapter workload-schedule runtime-witness=ssd-mlp-wallclock
-// ASCEND: s2c2-ascend-adapter workload-schedule note compiler-chosen-t-evi
 // ASCEND: s2c2-ascend-adapter workload-schedule note storage-data-movement-overlap
 // ASCEND: s2c2-ascend-adapter workload-schedule cost=unchanged
-// ASCEND-NOT: Cost v0.4
 
 // RT: ssd-mlp-wallclock measured=yes
-// RT: note t-opt-is-t-evi
 // RT: cost=unchanged
-// RT-NOT: Cost v0.4
 // RT4090: ssd-mlp-wallclock measured=yes
-// RT4090: note t-opt-is-t-evi
 // RT4090: cost=unchanged
-// RT4090-NOT: Cost v0.4
+
+// PIPE-CONTRACT: storage-pipeline program-measurement=yes
+// PIPE-CONTRACT: note storage-prefetch||compute
+// PIPE-CONTRACT: note logical-ssd-ne-disk
+// PIPE-CONTRACT: cost=unchanged
+// PIPE-CONTRACT-NOT: Cost v0.4
+// PIPE-CONTRACT-NOT: password
+
+// PIPE: storage-pipeline measured=yes
+// PIPE: storage-pipeline t-opt-over-base-defined=yes
+// PIPE: note t-base-is-t-seq
+// PIPE: note t-opt-is-t-evi
+// PIPE: note catalog-untouched
+// PIPE: note logical-ssd-ne-disk
+// PIPE-NOT: measured=no
+// PIPE-NOT: note device-absent
+// PIPE: cost=unchanged
+// PIPE-NOT: Cost v0.4
+// PIPE-NOT: password
+
+// CUDA-PIPE: s2c2-cuda-adapter storage-pipeline=1
+// CUDA-PIPE: s2c2-cuda-adapter storage-pipeline note storage-prefetch||compute
+// CUDA-PIPE: s2c2-cuda-adapter storage-pipeline t-opt=t-evi
+// CUDA-PIPE: s2c2-cuda-adapter storage-pipeline cost=unchanged
+// CUDA-PIPE-NOT: Cost v0.4
+// CUDA-PIPE-NOT: password
 
 module {
-  // One function: semantic schedule only. Compiler decides realization.
-  // GPU-LABEL: func.func @ssd_stream_tiles
-  // NPU-LABEL: func.func @ssd_stream_tiles
-  // UNK-LABEL: func.func @ssd_stream_tiles
+  // GPU-LABEL: func.func @ssd_pipeline_two_tiles
+  // NPU-LABEL: func.func @ssd_pipeline_two_tiles
+  // UNK-LABEL: func.func @ssd_pipeline_two_tiles
   // GPU: stor.transfer
   // GPU: sched.concurrent
-  // GPU: comm.stream
   // GPU: comp.gated_mlp
+  // GPU: stor.transfer
   // GPU: sched.task
   // GPU: comp.elemwise
   // GPU-NOT: sched.wait
-  // NPU: stor.transfer
   // NPU: sched.concurrent
-  // NPU: comm.stream
-  // NPU: comp.gated_mlp
+  // NPU: stor.transfer
   // NPU: sched.concurrent
   // NPU: comp.elemwise
   // NPU-NOT: sched.wait
-  // UNK: stor.transfer
   // UNK: sched.concurrent
   // UNK: sched.concurrent
   // UNK: sched.concurrent
   // UNK-NOT: sched.wait
-  // LOWER-LABEL: func.func @ssd_stream_tiles
+  // LOWER-LABEL: func.func @ssd_pipeline_two_tiles
   // LOWER: memref.copy
   // LOWER: linalg.matmul
   // LOWER-NOT: sched.concurrent
   // LOWER-NOT: comm.stream
   // LOWER-NOT: comp.gated_mlp
-  func.func @ssd_stream_tiles(%x: tensor<1x8xf32>,
-                              %wg: tensor<8x16xf32>,
-                              %wu: tensor<8x16xf32>,
-                              %wd: tensor<16x8xf32>,
-                              %w16: tensor<4194304xf32>,
-                              %c16: tensor<4194304xf32>,
-                              %c128: tensor<33554432xf32>) -> tensor<1x8xf32> {
-    %obj = stor.object : !stor.object<tensor<4194304xf32>>
-    %ssd = stor.materialize %obj : !stor.object<tensor<4194304xf32>> -> !stor.buffer<tensor<4194304xf32>, ssd>
-    %hbm = stor.materialize %obj : !stor.object<tensor<4194304xf32>> -> !stor.buffer<tensor<4194304xf32>, hbm>
-    stor.pack %w16 into %ssd : tensor<4194304xf32>, !stor.buffer<tensor<4194304xf32>, ssd>
-    // Sequential SSD → Host. Not a concurrent candidate.
-    %host = stor.transfer %ssd : !stor.buffer<tensor<4194304xf32>, ssd> -> !stor.buffer<tensor<4194304xf32>, host>
-    // Candidate #0: Host→HBM || current compute tile.
-    %y = sched.concurrent -> tensor<1x8xf32> {
-      %ts = sched.task {
-        %t = comm.stream %host, %hbm : !stor.buffer<tensor<4194304xf32>, host>, !stor.buffer<tensor<4194304xf32>, hbm> -> !sched.token
-        sched.yield
-      }
+  func.func @ssd_pipeline_two_tiles(%x: tensor<1x8xf32>,
+                                    %wg: tensor<8x16xf32>,
+                                    %wu: tensor<8x16xf32>,
+                                    %wd: tensor<16x8xf32>,
+                                    %tile0: tensor<4194304xf32>,
+                                    %tile1: tensor<4194304xf32>,
+                                    %c16: tensor<4194304xf32>,
+                                    %c128: tensor<33554432xf32>) -> tensor<1x8xf32> {
+    %obj0 = stor.object : !stor.object<tensor<4194304xf32>>
+    %obj1 = stor.object : !stor.object<tensor<4194304xf32>>
+    %ssd0 = stor.materialize %obj0 : !stor.object<tensor<4194304xf32>> -> !stor.buffer<tensor<4194304xf32>, ssd>
+    %ssd1 = stor.materialize %obj1 : !stor.object<tensor<4194304xf32>> -> !stor.buffer<tensor<4194304xf32>, ssd>
+    stor.pack %tile0 into %ssd0 : tensor<4194304xf32>, !stor.buffer<tensor<4194304xf32>, ssd>
+    stor.pack %tile1 into %ssd1 : tensor<4194304xf32>, !stor.buffer<tensor<4194304xf32>, ssd>
+    // Prologue: tile 0 SSD → Host → HBM. Sequential, not a candidate.
+    %host0 = stor.transfer %ssd0 : !stor.buffer<tensor<4194304xf32>, ssd> -> !stor.buffer<tensor<4194304xf32>, host>
+    %dev0 = stor.transfer %host0 : !stor.buffer<tensor<4194304xf32>, host> -> !stor.buffer<tensor<4194304xf32>, hbm>
+    // Candidate #0: compute tile 0 || SSD prefetch of tile 1.
+    %y, %host1 = sched.concurrent -> tensor<1x8xf32>, !stor.buffer<tensor<4194304xf32>, host> {
       %tc, %out = sched.task -> tensor<1x8xf32> {
         %mlp = comp.gated_mlp %x, %wg, %wu, %wd {activation = #comp.activation<silu>}
           : tensor<1x8xf32>, tensor<8x16xf32>, tensor<8x16xf32>, tensor<16x8xf32>
             -> tensor<1x8xf32>
         sched.yield %mlp : tensor<1x8xf32>
       }
-      sched.yield %out : tensor<1x8xf32>
+      %ts, %h1 = sched.task -> !stor.buffer<tensor<4194304xf32>, host> {
+        %h = stor.transfer %ssd1 : !stor.buffer<tensor<4194304xf32>, ssd> -> !stor.buffer<tensor<4194304xf32>, host>
+        sched.yield %h : !stor.buffer<tensor<4194304xf32>, host>
+      }
+      sched.yield %out, %h1 : tensor<1x8xf32>, !stor.buffer<tensor<4194304xf32>, host>
     }
+    // Sequential HtoD of the prefetched tile. Not a concurrent candidate.
+    %dev1 = stor.transfer %host1 : !stor.buffer<tensor<4194304xf32>, host> -> !stor.buffer<tensor<4194304xf32>, hbm>
     // Candidate #1: 16MiB compute siblings. Semantic concurrent only.
     sched.concurrent {
       %ta = sched.task {

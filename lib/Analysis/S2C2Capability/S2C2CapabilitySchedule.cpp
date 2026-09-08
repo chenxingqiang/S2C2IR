@@ -1,10 +1,14 @@
 //===- S2C2CapabilitySchedule.cpp - Capability → schedule ---------*- C++ -*-===//
 //
-// Phase 3A + 3D. CapabilityProfile is compiler decision input, not an
-// archive. Query prints pair cells plus applicability. A pair may have
-// several size-banded records; lookup picks the narrowest covering
-// size_range. Schedule serializes only when applicable=yes,
+// Phase 3A + 3D + 3E/3F. CapabilityProfile is compiler decision input,
+// not an archive. Query prints pair cells plus applicability. A pair
+// may have several size-banded records; lookup picks the narrowest
+// covering size_range. Schedule serializes only when applicable=yes,
 // pair_relation=serial, and rewrite_license is not no.
+//
+// Workload candidates print KEEP (storage/communication overlap),
+// FLATTEN (licensed compute contention), or PRESERVE (no evidence).
+// C||Storage is SSD↔Host beside compute; inferred, not a new grid.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -23,6 +27,7 @@
 #include "s2c2/Schedule/ScheduleDialect.h"
 #include "s2c2/Schedule/ScheduleOps.h"
 #include "s2c2/Storage/StorageDialect.h"
+#include "s2c2/Storage/StorageOps.h"
 #include "s2c2/Storage/StorageTypes.h"
 
 #include "mlir/IR/BuiltinOps.h"
@@ -67,6 +72,7 @@ using sched::TaskOp;
 using sched::YieldOp;
 using stor::BufferType;
 using stor::Space;
+using stor::TransferOp;
 
 namespace {
 llvm::cl::opt<std::string> clS2C2Profile(
@@ -103,7 +109,9 @@ struct CapCatalog {
   llvm::StringMap<SmallVector<CapCell, 4>> pairs;
 };
 
-enum class Role { Unknown, Compute, Silu, Gemm, HtoD, DtoH };
+enum class Role { Unknown, Compute, Silu, Gemm, HtoD, DtoH, Storage };
+
+enum class DecisionKind { Keep, Flatten, Preserve };
 
 static bool isHostLike(Space space) {
   return space == Space::Host || space == Space::SSD;
@@ -167,6 +175,10 @@ static void loadBuiltinRtx4090(CapCatalog &cat) {
           "n/a", "named-nonblocking");
   addCell(cat, "C_silu||C_gemm", "serial", "resource_contention", "arm_specific",
           "occupancy", "n/a", "named-nonblocking");
+  // Inferred overlap class, not a new 4090 grid point: SSD↔Host
+  // movement can run beside compute the same way C||HtoD can.
+  addCell(cat, "C||Storage", "parallel", "none", "inferred", "bandwidth", "n/a",
+          "named-nonblocking");
 }
 
 static void loadBuiltinNpuDemo(CapCatalog &cat) {
@@ -192,6 +204,14 @@ static void loadBuiltin910B(CapCatalog &cat) {
           "64MiB..127MiB", "named-nonblocking", /*rewriteLicense=*/false);
   addCell(cat, "C||C", "serial", "resource_contention", "measured", "occupancy",
           "128MiB..512MiB", "named-nonblocking", /*rewriteLicense=*/true);
+  // Overlay projection is C||C only. Storage/HtoD overlap is inferred
+  // KEEP, not a new 910B measurement and not #69.
+  addCell(cat, "C||HtoD", "parallel", "none", "inferred", "bandwidth", "n/a",
+          "named-nonblocking");
+  addCell(cat, "C||DtoH", "parallel", "none", "inferred", "bandwidth", "n/a",
+          "named-nonblocking");
+  addCell(cat, "C||Storage", "parallel", "none", "inferred", "bandwidth", "n/a",
+          "named-nonblocking");
 }
 
 static StringRef canonicalDevice(StringRef device) {
@@ -517,6 +537,9 @@ static std::string pairFromRoles(Role a, Role b) {
     return "C_silu||C_gemm";
   if (isCompute(a) && isCompute(b))
     return "C||C";
+  if ((isCompute(a) && b == Role::Storage) ||
+      (isCompute(b) && a == Role::Storage))
+    return "C||Storage";
   if ((isCompute(a) && b == Role::HtoD) || (isCompute(b) && a == Role::HtoD))
     return "C||HtoD";
   if ((isCompute(a) && b == Role::DtoH) || (isCompute(b) && a == Role::DtoH))
@@ -538,7 +561,22 @@ struct RegionClass {
   bool htod = false;
   bool dtoh = false;
   bool d2d = false;
+  bool storage = false;
 };
+
+static void classifySpaces(std::optional<Space> srcSpace,
+                           std::optional<Space> dstSpace, RegionClass &cls) {
+  if (!srcSpace || !dstSpace)
+    return;
+  if (isHostLike(*srcSpace) && isDeviceLike(*dstSpace))
+    cls.htod = true;
+  else if (isDeviceLike(*srcSpace) && isHostLike(*dstSpace))
+    cls.dtoh = true;
+  else if (isDeviceLike(*srcSpace) && isDeviceLike(*dstSpace))
+    cls.d2d = true;
+  else if (*srcSpace == Space::SSD || *dstSpace == Space::SSD)
+    cls.storage = true;
+}
 
 static void classifyOp(Operation *op, RegionClass &cls) {
   if (isa<ElemwiseOp>(op)) {
@@ -557,26 +595,19 @@ static void classifyOp(Operation *op, RegionClass &cls) {
     cls.silu = true;
     cls.gemm = true;
   }
-  Value src, dst;
   if (auto copy = dyn_cast<CopyOp>(op)) {
-    src = copy.getSrc();
-    dst = copy.getDst();
-  } else if (auto stream = dyn_cast<StreamOp>(op)) {
-    src = stream.getSrc();
-    dst = stream.getDst();
-  } else {
+    classifySpaces(bufferSpace(copy.getSrc()), bufferSpace(copy.getDst()), cls);
     return;
   }
-  auto srcSpace = bufferSpace(src);
-  auto dstSpace = bufferSpace(dst);
-  if (!srcSpace || !dstSpace)
+  if (auto stream = dyn_cast<StreamOp>(op)) {
+    classifySpaces(bufferSpace(stream.getSrc()), bufferSpace(stream.getDst()),
+                   cls);
     return;
-  if (isHostLike(*srcSpace) && isDeviceLike(*dstSpace))
-    cls.htod = true;
-  else if (isDeviceLike(*srcSpace) && isHostLike(*dstSpace))
-    cls.dtoh = true;
-  else if (isDeviceLike(*srcSpace) && isDeviceLike(*dstSpace))
-    cls.d2d = true;
+  }
+  if (auto xfer = dyn_cast<TransferOp>(op)) {
+    classifySpaces(bufferSpace(xfer.getSource()),
+                   bufferSpace(xfer.getBuffer()), cls);
+  }
 }
 
 static RegionClass classifyRegion(Region &region) {
@@ -588,7 +619,7 @@ static RegionClass classifyRegion(Region &region) {
 static Role roleOf(const RegionClass &cls) {
   if (cls.d2d)
     return Role::Unknown;
-  int nXfer = (int)cls.htod + (int)cls.dtoh;
+  int nXfer = (int)cls.htod + (int)cls.dtoh + (int)cls.storage;
   int nComp = (int)cls.compute;
   if (nXfer && nComp)
     return Role::Unknown;
@@ -596,6 +627,8 @@ static Role roleOf(const RegionClass &cls) {
     return Role::HtoD;
   if (cls.dtoh && !cls.htod)
     return Role::DtoH;
+  if (cls.storage)
+    return Role::Storage;
   if (cls.silu && !cls.gemm)
     return Role::Silu;
   if (cls.gemm && !cls.silu)
@@ -633,6 +666,9 @@ static void accumulateSizes(Region &region, std::optional<int64_t> &xferBytes,
     } else if (auto stream = dyn_cast<StreamOp>(op)) {
       if (auto ty = dyn_cast<BufferType>(stream.getSrc().getType()))
         takeMax(xferBytes, payloadBytes(ty.getSourceType()));
+    } else if (auto xfer = dyn_cast<TransferOp>(op)) {
+      if (auto ty = dyn_cast<BufferType>(xfer.getSource().getType()))
+        takeMax(xferBytes, payloadBytes(ty.getSourceType()));
     }
     if (isa<ElemwiseOp, MatmulOp, GatedMLPOp>(op)) {
       for (Type t : op->getOperandTypes())
@@ -648,7 +684,8 @@ static QueryContext contextFromRegions(Region &a, Region &b, StringRef pair) {
   std::optional<int64_t> xfer, compute;
   accumulateSizes(a, xfer, compute);
   accumulateSizes(b, xfer, compute);
-  bool transferPair = pair.contains("HtoD") || pair.contains("DtoH");
+  bool transferPair = pair.contains("HtoD") || pair.contains("DtoH") ||
+                      pair.contains("Storage");
   ctx.sizeBytes = transferPair ? xfer : compute;
   return ctx;
 }
@@ -867,24 +904,50 @@ static std::string formatPayload(std::optional<int64_t> bytes) {
   return std::to_string(*bytes) + "B";
 }
 
-static StringRef keepOrFlatten(bool serialize) {
-  return serialize ? "FLATTEN" : "KEEP";
+static bool isStorageCommOverlap(StringRef pair) {
+  return pair == "C||Storage" || pair == "C||HtoD" || pair == "C||DtoH";
+}
+
+static StringRef decisionStr(DecisionKind kind) {
+  switch (kind) {
+  case DecisionKind::Flatten:
+    return "FLATTEN";
+  case DecisionKind::Keep:
+    return "KEEP";
+  case DecisionKind::Preserve:
+    return "PRESERVE";
+  }
+  return "PRESERVE";
+}
+
+static DecisionKind classifyDecision(const CapCell &cell, Applicability app,
+                                     bool serialize, StringRef pair) {
+  (void)app;
+  (void)pair;
+  if (serialize)
+    return DecisionKind::Flatten;
+  // KEEP is not a rewrite. Inferred parallel overlap (C||Storage,
+  // C||HtoD) stays concurrent. Only missing / mixed / unlicensed
+  // evidence is PRESERVE.
+  if (cell.relation == "parallel")
+    return DecisionKind::Keep;
+  return DecisionKind::Preserve;
 }
 
 static std::string decisionReason(const CapCell &cell, Applicability app,
-                                  bool serialize) {
+                                  bool serialize, StringRef pair) {
   if (serialize)
-    return "licensed-evidence";
-  if (app != Applicability::Yes)
-    return "not-applicable";
-  if (!cell.rewriteLicense)
-    return "rewrite-license-no";
+    return "licensed-compute-contention";
+  if (cell.relation == "parallel" && isStorageCommOverlap(pair))
+    return "storage-communication-overlap";
   if (cell.relation == "parallel")
     return "relation-parallel";
+  if (!cell.rewriteLicense)
+    return "rewrite-license-no";
   if (cell.relation == "mixed")
     return "relation-mixed";
-  if (cell.relation == "underdetermined")
-    return "underdetermined-preserve";
+  if (app != Applicability::Yes || cell.relation == "underdetermined")
+    return "no-evidence";
   return "preserve";
 }
 
@@ -895,10 +958,45 @@ struct WorkloadDecision {
   std::string payload;
   std::string relation;
   std::string reason;
+  DecisionKind kind = DecisionKind::Preserve;
   bool flatten = false;
   Applicability app = Applicability::Unknown;
   bool rewriteLicense = true;
 };
+
+static void fillWorkloadDecision(WorkloadDecision &d, unsigned id, StringRef via,
+                                 StringRef pair, const QueryContext &ctx,
+                                 const CapCell &cell, Applicability app,
+                                 bool serialize) {
+  d.id = id;
+  d.via = via.str();
+  d.pair = pair.str();
+  d.payload = formatPayload(ctx.sizeBytes);
+  d.relation = cell.relation;
+  d.reason = decisionReason(cell, app, serialize, pair);
+  d.kind = classifyDecision(cell, app, serialize, pair);
+  d.flatten = serialize;
+  d.app = app;
+  d.rewriteLicense = cell.rewriteLicense;
+}
+
+static void countDecisions(ArrayRef<WorkloadDecision> decisions, unsigned &keep,
+                           unsigned &flatten, unsigned &preserve) {
+  keep = flatten = preserve = 0;
+  for (const WorkloadDecision &d : decisions) {
+    switch (d.kind) {
+    case DecisionKind::Flatten:
+      ++flatten;
+      break;
+    case DecisionKind::Keep:
+      ++keep;
+      break;
+    case DecisionKind::Preserve:
+      ++preserve;
+      break;
+    }
+  }
+}
 
 static std::string prettyPair(StringRef pair) {
   std::string out;
@@ -925,10 +1023,10 @@ static std::string prettyReason(StringRef reason) {
 static void printWorkloadCandidate(const WorkloadDecision &d) {
   llvm::errs() << "workload-candidate #" << d.id << " pair=" << d.pair
                << " payload=" << d.payload << " relation=" << d.relation
-               << " decision=" << keepOrFlatten(d.flatten)
+               << " decision=" << decisionStr(d.kind)
                << " reason=" << d.reason << "\n";
   llvm::errs() << "candidate #" << d.id << " : " << prettyPair(d.pair) << "\n";
-  llvm::errs() << "    decision : " << keepOrFlatten(d.flatten) << "\n";
+  llvm::errs() << "    decision : " << decisionStr(d.kind) << "\n";
   llvm::errs() << "    reason   : " << prettyReason(d.reason) << "\n";
 }
 
@@ -936,7 +1034,7 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
                                           const ResolvedProfile &evi,
                                           ArrayRef<WorkloadDecision> decs) {
   llvm::json::Array cands;
-  unsigned keep = 0, flatten = 0;
+  unsigned keep = 0, flatten = 0, preserve = 0;
   for (const WorkloadDecision &d : decs) {
     llvm::json::Object obj;
     obj["id"] = (int64_t)d.id;
@@ -944,15 +1042,22 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
     obj["pair"] = d.pair;
     obj["payload"] = d.payload;
     obj["pair_relation"] = d.relation;
-    obj["decision"] = keepOrFlatten(d.flatten).str();
+    obj["decision"] = decisionStr(d.kind).str();
     obj["reason"] = d.reason;
     obj["applicable"] = applicabilityStr(d.app).str();
     obj["rewrite_license"] = d.rewriteLicense;
     cands.push_back(std::move(obj));
-    if (d.flatten)
+    switch (d.kind) {
+    case DecisionKind::Flatten:
       ++flatten;
-    else
+      break;
+    case DecisionKind::Keep:
       ++keep;
+      break;
+    case DecisionKind::Preserve:
+      ++preserve;
+      break;
+    }
   }
   llvm::json::Object root;
   root["schema"] = "s2c2.workload_schedule.v1";
@@ -960,9 +1065,11 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   root["device"] = evi.device;
   root["evidence"] = evi.evidenceDesc;
   root["rewrite"] = "concurrent-to-serial";
+  root["focus"] = "storage-data-movement-compute-overlap";
   root["candidates"] = (int64_t)decs.size();
   root["keep"] = (int64_t)keep;
   root["flatten"] = (int64_t)flatten;
+  root["preserve"] = (int64_t)preserve;
   root["decisions"] = std::move(cands);
   root["cost"] = "unchanged";
   std::error_code ec;
@@ -1079,15 +1186,8 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     llvm::errs() << "\n";
     if (evi) {
       WorkloadDecision d;
-      d.id = nextId++;
-      d.via = "concurrent";
-      d.pair = pair;
-      d.payload = formatPayload(ctx.sizeBytes);
-      d.relation = cell.relation;
-      d.reason = decisionReason(cell, app, serialize);
-      d.flatten = serialize;
-      d.app = app;
-      d.rewriteLicense = cell.rewriteLicense;
+      fillWorkloadDecision(d, nextId++, "concurrent", pair, ctx, cell, app,
+                           serialize);
       printWorkloadCandidate(d);
       decisions.push_back(std::move(d));
     }
@@ -1119,15 +1219,8 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     llvm::errs() << "\n";
     if (evi) {
       WorkloadDecision d;
-      d.id = nextId++;
-      d.via = "overlap";
-      d.pair = pair;
-      d.payload = formatPayload(ctx.sizeBytes);
-      d.relation = cell.relation;
-      d.reason = decisionReason(cell, app, serialize);
-      d.flatten = serialize;
-      d.app = app;
-      d.rewriteLicense = cell.rewriteLicense;
+      fillWorkloadDecision(d, nextId++, "overlap", pair, ctx, cell, app,
+                           serialize);
       printWorkloadCandidate(d);
       decisions.push_back(std::move(d));
     }
@@ -1137,15 +1230,11 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
   llvm::errs() << "capability-schedule device=" << device
                << " semantics=unchanged v3=not-claimed cost=unchanged\n";
   if (evi) {
-    unsigned keep = 0, flatten = 0;
-    for (const WorkloadDecision &d : decisions) {
-      if (d.flatten)
-        ++flatten;
-      else
-        ++keep;
-    }
+    unsigned keep = 0, flatten = 0, preserve = 0;
+    countDecisions(decisions, keep, flatten, preserve);
     llvm::errs() << "workload-schedule candidates=" << decisions.size()
                  << " keep=" << keep << " flatten=" << flatten
+                 << " preserve=" << preserve
                  << " hb=verify-with-check-s2c2-execution cost=unchanged\n";
     llvm::errs() << "HB verification : --check-s2c2-execution\n";
     llvm::errs() << "lowering        : --s2c2-lower\n";

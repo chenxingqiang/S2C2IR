@@ -129,3 +129,5 @@ reading benchmark logs as compiler input
 
 Workload candidate discovery is Phase 3E:
 [`evidence-bounded-workload.md`](evidence-bounded-workload.md).
+Two-tile SSD prefetch || compute is Phase 3F:
+[`storage-aware-pipeline.md`](storage-aware-pipeline.md).

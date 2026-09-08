@@ -434,8 +434,9 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     Optional `--evidence=` JSONL overrides the profile catalog.
     `--s2c2-capability-schedule=profile=<jsonl>` is unchanged.
     After this pass, `--check-s2c2-execution` must still succeed.
-    Walks every 2-task `sched.concurrent` as a workload candidate
-    (Phase 3E). Prints `workload-candidate #N` KEEP/FLATTEN lines.
+    Walks every 2-task `sched.concurrent` as a storage-aware
+    workload candidate. Prints KEEP (storage/communication overlap),
+    FLATTEN (licensed compute contention), or PRESERVE (no evidence).
     Optional `dump-schedule` writes the same decisions as JSON.
     Does not add a new rewrite kind.
   }];

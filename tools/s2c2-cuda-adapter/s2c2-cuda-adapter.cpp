@@ -182,6 +182,31 @@ static void printSsdMlpWallclock() {
   std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
 }
 
+static void printStoragePipeline() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-pipeline=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline "
+               "note storage-prefetch||compute\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline t-base=t-seq\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-pipeline t-opt=t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline "
+               "evi=keep-C||Storage,serialize-licensed-C||C\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline note logical-ssd-ne-disk\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-pipeline cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -198,6 +223,9 @@ static void printWorkloadSchedule() {
   std::fprintf(stderr,
                "s2c2-cuda-adapter workload-schedule "
                "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note storage-data-movement-overlap\n");
   std::fprintf(stderr,
                "s2c2-cuda-adapter workload-schedule note not-cost-v04\n");
   std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule cost=unchanged\n");
@@ -349,6 +377,7 @@ int main(int argc, char **argv) {
   bool cudaValAsync = false;
   bool capSchema = false;
   bool ssdMlp = false;
+  bool storagePipe = false;
   bool workloadSched = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
@@ -377,6 +406,8 @@ int main(int argc, char **argv) {
       capSchema = true;
     } else if (a == "--ssd-mlp-wallclock") {
       ssdMlp = true;
+    } else if (a == "--storage-pipeline") {
+      storagePipe = true;
     } else if (a == "--workload-schedule") {
       workloadSched = true;
     } else if (a.rfind("--func=", 0) == 0) {
@@ -387,7 +418,7 @@ int main(int argc, char **argv) {
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
                    "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
                    "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
-                   "[--workload-schedule]\n"
+                   "[--storage-pipeline] [--workload-schedule]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -407,12 +438,13 @@ int main(int argc, char **argv) {
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
-              (int)ssdMlp + (int)workloadSched;
+              (int)ssdMlp + (int)storagePipe + (int)workloadSched;
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-cuda-adapter: --cap-schema/--cuda-val-async/--cuda-val-cc/"
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
-                 "--matched/--ssd-mlp-wallclock/--workload-schedule "
+                 "--matched/--ssd-mlp-wallclock/--storage-pipeline/"
+                 "--workload-schedule "
                  "cannot combine\n");
     return 1;
   }
@@ -468,6 +500,11 @@ int main(int argc, char **argv) {
   }
   if (ssdMlp) {
     printSsdMlpWallclock();
+    printMaps();
+    return 0;
+  }
+  if (storagePipe) {
+    printStoragePipeline();
     printMaps();
     return 0;
   }

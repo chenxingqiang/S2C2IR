@@ -57,7 +57,9 @@ Each row is an index record, not a Capability cell.
 `ssd-mlp-wallclock.log` is the 910B program wall-clock at
 **that same path** (`status=measured`).
 `ssd-mlp-wallclock-4090.log` is the 4090 counterpart and does
-not overwrite the 910B file. Do not FileCheck μs.
+not overwrite the 910B file.
+`storage-pipeline-4090.log` is the 4090 two-tile SSD prefetch
+|| compute program wall-clock. Do not FileCheck μs.
 
 ## Batch check
 
@@ -86,6 +88,8 @@ runtime/ascend/sweep_ssd_mlp_wallclock.sh ./s2c2-ascend-run \
   docs/design/v3-dataset/ssd-mlp-wallclock
 runtime/cuda/sweep_ssd_mlp_wallclock.sh ./s2c2-cuda-run \
   docs/design/v3-dataset/ssd-mlp-wallclock-4090
+runtime/cuda/sweep_storage_pipeline.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/storage-pipeline-4090
 python3 runtime/record_hw_ledger.py --check-hw-ledger
 ```
 
