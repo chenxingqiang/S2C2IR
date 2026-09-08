@@ -707,13 +707,14 @@ log, not a new grid.
 | 3G-3 | same | `--profile=unknown` PRESERVE prefetch; KEEP_RESIDENCY still reported |
 | 3G-4 | same | `dump-schedule` JSON + adapters; existing `storage-pipeline-4090.log` |
 
-## N-tile storage pipeline (Phase 3H)
+## N-tile contract + three-tile realization (Phase 3H)
 
 **Not Cost v0.4.** Design:
 [`storage-ntile.md`](storage-ntile.md).
-Three-tile compute || prefetch, sequential HtoD, proven-safe
-KEEP_RESIDENCY reuse. `#69` untouched. Does not FileCheck
-microseconds.
+N-tile contract, N=3 unrolled realization. Compute || prefetch,
+sequential HtoD, proven-safe KEEP_RESIDENCY reuse. Not a generic
+loop pipeline. `#69` untouched. Does not FileCheck microseconds.
+Runtime witness is the inherited 3F log, not a new 3H wall-clock.
 
 | ID | File | Checks |
 | -- | ---- | ------ |

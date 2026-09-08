@@ -16,7 +16,8 @@
 // RUN: s2c2-ascend-adapter --dry-run --storage-ntile 2>&1 | FileCheck %s --check-prefix=ASCEND
 // RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-storage-pipeline %S/../../docs/design/v3-dataset/storage-pipeline-4090.log | FileCheck %s --check-prefix=RT
 
-// Phase 3H: N-tile storage pipeline + proven-safe residency reuse.
+// Phase 3H: N-tile contract, N=3 unrolled realization + proven-safe
+// residency reuse. Not an arbitrary-N / scf.for software pipeline.
 // tile i compute || prefetch tile i+1, then sequential HtoD, then
 // tile i+1 compute. KEEP_RESIDENCY reuses a live replica only when
 // alias, dominance, type, and no intervening pack/dealloc are proven.

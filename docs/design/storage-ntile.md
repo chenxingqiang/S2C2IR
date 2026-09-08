@@ -1,9 +1,13 @@
-# N-tile Storage Pipeline + Proven-Safe Residency Reuse (Phase 3H)
+# N-tile Contract + Three-Tile Realization (Phase 3H)
 
-**Status:** three-tile SSD prefetch || compute, then sequential HtoD,
-then next compute. KEEP_RESIDENCY reuses a live replica only when
-proven safe. Not Cost v0.4. Does **not** flatten `C||Storage`, invent
-sibling `sched.wait`, densify Capability matrices, or overwrite `#69`.
+**Status:** N-tile pipeline **contract** with an **N=3 unrolled**
+realization. Not an arbitrary-N / `scf.for` software pipeline.
+KEEP_RESIDENCY reuses a live replica only when proven safe. Not
+Cost v0.4. Does **not** flatten `C||Storage`, invent sibling
+`sched.wait`, densify Capability matrices, or overwrite `#69`.
+This increment is compiler / integration semantics. The checked-in
+`storage-pipeline-4090.log` is the inherited 3F program witness,
+not a new three-tile wall-clock.
 
 Phase 3G entry:
 [`storage-hierarchy.md`](storage-hierarchy.md).
@@ -20,7 +24,7 @@ SSD → Host
 
 3G reported the hierarchy plan. 3H realizes two things:
 
-1. An unrolled N-tile (N=3) producer-consumer pipeline.
+1. The N-tile pipeline contract, realized as **three unrolled tiles**.
 2. Proven-safe reuse of an already-valid residency.
 
 ## Proven-safe reuse
