@@ -804,16 +804,17 @@ untouched.
 
 ## Storage cost ranking (Phase 4D)
 
-**Not new Capability measurements.** Design:
+**FROZEN** at `#92`. Design:
 [`storage-cost.md`](storage-cost.md). Rank enumerated
-\(F(\text{program})\) under `policy=cost-v04`. Does not invent
-members, does not retarget `default-3g`, and does not rank a
-truncated product. Frozen `--s2c2-cost` / `--s2c2-argmin` /
-Score_3 untouched. `#69` untouched.
+\(F(\text{program})\) under `policy=cost-v04`. Do not add
+structural ticks. Does not invent members, does not retarget
+`default-3g`, and does not rank a truncated product. Frozen
+`--s2c2-cost` / `--s2c2-argmin` / Score_3 untouched. `#69`
+untouched.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
-| 4D-1 | `test/Integration/storage-cost.mlir` | `--print-storage-cost-contract`; `cost-ne-legality`; `truncated-ne-ranked`; `default-3g-frozen` |
+| 4D-1 | `test/Integration/storage-cost.mlir` | `--print-storage-cost-contract`; `cost-ne-legality`; `truncated-ne-ranked`; `default-3g-frozen`; `cost-v04-structural-frozen` |
 | 4D-2 | same | 4090 `ranked` ends `PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY` `score=0` `ranked-eq-default-3g=yes` |
 | 4D-3 | same | `--profile=unknown` ranked uses `PRESERVE`; no `PREFETCH` |
 | 4D-4 | same | adapters `--storage-cost`; exclusive vs `--storage-global` |

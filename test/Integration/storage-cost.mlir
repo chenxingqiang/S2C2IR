@@ -11,11 +11,12 @@
 // RUN: s2c2-ascend-adapter --dry-run --storage-cost 2>&1 | FileCheck %s --check-prefix=ASCEND
 // RUN: not s2c2-cuda-adapter --dry-run --storage-cost --storage-global 2>&1 | FileCheck %s --check-prefix=EXCL
 
-// Phase 4D: rank enumerated F(program) under policy=cost-v04.
-// Does not invent members, does not retarget default-3g, and
-// does not rank a truncated product. Frozen --s2c2-cost /
-// --s2c2-argmin / Score_3 untouched. No new Capability grid.
-// No C||Storage flatten. Do not FileCheck microseconds.
+// Phase 4D FROZEN at #92: rank enumerated F(program) under
+// policy=cost-v04. Do not add structural ticks. Does not invent
+// members, does not retarget default-3g, and does not rank a
+// truncated product. Frozen --s2c2-cost / --s2c2-argmin /
+// Score_3 untouched. No new Capability grid. No C||Storage
+// flatten. Do not FileCheck microseconds.
 
 // CONTRACT: storage-cost compiler-driven=yes
 // CONTRACT: no-evidence => no-destructive-optimization
@@ -28,6 +29,7 @@
 // CONTRACT: note not-s2c2-argmin
 // CONTRACT: note not-score3
 // CONTRACT: note not-new-capability-grid
+// CONTRACT: note cost-v04-structural-frozen
 // CONTRACT: cost=unchanged
 // CONTRACT-NOT: password
 
@@ -37,6 +39,7 @@
 // GPU-LOG-SAME: note cost-ne-legality
 // GPU-LOG-SAME: note default-3g-frozen
 // GPU-LOG-SAME: note truncated-ne-ranked
+// GPU-LOG-SAME: note cost-v04-structural-frozen
 // GPU-LOG: hierarchy-global-cost-schedule enumerated=yes truncated=no
 // GPU-LOG-SAME: ranked-in-legal=yes
 // GPU-LOG-SAME: ranked-eq-default-3g=yes
@@ -65,10 +68,12 @@
 // GPU-AN: note default-3g-frozen
 // GPU-AN: note truncated-ne-ranked
 // GPU-AN: note not-s2c2-argmin
+// GPU-AN: note cost-v04-structural-frozen
 // GPU-AN: cost=unchanged
 
 // TRUNC: hierarchy-global-cost ranked=not-enumerated score=n/a policy=cost-v04
 // TRUNC-SAME: note cost-does-not-rank-truncated-F
+// TRUNC-SAME: note cost-v04-structural-frozen
 // TRUNC: hierarchy-global-cost-schedule enumerated=no truncated=yes
 // TRUNC-SAME: argmin-size=n/a
 // TRUNC-NOT: hierarchy-global-cost-candidate
@@ -81,6 +86,7 @@
 // CUDA: s2c2-cuda-adapter storage-cost note default-3g-frozen
 // CUDA: s2c2-cuda-adapter storage-cost note truncated-ne-ranked
 // CUDA: s2c2-cuda-adapter storage-cost note not-s2c2-argmin
+// CUDA: s2c2-cuda-adapter storage-cost note cost-v04-structural-frozen
 // CUDA: s2c2-cuda-adapter storage-cost cost=unchanged
 
 // ASCEND: s2c2-ascend-adapter storage-cost=1
@@ -88,6 +94,7 @@
 // ASCEND: s2c2-ascend-adapter storage-cost policy=cost-v04
 // ASCEND: s2c2-ascend-adapter storage-cost note default-3g-frozen
 // ASCEND: s2c2-ascend-adapter storage-cost note truncated-ne-ranked
+// ASCEND: s2c2-ascend-adapter storage-cost note cost-v04-structural-frozen
 // ASCEND: s2c2-ascend-adapter storage-cost cost=unchanged
 
 // EXCL: cannot combine

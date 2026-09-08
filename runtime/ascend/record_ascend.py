@@ -1575,6 +1575,7 @@ def print_storage_cost_contract() -> int:
     print("note not-new-capability-grid")
     print("note structural-ticks-not-wallclock")
     print("note runtime-correlation-not-applicable")
+    print("note cost-v04-structural-frozen")
     print("semantics=unchanged")
     print("v3=not-claimed")
     print("cost=unchanged")
@@ -1659,6 +1660,7 @@ def analyze_storage_cost(path: Path) -> int:
     print("note not-new-capability-grid")
     print("note structural-ticks-not-wallclock")
     print("note runtime-correlation-not-applicable")
+    print("note cost-v04-structural-frozen")
     print("r3-gate=scoped-evidence")
     print("cost=unchanged")
     return 0

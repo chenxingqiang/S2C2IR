@@ -29,7 +29,8 @@
 // product is not enumerated and is not reported as legal. Chain
 // definition stays frozen. default-3g must inhabit F; otherwise the
 // pass fails. Phase 4D ranks a fully enumerated F(program) under
-// policy=cost-v04. Ranking does not invent members, does not
+// policy=cost-v04 and is FROZEN at the coincide witness. Do not add
+// structural ticks. Ranking does not invent members, does not
 // replace default-3g, and does not rank a truncated product.
 // Frozen --s2c2-cost / --s2c2-argmin / Score_3 stay untouched.
 //
@@ -1953,7 +1954,8 @@ static void printGlobalCostRank(const GlobalCostRank &r,
                  << " note cost-ne-legality note cost-ne-rewrite-license"
                  << " note default-3g-frozen note truncated-ne-ranked"
                  << " note not-s2c2-argmin note not-score3"
-                 << " note not-new-capability-grid\n";
+                 << " note not-new-capability-grid"
+                 << " note cost-v04-structural-frozen\n";
     llvm::errs() << "hierarchy-global-cost-schedule enumerated=no truncated=yes"
                  << " ranked-in-legal=n/a ranked-eq-default-3g=n/a"
                  << " argmin-size=n/a policy=cost-v04"
@@ -1962,7 +1964,8 @@ static void printGlobalCostRank(const GlobalCostRank &r,
     llvm::errs() << "hierarchy-global-cost-coincide diverge=n/a"
                  << " note cost-does-not-rank-truncated-F"
                  << " note structural-ticks-not-wallclock"
-                 << " note runtime-correlation-not-applicable\n";
+                 << " note runtime-correlation-not-applicable"
+                 << " note cost-v04-structural-frozen\n";
     return;
   }
   llvm::errs() << "hierarchy-global-cost ranked=" << joinGlobal(r.ranked)
@@ -1970,7 +1973,8 @@ static void printGlobalCostRank(const GlobalCostRank &r,
                << " note cost-ne-legality note cost-ne-rewrite-license"
                << " note default-3g-frozen note truncated-ne-ranked"
                << " note not-s2c2-argmin note not-score3"
-               << " note not-new-capability-grid\n";
+               << " note not-new-capability-grid"
+               << " note cost-v04-structural-frozen\n";
   llvm::errs() << "hierarchy-global-cost-schedule enumerated=yes truncated=no"
                << " ranked-in-legal=" << (r.rankedInLegal ? "yes" : "no")
                << " ranked-eq-default-3g="
@@ -1980,7 +1984,8 @@ static void printGlobalCostRank(const GlobalCostRank &r,
   llvm::errs() << "hierarchy-global-cost-coincide diverge="
                << (r.rankedEqDefault3g ? "no" : "yes")
                << " note structural-ticks-not-wallclock"
-               << " note runtime-correlation-not-applicable\n";
+               << " note runtime-correlation-not-applicable"
+               << " note cost-v04-structural-frozen\n";
   for (unsigned i = 0; i < g.legal.size(); ++i)
     llvm::errs() << "hierarchy-global-cost-candidate actions="
                  << joinGlobal(g.legal[i]) << " score=" << r.candidateScores[i]
