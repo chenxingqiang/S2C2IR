@@ -102,7 +102,8 @@ Phase 4B storage joint candidate scheduling
   ([storage-joint.md](storage-joint.md))
 Phase 4C storage global schedule
   ([storage-global.md](storage-global.md))
-Phase 4 Cost-based ranking / Cost v0.4
+Phase 4D storage cost ranking
+  ([storage-cost.md](storage-cost.md))
 new 4090 / 910B Capability measurements
 overwriting #69
 ```

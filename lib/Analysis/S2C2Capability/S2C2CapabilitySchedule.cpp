@@ -28,8 +28,10 @@
 // chains in program order when that product is at most 64. A larger
 // product is not enumerated and is not reported as legal. Chain
 // definition stays frozen. default-3g must inhabit F; otherwise the
-// pass fails. It is not Cost. Cost may later rank a fully
-// enumerated F(program) under policy=cost-v04.
+// pass fails. Phase 4D ranks a fully enumerated F(program) under
+// policy=cost-v04. Ranking does not invent members, does not
+// replace default-3g, and does not rank a truncated product.
+// Frozen --s2c2-cost / --s2c2-argmin / Score_3 stay untouched.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -70,6 +72,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
+#include <climits>
 #include <cstdint>
 #include <initializer_list>
 #include <optional>
@@ -1842,6 +1845,140 @@ static void printGlobalSchedule(const GlobalSchedule &g, unsigned nChains) {
                  << joinGlobal(asn) << "\n";
 }
 
+/// Structural ticks over an enumerated F(program) member.
+/// PRESERVE pays 1 against overlap (PREFETCH is 0). Rematerialize
+/// TRANSFER pays 1 against KEEP_RESIDENCY. Singleton TRANSFER /
+/// MATERIALIZE do not. Not Score_3, not microseconds, not a new
+/// Capability cell. Cost does not invent members of F.
+static bool legalContains(const HierarchySite &s, HierarchyAction want) {
+  for (HierarchyAction a : s.legal)
+    if (a == want)
+      return true;
+  return false;
+}
+
+static const HierarchySite *siteById(ArrayRef<HierarchySite> sites,
+                                     unsigned id) {
+  if (id < sites.size() && sites[id].id == id)
+    return &sites[id];
+  for (const HierarchySite &s : sites)
+    if (s.id == id)
+      return &s;
+  return nullptr;
+}
+
+static int64_t costV04Ticks(ArrayRef<JointChain> chains,
+                            ArrayRef<HierarchySite> sites,
+                            ArrayRef<ChainAssignment> tuple) {
+  int64_t ticks = 0;
+  unsigned n = std::min((unsigned)chains.size(), (unsigned)tuple.size());
+  for (unsigned i = 0; i < n; ++i) {
+    const JointChain &c = chains[i];
+    ArrayRef<HierarchyAction> acts = tuple[i];
+    unsigned m = std::min((unsigned)c.siteIds.size(), (unsigned)acts.size());
+    for (unsigned j = 0; j < m; ++j) {
+      HierarchyAction a = acts[j];
+      const HierarchySite *s = siteById(sites, c.siteIds[j]);
+      if (!s)
+        continue;
+      if (a == HierarchyAction::Preserve)
+        ticks += 1;
+      else if (a == HierarchyAction::Transfer &&
+               legalContains(*s, HierarchyAction::KeepResidency))
+        ticks += 1;
+    }
+  }
+  return ticks;
+}
+
+struct GlobalCostRank {
+  SmallVector<ChainAssignment, 4> ranked;
+  int64_t score = 0;
+  unsigned argminSize = 0;
+  bool applicable = false;
+  bool rankedInLegal = false;
+  bool rankedEqDefault3g = false;
+  SmallVector<int64_t, 16> candidateScores;
+};
+
+/// Rank fully enumerated F(program) under policy=cost-v04.
+/// A truncated product is not ranked. default-3g is not retargeted.
+/// Among ArgMin ties, prefer the historical tuple when it is a minimum.
+static GlobalCostRank rankGlobalCost(ArrayRef<JointChain> chains,
+                                     ArrayRef<HierarchySite> sites,
+                                     const GlobalSchedule &g) {
+  GlobalCostRank r;
+  if (!g.enumerated)
+    return r;
+  r.applicable = true;
+  int64_t best = INT64_MAX;
+  SmallVector<unsigned, 8> argminIdx;
+  r.candidateScores.resize(g.legal.size());
+  for (unsigned i = 0; i < g.legal.size(); ++i) {
+    int64_t t = costV04Ticks(chains, sites, g.legal[i]);
+    r.candidateScores[i] = t;
+    if (t < best) {
+      best = t;
+      argminIdx.clear();
+      argminIdx.push_back(i);
+    } else if (t == best) {
+      argminIdx.push_back(i);
+    }
+  }
+  r.score = best == INT64_MAX ? 0 : best;
+  r.argminSize = argminIdx.size();
+  int pick = -1;
+  for (unsigned i : argminIdx) {
+    if (sameGlobal(g.legal[i], g.selected)) {
+      pick = (int)i;
+      break;
+    }
+  }
+  if (pick < 0 && !argminIdx.empty())
+    pick = (int)argminIdx.front();
+  if (pick >= 0) {
+    r.ranked.assign(g.legal[pick].begin(), g.legal[pick].end());
+    r.rankedInLegal = true;
+  }
+  r.rankedEqDefault3g = g.historicalInF && pick >= 0 &&
+                        sameGlobal(r.ranked, g.selected);
+  return r;
+}
+
+static void printGlobalCostRank(const GlobalCostRank &r,
+                                const GlobalSchedule &g) {
+  if (!r.applicable) {
+    llvm::errs() << "hierarchy-global-cost ranked=not-enumerated score=n/a"
+                 << " policy=cost-v04 note cost-does-not-rank-truncated-F"
+                 << " note cost-ne-legality note cost-ne-rewrite-license"
+                 << " note default-3g-frozen note truncated-ne-ranked"
+                 << " note not-s2c2-argmin note not-score3"
+                 << " note not-new-capability-grid\n";
+    llvm::errs() << "hierarchy-global-cost-schedule enumerated=no truncated=yes"
+                 << " ranked-in-legal=n/a ranked-eq-default-3g=n/a"
+                 << " argmin-size=n/a policy=cost-v04"
+                 << " note cost-does-not-rank-truncated-F"
+                 << " note default-3g-frozen\n";
+    return;
+  }
+  llvm::errs() << "hierarchy-global-cost ranked=" << joinGlobal(r.ranked)
+               << " score=" << r.score << " policy=cost-v04"
+               << " note cost-ne-legality note cost-ne-rewrite-license"
+               << " note default-3g-frozen note truncated-ne-ranked"
+               << " note not-s2c2-argmin note not-score3"
+               << " note not-new-capability-grid\n";
+  llvm::errs() << "hierarchy-global-cost-schedule enumerated=yes truncated=no"
+               << " ranked-in-legal=" << (r.rankedInLegal ? "yes" : "no")
+               << " ranked-eq-default-3g="
+               << (r.rankedEqDefault3g ? "yes" : "no")
+               << " argmin-size=" << r.argminSize << " policy=cost-v04"
+               << " note cost-ne-legality note default-3g-frozen\n";
+  for (unsigned i = 0; i < g.legal.size(); ++i)
+    llvm::errs() << "hierarchy-global-cost-candidate actions="
+                 << joinGlobal(g.legal[i]) << " score=" << r.candidateScores[i]
+                 << "\n";
+}
+
 static bool isStorageOverlapConcurrent(ConcurrentOp conc) {
   SmallVector<TaskOp> tasks(conc.getBody().front().getOps<TaskOp>());
   if (tasks.size() != 2)
@@ -2057,6 +2194,31 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   root["hierarchy_global_policy"] = "default-3g";
   if (!glob.historicalInF)
     root["hierarchy_global_error"] = "historical-tuple-not-in-F";
+  GlobalCostRank costRank = rankGlobalCost(chains, sites, glob);
+  root["hierarchy_global_cost_policy"] = "cost-v04";
+  if (!costRank.applicable) {
+    root["hierarchy_global_cost_ranked"] = "not-enumerated";
+    root["hierarchy_global_cost_score"] = "n/a";
+    root["hierarchy_global_cost_ranked_in_legal"] = "n/a";
+    root["hierarchy_global_cost_ranked_eq_default_3g"] = "n/a";
+    root["hierarchy_global_cost_argmin_size"] = "n/a";
+  } else {
+    root["hierarchy_global_cost_ranked"] = joinGlobal(costRank.ranked);
+    root["hierarchy_global_cost_score"] = costRank.score;
+    root["hierarchy_global_cost_ranked_in_legal"] =
+        costRank.rankedInLegal ? "yes" : "no";
+    root["hierarchy_global_cost_ranked_eq_default_3g"] =
+        costRank.rankedEqDefault3g ? "yes" : "no";
+    root["hierarchy_global_cost_argmin_size"] = (int64_t)costRank.argminSize;
+    llvm::json::Array costCands;
+    for (unsigned i = 0; i < glob.legal.size(); ++i) {
+      llvm::json::Object obj;
+      obj["actions"] = joinGlobal(glob.legal[i]);
+      obj["score"] = costRank.candidateScores[i];
+      costCands.push_back(std::move(obj));
+    }
+    root["hierarchy_global_cost"] = std::move(costCands);
+  }
   root["hierarchy_reuse_applied"] = (int64_t)reuse.applied;
   root["hierarchy_reuse_skipped"] = (int64_t)reuse.skipped;
   root["cost"] = "unchanged";
@@ -2257,6 +2419,7 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     printJointSchedule(chains);
     GlobalSchedule glob = planGlobalSchedule(chains);
     printGlobalSchedule(glob, chains.size());
+    printGlobalCostRank(rankGlobalCost(chains, sites, glob), glob);
     ReuseStats reuse = applyProvenResidencyReuse(module);
     llvm::errs() << "hierarchy-reuse applied=" << reuse.applied
                  << " skipped=" << reuse.skipped

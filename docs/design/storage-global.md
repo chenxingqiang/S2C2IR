@@ -61,9 +61,11 @@ per-chain inhabitant. It does **not** publish the first 64
 tuples as `legal`. Later Cost must not rank a truncated prefix
 as if it were the complete set.
 
-Later Cost may rank a **fully enumerated** \(F(\text{program})\)
-under `policy=cost-v04`. It must not invent members of \(F\) and
-must not change `default-3g` or the chain definition.
+Later Cost ranks a **fully enumerated** \(F(\text{program})\)
+under `policy=cost-v04`. See
+[`storage-cost.md`](storage-cost.md). It must not invent members
+of \(F\), must not rank a truncated prefix, and must not change
+`default-3g` or the chain definition.
 
 ## Witness
 
@@ -115,7 +117,6 @@ means the historical tuple is a per-chain inhabitant of
 ## Out of scope
 
 ```text
-Cost v0.4 ranking / policy=cost-v04
 changing the meaning of default-3g
 changing the 4B chain definition
 new 4090 / 910B Capability grid points
@@ -125,3 +126,6 @@ invented sibling sched.wait
 arbitrary runtime-N / alias-complete overwrite
 changing the 3J wall-clock logs
 ```
+
+Phase 4D ranking:
+[`storage-cost.md`](storage-cost.md).

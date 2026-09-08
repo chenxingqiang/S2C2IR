@@ -362,6 +362,42 @@ static void printStorageGlobal() {
                "s2c2-ascend-adapter storage-global semantics=unchanged\n");
 }
 
+static void printStorageCost() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-cost=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-cost source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note cost-ranks-enumerated-F-only\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note cost-ne-legality\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note cost-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost policy=cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note truncated-ne-ranked\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note not-s2c2-argmin\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note not-score3\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note chain-def-frozen\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-cost cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -543,6 +579,7 @@ static void usage() {
                "[--cap-schema] [--mem] [--cc-phase] [--cc-size] "
                "[--cc-rewrite] [--ssd-mlp-wallclock] [--storage-hierarchy] "
                "[--storage-schedule] [--storage-joint] [--storage-global] "
+               "[--storage-cost] "
                "[--storage-ntile] [--storage-loop] "
                "[--storage-loop-wallclock] [--workload-schedule] "
                "[--classify=ta:tb:tpar] "
@@ -564,6 +601,7 @@ int main(int argc, char **argv) {
   bool storageSched = false;
   bool storageJoint = false;
   bool storageGlobal = false;
+  bool storageCost = false;
   bool storageNtile = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
@@ -599,6 +637,8 @@ int main(int argc, char **argv) {
       storageJoint = true;
     } else if (a == "--storage-global") {
       storageGlobal = true;
+    } else if (a == "--storage-cost") {
+      storageCost = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
     } else if (a == "--storage-loop") {
@@ -633,7 +673,7 @@ int main(int argc, char **argv) {
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
               (int)ccPhase + (int)ccSize + (int)ccRewrite + (int)ssdMlp +
               (int)storageHier + (int)storageSched + (int)storageJoint +
-              (int)storageGlobal + (int)storageNtile +
+              (int)storageGlobal + (int)storageCost + (int)storageNtile +
               (int)storageLoop +
               (int)storageLoopWc + (int)workloadSched +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
@@ -643,7 +683,7 @@ int main(int argc, char **argv) {
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
                  "--cc-phase/--cc-size/--cc-rewrite/--ssd-mlp-wallclock/"
                  "--storage-hierarchy/--storage-schedule/--storage-joint/"
-                 "--storage-global/--storage-ntile/"
+                 "--storage-global/--storage-cost/--storage-ntile/"
                  "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule/"
                  "--classify/--emit-record/"
@@ -713,6 +753,10 @@ int main(int argc, char **argv) {
   }
   if (storageGlobal) {
     printStorageGlobal();
+    return 0;
+  }
+  if (storageCost) {
+    printStorageCost();
     return 0;
   }
   if (storageNtile) {

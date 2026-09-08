@@ -1556,6 +1556,101 @@ def analyze_storage_global(path: Path) -> int:
     return 0
 
 
+def print_storage_cost_contract() -> int:
+    print("storage-cost compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note cost-ranks-enumerated-F-only")
+    print("note cost-ne-legality")
+    print("note cost-ne-rewrite-license")
+    print("note policy=cost-v04")
+    print("note default-3g-frozen")
+    print("note truncated-ne-ranked")
+    print("note not-s2c2-argmin")
+    print("note not-score3")
+    print("note chain-def-frozen")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_COST_RE = re.compile(
+    r"hierarchy-global-cost ranked=(\S+) score=(\S+) policy=(\S+)"
+)
+_HIER_COST_SUM_RE = re.compile(
+    r"hierarchy-global-cost-schedule enumerated=(yes|no) truncated=(yes|no) "
+    r"ranked-in-legal=(\S+) ranked-eq-default-3g=(\S+) argmin-size=(\S+)"
+)
+
+
+def analyze_storage_cost(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    ranked = "not-enumerated"
+    score = "n/a"
+    enumerated = "no"
+    truncated = "yes"
+    in_legal = "n/a"
+    eq_default = "n/a"
+    argmin = "n/a"
+    policy = "cost-v04"
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        ranked = str(obj.get("hierarchy_global_cost_ranked", "not-enumerated"))
+        score = str(obj.get("hierarchy_global_cost_score", "n/a"))
+        in_legal = str(obj.get("hierarchy_global_cost_ranked_in_legal", "n/a"))
+        eq_default = str(
+            obj.get("hierarchy_global_cost_ranked_eq_default_3g", "n/a")
+        )
+        argmin = str(obj.get("hierarchy_global_cost_argmin_size", "n/a"))
+        policy = str(obj.get("hierarchy_global_cost_policy", "cost-v04"))
+        enumerated = str(obj.get("hierarchy_global_enumerated", "no"))
+        truncated = str(obj.get("hierarchy_global_truncated", "yes"))
+    else:
+        m = _HIER_COST_SUM_RE.search(text)
+        g = _HIER_COST_RE.search(text)
+        if g:
+            ranked = g.group(1)
+            score = g.group(2)
+            policy = g.group(3)
+        if m:
+            enumerated = m.group(1)
+            truncated = m.group(2)
+            in_legal = m.group(3)
+            eq_default = m.group(4)
+            argmin = m.group(5)
+    print("storage-cost compiler-driven=yes")
+    print(f"storage-cost ranked={ranked}")
+    print(f"storage-cost score={score}")
+    print(f"storage-cost enumerated={enumerated}")
+    print(f"storage-cost truncated={truncated}")
+    print(f"storage-cost ranked-in-legal={in_legal}")
+    print(f"storage-cost ranked-eq-default-3g={eq_default}")
+    print(f"storage-cost argmin-size={argmin}")
+    print(f"storage-cost policy={policy}")
+    print("note cost-ranks-enumerated-F-only")
+    print("note cost-ne-legality")
+    print("note cost-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note truncated-ne-ranked")
+    print("note not-s2c2-argmin")
+    print("note not-score3")
+    print("note chain-def-frozen")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
 def print_storage_ntile_contract() -> int:
     print("storage-ntile compiler-driven=yes")
     print("no-evidence => no-destructive-optimization")
@@ -1807,6 +1902,8 @@ def main() -> int:
     p.add_argument("--analyze-storage-joint", type=Path)
     p.add_argument("--print-storage-global-contract", action="store_true")
     p.add_argument("--analyze-storage-global", type=Path)
+    p.add_argument("--print-storage-cost-contract", action="store_true")
+    p.add_argument("--analyze-storage-cost", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
     p.add_argument("--print-storage-loop-contract", action="store_true")
     p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
@@ -1850,6 +1947,8 @@ def main() -> int:
             args.analyze_storage_joint,
             args.print_storage_global_contract,
             args.analyze_storage_global,
+            args.print_storage_cost_contract,
+            args.analyze_storage_cost,
             args.print_storage_ntile_contract,
             args.print_storage_loop_contract,
             args.print_storage_loop_wallclock_contract,
@@ -1881,6 +1980,8 @@ def main() -> int:
             "--analyze-storage-joint, "
             "--print-storage-global-contract, "
             "--analyze-storage-global, "
+            "--print-storage-cost-contract, "
+            "--analyze-storage-cost, "
             "--print-storage-ntile-contract, "
             "--print-storage-loop-contract, "
             "--print-storage-loop-wallclock-contract, "
@@ -1975,6 +2076,10 @@ def main() -> int:
         return print_storage_global_contract()
     if args.analyze_storage_global:
         return analyze_storage_global(args.analyze_storage_global)
+    if args.print_storage_cost_contract:
+        return print_storage_cost_contract()
+    if args.analyze_storage_cost:
+        return analyze_storage_cost(args.analyze_storage_cost)
     if args.print_storage_ntile_contract:
         return print_storage_ntile_contract()
     if args.print_storage_loop_contract:
