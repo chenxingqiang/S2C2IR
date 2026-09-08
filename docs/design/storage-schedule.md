@@ -83,10 +83,17 @@ Cost = unchanged
 `default-3g` is the unique 3G inhabitant. It is a **selection
 policy**, not a Cost table and not a rewrite license.
 
+**Frozen:** do not grow `default-3g` into an implicit optimizer.
+It only reproduces the historical 3G choice. Future Cost ranking
+is a **new** policy name, for example `policy=cost-v04`.
+
 ## Out of scope
 
 ```text
 Cost v0.4 ranking
+policy=cost-v04
+Phase 4B joint F(chain)
+  ([storage-joint.md](storage-joint.md))
 new 4090 / 910B Capability grid points
 overwriting #69
 C||Storage flatten

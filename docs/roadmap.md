@@ -280,6 +280,13 @@ Design: [`storage-loop-wallclock.md`](design/storage-loop-wallclock.md).
 Phase 4A: legal storage action set \(F(\text{site})\), then
 select the default-3G inhabitant. Cost does not rank or license.
 Design: [`storage-schedule.md`](design/storage-schedule.md).
+`default-3g` is frozen: it only reproduces the historical 3G
+choice.
+
+Phase 4B: joint legal set \(F(\text{chain})\) over consecutive
+sites of one storage object. `default-3g` selects the historical
+3G tuple. Cost still does not rank.
+Design: [`storage-joint.md`](design/storage-joint.md).
 
 Cost v0.4 ranking stays frozen. A second hardware (ROCm first)
 stays later in Phase 4.

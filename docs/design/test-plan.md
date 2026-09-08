@@ -767,6 +767,21 @@ not rank or license. `#69` untouched.
 | 4A-3 | same | `--profile=unknown` overlap `legal=PRESERVE`; `multi-candidate=2` |
 | 4A-4 | same | adapters `--storage-schedule`; exclusive vs `--storage-hierarchy` |
 
+## Storage joint candidate scheduling (Phase 4B)
+
+**Not Cost v0.4.** Design:
+[`storage-joint.md`](storage-joint.md). Legal joint set
+\(F(\text{chain})\) over consecutive sites of one object, then
+`policy=default-3g` selects the historical 3G tuple. `default-3g`
+is frozen. Cost does not rank or license. `#69` untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4B-1 | `test/Integration/storage-joint.mlir` | `--print-storage-joint-contract`; `default-3g-frozen` |
+| 4B-2 | same | 4090 object-1 `legal=8` selected `MATERIALIZE\|PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY` |
+| 4B-3 | same | `--profile=unknown` object-1 `legal=4` selected uses `PRESERVE`; no `PREFETCH` |
+| 4B-4 | same | adapters `--storage-joint`; exclusive vs `--storage-schedule` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

@@ -21,6 +21,10 @@
 // Phase 4A enumerates the legal action set F(site) and selects the
 // default-3G inhabitant. Cost does not rank, license, or decide
 // legality. Selection is not a rewrite license.
+// Phase 4B jointly enumerates F(chain) over consecutive sites of
+// one storage object. default-3g still reproduces the 3G tuple;
+// it is frozen and is not a Cost policy. Cost may later rank
+// F(chain) under policy=cost-v04.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -1059,6 +1063,7 @@ enum class HierarchyAction {
 
 struct HierarchySite {
   unsigned id = 0;
+  unsigned objectKey = 0;
   std::string op;
   std::string src;
   std::string dst;
@@ -1067,6 +1072,15 @@ struct HierarchySite {
   std::string reason;
   HierarchyAction action = HierarchyAction::Preserve;
   SmallVector<HierarchyAction, 4> legal;
+  std::string policy = "default-3g";
+};
+
+struct JointChain {
+  unsigned id = 0;
+  unsigned objectKey = 0;
+  SmallVector<unsigned, 8> siteIds;
+  SmallVector<SmallVector<HierarchyAction, 8>, 16> legal;
+  SmallVector<HierarchyAction, 8> selected;
   std::string policy = "default-3g";
 };
 
@@ -1108,12 +1122,22 @@ static StringRef hierarchyActionStr(HierarchyAction action) {
   return "PRESERVE";
 }
 
-static std::string joinActions(ArrayRef<HierarchyAction> acts) {
+static std::string joinActions(ArrayRef<HierarchyAction> acts, char sep = ',') {
   std::string out;
   for (size_t i = 0; i < acts.size(); ++i) {
     if (i)
-      out += ",";
+      out += sep;
     out += hierarchyActionStr(acts[i]).str();
+  }
+  return out;
+}
+
+static std::string joinIds(ArrayRef<unsigned> ids) {
+  std::string out;
+  for (size_t i = 0; i < ids.size(); ++i) {
+    if (i)
+      out += ",";
+    out += std::to_string(ids[i]);
   }
   return out;
 }
@@ -1439,11 +1463,25 @@ static SmallVector<HierarchySite, 16> planStorageHierarchy(ModuleOp module,
                                                        const CapCatalog &cat) {
   SmallVector<HierarchySite, 16> sites;
   llvm::DenseMap<Value, llvm::DenseMap<unsigned, Value>> live;
+  llvm::DenseMap<Value, unsigned> objectKeys;
   unsigned nextId = 0;
+  unsigned nextObj = 0;
+  unsigned nextAnon = 1000;
+  auto objectKeyOf = [&](Value obj) -> unsigned {
+    if (!obj)
+      return nextAnon++;
+    auto it = objectKeys.find(obj);
+    if (it != objectKeys.end())
+      return it->second;
+    unsigned k = nextObj++;
+    objectKeys[obj] = k;
+    return k;
+  };
   module.walk([&](Operation *op) {
     if (auto mat = dyn_cast<MaterializeOp>(op)) {
       HierarchySite s;
       s.id = nextId++;
+      s.objectKey = objectKeyOf(mat.getObject());
       s.op = "stor.materialize";
       s.src = "none";
       s.dst = spaceName(mat.getStorageSpace()).str();
@@ -1465,6 +1503,7 @@ static SmallVector<HierarchySite, 16> planStorageHierarchy(ModuleOp module,
     Value object = objectIdentity(xfer.getSource());
     HierarchySite s;
     s.id = nextId++;
+    s.objectKey = objectKeyOf(object);
     s.op = "stor.transfer";
     s.src = spaceName(srcSpace).str();
     s.dst = spaceName(dstSpace).str();
@@ -1513,6 +1552,129 @@ static SmallVector<HierarchySite, 16> planStorageHierarchy(ModuleOp module,
     sites.push_back(std::move(s));
   });
   return sites;
+}
+
+/// KEEP_RESIDENCY is jointly legal only if a prior selected action on
+/// the same object produced that dst space. MATERIALIZE / PREFETCH /
+/// TRANSFER / PRESERVE all still execute the as-written movement, so
+/// they produce dst. This filter does not invent actions or skip
+/// transfers. Cost does not participate.
+static bool jointCompatible(ArrayRef<HierarchySite> sites,
+                            ArrayRef<unsigned> siteIds,
+                            ArrayRef<HierarchyAction> acts) {
+  llvm::StringSet<> live;
+  for (size_t i = 0; i < siteIds.size(); ++i) {
+    const HierarchySite &s = sites[siteIds[i]];
+    if (acts[i] == HierarchyAction::KeepResidency && !live.contains(s.dst))
+      return false;
+    live.insert(s.dst);
+  }
+  return true;
+}
+
+static void enumerateJoint(ArrayRef<HierarchySite> sites,
+                           ArrayRef<unsigned> siteIds, unsigned idx,
+                           SmallVectorImpl<HierarchyAction> &cur,
+                           SmallVectorImpl<SmallVector<HierarchyAction, 8>> &out) {
+  constexpr unsigned kCap = 64;
+  if (out.size() >= kCap)
+    return;
+  if (idx == siteIds.size()) {
+    if (jointCompatible(sites, siteIds, cur))
+      out.emplace_back(cur.begin(), cur.end());
+    return;
+  }
+  for (HierarchyAction a : sites[siteIds[idx]].legal) {
+    cur.push_back(a);
+    enumerateJoint(sites, siteIds, idx + 1, cur, out);
+    cur.pop_back();
+  }
+}
+
+static bool sameAssignment(ArrayRef<HierarchyAction> a,
+                           ArrayRef<HierarchyAction> b) {
+  if (a.size() != b.size())
+    return false;
+  for (size_t i = 0; i < a.size(); ++i)
+    if (a[i] != b[i])
+      return false;
+  return true;
+}
+
+/// Group consecutive movement sites of one storage object. F(chain) is
+/// the compatible product of F(site). default-3g selects the historical
+/// 3G tuple; it does not re-decide legality and is not Cost.
+static SmallVector<JointChain, 4>
+planJointChains(ArrayRef<HierarchySite> sites) {
+  SmallVector<unsigned, 8> order;
+  llvm::DenseMap<unsigned, SmallVector<unsigned, 8>> groups;
+  for (const HierarchySite &s : sites) {
+    if (!groups.count(s.objectKey))
+      order.push_back(s.objectKey);
+    groups[s.objectKey].push_back(s.id);
+  }
+  SmallVector<JointChain, 4> chains;
+  unsigned nextId = 0;
+  for (unsigned key : order) {
+    JointChain c;
+    c.id = nextId++;
+    c.objectKey = key;
+    c.siteIds = groups[key];
+    c.policy = "default-3g";
+    SmallVector<HierarchyAction, 8> cur;
+    enumerateJoint(sites, c.siteIds, 0, cur, c.legal);
+    SmallVector<HierarchyAction, 8> preferred;
+    for (unsigned id : c.siteIds)
+      preferred.push_back(sites[id].action);
+    bool found = false;
+    for (const auto &asn : c.legal) {
+      if (sameAssignment(asn, preferred)) {
+        c.selected.assign(asn.begin(), asn.end());
+        found = true;
+        break;
+      }
+    }
+    if (!found && !c.legal.empty())
+      c.selected = c.legal.front();
+    chains.push_back(std::move(c));
+  }
+  return chains;
+}
+
+static void printJointChain(const JointChain &c) {
+  llvm::errs() << "hierarchy-joint #" << c.id << " object=" << c.objectKey
+               << " sites=" << joinIds(c.siteIds) << " legal=" << c.legal.size()
+               << " selected=" << joinActions(c.selected, '|')
+               << " policy=" << c.policy
+               << " note selection-ne-cost note default-3g-frozen\n";
+  llvm::errs() << "hierarchy-joint #" << c.id << " : object " << c.objectKey
+               << "\n";
+  llvm::errs() << "    sites     : " << joinIds(c.siteIds) << "\n";
+  llvm::errs() << "    |F|       : " << c.legal.size() << "\n";
+  llvm::errs() << "    selected  : " << joinActions(c.selected, '|') << "\n";
+  llvm::errs() << "    policy    : " << c.policy << "\n";
+  for (const auto &asn : c.legal)
+    llvm::errs() << "hierarchy-joint-candidate #" << c.id
+                 << " actions=" << joinActions(asn, '|') << "\n";
+}
+
+static void printJointSchedule(ArrayRef<JointChain> chains) {
+  unsigned product = 1;
+  bool inLegal = true;
+  for (const JointChain &c : chains) {
+    product *= std::max<unsigned>(1, c.legal.size());
+    bool found = false;
+    for (const auto &asn : c.legal)
+      if (sameAssignment(asn, c.selected))
+        found = true;
+    if (!found)
+      inLegal = false;
+  }
+  llvm::errs() << "hierarchy-joint-schedule chains=" << chains.size()
+               << " legal=" << product
+               << " selected-in-legal=" << (inLegal ? "yes" : "no")
+               << " policy=default-3g note selection-ne-cost"
+               << " note default-3g-frozen cost=unchanged\n";
 }
 
 static bool isStorageOverlapConcurrent(ConcurrentOp conc) {
@@ -1568,6 +1730,7 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
                                           const ResolvedProfile &evi,
                                           ArrayRef<WorkloadDecision> decs,
                                           ArrayRef<HierarchySite> sites,
+                                          ArrayRef<JointChain> chains,
                                           ReuseStats reuse) {
   llvm::json::Array cands;
   unsigned keep = 0, flatten = 0, preserve = 0;
@@ -1626,6 +1789,7 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
     obj["legal"] = std::move(legal);
     obj["selected"] = hierarchyActionStr(s.action).str();
     obj["policy"] = s.policy;
+    obj["object"] = (int64_t)s.objectKey;
     hier.push_back(std::move(obj));
   }
   root["hierarchy"] = std::move(hier);
@@ -1650,6 +1814,45 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   root["hierarchy_multi_candidate"] = (int64_t)multi;
   root["hierarchy_selected_in_legal"] = inLegal ? "yes" : "no";
   root["hierarchy_policy"] = "default-3g";
+  llvm::json::Array joint;
+  unsigned jointProduct = 1;
+  bool jointInLegal = true;
+  for (const JointChain &c : chains) {
+    llvm::json::Object obj;
+    obj["id"] = (int64_t)c.id;
+    obj["object"] = (int64_t)c.objectKey;
+    llvm::json::Array ids;
+    for (unsigned id : c.siteIds)
+      ids.push_back((int64_t)id);
+    obj["sites"] = std::move(ids);
+    llvm::json::Array legal;
+    for (const auto &asn : c.legal) {
+      llvm::json::Array acts;
+      for (HierarchyAction a : asn)
+        acts.push_back(hierarchyActionStr(a).str());
+      legal.push_back(std::move(acts));
+    }
+    obj["legal"] = std::move(legal);
+    llvm::json::Array selected;
+    for (HierarchyAction a : c.selected)
+      selected.push_back(hierarchyActionStr(a).str());
+    obj["selected"] = std::move(selected);
+    obj["policy"] = c.policy;
+    obj["legal_count"] = (int64_t)c.legal.size();
+    joint.push_back(std::move(obj));
+    jointProduct *= std::max<unsigned>(1, c.legal.size());
+    bool found = false;
+    for (const auto &asn : c.legal)
+      if (sameAssignment(asn, c.selected))
+        found = true;
+    if (!found)
+      jointInLegal = false;
+  }
+  root["hierarchy_joint"] = std::move(joint);
+  root["hierarchy_joint_chains"] = (int64_t)chains.size();
+  root["hierarchy_joint_legal"] = (int64_t)jointProduct;
+  root["hierarchy_joint_selected_in_legal"] = jointInLegal ? "yes" : "no";
+  root["hierarchy_joint_policy"] = "default-3g";
   root["hierarchy_reuse_applied"] = (int64_t)reuse.applied;
   root["hierarchy_reuse_skipped"] = (int64_t)reuse.skipped;
   root["cost"] = "unchanged";
@@ -1844,6 +2047,10 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
                  << " selected-in-legal=" << (inLegal ? "yes" : "no")
                  << " policy=default-3g note selection-ne-cost"
                  << " focus=ssd-host-hbm-compute cost=unchanged\n";
+    SmallVector<JointChain, 4> chains = planJointChains(sites);
+    for (const JointChain &c : chains)
+      printJointChain(c);
+    printJointSchedule(chains);
     ReuseStats reuse = applyProvenResidencyReuse(module);
     llvm::errs() << "hierarchy-reuse applied=" << reuse.applied
                  << " skipped=" << reuse.skipped
@@ -1854,7 +2061,8 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     llvm::errs() << "hierarchy-reuse note not-cost-v04 cost=unchanged\n";
     reportLoopPipeline(module);
     if (!dumpPath.empty() &&
-        failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites, reuse)))
+        failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites, chains,
+                                    reuse)))
       return failure();
   }
   return success();
