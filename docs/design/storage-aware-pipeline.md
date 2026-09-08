@@ -110,8 +110,8 @@ SSD+MLP wall-clock logs remain the previous complete-program witness.
 ## Out of scope
 
 ```text
-Phase 3G storage hierarchy (SSD ↔ DRAM ↔ HBM ↔ Compute)
-  — when to materialize / prefetch / transfer / keep residency
+Phase 3G storage hierarchy
+  ([storage-hierarchy.md](storage-hierarchy.md))
 Phase 4 Cost-based heterogeneous scheduling / Cost v0.4
 full double-buffering loop / N-tile software pipeline
 new rewrite kinds (pipeline realization, C||Storage flatten)

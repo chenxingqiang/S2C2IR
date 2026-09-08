@@ -131,3 +131,5 @@ Workload candidate discovery is Phase 3E:
 [`evidence-bounded-workload.md`](evidence-bounded-workload.md).
 Two-tile SSD prefetch || compute is Phase 3F:
 [`storage-aware-pipeline.md`](storage-aware-pipeline.md).
+Storage hierarchy scheduling is Phase 3G:
+[`storage-hierarchy.md`](storage-hierarchy.md).

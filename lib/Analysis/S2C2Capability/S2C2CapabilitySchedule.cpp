@@ -10,6 +10,11 @@
 // FLATTEN (licensed compute contention), or PRESERVE (no evidence).
 // C||Storage is SSD↔Host beside compute; inferred, not a new grid.
 //
+// Phase 3G walks stor.materialize / stor.transfer and prints a
+// hierarchy plan: MATERIALIZE / PREFETCH / TRANSFER / KEEP_RESIDENCY
+// / PRESERVE. Inferred overlap authorizes PREFETCH (KEEP) only.
+// KEEP_RESIDENCY is not a rematerialize rewrite.
+//
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
 //     → RewriteLicense → Rewrite → Verifier
@@ -34,6 +39,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Visitors.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
@@ -71,6 +77,7 @@ using sched::OverlapOp;
 using sched::TaskOp;
 using sched::YieldOp;
 using stor::BufferType;
+using stor::MaterializeOp;
 using stor::Space;
 using stor::TransferOp;
 
@@ -1030,9 +1037,276 @@ static void printWorkloadCandidate(const WorkloadDecision &d) {
   llvm::errs() << "    reason   : " << prettyReason(d.reason) << "\n";
 }
 
+enum class HierarchyAction {
+  Materialize,
+  Prefetch,
+  Transfer,
+  KeepResidency,
+  Preserve
+};
+
+struct HierarchySite {
+  unsigned id = 0;
+  std::string op;
+  std::string src;
+  std::string dst;
+  std::string pair;
+  std::string when;
+  std::string reason;
+  HierarchyAction action = HierarchyAction::Preserve;
+};
+
+static StringRef spaceName(std::optional<Space> space) {
+  if (!space)
+    return "none";
+  switch (*space) {
+  case Space::Register:
+    return "register";
+  case Space::SRAM:
+    return "sram";
+  case Space::DRAM:
+    return "dram";
+  case Space::HBM:
+    return "hbm";
+  case Space::SSD:
+    return "ssd";
+  case Space::CIM:
+    return "cim";
+  case Space::Host:
+    return "host";
+  }
+  return "none";
+}
+
+static StringRef hierarchyActionStr(HierarchyAction action) {
+  switch (action) {
+  case HierarchyAction::Materialize:
+    return "MATERIALIZE";
+  case HierarchyAction::Prefetch:
+    return "PREFETCH";
+  case HierarchyAction::Transfer:
+    return "TRANSFER";
+  case HierarchyAction::KeepResidency:
+    return "KEEP_RESIDENCY";
+  case HierarchyAction::Preserve:
+    return "PRESERVE";
+  }
+  return "PRESERVE";
+}
+
+static StringRef movementPair(std::optional<Space> src,
+                              std::optional<Space> dst) {
+  RegionClass cls;
+  classifySpaces(src, dst, cls);
+  if (cls.storage)
+    return "Storage";
+  if (cls.htod)
+    return "HtoD";
+  if (cls.dtoh)
+    return "DtoH";
+  return "n/a";
+}
+
+static Value peelScheduleResult(Value value) {
+  while (value) {
+    Operation *def = value.getDefiningOp();
+    if (!def)
+      break;
+    if (auto conc = dyn_cast<ConcurrentOp>(def)) {
+      unsigned idx = cast<OpResult>(value).getResultNumber();
+      auto yield = dyn_cast<YieldOp>(conc.getBody().front().getTerminator());
+      if (!yield || idx >= yield.getNumOperands())
+        break;
+      value = yield.getOperand(idx);
+      continue;
+    }
+    if (auto task = dyn_cast<TaskOp>(def)) {
+      unsigned idx = cast<OpResult>(value).getResultNumber();
+      auto yield = dyn_cast<YieldOp>(task.getBody().front().getTerminator());
+      // Task result 0 is the completion token; yielded values start at 1.
+      if (!yield || idx == 0 || idx - 1 >= yield.getNumOperands())
+        break;
+      value = yield.getOperand(idx - 1);
+      continue;
+    }
+    break;
+  }
+  return value;
+}
+
+static Value objectIdentity(Value buffer) {
+  buffer = peelScheduleResult(buffer);
+  if (auto xfer = buffer.getDefiningOp<TransferOp>())
+    return objectIdentity(xfer.getSource());
+  if (auto mat = buffer.getDefiningOp<MaterializeOp>())
+    return mat.getObject();
+  return Value();
+}
+
+static ConcurrentOp enclosingConcurrent(Operation *op) {
+  for (Operation *parent = op->getParentOp(); parent;
+       parent = parent->getParentOp()) {
+    if (auto conc = dyn_cast<ConcurrentOp>(parent))
+      return conc;
+  }
+  return ConcurrentOp();
+}
+
+static void classifyOverlapSite(ConcurrentOp conc, const CapCatalog &cat,
+                                std::string &pair, DecisionKind &kind,
+                                std::string &reason) {
+  pair.clear();
+  kind = DecisionKind::Preserve;
+  reason = "no-evidence";
+  SmallVector<TaskOp> tasks(conc.getBody().front().getOps<TaskOp>());
+  if (tasks.size() != 2)
+    return;
+  pair = classifyPair(tasks[0].getBody(), tasks[1].getBody());
+  if (pair.empty())
+    return;
+  QueryContext ctx =
+      contextFromRegions(tasks[0].getBody(), tasks[1].getBody(), pair);
+  CapCell cell = lookupPair(cat, pair, ctx.sizeBytes);
+  Applicability app = isApplicable(cell, ctx);
+  bool serialize = shouldSerialize(cell, app);
+  kind = classifyDecision(cell, app, serialize, pair);
+  reason = decisionReason(cell, app, serialize, pair);
+}
+
+static void printHierarchySite(const HierarchySite &s) {
+  llvm::errs() << "hierarchy-site #" << s.id << " op=" << s.op
+               << " src=" << s.src << " dst=" << s.dst << " pair=" << s.pair
+               << " action=" << hierarchyActionStr(s.action)
+               << " when=" << s.when << " reason=" << s.reason << "\n";
+  llvm::errs() << "hierarchy-site #" << s.id << " : " << s.op << " " << s.src
+               << " -> " << s.dst << "\n";
+  llvm::errs() << "    action   : " << hierarchyActionStr(s.action) << "\n";
+  llvm::errs() << "    when     : " << prettyReason(s.when) << "\n";
+  llvm::errs() << "    reason   : " << prettyReason(s.reason) << "\n";
+}
+
+static void countHierarchy(ArrayRef<HierarchySite> sites, unsigned &materialize,
+                           unsigned &prefetch, unsigned &transfer,
+                           unsigned &keep, unsigned &preserve) {
+  materialize = prefetch = transfer = keep = preserve = 0;
+  for (const HierarchySite &s : sites) {
+    switch (s.action) {
+    case HierarchyAction::Materialize:
+      ++materialize;
+      break;
+    case HierarchyAction::Prefetch:
+      ++prefetch;
+      break;
+    case HierarchyAction::Transfer:
+      ++transfer;
+      break;
+    case HierarchyAction::KeepResidency:
+      ++keep;
+      break;
+    case HierarchyAction::Preserve:
+      ++preserve;
+      break;
+    }
+  }
+}
+
+static void recordLiveResidency(
+    llvm::DenseMap<Value, llvm::DenseMap<unsigned, Value>> &live, Value object,
+    std::optional<Space> space, Value buffer) {
+  if (!object || !space)
+    return;
+  auto &slots = live[object];
+  unsigned key = static_cast<unsigned>(*space);
+  if (!slots.count(key))
+    slots[key] = buffer;
+}
+
+static bool hasLiveResidency(
+    const llvm::DenseMap<Value, llvm::DenseMap<unsigned, Value>> &live,
+    Value object, std::optional<Space> space) {
+  if (!object || !space)
+    return false;
+  auto it = live.find(object);
+  if (it == live.end())
+    return false;
+  return it->second.count(static_cast<unsigned>(*space));
+}
+
+static SmallVector<HierarchySite> planStorageHierarchy(ModuleOp module,
+                                                       const CapCatalog &cat) {
+  SmallVector<HierarchySite> sites;
+  llvm::DenseMap<Value, llvm::DenseMap<unsigned, Value>> live;
+  unsigned nextId = 0;
+  module.walk([&](Operation *op) {
+    if (auto mat = dyn_cast<MaterializeOp>(op)) {
+      HierarchySite s;
+      s.id = nextId++;
+      s.op = "stor.materialize";
+      s.src = "none";
+      s.dst = spaceName(mat.getStorageSpace()).str();
+      s.pair = "n/a";
+      s.action = HierarchyAction::Materialize;
+      s.when = "eager";
+      s.reason = "object-residency";
+      recordLiveResidency(live, mat.getObject(), mat.getStorageSpace(),
+                          mat.getBuffer());
+      sites.push_back(std::move(s));
+      return;
+    }
+    auto xfer = dyn_cast<TransferOp>(op);
+    if (!xfer)
+      return;
+    auto srcSpace = bufferSpace(xfer.getSource());
+    auto dstSpace = bufferSpace(xfer.getBuffer());
+    Value object = objectIdentity(xfer.getSource());
+    HierarchySite s;
+    s.id = nextId++;
+    s.op = "stor.transfer";
+    s.src = spaceName(srcSpace).str();
+    s.dst = spaceName(dstSpace).str();
+    s.pair = movementPair(srcSpace, dstSpace).str();
+    if (hasLiveResidency(live, object, dstSpace)) {
+      s.action = HierarchyAction::KeepResidency;
+      s.when = "reuse";
+      s.reason = (dstSpace && isDeviceLike(*dstSpace))
+                     ? "live-device-residency"
+                     : "live-host-residency";
+    } else if (ConcurrentOp conc = enclosingConcurrent(xfer)) {
+      std::string pair;
+      DecisionKind kind = DecisionKind::Preserve;
+      std::string reason;
+      classifyOverlapSite(conc, cat, pair, kind, reason);
+      if (!pair.empty())
+        s.pair = pair;
+      if (kind == DecisionKind::Keep && isStorageCommOverlap(pair)) {
+        s.action = HierarchyAction::Prefetch;
+        s.when = "overlap";
+        s.reason = reason;
+      } else {
+        s.action = HierarchyAction::Preserve;
+        s.when = "as-written";
+        s.reason = reason;
+      }
+    } else if (srcSpace && *srcSpace == Space::SSD && dstSpace &&
+               isHostLike(*dstSpace)) {
+      s.action = HierarchyAction::Materialize;
+      s.when = "eager";
+      s.reason = "first-host-residency";
+    } else {
+      s.action = HierarchyAction::Transfer;
+      s.when = "sequential";
+      s.reason = "consume-requires-device";
+    }
+    recordLiveResidency(live, object, dstSpace, xfer.getBuffer());
+    sites.push_back(std::move(s));
+  });
+  return sites;
+}
+
 static LogicalResult dumpWorkloadSchedule(StringRef path,
                                           const ResolvedProfile &evi,
-                                          ArrayRef<WorkloadDecision> decs) {
+                                          ArrayRef<WorkloadDecision> decs,
+                                          ArrayRef<HierarchySite> sites) {
   llvm::json::Array cands;
   unsigned keep = 0, flatten = 0, preserve = 0;
   for (const WorkloadDecision &d : decs) {
@@ -1071,6 +1345,28 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   root["flatten"] = (int64_t)flatten;
   root["preserve"] = (int64_t)preserve;
   root["decisions"] = std::move(cands);
+  unsigned hMat = 0, hPref = 0, hXfer = 0, hKeep = 0, hPres = 0;
+  countHierarchy(sites, hMat, hPref, hXfer, hKeep, hPres);
+  llvm::json::Array hier;
+  for (const HierarchySite &s : sites) {
+    llvm::json::Object obj;
+    obj["id"] = (int64_t)s.id;
+    obj["op"] = s.op;
+    obj["src"] = s.src;
+    obj["dst"] = s.dst;
+    obj["pair"] = s.pair;
+    obj["action"] = hierarchyActionStr(s.action).str();
+    obj["when"] = s.when;
+    obj["reason"] = s.reason;
+    hier.push_back(std::move(obj));
+  }
+  root["hierarchy"] = std::move(hier);
+  root["hierarchy_sites"] = (int64_t)sites.size();
+  root["hierarchy_materialize"] = (int64_t)hMat;
+  root["hierarchy_prefetch"] = (int64_t)hPref;
+  root["hierarchy_transfer"] = (int64_t)hXfer;
+  root["hierarchy_keep_residency"] = (int64_t)hKeep;
+  root["hierarchy_preserve"] = (int64_t)hPres;
   root["cost"] = "unchanged";
   std::error_code ec;
   llvm::raw_fd_ostream out(path, ec, llvm::sys::fs::OF_Text);
@@ -1238,8 +1534,18 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
                  << " hb=verify-with-check-s2c2-execution cost=unchanged\n";
     llvm::errs() << "HB verification : --check-s2c2-execution\n";
     llvm::errs() << "lowering        : --s2c2-lower\n";
+    SmallVector<HierarchySite> sites = planStorageHierarchy(module, cat);
+    unsigned hMat = 0, hPref = 0, hXfer = 0, hKeep = 0, hPres = 0;
+    countHierarchy(sites, hMat, hPref, hXfer, hKeep, hPres);
+    for (const HierarchySite &s : sites)
+      printHierarchySite(s);
+    llvm::errs() << "hierarchy-schedule sites=" << sites.size()
+                 << " materialize=" << hMat << " prefetch=" << hPref
+                 << " transfer=" << hXfer << " keep-residency=" << hKeep
+                 << " preserve=" << hPres
+                 << " focus=ssd-host-hbm-compute cost=unchanged\n";
     if (!dumpPath.empty() &&
-        failed(dumpWorkloadSchedule(dumpPath, *evi, decisions)))
+        failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites)))
       return failure();
   }
   return success();

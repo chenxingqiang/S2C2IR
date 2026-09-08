@@ -1214,6 +1214,96 @@ def analyze_ssd_mlp_wallclock(log: Path) -> int:
     return 0
 
 
+def print_storage_hierarchy_contract() -> int:
+    print("storage-hierarchy compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note ssd-host-hbm-compute")
+    print("note keep-residency-ne-rematerialize")
+    print("note inferred-overlap-ne-flatten")
+    print("note runtime-witness=storage-pipeline")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_SITE_RE = re.compile(
+    r"hierarchy-site #(\d+) op=(\S+) src=(\S+) dst=(\S+) pair=(\S+) "
+    r"action=(\S+) when=(\S+) reason=(\S+)"
+)
+_HIER_SUM_RE = re.compile(
+    r"hierarchy-schedule sites=(\d+) materialize=(\d+) prefetch=(\d+) "
+    r"transfer=(\d+) keep-residency=(\d+) preserve=(\d+)"
+)
+
+
+def _print_storage_hierarchy_summary(
+    sites: int,
+    materialize: int,
+    prefetch: int,
+    transfer: int,
+    keep: int,
+    preserve: int,
+) -> int:
+    print("storage-hierarchy compiler-driven=yes")
+    print(f"storage-hierarchy sites={sites}")
+    print(f"storage-hierarchy materialize={materialize}")
+    print(f"storage-hierarchy prefetch={prefetch}")
+    print(f"storage-hierarchy transfer={transfer}")
+    print(f"storage-hierarchy keep-residency={keep}")
+    print(f"storage-hierarchy preserve={preserve}")
+    print("note ssd-host-hbm-compute")
+    print("note keep-residency-ne-rematerialize")
+    print("note inferred-overlap-ne-flatten")
+    print("note runtime-witness=storage-pipeline")
+    print("note catalog-untouched")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_storage_hierarchy(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        return _print_storage_hierarchy_summary(
+            int(obj.get("hierarchy_sites", len(obj.get("hierarchy") or []))),
+            int(obj.get("hierarchy_materialize", 0)),
+            int(obj.get("hierarchy_prefetch", 0)),
+            int(obj.get("hierarchy_transfer", 0)),
+            int(obj.get("hierarchy_keep_residency", 0)),
+            int(obj.get("hierarchy_preserve", 0)),
+        )
+    summary = _HIER_SUM_RE.search(text)
+    if summary:
+        return _print_storage_hierarchy_summary(
+            int(summary.group(1)),
+            int(summary.group(2)),
+            int(summary.group(3)),
+            int(summary.group(4)),
+            int(summary.group(5)),
+            int(summary.group(6)),
+        )
+    found = _HIER_SITE_RE.findall(text)
+    materialize = sum(1 for s in found if s[5] == "MATERIALIZE")
+    prefetch = sum(1 for s in found if s[5] == "PREFETCH")
+    transfer = sum(1 for s in found if s[5] == "TRANSFER")
+    keep = sum(1 for s in found if s[5] == "KEEP_RESIDENCY")
+    preserve = sum(1 for s in found if s[5] == "PRESERVE")
+    return _print_storage_hierarchy_summary(
+        len(found), materialize, prefetch, transfer, keep, preserve
+    )
+
+
 def print_storage_pipeline_contract() -> int:
     print("storage-pipeline program-measurement=yes")
     print("no-evidence => no-destructive-optimization")
@@ -1336,6 +1426,8 @@ def main() -> int:
     p.add_argument("--analyze-ssd-mlp-wallclock", type=Path)
     p.add_argument("--print-storage-pipeline-contract", action="store_true")
     p.add_argument("--analyze-storage-pipeline", type=Path)
+    p.add_argument("--print-storage-hierarchy-contract", action="store_true")
+    p.add_argument("--analyze-storage-hierarchy", type=Path)
     p.add_argument("--print-workload-schedule-contract", action="store_true")
     p.add_argument("--analyze-workload-schedule", type=Path)
     p.add_argument("--hardware", default="ascend910b")
@@ -1367,6 +1459,8 @@ def main() -> int:
             args.analyze_ssd_mlp_wallclock,
             args.print_storage_pipeline_contract,
             args.analyze_storage_pipeline,
+            args.print_storage_hierarchy_contract,
+            args.analyze_storage_hierarchy,
             args.print_workload_schedule_contract,
             args.analyze_workload_schedule,
         )
@@ -1386,6 +1480,8 @@ def main() -> int:
             "--analyze-ssd-mlp-wallclock, "
             "--print-storage-pipeline-contract, "
             "--analyze-storage-pipeline, "
+            "--print-storage-hierarchy-contract, "
+            "--analyze-storage-hierarchy, "
             "--print-workload-schedule-contract, "
             "--analyze-workload-schedule",
             file=sys.stderr,
@@ -1460,6 +1556,10 @@ def main() -> int:
         return print_storage_pipeline_contract()
     if args.analyze_storage_pipeline:
         return analyze_storage_pipeline(args.analyze_storage_pipeline)
+    if args.print_storage_hierarchy_contract:
+        return print_storage_hierarchy_contract()
+    if args.analyze_storage_hierarchy:
+        return analyze_storage_hierarchy(args.analyze_storage_hierarchy)
     if args.print_workload_schedule_contract:
         return print_workload_schedule_contract()
     if args.analyze_workload_schedule:
