@@ -916,6 +916,22 @@ not opened. Do not FileCheck microseconds.
 | 5X-2 | same | 5A/5B/5C/5D 4090 and 910B tables still `diverge=no` and ranked-eq-default-3g |
 | 5X-3 | same | no FileCheck of microseconds; `#69` untouched; no password / host |
 
+## Production path (Phase 6A)
+
+**Not Cost v0.4.** Design:
+[`storage-production-6a.md`](storage-production-6a.md). Unified
+`--schedule-policy` + `--explain`. Policy selects; it does not
+create legality or a rewrite license. 5A–5D stay frozen. 5E
+is not opened. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 6A-1 | `test/Integration/storage-production-6a.mlir` | `--print-schedule-policy-contract`; selection ≠ legality ≠ rewrite |
+| 6A-2 | same | top-level `--profile` + `--schedule-policy` implies the evidence-bounded pass |
+| 6A-3 | same | `cost-v04` and `measured-storage-v1` select without retargeting `default-3g` |
+| 6A-4 | same | `--explain`; wrong profile / `measured=no` / truncated → fallback; extras cannot expand F |
+| 6A-5 | same | unknown profile preserves; unknown policy fails; no `sched.wait` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
