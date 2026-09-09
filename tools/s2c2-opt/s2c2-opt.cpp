@@ -39,18 +39,33 @@ int main(int argc, char **argv) {
                   mlir::s2c2::comm::CommDialect,
                   mlir::s2c2::sched::ScheduleDialect>();
 
-  bool wantsSchedule =
+  // --query-capacity-plan is a consumer API: inject the query pass
+  // only. Do not pull in evidence-bounded-schedule. --capacity alone
+  // still injects the schedule pass (frozen 6C-B/C diagnostics).
+  bool wantsQuery = argvHas(argc, argv, "--query-capacity-plan") ||
+                    argvHas(argc, argv, "--s2c2-capacity-plan-query");
+  bool wantsScheduleExplicit =
       argvHas(argc, argv, "--schedule-policy") ||
       argvHas(argc, argv, "--explain") ||
-      argvHas(argc, argv, "--measured-cost-table") ||
-      argvHas(argc, argv, "--capacity") ||
-      argvHas(argc, argv, "--capacity-spec") ||
-      argvHas(argc, argv, "--dump-capacity-plan");
-  bool hasPass = argvHas(argc, argv, "--s2c2-evidence-bounded-schedule");
-  if (wantsSchedule && !hasPass) {
+      argvHas(argc, argv, "--measured-cost-table");
+  bool wantsCapacity = argvHas(argc, argv, "--capacity") ||
+                       argvHas(argc, argv, "--capacity-spec") ||
+                       argvHas(argc, argv, "--dump-capacity-plan");
+  bool wantsSchedule =
+      wantsScheduleExplicit || (wantsCapacity && !wantsQuery);
+  bool hasSchedulePass =
+      argvHas(argc, argv, "--s2c2-evidence-bounded-schedule");
+  bool hasQueryPass = argvHas(argc, argv, "--s2c2-capacity-plan-query");
+
+  std::vector<std::string> inject;
+  if (wantsQuery && !hasQueryPass)
+    inject.emplace_back("--s2c2-capacity-plan-query");
+  if (wantsSchedule && !hasSchedulePass)
+    inject.emplace_back("--s2c2-evidence-bounded-schedule");
+  if (!inject.empty()) {
     std::vector<std::string> storage;
     storage.emplace_back(argv[0]);
-    storage.emplace_back("--s2c2-evidence-bounded-schedule");
+    storage.insert(storage.end(), inject.begin(), inject.end());
     for (int i = 1; i < argc; ++i)
       storage.emplace_back(argv[i]);
     std::vector<char *> ptrs;

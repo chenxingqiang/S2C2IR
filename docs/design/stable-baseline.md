@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B diagnostics frozen; rewrite not opened
+6C      Capacity-aware residency   ← design frozen; 6C-B diagnostics frozen; 6C-C CapacityPlan frozen; rewrite not opened
 ```
 
 ```text
@@ -77,6 +77,8 @@ reports tile-count occupancy (`rewrite=no`).
 `discoverCapacityFromIR()` is not a byte allocator and
 not alias analysis. 6C-C adds compiler-visible
 `CapacityPlan` (`selected=none`); still not a rewrite.
+6C-D exposes that object as `--query-capacity-plan`
+(consumer API; still `selected=none`).
 Rewrite, ranking, and `measured-capacity-v1` stay closed.
 
 When 6C is implemented, it is a new Storage problem class:

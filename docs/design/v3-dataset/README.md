@@ -87,4 +87,5 @@ ledger): [`storage-capacity-4tile.jsonl`](storage-capacity-4tile.jsonl)
 and [`storage-capacity-2tile-fit.jsonl`](storage-capacity-2tile-fit.jsonl),
 [`storage-capacity-3tile-tight.jsonl`](storage-capacity-3tile-tight.jsonl).
 Check with `python3 runtime/record_capacity.py --analyze-storage-capacity`.
+Consumer query: `python3 runtime/record_capacity.py --query-capacity-plan`.
 

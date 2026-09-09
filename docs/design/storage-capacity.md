@@ -1,21 +1,23 @@
-# Capacity-aware Residency (Phase 6C-B, diagnostics)
+# Capacity-aware Residency (Phase 6C-D, query surface)
 
-**Status:** 6C-B diagnostics FROZEN; 6C-C opens the
-compiler-visible `CapacityPlan` candidate object
-(`selected=none`). 5A–6B is the **stable
+**Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
+FROZEN (`selected=none`); 6C-D opens the consumer query
+API. 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
 froze \(F_{\mathrm{capacity}}\). 6C-B
 ([PR #108](https://github.com/chenxingqiang/S2C2IR/pull/108))
-wired diagnostics and is frozen. This cut does **not**
-rewrite, does **not** rank, does **not** open
-`measured-capacity-v1`, does **not** change `#69`,
-`cost-v04`, `default-3g`, or Evidence DB identity. 5E
-stays closed. Do not expand the 6C-B diagnostic surface.
+wired diagnostics and is frozen. 6C-C
+([PR #109](https://github.com/chenxingqiang/S2C2IR/pull/109))
+materialized the compiler-visible candidate object.
+This cut does **not** rewrite, does **not** rank, does
+**not** open `measured-capacity-v1`, does **not** change
+`#69`, `cost-v04`, `default-3g`, or Evidence DB identity.
+5E stays closed. Do not expand the 6C-B diagnostic surface.
 
 ```text
-Goal     compiler reports F_capacity occupancy candidates
+Goal     compiler-visible CapacityPlan is queryable without scheduling
 Not      an eviction rewrite, a new Capability grid, or a device campaign
 Rewrite  still only from an existing capability license
 ```
@@ -51,9 +53,13 @@ Capacity feasibility
    ↓
 F_capacity
    ↓
-Policy                 ← not this cut
-Rewrite License        ← not this cut
-Rewrite / HB           ← not this cut
+CapacityPlan (selected=none)   ← 6C-C frozen
+   ↓
+query / consumer API           ← this cut
+   ↓
+Policy                         ← not this cut
+Rewrite License                ← not this cut
+Rewrite / HB                   ← not this cut
 ```
 
 This cut stops at the diagnostic report:
@@ -209,12 +215,14 @@ IR in [`test/Integration/storage-capacity.mlir`](../../test/Integration/storage-
 Prefix `s2c2-storage-capacity`. Same three legal
 candidates. `rewrite=no`.
 
-## Later (6C-C this cut; rewrite not opened)
+## Later (6C-C frozen; rewrite not opened)
 
 ```text
 F_capacity diagnostics          ← FROZEN (6C-B)
    ↓
-compiler-visible CapacityPlan   ← this cut
+compiler-visible CapacityPlan   ← FROZEN (6C-C)
+   ↓
+query / consumer API            ← this cut (6C-D)
    ↓
 policy                          ← not this cut
    ↓
@@ -255,6 +263,39 @@ rewrite = no
 `s2c2.capacity_plan.v1` JSON. It does **not** rewrite
 KEEP / EVICT / REMATERIALIZE. Evidence DB is unchanged.
 `measured-capacity-v1` is not opened.
+
+## Query surface (6C-D this cut)
+
+`CapacityPlan` is now reachable without running the
+schedule pass:
+
+```bash
+s2c2-opt workload.mlir --query-capacity-plan --capacity=2
+s2c2-opt workload.mlir --query-capacity-plan --capacity-spec=docs/design/v3-dataset/storage-capacity-4tile.jsonl
+```
+
+```text
+prefix           s2c2-capacity-plan-query
+schema           s2c2.capacity_plan.v1
+selected         none
+policy           none
+rewrite-license  no
+rewrite          no
+```
+
+`--query-capacity-plan` injects `--s2c2-capacity-plan-query`,
+not `--s2c2-evidence-bounded-schedule`. It does **not**
+print frozen 6C-B `s2c2-storage-capacity` diagnostics, load
+Evidence DB, or call `applySchedule`. `--capacity` alone
+still injects the schedule pass (6C-B/C unchanged).
+
+Optional `--dump-capacity-plan=` writes the same JSON file
+as 6C-C. Combining `--query-capacity-plan` with
+`--schedule-policy` runs both passes; the query pass does
+not rewrite, so the scheduler still sees input IR.
+
+This is **not** `measured-capacity-v1`. Policy ranking and
+eviction rewrite stay closed.
 
 ## Out of scope
 

@@ -100,6 +100,7 @@ namespace mlir::s2c2 {
 #define GEN_PASS_DEF_S2C2CAPABILITYQUERY
 #define GEN_PASS_DEF_S2C2CAPABILITYSCHEDULE
 #define GEN_PASS_DEF_S2C2EVIDENCEBOUNDEDSCHEDULE
+#define GEN_PASS_DEF_S2C2CAPACITYPLANQUERY
 #include "s2c2/S2C2Passes.h.inc"
 
 using comm::CopyOp;
@@ -159,6 +160,11 @@ llvm::cl::opt<std::string> clDumpCapacityPlan(
     llvm::cl::desc("Write s2c2.capacity_plan.v1 JSON (selected=none; "
                    "not a rewrite license)"),
     llvm::cl::ValueRequired, llvm::cl::init(""));
+[[maybe_unused]] llvm::cl::opt<bool> clQueryCapacityPlan(
+    "query-capacity-plan",
+    llvm::cl::desc("Query CapacityPlan as a consumer API (selected=none; "
+                   "does not run the schedule pass)"),
+    llvm::cl::init(false));
 
 enum class Applicability { Yes, No, Unknown };
 
@@ -3018,8 +3024,7 @@ static void printCapacityPlan(const CapacityPlan &plan) {
                   "cost=unchanged\n";
 }
 
-static LogicalResult dumpCapacityPlanJson(StringRef path,
-                                          const CapacityPlan &plan) {
+static llvm::json::Object capacityPlanToJson(const CapacityPlan &plan) {
   llvm::json::Object root;
   root["schema"] = plan.schema;
   root["space"] = plan.space;
@@ -3053,6 +3058,11 @@ static LogicalResult dumpCapacityPlanJson(StringRef path,
     cands.push_back(std::move(obj));
   }
   root["candidates"] = std::move(cands);
+  return root;
+}
+
+static LogicalResult dumpCapacityPlanJson(StringRef path,
+                                          const CapacityPlan &plan) {
   std::error_code ec;
   llvm::raw_fd_ostream out(path, ec, llvm::sys::fs::OF_Text);
   if (ec) {
@@ -3060,7 +3070,7 @@ static LogicalResult dumpCapacityPlanJson(StringRef path,
                  << ec.message() << "\n";
     return failure();
   }
-  out << llvm::json::Value(std::move(root)) << "\n";
+  out << llvm::json::Value(capacityPlanToJson(plan)) << "\n";
   return success();
 }
 
@@ -3289,6 +3299,46 @@ static void discoverCapacityFromIR(ModuleOp module, Space space,
   });
 }
 
+static FailureOr<CapacityPlan>
+computeCapacityPlan(ModuleOp module, StringRef budgetStr, StringRef specPath,
+                    SmallVectorImpl<CapCandidate> *candsOut, Space &space,
+                    int &cap, int &peak, bool &conflict, bool &truncated,
+                    StringRef errPrefix = "s2c2-storage-capacity") {
+  SmallVector<CapResidency, 8> rs;
+  space = Space::HBM;
+  cap = 0;
+  if (!specPath.empty()) {
+    if (failed(loadCapacitySpec(specPath, rs, space, cap)))
+      return failure();
+  }
+  if (!budgetStr.empty()) {
+    auto parsed = parseCapacityBudget(budgetStr);
+    if (failed(parsed)) {
+      llvm::errs() << errPrefix << ": invalid --capacity=" << budgetStr << "\n";
+      return failure();
+    }
+    space = parsed->first;
+    cap = parsed->second;
+  }
+  if (specPath.empty())
+    discoverCapacityFromIR(module, space, rs);
+  if (rs.empty()) {
+    llvm::errs() << errPrefix << ": no constrained-space residencies\n";
+    return failure();
+  }
+  conflict = false;
+  peak = 0;
+  truncated = false;
+  SmallVector<CapCandidate, 8> cands;
+  enumerateCapacityF(rs, cap, conflict, peak, truncated, cands);
+  auto planOr = buildCapacityPlan(rs, space, cap, peak, truncated, cands);
+  if (failed(planOr))
+    return failure();
+  if (candsOut)
+    *candsOut = std::move(cands);
+  return *planOr;
+}
+
 static LogicalResult reportCapacity(ModuleOp module, StringRef budgetStr,
                                     StringRef specPath, StringRef dumpPath) {
   if (budgetStr.empty() && specPath.empty()) {
@@ -3299,39 +3349,73 @@ static LogicalResult reportCapacity(ModuleOp module, StringRef budgetStr,
     }
     return success();
   }
-  SmallVector<CapResidency, 8> rs;
   Space space = Space::HBM;
   int cap = 0;
-  if (!specPath.empty()) {
-    if (failed(loadCapacitySpec(specPath, rs, space, cap)))
-      return failure();
-  }
-  if (!budgetStr.empty()) {
-    auto parsed = parseCapacityBudget(budgetStr);
-    if (failed(parsed)) {
-      llvm::errs() << "s2c2-storage-capacity: invalid --capacity=" << budgetStr
-                   << "\n";
-      return failure();
-    }
-    space = parsed->first;
-    cap = parsed->second;
-  }
-  if (specPath.empty())
-    discoverCapacityFromIR(module, space, rs);
-  if (rs.empty()) {
-    llvm::errs() << "s2c2-storage-capacity: no constrained-space residencies\n";
-    return failure();
-  }
-  bool conflict = false;
   int peak = 0;
+  bool conflict = false;
   bool truncated = false;
   SmallVector<CapCandidate, 8> cands;
-  enumerateCapacityF(rs, cap, conflict, peak, truncated, cands);
-  printCapacityReport(space, cap, peak, conflict, truncated, cands);
-  auto planOr = buildCapacityPlan(rs, space, cap, peak, truncated, cands);
+  auto planOr = computeCapacityPlan(module, budgetStr, specPath, &cands, space,
+                                    cap, peak, conflict, truncated);
   if (failed(planOr))
     return failure();
+  printCapacityReport(space, cap, peak, conflict, truncated, cands);
   printCapacityPlan(*planOr);
+  if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, *planOr)))
+    return failure();
+  return success();
+}
+
+static void printCapacityPlanQuery(const CapacityPlan &plan) {
+  llvm::errs() << "s2c2-capacity-plan-query schema=" << plan.schema << "\n";
+  llvm::errs() << "s2c2-capacity-plan-query space=" << plan.space
+               << " capacity=" << plan.capacity
+               << " peak-live=" << plan.peakLive << "\n";
+  llvm::errs() << "s2c2-capacity-plan-query feasible="
+               << (plan.feasible ? "yes" : "no")
+               << " enumerated=" << (plan.enumerated ? "yes" : "no")
+               << " truncated=" << (plan.truncated ? "yes" : "no")
+               << " legal="
+               << (plan.truncated ? "not-enumerated"
+                                  : std::to_string(plan.candidates.size()))
+               << "\n";
+  llvm::errs() << "s2c2-capacity-plan-query selected=" << plan.selected
+               << " policy=" << plan.policy << " rewrite-license=no\n";
+  if (!plan.truncated) {
+    for (const CapacityCandidate &c : plan.candidates)
+      llvm::errs() << "s2c2-capacity-plan-query candidate #" << c.id
+                   << " identity=" << c.identity << "\n";
+  }
+  llvm::errs() << "s2c2-capacity-plan-query "
+               << llvm::json::Value(capacityPlanToJson(plan)) << "\n";
+  llvm::errs() << "s2c2-capacity-plan-query rewrite=no\n";
+  llvm::errs() << "s2c2-capacity-plan-query note not-schedule-pass\n";
+  llvm::errs() << "s2c2-capacity-plan-query note selected-none\n";
+  llvm::errs() << "s2c2-capacity-plan-query note rewrite-license-no\n";
+  llvm::errs() << "s2c2-capacity-plan-query note consumer-api\n";
+  llvm::errs() << "s2c2-capacity-plan-query note measured-capacity-v1-not-opened\n";
+  llvm::errs() << "s2c2-capacity-plan-query note six-c-d-query-this-cut "
+                  "cost=unchanged\n";
+}
+
+static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
+                                       StringRef specPath, StringRef dumpPath) {
+  if (budgetStr.empty() && specPath.empty()) {
+    llvm::errs() << "s2c2-capacity-plan-query: --query-capacity-plan requires "
+                    "--capacity or --capacity-spec\n";
+    return failure();
+  }
+  Space space = Space::HBM;
+  int cap = 0;
+  int peak = 0;
+  bool conflict = false;
+  bool truncated = false;
+  auto planOr = computeCapacityPlan(module, budgetStr, specPath, nullptr, space,
+                                    cap, peak, conflict, truncated,
+                                    "s2c2-capacity-plan-query");
+  if (failed(planOr))
+    return failure();
+  printCapacityPlanQuery(*planOr);
   if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, *planOr)))
     return failure();
   return success();
@@ -3579,6 +3663,23 @@ struct S2C2EvidenceBoundedSchedule
     }
     if (failed(applySchedule(getOperation(), resolved.device, cat, &resolved,
                              dumpSchedule, table, policy, doExplain)))
+      signalPassFailure();
+  }
+};
+
+struct S2C2CapacityPlanQuery
+    : impl::S2C2CapacityPlanQueryBase<S2C2CapacityPlanQuery> {
+  using impl::S2C2CapacityPlanQueryBase<
+      S2C2CapacityPlanQuery>::S2C2CapacityPlanQueryBase;
+
+  void runOnOperation() override {
+    // Occupancy query only. Does not load Evidence DB or rewrite IR.
+    // selected stays none; this is not a rewrite license.
+    std::string cap = capacityBudget.empty() ? clCapacityBudget : capacityBudget;
+    std::string spec = capacitySpec.empty() ? clCapacitySpec : capacitySpec;
+    std::string dump =
+        dumpCapacityPlan.empty() ? clDumpCapacityPlan : dumpCapacityPlan;
+    if (failed(queryCapacityPlan(getOperation(), cap, spec, dump)))
       signalPassFailure();
   }
 };

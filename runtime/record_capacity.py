@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (6C-B frozen, 6C-C candidate object).
+"""Phase 6C Capacity-aware Residency (6C-B/C frozen, 6C-D query).
 
-Host witness for F_capacity and CapacityPlan identity.
-Compiler: s2c2-opt --capacity and --dump-capacity-plan.
+Host witness for F_capacity, CapacityPlan identity, and the
+consumer query surface. Compiler: s2c2-opt --capacity,
+--dump-capacity-plan, --query-capacity-plan.
 Does not rank, rewrite, or touch cost-v04 / #69 / Evidence DB
 identity / F(program). selected=none. Not a rewrite license.
 Do not FileCheck microseconds.
@@ -88,6 +89,30 @@ def print_plan_contract() -> int:
     print("note compiler-visible-candidate-object")
     print("note six-c-b-diagnostics-frozen")
     print("note six-c-c-candidate-object-this-cut")
+    print("note measured-capacity-v1-not-opened")
+    print("note evidence-db-identity-frozen")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    return 0
+
+
+def print_query_contract() -> int:
+    print("capacity-plan-query consumer-api=yes")
+    print(f"schema {PLAN_SCHEMA}")
+    print("selected none")
+    print("policy none")
+    print("rewrite-license no")
+    print("note not-schedule-pass")
+    print("note selected-none")
+    print("note policy-none")
+    print("note rewrite-license-no")
+    print("note consumer-api")
+    print("note six-c-b-diagnostics-frozen")
+    print("note six-c-c-candidate-object-frozen")
+    print("note six-c-d-query-this-cut")
     print("note measured-capacity-v1-not-opened")
     print("note evidence-db-identity-frozen")
     print("note default-3g-frozen")
@@ -375,6 +400,45 @@ def analyze_capacity_plan(path: Path) -> int:
     return 0
 
 
+def query_capacity_plan(path: Path) -> int:
+    try:
+        spec = _load_spec(path)
+        plan = _build_capacity_plan(spec)
+    except (ValueError, json.JSONDecodeError) as exc:
+        print(f"record_capacity: {exc}", file=sys.stderr)
+        return 4
+    prefix = "capacity-plan-query"
+    print(f"{prefix} schema={plan['schema']}")
+    print(
+        f"{prefix} space={plan['space']} capacity={plan['capacity']} "
+        f"peak-live={plan['peak_live']}"
+    )
+    legal = (
+        "not-enumerated"
+        if plan["truncated"]
+        else str(len(plan["candidates"]))
+    )
+    print(
+        f"{prefix} feasible={'yes' if plan['feasible'] else 'no'} "
+        f"enumerated={'yes' if plan['enumerated'] else 'no'} "
+        f"truncated={'yes' if plan['truncated'] else 'no'} legal={legal}"
+    )
+    print(f"{prefix} selected=none policy=none rewrite-license=no")
+    if not plan["truncated"]:
+        for c in plan["candidates"]:
+            print(f"{prefix} candidate #{c['id']} identity={c['identity']}")
+    print(f"{prefix} {json.dumps(plan, separators=(',', ':'))}")
+    print(f"{prefix} rewrite=no")
+    print(f"{prefix} note not-schedule-pass")
+    print(f"{prefix} note selected-none")
+    print(f"{prefix} note rewrite-license-no")
+    print(f"{prefix} note consumer-api")
+    print(f"{prefix} note measured-capacity-v1-not-opened")
+    print(f"{prefix} note six-c-d-query-this-cut")
+    print("cost=unchanged")
+    return 0
+
+
 def dump_capacity_plan(path: Path) -> int:
     try:
         spec = _load_spec(path)
@@ -394,6 +458,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--print-capacity-plan-contract", action="store_true")
     p.add_argument("--analyze-capacity-plan", type=Path)
     p.add_argument("--dump-capacity-plan", type=Path)
+    p.add_argument("--print-capacity-plan-query-contract", action="store_true")
+    p.add_argument("--query-capacity-plan", type=Path)
     args = p.parse_args(argv)
     n = sum(
         bool(x)
@@ -403,6 +469,8 @@ def main(argv: list[str] | None = None) -> int:
             args.print_capacity_plan_contract,
             args.analyze_capacity_plan,
             args.dump_capacity_plan,
+            args.print_capacity_plan_query_contract,
+            args.query_capacity_plan,
         )
     )
     if n != 1:
@@ -410,7 +478,8 @@ def main(argv: list[str] | None = None) -> int:
             "record_capacity: choose one of "
             "--print-storage-capacity-contract, --analyze-storage-capacity, "
             "--print-capacity-plan-contract, --analyze-capacity-plan, "
-            "--dump-capacity-plan",
+            "--dump-capacity-plan, --print-capacity-plan-query-contract, "
+            "--query-capacity-plan",
             file=sys.stderr,
         )
         return 2
@@ -422,6 +491,10 @@ def main(argv: list[str] | None = None) -> int:
         return print_plan_contract()
     if args.analyze_capacity_plan:
         return analyze_capacity_plan(args.analyze_capacity_plan)
+    if args.print_capacity_plan_query_contract:
+        return print_query_contract()
+    if args.query_capacity_plan:
+        return query_capacity_plan(args.query_capacity_plan)
     return dump_capacity_plan(args.dump_capacity_plan)
 
 

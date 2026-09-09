@@ -967,7 +967,7 @@ Do not FileCheck microseconds.
 | SB-2 | same | Evidence DB still unique E; 6A `--schedule-policy=default-3g` is `rewrite=no` |
 | SB-3 | same | no `sched.wait`; no FileCheck of microseconds |
 
-## Capacity-aware residency (Phase 6C, design + diagnostics + candidate object)
+## Capacity-aware residency (Phase 6C, design + diagnostics + candidate object + query)
 
 **Not Cost v0.4.** Design:
 [`storage-capacity.md`](storage-capacity.md). Freezes
@@ -980,7 +980,9 @@ a byte allocator and not alias analysis. No rewrite, no
 ranking, no `measured-capacity-v1`, no hardware campaign.
 5A–6B stay frozen. Do not expand the 6C-B diagnostic surface.
 6C-C adds compiler-visible `CapacityPlan` (`selected=none`,
-`rewrite-license=no`). Do not FileCheck microseconds.
+`rewrite-license=no`). 6C-D exposes that object as
+`--query-capacity-plan` without running the schedule pass.
+Do not FileCheck microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -998,6 +1000,11 @@ ranking, no `measured-capacity-v1`, no hardware campaign.
 | 6C-C-3 | same | `s2c2-opt --capacity=2` prints `s2c2-capacity-plan`; `--dump-capacity-plan` JSON `s2c2.capacity_plan.v1` |
 | 6C-C-4 | same | fit all-KEEP identity; truncated has no candidates; dump without `--capacity` fails |
 | 6C-C-5 | same | \(F_{\mathrm{capacity}} \subseteq F_{\mathrm{residency}}\); no `sched.wait`; Evidence DB unchanged |
+| 6C-D-1 | same | `--print-capacity-plan-query-contract`; consumer API; `selected=none`; `rewrite-license=no` |
+| 6C-D-2 | same | host `--query-capacity-plan` 4-tile identities; fit all-KEEP; truncated has no candidates |
+| 6C-D-3 | same | `s2c2-opt --query-capacity-plan --capacity=2`: JSON `s2c2.capacity_plan.v1`; no `s2c2-storage-capacity`; no schedule |
+| 6C-D-4 | same | pass form `--s2c2-capacity-plan-query`; dump JSON; query without `--capacity` fails |
+| 6C-D-5 | same | `--query-capacity-plan` + `--schedule-policy` still `selected=none`; query does not rewrite |
 
 ## Complete SSD + MLP program wall-clock
 

@@ -27,6 +27,20 @@
 // RUN: s2c2-opt %s --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl 2>&1 | grep s2c2-capacity-plan | FileCheck %s --check-prefix=PLANFIT
 // RUN: s2c2-opt %s --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl 2>&1 | grep s2c2-capacity-plan | FileCheck %s --check-prefix=PLANTRUNC
 // RUN: not s2c2-opt %s --dump-capacity-plan=%t.ncap.json 2>&1 | FileCheck %s --check-prefix=NODUMP
+// RUN: python3 %S/../../runtime/record_capacity.py --print-capacity-plan-query-contract | FileCheck %s --check-prefix=QUERYC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl | FileCheck %s --check-prefix=HQUERY
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl | FileCheck %s --check-prefix=HQUERYFIT
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl | FileCheck %s --check-prefix=HQUERYTRUNC
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 2>&1 | FileCheck %s --check-prefix=QUERY
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=hbm:2 2>&1 | FileCheck %s --check-prefix=QUERY
+// RUN: s2c2-opt %s --s2c2-capacity-plan-query="capacity=2" 2>&1 | FileCheck %s --check-prefix=QUERY
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl 2>&1 | FileCheck %s --check-prefix=QUERY
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --dump-capacity-plan=%t.qplan.json 2>&1 | FileCheck %s --check-prefix=QUERY
+// RUN: FileCheck %s --check-prefix=PLANJSON --input-file=%t.qplan.json
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl 2>&1 | FileCheck %s --check-prefix=QUERYFIT
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl 2>&1 | FileCheck %s --check-prefix=QUERYTRUNC
+// RUN: not s2c2-opt %s --query-capacity-plan 2>&1 | FileCheck %s --check-prefix=NOQCAP
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=QBOTH
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -138,6 +152,7 @@
 
 // NOFLAG-NOT: s2c2-storage-capacity
 // NOFLAG-NOT: s2c2-capacity-plan
+// NOFLAG-NOT: s2c2-capacity-plan-query
 
 // BADCAP: invalid --capacity=
 
@@ -214,6 +229,90 @@
 // PLANTRUNC-NOT: candidate #0
 
 // NODUMP: --dump-capacity-plan requires
+
+// QUERYC: capacity-plan-query consumer-api=yes
+// QUERYC: schema s2c2.capacity_plan.v1
+// QUERYC: selected none
+// QUERYC: policy none
+// QUERYC: rewrite-license no
+// QUERYC: note not-schedule-pass
+// QUERYC: note consumer-api
+// QUERYC: note six-c-b-diagnostics-frozen
+// QUERYC: note six-c-c-candidate-object-frozen
+// QUERYC: note six-c-d-query-this-cut
+// QUERYC: note measured-capacity-v1-not-opened
+// QUERYC: note evidence-db-identity-frozen
+// QUERYC: cost=unchanged
+
+// HQUERY: capacity-plan-query space=hbm capacity=2 peak-live=3
+// HQUERY: capacity-plan-query feasible=yes enumerated=yes truncated=no legal=3
+// HQUERY: capacity-plan-query selected=none policy=none rewrite-license=no
+// HQUERY: capacity-plan-query candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
+// HQUERY: capacity-plan-query candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
+// HQUERY: capacity-plan-query candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
+// HQUERY: capacity-plan-query {{.*}}"schema":"s2c2.capacity_plan.v1"
+// HQUERY: capacity-plan-query rewrite=no
+// HQUERY: capacity-plan-query note not-schedule-pass
+// HQUERY: capacity-plan-query note consumer-api
+// HQUERY-NOT: keep{0,1,2}
+// HQUERY-NOT: selected={{[0-9]}}
+
+// HQUERYFIT: capacity-plan-query feasible=yes
+// HQUERYFIT: selected=none
+// HQUERYFIT: identity=keep{0,1}|evict{}|rematerialize{}
+// HQUERYFIT-NOT: evict{0}
+
+// HQUERYTRUNC: capacity-plan-query feasible=no enumerated=no truncated=yes legal=not-enumerated
+// HQUERYTRUNC: selected=none
+// HQUERYTRUNC: rewrite=no
+// HQUERYTRUNC-NOT: candidate #0
+
+// QUERY: s2c2-capacity-plan-query schema=s2c2.capacity_plan.v1
+// QUERY: s2c2-capacity-plan-query space=hbm capacity=2 peak-live=3
+// QUERY: s2c2-capacity-plan-query feasible=yes enumerated=yes truncated=no legal=3
+// QUERY: s2c2-capacity-plan-query selected=none policy=none rewrite-license=no
+// QUERY: s2c2-capacity-plan-query candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
+// QUERY: s2c2-capacity-plan-query candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
+// QUERY: s2c2-capacity-plan-query candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
+// QUERY: s2c2-capacity-plan-query {{.*}}"schema":"s2c2.capacity_plan.v1"{{.*}}"selected":"none"
+// QUERY: s2c2-capacity-plan-query rewrite=no
+// QUERY: s2c2-capacity-plan-query note not-schedule-pass
+// QUERY: s2c2-capacity-plan-query note selected-none
+// QUERY: s2c2-capacity-plan-query note consumer-api
+// QUERY: s2c2-capacity-plan-query note measured-capacity-v1-not-opened
+// QUERY: s2c2-capacity-plan-query note six-c-d-query-this-cut
+// QUERY-NOT: s2c2-storage-capacity
+// QUERY-NOT: evidence-bounded-schedule
+// QUERY-NOT: hierarchy-global
+// QUERY-NOT: s2c2-capacity-plan schema=
+// QUERY-NOT: keep{0,1,2}
+// QUERY-NOT: selected=0
+// QUERY-NOT: rewrite-license=yes
+// QUERY-NOT: sched.wait
+
+// QUERYFIT: s2c2-capacity-plan-query feasible=yes
+// QUERYFIT: selected=none
+// QUERYFIT: identity=keep{0,1}|evict{}|rematerialize{}
+// QUERYFIT: rewrite=no
+// QUERYFIT-NOT: s2c2-storage-capacity
+// QUERYFIT-NOT: evidence-bounded-schedule
+// QUERYFIT-NOT: evict{0}
+
+// QUERYTRUNC: s2c2-capacity-plan-query feasible=no enumerated=no truncated=yes legal=not-enumerated
+// QUERYTRUNC: selected=none
+// QUERYTRUNC: rewrite=no
+// QUERYTRUNC-NOT: candidate #0
+// QUERYTRUNC-NOT: s2c2-storage-capacity
+// QUERYTRUNC-NOT: evidence-bounded-schedule
+
+// NOQCAP: --query-capacity-plan requires
+// NOQCAP-NOT: evidence-bounded-schedule
+
+// QBOTH: s2c2-capacity-plan-query selected=none
+// QBOTH: s2c2-storage-capacity rewrite=no
+// QBOTH: evidence-bounded-schedule
+// QBOTH: s2c2-schedule-policy name=default-3g{{.*}}rewrite=no
+// QBOTH-NOT: rewrite-license=yes
 
 module {
   // Four HBM tiles, capacity=2. Unpack tile0 after tile2 is
