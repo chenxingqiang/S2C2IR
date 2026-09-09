@@ -849,8 +849,9 @@ pipeline pair. Phase 5B is **FROZEN**
 hierarchy 8/8 measured, both devices `diverge=no`. Do not
 re-measure that 8-set. Phase 5C implementation:
 [`storage-measured-5c.md`](storage-measured-5c.md). Host
-schema is this cut. Device tables land from a real 4090 /
-910B campaign. Do not pre-claim contention.
+schema plus 4090 / 910B 4/4 device tables. Both devices
+`diverge=no`. Do not pre-claim contention. Do not re-measure
+this 4-set to manufacture `diverge=yes`.
 
 ## Measured storage, |F| > 2 (Phase 5B)
 
@@ -882,7 +883,8 @@ not manufacture `diverge=yes`. Do not pre-claim contention.
 | 5C-3 | same | synth ArgMin follows the table; `cost-v04` still `diverge=no` |
 | 5C-4 | same | 5B hierarchy table and cross-profile stay `not-measured` |
 | 5C-5 | same | no FileCheck of microseconds; adapters `--storage-ntile-measured`; `#69` untouched |
-| 5C-6 | later | 4090 / 910B device-log tables; ArgMin may be `diverge=yes` or `no` |
+| 5C-6 | `test/Integration/storage-measured-5c-4090.mlir` | 4090 n-tile table: 4/4 measured; ArgMin is PREFETCH+PREFETCH / `diverge=no`; hierarchy table and 910B profile stay `not-measured` |
+| 5C-7 | `test/Integration/storage-measured-5c-910b.mlir` | 910B n-tile table: 4/4 measured; ArgMin is PREFETCH+PREFETCH / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
 
 ## Complete SSD + MLP program wall-clock
 

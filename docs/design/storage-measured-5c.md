@@ -1,11 +1,15 @@
 # Measured Storage, structurally different F (Phase 5C)
 
-**Status:** implementation. Design approved on PR #99. Phase
-5A and Phase 5B are **FROZEN**. Device tables land only from
-a real 4090 / 910B campaign. Do **not** pre-claim copy-engine
-contention: the device table decides ArgMin. 5C is **not** a
-new Capability grid, not new ticks on frozen `cost-v04`, not
-a retarget of `default-3g`, and not a rewrite license.
+**Status:** FROZEN (device fill on this cut). Design approved
+on PR #99. Phase 5A and Phase 5B are **FROZEN**. Both 4090
+and 910B measured all 4 legal signatures. ArgMin is
+default-3g S0 (`PREFETCH|PREFETCH`) on both profiles
+(`diverge=no`). That is a valid 5C result. Do **not**
+pre-claim copy-engine contention: the table did not show a
+mixed-site winner. Do **not** retune the workload to
+manufacture `diverge=yes`. 5C is **not** a new Capability
+grid, not new ticks on frozen `cost-v04`, not a retarget of
+`default-3g`, and not a rewrite license.
 
 ```text
 Goal     natural |F|>2 whose axes are structurally different
@@ -138,7 +142,28 @@ cost-v04 = FROZEN
 rewrite of the measured winner = not this design
 ```
 
-Acceptance when implementation is later approved:
+## Device result (honest)
+
+```text
+4090  4/4  ArgMin = S0 PREFETCH|PREFETCH  = default-3g  → diverge=no
+910B  4/4  ArgMin = S0 PREFETCH|PREFETCH  = default-3g  → diverge=no
+```
+
+Dual PREFETCH was still fastest on both devices. Mixed
+PREFETCH/PRESERVE did not win. That does **not** prove
+copy-engine contention is absent on every workload; it
+proves that **this** \(F\) did not change the historical
+choice. Freeze the evidence. Do not retune the workload.
+
+```text
+#69              unchanged
+cost-v04         frozen
+default-3g       unchanged
+F(program)       unchanged
+rewrite license  unchanged
+```
+
+Acceptance:
 
 ```text
 1. |F(program)| > 2 and enumerated; axes ≠ frozen 5B product
@@ -162,7 +187,6 @@ heuristic tick.
 ## Out of scope
 
 ```text
-opening a 4090 / 910B campaign before this design is approved
 re-measuring @ssd_hierarchy_lifetime
 re-measuring storage-aware-pipeline S0/S1
 picking 3 of 4 signatures just to hit ≥ 3
