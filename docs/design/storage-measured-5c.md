@@ -1,10 +1,11 @@
 # Measured Storage, structurally different F (Phase 5C)
 
-**Status:** design only. Do **not** open a device campaign
-until this document is approved. Phase 5A and Phase 5B are
-**FROZEN**. 5C is **not** a new Capability grid, not new
-ticks on frozen `cost-v04`, not a retarget of `default-3g`,
-and not a rewrite license.
+**Status:** implementation. Design approved on PR #99. Phase
+5A and Phase 5B are **FROZEN**. Device tables land only from
+a real 4090 / 910B campaign. Do **not** pre-claim copy-engine
+contention: the device table decides ArgMin. 5C is **not** a
+new Capability grid, not new ticks on frozen `cost-v04`, not
+a retarget of `default-3g`, and not a rewrite license.
 
 ```text
 Goal     natural |F|>2 whose axes are structurally different
@@ -97,12 +98,14 @@ PREFETCH/PRESERVE × KEEP/TRANSFER. That axis set is closer
 to 5B (5B already showed KEEP beat TRANSFER on hierarchy),
 so it is second, not first.
 
-## What is missing
+## Runtime (this cut)
 
-The compiler already names these four signatures. N-tile's
-timed witness is still the two-tile pipeline log. 5C is a
-**per-signature runtime** of two independent prefetch
-decisions, not more `F(site)` code.
+The compiler already names these four signatures. This cut
+adds one `joinGlobal` arm per inhabitant
+(`--storage-ntile-measured`). Device tables land only from
+a real 4090 / 910B campaign. 5C is a **per-signature
+runtime** of two independent prefetch decisions, not more
+`F(site)` code.
 
 ```text
 joinGlobal(S)  →  one runnable arm

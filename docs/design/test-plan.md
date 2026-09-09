@@ -847,10 +847,10 @@ Phase 5A is **FROZEN**. Do not add ticks or re-campaign the
 pipeline pair. Phase 5B is **FROZEN**
 ([`storage-measured-5b.md`](storage-measured-5b.md)):
 hierarchy 8/8 measured, both devices `diverge=no`. Do not
-re-measure that 8-set. Phase 5C design:
-[`storage-measured-5c.md`](storage-measured-5c.md). Tests
-below for 5C are drafts until that design is approved. No
-device fill in this cut.
+re-measure that 8-set. Phase 5C implementation:
+[`storage-measured-5c.md`](storage-measured-5c.md). Host
+schema is this cut. Device tables land from a real 4090 /
+910B campaign. Do not pre-claim contention.
 
 ## Measured storage, |F| > 2 (Phase 5B)
 
@@ -868,20 +868,21 @@ per `(profile, workload, signature)`.
 | 5B-6 | `test/Integration/storage-measured-5b-4090.mlir` | 4090 hierarchy table: 8 measured rows; ArgMin is PREFETCH+KEEP+KEEP / `diverge=no`; fixture and 910B profile stay `not-measured` |
 | 5B-7 | `test/Integration/storage-measured-5b-910b.mlir` | 910B hierarchy table: 8 measured rows; ArgMin is PREFETCH+KEEP+KEEP / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
 
-## Measured storage, structurally different F (Phase 5C, design)
+## Measured storage, structurally different F (Phase 5C)
 
 **Not Cost v0.4.** Same `policy=measured-storage-v1`. First
 target `@ssd_ntile_pipeline` (two independent PREFETCH
 sites). Do not re-measure the frozen hierarchy 8-set. Do
-not manufacture `diverge=yes`.
+not manufacture `diverge=yes`. Do not pre-claim contention.
 
-| ID | File | Checks (draft) |
-| -- | ---- | -------------- |
-| 5C-1 | later | `@ssd_ntile_pipeline` product=4 enumerated; `default-3g` is PREFETCH+PREFETCH |
-| 5C-2 | later | 4/4 measured inhabitants; each signature inhabits F; extras / duplicates rejected |
-| 5C-3 | later | ArgMin / `diverge` follow the device table; `cost-v04` still coincide |
-| 5C-4 | later | fixture / 5B hierarchy table / cross-profile stay `not-measured` |
-| 5C-5 | later | no FileCheck of microseconds; no 4090↔910B μs compare; `#69` untouched |
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5C-1 | `test/Integration/storage-measured-5c.mlir` | `@ssd_ntile_pipeline` product=4 enumerated; `default-3g` is PREFETCH+PREFETCH |
+| 5C-2 | same | emit 4/4 legal signatures; extras / duplicates / short campaigns rejected |
+| 5C-3 | same | synth ArgMin follows the table; `cost-v04` still `diverge=no` |
+| 5C-4 | same | 5B hierarchy table and cross-profile stay `not-measured` |
+| 5C-5 | same | no FileCheck of microseconds; adapters `--storage-ntile-measured`; `#69` untouched |
+| 5C-6 | later | 4090 / 910B device-log tables; ArgMin may be `diverge=yes` or `no` |
 
 ## Complete SSD + MLP program wall-clock
 

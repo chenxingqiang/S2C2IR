@@ -1559,12 +1559,188 @@ static int runStorageHierarchyMeasured(int nTile, int kRef, int warmup,
   return 0;
 }
 
+// Phase 5C: one arm per @ssd_ntile_pipeline inhabitant.
+// Two independent PREFETCH/PRESERVE sites. Rematerialize KEEP
+// is proven reuse and is not in F. Do not FileCheck microseconds.
+static const char *kNtilePrefix =
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//";
+
+static const char *ntileTail(bool pf0, bool pf1) {
+  if (pf0 && pf1)
+    return "PREFETCH|TRANSFER//PREFETCH|TRANSFER//TRANSFER|TRANSFER";
+  if (pf0 && !pf1)
+    return "PREFETCH|TRANSFER//PRESERVE|TRANSFER//TRANSFER|TRANSFER";
+  if (!pf0 && pf1)
+    return "PRESERVE|TRANSFER//PREFETCH|TRANSFER//TRANSFER|TRANSFER";
+  return "PRESERVE|TRANSFER//PRESERVE|TRANSFER//TRANSFER|TRANSFER";
+}
+
+static void overlapOrSeq(Buf &comp, Buf &next, int k, bool prefetch) {
+  if (prefetch) {
+    elemwiseLaunch(comp, comp.dev0, comp.dev2, k, comp.s0);
+    ssdPrefetchPipe(next);
+    ACL_OK(aclrtSynchronizeStream(comp.s0));
+  } else {
+    elemwiseLaunch(comp, comp.dev0, comp.dev2, k, comp.s0);
+    ACL_OK(aclrtSynchronizeStream(comp.s0));
+    ssdPrefetchPipe(next);
+  }
+}
+
+static void runStorageNtile(Buf &t0, Buf &t1, Buf &t2, int k, bool pf0,
+                            bool pf1) {
+  ssdPrefetchPipe(t0);
+  tileHtoDPipe(t0);
+  ACL_OK(aclrtSynchronizeStream(t0.s0));
+  overlapOrSeq(t0, t1, k, pf0);
+  tileHtoDPipe(t1);
+  ACL_OK(aclrtSynchronizeStream(t1.s0));
+  overlapOrSeq(t1, t2, k, pf1);
+  tileHtoDPipe(t2);
+  ACL_OK(aclrtSynchronizeStream(t2.s0));
+  elemwiseLaunch(t2, t2.dev0, t2.dev2, k, t2.s0);
+  ACL_OK(aclrtSynchronizeStream(t2.s0));
+}
+
+static bool checkStorageNtile(Buf &t0, Buf &t1, Buf &t2, int k) {
+  int step = t0.n > 4096 ? t0.n / 4096 : 1;
+  Buf *tiles[3] = {&t0, &t1, &t2};
+  for (int t = 0; t < 3; ++t) {
+    ACL_OK(aclrtMemcpy(tiles[t]->check, tiles[t]->bytes(), tiles[t]->dev2,
+                       tiles[t]->bytes(), ACL_MEMCPY_DEVICE_TO_HOST));
+    for (int i = 0; i < tiles[t]->n; i += step) {
+      if (!closeEnough(tiles[t]->check[i],
+                       hostElemwise(tiles[t]->hostPage[i], k)))
+        return false;
+    }
+  }
+  return true;
+}
+
+static double timeStorageNtile(Buf &t0, Buf &t1, Buf &t2, int k, int warmup,
+                               int reps, bool pf0, bool pf1) {
+  auto prep = [&](int seed) {
+    fillHost(t0.hostPage, t0.n, seed);
+    fillHost(t1.hostPage, t1.n, seed + 1);
+    fillHost(t2.hostPage, t2.n, seed + 2);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    prep(i + 3);
+    runStorageNtile(t0, t1, t2, k, pf0, pf1);
+    t0.reapStaleWorkspace();
+    t1.reapStaleWorkspace();
+    t2.reapStaleWorkspace();
+  }
+  std::vector<double> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    prep(i + 11);
+    auto start = std::chrono::steady_clock::now();
+    runStorageNtile(t0, t1, t2, k, pf0, pf1);
+    ACL_OK(aclrtSynchronizeStream(t0.s0));
+    ACL_OK(aclrtSynchronizeStream(t0.s1));
+    ACL_OK(aclrtSynchronizeStream(t1.s0));
+    ACL_OK(aclrtSynchronizeStream(t1.s1));
+    ACL_OK(aclrtSynchronizeStream(t2.s0));
+    ACL_OK(aclrtSynchronizeStream(t2.s1));
+    auto stop = std::chrono::steady_clock::now();
+    t0.reapStaleWorkspace();
+    t1.reapStaleWorkspace();
+    t2.reapStaleWorkspace();
+    samples.push_back(
+        std::chrono::duration<double, std::micro>(stop - start).count());
+    if (!checkStorageNtile(t0, t1, t2, k)) {
+      std::fprintf(stderr,
+                   "s2c2-ascend-run correctness=0 "
+                   "arm=storage-ntile-measured\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static int runStorageNtileMeasured(int nTile, int kRef, int warmup, int reps) {
+  Buf t0;
+  Buf t1;
+  Buf t2;
+  t0.alloc(nTile, true);
+  t1.alloc(nTile, true);
+  t2.alloc(nTile, true);
+  fillHost(t0.hostPage, t0.n, 1);
+  fillHost(t1.hostPage, t1.n, 2);
+  fillHost(t2.hostPage, t2.n, 3);
+  elemwiseLaunch(t0, t0.dev0, t0.dev2, 1, t0.s0);
+  ACL_OK(aclrtSynchronizeStream(t0.s0));
+  t0.reapStaleWorkspace();
+
+  std::fprintf(stderr, "s2c2-ascend-run storage-ntile-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured "
+               "program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured "
+               "note two-independent-prefetch-sites\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured "
+               "note contention-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured n-tile=%d "
+               "k_ref=%d arms=4\n",
+               nTile, kRef);
+  std::fprintf(stderr, "s2c2-ascend-run storage-ntile-measured measured=yes\n");
+
+  int idx = 0;
+  for (int a = 1; a >= 0; --a) {
+    for (int b = 1; b >= 0; --b) {
+      double us = timeStorageNtile(t0, t1, t2, kRef, warmup, reps, a != 0,
+                                   b != 0);
+      char sig[320];
+      std::snprintf(sig, sizeof(sig), "%s%s", kNtilePrefix,
+                    ntileTail(a != 0, b != 0));
+      std::fprintf(stderr,
+                   "s2c2-ascend-run storage-ntile-measured "
+                   "signature=%s timing=%.1f correctness=1\n",
+                   sig, us);
+      ++idx;
+    }
+  }
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured count=%d "
+               "note one-row-per-signature\n",
+               idx);
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured "
+               "note not-pipeline-s0-s1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-ntile-measured cost=unchanged "
+               "semantics=unchanged v3=not-claimed\n");
+  t0.freeAll();
+  t1.freeAll();
+  t2.freeAll();
+  return 0;
+}
+
 static void usage() {
   std::fprintf(
       stderr,
       "s2c2-ascend-run --pairs|--mem|--cc-phase|--cc-rewrite|"
       "--ssd-mlp-wallclock|--storage-loop-wallclock|--storage-pipeline|"
-      "--storage-hierarchy-measured "
+      "--storage-hierarchy-measured|--storage-ntile-measured "
       "[--n=N] [--n-cc=N] "
       "[--k=K|--k=0] [--r=r1,r2,...] [--warmup=W] [--reps=R]\n"
       "--k=0 calibrates k from pinned HtoD / compute(k=1) (mem only). "
@@ -1578,6 +1754,8 @@ static void usage() {
       "SSD prefetch||compute program (evi=S0 seq=S1). "
       "--storage-hierarchy-measured times all 8 F(program) "
       "inhabitants of @ssd_hierarchy_lifetime. "
+      "--storage-ntile-measured times all 4 F(program) "
+      "inhabitants of @ssd_ntile_pipeline. "
       "Do not FileCheck microseconds.\n");
 }
 
@@ -1595,6 +1773,7 @@ int main(int argc, char **argv) {
   bool storageLoop = false;
   bool storagePipe = false;
   bool storageHier = false;
+  bool storageNtile = false;
   int nHtod = 22528000;
   int nCc = 33554432;
   std::vector<double> rs = {0.5, 0.75, 1.0, 1.5, 2.0};
@@ -1617,6 +1796,8 @@ int main(int argc, char **argv) {
       storagePipe = true;
     } else if (a == "--storage-hierarchy-measured") {
       storageHier = true;
+    } else if (a == "--storage-ntile-measured") {
+      storageNtile = true;
     } else if (a.rfind("--n-cc=", 0) == 0) {
       nCc = std::atoi(argv[i] + 7);
     } else if (a.rfind("--n=", 0) == 0) {
@@ -1642,18 +1823,19 @@ int main(int argc, char **argv) {
   }
   int modes = (int)pairs + (int)mem + (int)ccPhase + (int)ccRewrite +
               (int)ssdMlp + (int)storageLoop + (int)storagePipe +
-              (int)storageHier;
+              (int)storageHier + (int)storageNtile;
   if (modes != 1) {
     usage();
     return 1;
   }
   if ((pairs || ccPhase || ccRewrite || ssdMlp || storageLoop || storagePipe ||
-       storageHier) &&
+       storageHier || storageNtile) &&
       k <= 0) {
     std::fprintf(stderr,
                  "s2c2-ascend-run: --pairs/--cc-phase/--cc-rewrite/"
                  "--ssd-mlp-wallclock/--storage-loop-wallclock/"
-                 "--storage-pipeline/--storage-hierarchy-measured "
+                 "--storage-pipeline/--storage-hierarchy-measured/"
+                 "--storage-ntile-measured "
                  "needs k > 0\n");
     return 1;
   }
@@ -1733,6 +1915,12 @@ int main(int argc, char **argv) {
     if (n == (1 << 20))
       n = 4194304;
     rc = runStorageHierarchyMeasured(n, k, warmup, reps);
+  } else if (storageNtile) {
+    if (!kSet)
+      k = 32;
+    if (n == (1 << 20))
+      n = 4194304;
+    rc = runStorageNtileMeasured(n, k, warmup, reps);
   } else {
   std::fprintf(stderr, "s2c2-ascend-run n=%d k=%d bytes=%zu\n", n, k,
                sizeof(float) * static_cast<size_t>(n));
