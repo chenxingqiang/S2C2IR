@@ -44,7 +44,8 @@ int main(int argc, char **argv) {
       argvHas(argc, argv, "--explain") ||
       argvHas(argc, argv, "--measured-cost-table") ||
       argvHas(argc, argv, "--capacity") ||
-      argvHas(argc, argv, "--capacity-spec");
+      argvHas(argc, argv, "--capacity-spec") ||
+      argvHas(argc, argv, "--dump-capacity-plan");
   bool hasPass = argvHas(argc, argv, "--s2c2-evidence-bounded-schedule");
   if (wantsSchedule && !hasPass) {
     std::vector<std::string> storage;

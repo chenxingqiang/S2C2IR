@@ -17,6 +17,16 @@
 // RUN: not s2c2-opt %s --capacity=abc 2>&1 | FileCheck %s --check-prefix=BADCAP
 // RUN: not s2c2-opt %s --capacity=0 2>&1 | FileCheck %s --check-prefix=BADCAP
 // RUN: not s2c2-opt %s --capacity=ssd:2 2>&1 | FileCheck %s --check-prefix=NOSPACE
+// RUN: python3 %S/../../runtime/record_capacity.py --print-capacity-plan-contract | FileCheck %s --check-prefix=PLANC
+// RUN: python3 %S/../../runtime/record_capacity.py --analyze-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl | FileCheck %s --check-prefix=HPLAN
+// RUN: python3 %S/../../runtime/record_capacity.py --analyze-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl | FileCheck %s --check-prefix=HPLANFIT
+// RUN: python3 %S/../../runtime/record_capacity.py --analyze-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl | FileCheck %s --check-prefix=HPLANTRUNC
+// RUN: s2c2-opt %s --capacity=2 2>&1 | grep s2c2-capacity-plan | FileCheck %s --check-prefix=PLAN
+// RUN: s2c2-opt %s --capacity=2 --dump-capacity-plan=%t.plan.json 2>&1 | grep s2c2-capacity-plan | FileCheck %s --check-prefix=PLAN
+// RUN: FileCheck %s --check-prefix=PLANJSON --input-file=%t.plan.json
+// RUN: s2c2-opt %s --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl 2>&1 | grep s2c2-capacity-plan | FileCheck %s --check-prefix=PLANFIT
+// RUN: s2c2-opt %s --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl 2>&1 | grep s2c2-capacity-plan | FileCheck %s --check-prefix=PLANTRUNC
+// RUN: not s2c2-opt %s --dump-capacity-plan=%t.ncap.json 2>&1 | FileCheck %s --check-prefix=NODUMP
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -127,10 +137,83 @@
 // OPTEXTRA-NOT: candidate #
 
 // NOFLAG-NOT: s2c2-storage-capacity
+// NOFLAG-NOT: s2c2-capacity-plan
 
 // BADCAP: invalid --capacity=
 
 // NOSPACE: no constrained-space residencies
+
+// PLANC: capacity-plan compiler-visible=yes
+// PLANC: schema s2c2.capacity_plan.v1
+// PLANC: selected none
+// PLANC: policy none
+// PLANC: rewrite-license no
+// PLANC: note f-capacity-subseteq-f-residency
+// PLANC: note six-c-b-diagnostics-frozen
+// PLANC: note six-c-c-candidate-object-this-cut
+// PLANC: note measured-capacity-v1-not-opened
+// PLANC: note evidence-db-identity-frozen
+// PLANC: cost=unchanged
+
+// HPLAN: capacity-plan space=hbm capacity=2 peak-live=3
+// HPLAN: capacity-plan feasible=yes enumerated=yes truncated=no legal=3
+// HPLAN: capacity-plan selected=none policy=none rewrite-license=no
+// HPLAN: capacity-plan candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
+// HPLAN: capacity-plan candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
+// HPLAN: capacity-plan candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
+// HPLAN: capacity-plan subseteq-residency=yes
+// HPLAN: capacity-plan rewrite=no
+// HPLAN-NOT: selected={{[0-9]}}
+// HPLAN-NOT: keep{0,1,2}
+
+// HPLANFIT: capacity-plan feasible=yes
+// HPLANFIT: selected=none
+// HPLANFIT: identity=keep{0,1}|evict{}|rematerialize{}
+// HPLANFIT-NOT: evict{0}
+
+// HPLANTRUNC: capacity-plan feasible=no enumerated=no truncated=yes legal=not-enumerated
+// HPLANTRUNC: selected=none
+// HPLANTRUNC: rewrite=no
+// HPLANTRUNC-NOT: candidate #0
+
+// PLAN: s2c2-capacity-plan schema=s2c2.capacity_plan.v1
+// PLAN: s2c2-capacity-plan space=hbm capacity=2 peak-live=3
+// PLAN: s2c2-capacity-plan feasible=yes enumerated=yes truncated=no legal=3
+// PLAN: s2c2-capacity-plan selected=none policy=none rewrite-license=no
+// PLAN: s2c2-capacity-plan candidate #0 identity=keep{0,1}|evict{2}|rematerialize{} keep=0,1 evict=2 rematerialize=
+// PLAN: s2c2-capacity-plan candidate #1 identity=keep{1,2}|evict{0}|rematerialize{} keep=1,2 evict=0 rematerialize=
+// PLAN: s2c2-capacity-plan candidate #2 identity=keep{0,2}|evict{1}|rematerialize{} keep=0,2 evict=1 rematerialize=
+// PLAN: s2c2-capacity-plan subseteq-residency=yes
+// PLAN: s2c2-capacity-plan rewrite=no
+// PLAN: s2c2-capacity-plan note f-capacity-subseteq-f-residency
+// PLAN: s2c2-capacity-plan note selected-none
+// PLAN: s2c2-capacity-plan note six-c-c-candidate-object-this-cut
+// PLAN-NOT: keep{0,1,2}
+// PLAN-NOT: selected=0
+// PLAN-NOT: rewrite-license=yes
+// PLAN-NOT: sched.wait
+
+// PLANJSON-DAG: "schema":"s2c2.capacity_plan.v1"
+// PLANJSON-DAG: "selected":"none"
+// PLANJSON-DAG: "policy":"none"
+// PLANJSON-DAG: "rewrite":"no"
+// PLANJSON-DAG: "rewrite_license":"no"
+// PLANJSON-DAG: "identity":"keep{0,1}|evict{2}|rematerialize{}"
+// PLANJSON-DAG: "identity":"keep{1,2}|evict{0}|rematerialize{}"
+// PLANJSON-DAG: "identity":"keep{0,2}|evict{1}|rematerialize{}"
+// PLANJSON-NOT: keep{0,1,2}
+
+// PLANFIT: s2c2-capacity-plan feasible=yes
+// PLANFIT: selected=none
+// PLANFIT: identity=keep{0,1}|evict{}|rematerialize{}
+// PLANFIT: rewrite=no
+
+// PLANTRUNC: s2c2-capacity-plan feasible=no enumerated=no truncated=yes legal=not-enumerated
+// PLANTRUNC: selected=none
+// PLANTRUNC: rewrite=no
+// PLANTRUNC-NOT: candidate #0
+
+// NODUMP: --dump-capacity-plan requires
 
 module {
   // Four HBM tiles, capacity=2. Unpack tile0 after tile2 is

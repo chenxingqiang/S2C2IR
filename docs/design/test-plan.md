@@ -967,7 +967,7 @@ Do not FileCheck microseconds.
 | SB-2 | same | Evidence DB still unique E; 6A `--schedule-policy=default-3g` is `rewrite=no` |
 | SB-3 | same | no `sched.wait`; no FileCheck of microseconds |
 
-## Capacity-aware residency (Phase 6C, design + diagnostics)
+## Capacity-aware residency (Phase 6C, design + diagnostics + candidate object)
 
 **Not Cost v0.4.** Design:
 [`storage-capacity.md`](storage-capacity.md). Freezes
@@ -978,8 +978,9 @@ candidates from `s2c2-opt --capacity` / `--capacity-spec`.
 IR auto-discovery is tile-count occupancy (`size=1`), not
 a byte allocator and not alias analysis. No rewrite, no
 ranking, no `measured-capacity-v1`, no hardware campaign.
-5A–6B stay frozen. Do not expand this diagnostic surface.
-Do not FileCheck microseconds.
+5A–6B stay frozen. Do not expand the 6C-B diagnostic surface.
+6C-C adds compiler-visible `CapacityPlan` (`selected=none`,
+`rewrite-license=no`). Do not FileCheck microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -992,6 +993,11 @@ Do not FileCheck microseconds.
 | 6C-B-3 | same | `--capacity` absent prints nothing; invalid `--capacity` fails; no constrained-space residencies fails |
 | 6C-B-4 | same | spec overrides IR discovery; no `sched.wait`; `compiler-ne-rewrite` |
 | 6C-B-5 | same | freeze notes: tile-count occupancy; IR discovery ≠ alias analysis; diagnostics frozen |
+| 6C-C-1 | same | `--print-capacity-plan-contract`; `selected=none`; `rewrite-license=no` |
+| 6C-C-2 | same | 4-tile identities `keep{0,1}\|evict{2}\|rematerialize{}` and permutations; not greedy evict-#2 |
+| 6C-C-3 | same | `s2c2-opt --capacity=2` prints `s2c2-capacity-plan`; `--dump-capacity-plan` JSON `s2c2.capacity_plan.v1` |
+| 6C-C-4 | same | fit all-KEEP identity; truncated has no candidates; dump without `--capacity` fails |
+| 6C-C-5 | same | \(F_{\mathrm{capacity}} \subseteq F_{\mathrm{residency}}\); no `sched.wait`; Evidence DB unchanged |
 
 ## Complete SSD + MLP program wall-clock
 
