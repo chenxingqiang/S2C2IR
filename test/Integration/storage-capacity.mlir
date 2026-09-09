@@ -350,10 +350,10 @@
 // POLC: note selection-ne-rewrite-license
 // POLC: note s0-ne-must-evict
 // POLC: note truncated-ne-select
+// POLC: note measured-capacity-v1-ranking-only
 // POLC: note six-c-d-query-frozen
 // POLC: note six-c-e-selection-frozen
 // POLC: note six-c-f-measured-ranking-this-cut
-// POLC: note measured-capacity-v1-ranking-only
 // POLC: cost=unchanged
 
 // HSEL: capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
