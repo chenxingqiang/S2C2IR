@@ -1,10 +1,11 @@
 # Evidence DB / Contract (Phase 6B)
 
-**Status:** implementation. Phase 6A is the production
-`s2c2-opt` path. Phases 5A–5D are **FROZEN**. 5E is **not
-opened**. This cut turns campaign JSONL into a versioned
-Evidence Contract. It does **not** open capacity-aware
-residency (that is **6C**).
+**Status:** FROZEN as part of the 5A–6B stable baseline
+([`stable-baseline.md`](stable-baseline.md)). Phase 6A is
+the production `s2c2-opt` path. Phases 5A–5D are **FROZEN**.
+5E is **not opened**. This cut is the versioned Evidence
+Contract. It does **not** open capacity-aware residency
+(that is **6C**).
 
 ```text
 Goal     a compiler-facing Evidence DB with stable identity E

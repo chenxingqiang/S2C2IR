@@ -1707,6 +1707,8 @@ def print_storage_measured_contract() -> int:
     print("note production-path-6a")
     print("note evidence-db-v1")
     print("note not-capacity-aware")
+    print("note stable-baseline")
+    print("note six-c-not-opened")
     print("semantics=unchanged")
     print("v3=not-claimed")
     print("cost=unchanged")
@@ -1729,6 +1731,8 @@ def print_schedule_policy_contract() -> int:
     print("note production-path-6a")
     print("note evidence-db-v1")
     print("note not-capacity-aware")
+    print("note stable-baseline")
+    print("note six-c-not-opened")
     print("cost=unchanged")
     return 0
 

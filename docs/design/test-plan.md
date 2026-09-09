@@ -953,6 +953,20 @@ not this cut. Do not FileCheck microseconds.
 | 6B-5 | same | duplicate E and extra keys fail `--check-evidence-db`; ledger ingest is skipped; no `sched.wait` |
 | 6B-6 | same | export without `--measurement-revision` fails; query without revision is a historical view; same-E ingest is idempotent or identity-collision |
 
+## Stable baseline (5A–6B)
+
+**Not Cost v0.4.** Design: [`stable-baseline.md`](stable-baseline.md).
+Freezes 5A–5D + 6A + 6B as the production stack. 5E and 6C
+are not opened. Do not retune 5A–5D. Do not change `#69`,
+`cost-v04`, `default-3g`, or the Evidence DB contract.
+Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| SB-1 | `test/Integration/stable-baseline.mlir` | `--print-stable-baseline-contract`; stack 5A–6B; `six-c-not-opened` |
+| SB-2 | same | Evidence DB still unique E; 6A `--schedule-policy=default-3g` is `rewrite=no` |
+| SB-3 | same | no `sched.wait`; no FileCheck of microseconds |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
