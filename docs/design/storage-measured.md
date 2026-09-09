@@ -100,9 +100,11 @@ evidence can pick a different inhabitant than `default-3g`.
 That synthetic table is **not** a live 4090 or 910B campaign
 and is **not** a Capability cell.
 
-A later device campaign fills the same schema with
-`measured=yes` and `source=device-log`. That is a new artifact,
-not a change to this policy name.
+The 4090 two-tile pipeline log fills the same schema with
+`measured=yes` and `source=device-log`. Mapping is local to
+this workload: `evi` → S0 PREFETCH, `seq` → S1 PRESERVE.
+`par` is not an \(F(\text{program})\) inhabitant. Do not
+FileCheck microseconds. Not a Capability cell.
 
 ## Witness
 
@@ -128,12 +130,25 @@ cost-v04              ranked=S0  diverge=no
 measured-storage-v1   ranked=S1  diverge=yes
 ```
 
+4090 device-log (`source=device-log`, `measured=yes`):
+
 ```text
-diverge=yes
-    ≠  rewrite of S1
-    =  table ArgMin ≠ historical tuple
-runtime validation
-    =  pending (no device in this cut)
+S0 evi  <  S1 seq
+measured-storage-v1   ranked=S0  diverge=no
+cost-v04              ranked=S0  diverge=no
+```
+
+On this device and this \(F\), measured ArgMin **coincides**
+with `default-3g`. That is a 4090 fact for this pair, not a
+claim that the two policies are the same object, and not a
+rewrite of S0.
+
+```text
+diverge=no on 4090
+    ≠  cost-v04 ≡ measured-storage-v1
+    =  this device table picks the historical tuple
+rewrite of the winner
+    =  not this cut
 ```
 
 Truncated `@seven_binary_chains` (product=128):
@@ -157,7 +172,9 @@ rewrite of the measured winner = not this cut
 ```text
 adding structural ticks to cost-v04
 wrapping table times as wall-clock FileCheck
-live 4090 / 910B per-candidate campaign (later artifact)
+FileCheck of 4090 microseconds
+910B per-candidate campaign (later)
+applying the measured winner as a rewrite
 applying the measured winner as a rewrite
 new 4090 / 910B Capability measurements
 changing --s2c2-cost / --s2c2-argmin / --s2c2-walk

@@ -840,6 +840,7 @@ untouched. Do not FileCheck microseconds.
 | 5A-3b | same | no table / unmatched hierarchy: `ranked=not-measured` |
 | 5A-4 | same | adapters `--storage-measured`; exclusive vs `--storage-cost` |
 | 5A-5 | same | seven rematerialize chains: `ranked=not-enumerated`; no measured candidates |
+| 5A-7 | `test/Integration/storage-measured-4090.mlir` | 4090 device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture `measured=no` still `not-measured`; no FileCheck of microseconds |
 
 ## Complete SSD + MLP program wall-clock
 
