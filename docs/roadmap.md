@@ -312,9 +312,9 @@ A checked-in `measured=no` fixture stays `not-measured`.
 A lit-only synthetic `measured=yes` table on
 `storage-aware-pipeline` (`|F|=2`) shows `diverge=yes`
 vs `default-3g` while `cost-v04` stays `diverge=no`.
-That synthetic table is not a live device campaign.
-Live device fills of the same schema are a later
-artifact. Do not FileCheck microseconds. `#69` untouched.
+The 4090 device-log fill of the same schema ranks S0
+(`diverge=no`): PREFETCH is faster than PRESERVE on that
+pair. Do not FileCheck microseconds. `#69` untouched.
 Design: [`storage-measured.md`](design/storage-measured.md).
 
 Cost v0.4 Search (`--s2c2-argmin` / `--s2c2-walk`) stays frozen.

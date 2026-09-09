@@ -1773,6 +1773,69 @@ def analyze_storage_measured(path: Path) -> int:
     return 0
 
 
+_PIPE_MEAS_RE = re.compile(r"storage-pipeline measured=yes")
+_PIPE_OK_RE = re.compile(r"storage-pipeline correctness=1")
+_PIPE_TIME_RE = re.compile(
+    r"storage-pipeline timing seq=([0-9.]+) evi=([0-9.]+)"
+)
+_SIG_S0 = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER"
+)
+_SIG_S1 = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER"
+)
+
+
+def emit_storage_measured_from_pipeline(path: Path) -> int:
+    """Map a two-tile storage-pipeline log onto F(program) signatures.
+
+    evi → S0 PREFETCH (default-3g). seq → S1 PRESERVE.
+    par is not an F(program) inhabitant. Do not FileCheck microseconds.
+    Does not store host/password/IP.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if not _PIPE_MEAS_RE.search(text) or not _PIPE_OK_RE.search(text):
+        print("record_ascend: pipeline log is not measured+correct", file=sys.stderr)
+        return 4
+    m = _PIPE_TIME_RE.search(text)
+    if not m:
+        print("record_ascend: no storage-pipeline timing line", file=sys.stderr)
+        return 4
+    t_seq = int(round(float(m.group(1))))
+    t_evi = int(round(float(m.group(2))))
+    common = {
+        "schema": "s2c2.measured_storage_cost.v1",
+        "profile": "rtx4090",
+        "workload_class": "storage-aware-pipeline",
+        "repetitions": 5,
+        "correctness": 1,
+        "source": "device-log",
+        "measured": "yes",
+    }
+    s0 = dict(common)
+    s0["candidate_signature"] = _SIG_S0
+    s0["measured_time_us"] = t_evi
+    s0["note"] = (
+        "S0 default-3g PREFETCH from 4090 storage-pipeline evi. "
+        "Not a Capability cell. Do not FileCheck microseconds."
+    )
+    s1 = dict(common)
+    s1["candidate_signature"] = _SIG_S1
+    s1["measured_time_us"] = t_seq
+    s1["note"] = (
+        "S1 PRESERVE from 4090 storage-pipeline seq. "
+        "Not an F inhabitant for par. Do not FileCheck microseconds."
+    )
+    print(json.dumps(s0, ensure_ascii=True, separators=(",", ":")))
+    print(json.dumps(s1, ensure_ascii=True, separators=(",", ":")))
+    print("storage-measured emit=device-log profile=rtx4090")
+    print("storage-measured note measured-yes-and-correctness")
+    print("storage-measured note do-not-filecheck-microseconds")
+    print("storage-measured note not-new-capability-grid")
+    print("cost=unchanged")
+    return 0
+
+
 def print_storage_ntile_contract() -> int:
     print("storage-ntile compiler-driven=yes")
     print("no-evidence => no-destructive-optimization")
@@ -2028,6 +2091,7 @@ def main() -> int:
     p.add_argument("--analyze-storage-cost", type=Path)
     p.add_argument("--print-storage-measured-contract", action="store_true")
     p.add_argument("--analyze-storage-measured", type=Path)
+    p.add_argument("--emit-storage-measured-from-pipeline", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
     p.add_argument("--print-storage-loop-contract", action="store_true")
     p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
@@ -2075,6 +2139,7 @@ def main() -> int:
             args.analyze_storage_cost,
             args.print_storage_measured_contract,
             args.analyze_storage_measured,
+            args.emit_storage_measured_from_pipeline,
             args.print_storage_ntile_contract,
             args.print_storage_loop_contract,
             args.print_storage_loop_wallclock_contract,
@@ -2110,6 +2175,7 @@ def main() -> int:
             "--analyze-storage-cost, "
             "--print-storage-measured-contract, "
             "--analyze-storage-measured, "
+            "--emit-storage-measured-from-pipeline, "
             "--print-storage-ntile-contract, "
             "--print-storage-loop-contract, "
             "--print-storage-loop-wallclock-contract, "
@@ -2212,6 +2278,10 @@ def main() -> int:
         return print_storage_measured_contract()
     if args.analyze_storage_measured:
         return analyze_storage_measured(args.analyze_storage_measured)
+    if args.emit_storage_measured_from_pipeline:
+        return emit_storage_measured_from_pipeline(
+            args.emit_storage_measured_from_pipeline
+        )
     if args.print_storage_ntile_contract:
         return print_storage_ntile_contract()
     if args.print_storage_loop_contract:

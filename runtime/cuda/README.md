@@ -33,6 +33,8 @@ S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val_async.sh ./s
 #   ./s2c2-cuda-run docs/design/v3-dataset/storage-pipeline-4090
 # Loop-pipeline timed (4090): runtime/cuda/sweep_storage_loop_wallclock.sh \
 #   ./s2c2-cuda-run docs/design/v3-dataset/storage-loop-wallclock-4090
+# Measured-storage-v1 (4090): runtime/cuda/sweep_storage_measured.sh \
+#   ./s2c2-cuda-run docs/design/v3-dataset/storage-measured-4090
 # Does not overwrite the 910B / 3F / SSD+MLP logs. Do not FileCheck microseconds.
 # capability query:         python3 runtime/cuda/record_v3.py --query-cap C||HtoD
 # writes JSONL/CSV; no host/password fields
