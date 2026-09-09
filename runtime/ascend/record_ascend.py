@@ -1702,8 +1702,29 @@ def print_storage_measured_contract() -> int:
     print("note do-not-hunt-diverge")
     print("note do-not-retune-workload")
     print("note do-not-invent-s4")
+    print("note schedule-policy-selection-only")
+    print("note explain-ne-rewrite")
+    print("note production-path-6a")
     print("semantics=unchanged")
     print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def print_schedule_policy_contract() -> int:
+    print("schedule-policy compiler-driven=yes")
+    print("policy default-3g|cost-v04|measured-storage-v1")
+    print("note selection-ne-legality")
+    print("note selection-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note campaign-5a-5d-frozen")
+    print("note measured-ne-rewrite-license")
+    print("note explain-ne-rewrite")
+    print("note compiler-ne-campaign-log")
+    print("note do-not-filecheck-microseconds")
+    print("note production-path-6a")
     print("cost=unchanged")
     return 0
 
@@ -2373,6 +2394,7 @@ def main() -> int:
     p.add_argument("--print-storage-cost-contract", action="store_true")
     p.add_argument("--analyze-storage-cost", type=Path)
     p.add_argument("--print-storage-measured-contract", action="store_true")
+    p.add_argument("--print-schedule-policy-contract", action="store_true")
     p.add_argument("--analyze-storage-measured", type=Path)
     p.add_argument("--emit-storage-measured-from-pipeline", type=Path)
     p.add_argument("--emit-storage-measured-from-hierarchy", type=Path)
@@ -2424,6 +2446,7 @@ def main() -> int:
             args.print_storage_cost_contract,
             args.analyze_storage_cost,
             args.print_storage_measured_contract,
+            args.print_schedule_policy_contract,
             args.analyze_storage_measured,
             args.emit_storage_measured_from_pipeline,
             args.emit_storage_measured_from_hierarchy,
@@ -2463,6 +2486,7 @@ def main() -> int:
             "--print-storage-cost-contract, "
             "--analyze-storage-cost, "
             "--print-storage-measured-contract, "
+            "--print-schedule-policy-contract, "
             "--analyze-storage-measured, "
             "--emit-storage-measured-from-pipeline, "
             "--emit-storage-measured-from-hierarchy, "
@@ -2567,6 +2591,8 @@ def main() -> int:
         return analyze_storage_cost(args.analyze_storage_cost)
     if args.print_storage_measured_contract:
         return print_storage_measured_contract()
+    if args.print_schedule_policy_contract:
+        return print_schedule_policy_contract()
     if args.analyze_storage_measured:
         return analyze_storage_measured(args.analyze_storage_measured)
     if args.emit_storage_measured_from_pipeline:

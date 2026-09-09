@@ -63,6 +63,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Visitors.h"
+#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
@@ -121,6 +122,20 @@ llvm::cl::opt<std::string> clS2C2Evidence(
     "evidence",
     llvm::cl::desc(
         "S2C2 evidence JSONL override (compiler catalog, not a benchmark log)"),
+    llvm::cl::ValueRequired, llvm::cl::init(""));
+llvm::cl::opt<std::string> clSchedulePolicy(
+    "schedule-policy",
+    llvm::cl::desc("S2C2 schedule selection policy: default-3g, cost-v04, "
+                   "or measured-storage-v1. Selection only; not legality "
+                   "and not a rewrite license."),
+    llvm::cl::ValueRequired, llvm::cl::init(""));
+llvm::cl::opt<bool> clScheduleExplain(
+    "explain",
+    llvm::cl::desc("Print F, evidence, named-policy selection, and rewrite=no"),
+    llvm::cl::init(false));
+llvm::cl::opt<std::string> clMeasuredCostTable(
+    "measured-cost-table",
+    llvm::cl::desc("Canonical measured-storage-v1 JSONL (not a campaign log)"),
     llvm::cl::ValueRequired, llvm::cl::init(""));
 
 enum class Applicability { Yes, No, Unknown };
@@ -2017,6 +2032,7 @@ struct GlobalMeasuredRank {
   bool rankedEqDefault3g = false;
   bool defaultMeasured = false;
   SmallVector<bool, 16> hasEvidence;
+  SmallVector<int64_t, 16> candidateUs;
 };
 
 static LogicalResult
@@ -2102,6 +2118,7 @@ rankGlobalMeasured(const GlobalSchedule &g, StringRef profile,
     return r;
   r.enumerated = true;
   r.hasEvidence.resize(g.legal.size());
+  r.candidateUs.assign(g.legal.size(), -1);
   int64_t best = INT64_MAX;
   SmallVector<unsigned, 8> argminIdx;
   for (unsigned i = 0; i < g.legal.size(); ++i) {
@@ -2110,6 +2127,7 @@ rankGlobalMeasured(const GlobalSchedule &g, StringRef profile,
     if (!rec)
       continue;
     r.hasEvidence[i] = true;
+    r.candidateUs[i] = rec->timeUs;
     r.measuredCount += 1;
     if (sameGlobal(g.legal[i], g.selected))
       r.defaultMeasured = true;
@@ -2227,6 +2245,158 @@ static void printGlobalMeasuredRank(const GlobalMeasuredRank &r,
                  << " evidence=" << (r.hasEvidence[i] ? "yes" : "no") << "\n";
 }
 
+enum class SchedulePolicyKind { Unset, Default3g, CostV04, MeasuredStorageV1 };
+
+static FailureOr<SchedulePolicyKind> parseSchedulePolicy(StringRef name) {
+  if (name.empty())
+    return SchedulePolicyKind::Unset;
+  if (name == "default-3g")
+    return SchedulePolicyKind::Default3g;
+  if (name == "cost-v04")
+    return SchedulePolicyKind::CostV04;
+  if (name == "measured-storage-v1")
+    return SchedulePolicyKind::MeasuredStorageV1;
+  llvm::errs() << "s2c2-opt: unknown --schedule-policy=" << name
+               << " (default-3g|cost-v04|measured-storage-v1)\n";
+  return failure();
+}
+
+static StringRef schedulePolicyName(SchedulePolicyKind k) {
+  switch (k) {
+  case SchedulePolicyKind::Default3g:
+    return "default-3g";
+  case SchedulePolicyKind::CostV04:
+    return "cost-v04";
+  case SchedulePolicyKind::MeasuredStorageV1:
+    return "measured-storage-v1";
+  case SchedulePolicyKind::Unset:
+    return "unset";
+  }
+  return "unset";
+}
+
+struct NamedPolicyPick {
+  std::string selected;
+  std::string source;
+  std::string reason;
+  std::string coincide;
+  bool applicable = false;
+};
+
+static NamedPolicyPick
+pickNamedPolicy(SchedulePolicyKind kind, const GlobalSchedule &g,
+                const GlobalCostRank &cost, const GlobalMeasuredRank &meas) {
+  NamedPolicyPick p;
+  p.selected = joinGlobal(g.selected);
+  p.source = "default-3g";
+  p.reason = "historical-tuple";
+  p.coincide = "yes";
+  p.applicable = g.historicalInF;
+  if (kind == SchedulePolicyKind::Unset || kind == SchedulePolicyKind::Default3g)
+    return p;
+  if (kind == SchedulePolicyKind::CostV04) {
+    if (!g.enumerated || !cost.applicable) {
+      p.applicable = false;
+      p.reason = g.enumerated ? "cost-not-ranked" : "not-enumerated";
+      return p;
+    }
+    p.applicable = true;
+    p.selected = joinGlobal(cost.ranked);
+    p.source = "cost-v04";
+    p.reason = "cost-v04-argmin";
+    p.coincide = cost.rankedEqDefault3g ? "yes" : "no";
+    return p;
+  }
+  if (!g.enumerated || !meas.applicable) {
+    p.applicable = false;
+    p.reason = g.enumerated ? "not-measured" : "not-enumerated";
+    return p;
+  }
+  p.applicable = true;
+  p.selected = joinGlobal(meas.ranked);
+  p.source = "measured-storage-v1";
+  p.reason = "measured-cost-argmin";
+  p.coincide = !meas.defaultMeasured ? "n/a"
+                                     : (meas.rankedEqDefault3g ? "yes" : "no");
+  return p;
+}
+
+static void printNamedSchedulePolicy(SchedulePolicyKind kind,
+                                     const NamedPolicyPick &p) {
+  if (kind == SchedulePolicyKind::Unset)
+    return;
+  llvm::errs() << "s2c2-schedule-policy name=" << schedulePolicyName(kind)
+               << " selected=" << p.selected
+               << " applicable=" << (p.applicable ? "yes" : "no")
+               << " source=" << p.source << " rewrite=no"
+               << " note selection-ne-legality"
+               << " note selection-ne-rewrite-license"
+               << " note default-3g-frozen"
+               << " note cost-v04-structural-frozen"
+               << " note five-e-not-opened"
+               << " note campaign-5a-5d-frozen"
+               << " note measured-ne-rewrite-license cost=unchanged\n";
+  llvm::errs() << "s2c2-schedule-policy coincide-default-3g=" << p.coincide
+               << " reason=" << p.reason << " rewrite=no\n";
+}
+
+static void printScheduleExplain(SchedulePolicyKind kind, StringRef profile,
+                                 ArrayRef<HierarchySite> sites,
+                                 const GlobalSchedule &g,
+                                 const GlobalCostRank &cost,
+                                 const GlobalMeasuredRank &meas,
+                                 const NamedPolicyPick &p) {
+  SchedulePolicyKind shown =
+      kind == SchedulePolicyKind::Unset ? SchedulePolicyKind::Default3g : kind;
+  llvm::errs() << "s2c2-schedule-explain profile=" << profile
+               << " policy=" << schedulePolicyName(shown) << "\n";
+  llvm::errs() << "s2c2-schedule-explain enumerated="
+               << (g.enumerated ? "yes" : "no")
+               << " truncated=" << (g.truncated ? "yes" : "no")
+               << " product=" << globalProductLabel(g)
+               << " legal=" << globalLegalLabel(g) << "\n";
+  for (const HierarchySite &s : sites) {
+    llvm::errs() << "s2c2-schedule-explain site #" << s.id
+                 << " legal=" << joinActions(s.legal)
+                 << " selected=" << hierarchyActionStr(s.action)
+                 << " policy=default-3g\n";
+  }
+  if (!g.enumerated) {
+    llvm::errs() << "s2c2-schedule-explain ranking=not-enumerated\n";
+  } else {
+    for (unsigned i = 0; i < g.legal.size(); ++i) {
+      llvm::errs() << "s2c2-schedule-explain F-member actions="
+                   << joinGlobal(g.legal[i]);
+      if (meas.hasEvidence.empty() || i >= meas.hasEvidence.size() ||
+          !meas.hasEvidence[i])
+        llvm::errs() << " evidence=no time-us=n/a";
+      else
+        llvm::errs() << " evidence=yes time-us=" << meas.candidateUs[i];
+      if (cost.applicable && i < cost.candidateScores.size())
+        llvm::errs() << " cost-v04=" << cost.candidateScores[i];
+      else
+        llvm::errs() << " cost-v04=n/a";
+      llvm::errs() << "\n";
+    }
+    if (shown == SchedulePolicyKind::MeasuredStorageV1 && !meas.applicable)
+      llvm::errs() << "s2c2-schedule-explain ranking=not-measured\n";
+    if (shown == SchedulePolicyKind::CostV04 && !cost.applicable)
+      llvm::errs() << "s2c2-schedule-explain ranking=not-ranked\n";
+  }
+  llvm::errs() << "s2c2-schedule-explain selected=" << p.selected
+               << " source=" << p.source
+               << " applicable=" << (p.applicable ? "yes" : "no") << "\n";
+  llvm::errs() << "s2c2-schedule-explain rewrite=no reason=" << p.reason
+               << "\n";
+  llvm::errs() << "s2c2-schedule-explain default-3g=" << joinGlobal(g.selected)
+               << " coincide=" << p.coincide << "\n";
+  llvm::errs() << "s2c2-schedule-explain note selection-ne-legality"
+               << " note selection-ne-rewrite-license"
+               << " note five-e-not-opened"
+               << " note do-not-filecheck-microseconds"
+               << " note compiler-ne-campaign-log cost=unchanged\n";
+}
+
 static bool isStorageOverlapConcurrent(ConcurrentOp conc) {
   SmallVector<TaskOp> tasks(conc.getBody().front().getOps<TaskOp>());
   if (tasks.size() != 2)
@@ -2282,7 +2452,8 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
                                           ArrayRef<HierarchySite> sites,
                                           ArrayRef<JointChain> chains,
                                           ReuseStats reuse,
-                                          ArrayRef<MeasuredCostRecord> table) {
+                                          ArrayRef<MeasuredCostRecord> table,
+                                          StringRef schedulePolicy = {}) {
   llvm::json::Array cands;
   unsigned keep = 0, flatten = 0, preserve = 0;
   for (const WorkloadDecision &d : decs) {
@@ -2511,6 +2682,10 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
   }
   root["hierarchy_reuse_applied"] = (int64_t)reuse.applied;
   root["hierarchy_reuse_skipped"] = (int64_t)reuse.skipped;
+  if (!schedulePolicy.empty()) {
+    root["schedule_policy"] = schedulePolicy.str();
+    root["schedule_policy_rewrite"] = "no";
+  }
   root["cost"] = "unchanged";
   std::error_code ec;
   llvm::raw_fd_ostream out(path, ec, llvm::sys::fs::OF_Text);
@@ -2590,7 +2765,9 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
                                    const CapCatalog &cat,
                                    const ResolvedProfile *evi = nullptr,
                                    StringRef dumpPath = {},
-                                   StringRef measuredTablePath = {}) {
+                                   StringRef measuredTablePath = {},
+                                   StringRef schedulePolicy = {},
+                                   bool explain = false) {
   if (evi) {
     llvm::errs() << "evidence-bounded-schedule profile=" << evi->name
                  << " device=" << evi->device
@@ -2710,12 +2887,23 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     printJointSchedule(chains);
     GlobalSchedule glob = planGlobalSchedule(chains);
     printGlobalSchedule(glob, chains.size());
-    printGlobalCostRank(rankGlobalCost(chains, sites, glob), glob);
+    GlobalCostRank costRank = rankGlobalCost(chains, sites, glob);
+    printGlobalCostRank(costRank, glob);
     SmallVector<MeasuredCostRecord, 8> measuredTable;
     if (failed(loadMeasuredCostTable(measuredTablePath, measuredTable)))
       return failure();
-    printGlobalMeasuredRank(
-        rankGlobalMeasured(glob, evi->name, measuredTable), glob);
+    GlobalMeasuredRank measRank =
+        rankGlobalMeasured(glob, evi->name, measuredTable);
+    printGlobalMeasuredRank(measRank, glob);
+    FailureOr<SchedulePolicyKind> parsed = parseSchedulePolicy(schedulePolicy);
+    if (failed(parsed))
+      return failure();
+    NamedPolicyPick pick =
+        pickNamedPolicy(*parsed, glob, costRank, measRank);
+    printNamedSchedulePolicy(*parsed, pick);
+    if (explain)
+      printScheduleExplain(*parsed, evi->name, sites, glob, costRank, measRank,
+                           pick);
     ReuseStats reuse = applyProvenResidencyReuse(module);
     llvm::errs() << "hierarchy-reuse applied=" << reuse.applied
                  << " skipped=" << reuse.skipped
@@ -2727,7 +2915,7 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     reportLoopPipeline(module);
     if (!dumpPath.empty() &&
         failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites, chains,
-                                    reuse, measuredTable)))
+                                    reuse, measuredTable, schedulePolicy)))
       return failure();
     if (!glob.historicalInF)
       return failure();
@@ -2790,8 +2978,15 @@ struct S2C2EvidenceBoundedSchedule
       signalPassFailure();
       return;
     }
+    std::string policy = schedulePolicy;
+    if (policy.empty())
+      policy = clSchedulePolicy;
+    bool doExplain = explain || clScheduleExplain;
+    std::string table = measuredCostTable;
+    if (table.empty())
+      table = clMeasuredCostTable;
     if (failed(applySchedule(getOperation(), resolved.device, cat, &resolved,
-                             dumpSchedule, measuredCostTable)))
+                             dumpSchedule, table, policy, doExplain)))
       signalPassFailure();
   }
 };

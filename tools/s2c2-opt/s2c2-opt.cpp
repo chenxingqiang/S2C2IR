@@ -13,6 +13,21 @@
 #include "mlir/InitAllPasses.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
+#include "llvm/ADT/StringRef.h"
+
+#include <string>
+#include <vector>
+
+static bool argvHas(int argc, char **argv, llvm::StringRef key) {
+  std::string eq = (key + "=").str();
+  for (int i = 1; i < argc; ++i) {
+    llvm::StringRef a(argv[i]);
+    if (a == key || a.starts_with(eq))
+      return true;
+  }
+  return false;
+}
+
 int main(int argc, char **argv) {
   mlir::registerAllPasses();
   mlir::s2c2::registerPasses();
@@ -23,6 +38,26 @@ int main(int argc, char **argv) {
                   mlir::s2c2::comp::ComputeDialect,
                   mlir::s2c2::comm::CommDialect,
                   mlir::s2c2::sched::ScheduleDialect>();
+
+  bool wantsSchedule =
+      argvHas(argc, argv, "--schedule-policy") ||
+      argvHas(argc, argv, "--explain") ||
+      argvHas(argc, argv, "--measured-cost-table");
+  bool hasPass = argvHas(argc, argv, "--s2c2-evidence-bounded-schedule");
+  if (wantsSchedule && !hasPass) {
+    std::vector<std::string> storage;
+    storage.emplace_back(argv[0]);
+    storage.emplace_back("--s2c2-evidence-bounded-schedule");
+    for (int i = 1; i < argc; ++i)
+      storage.emplace_back(argv[i]);
+    std::vector<char *> ptrs;
+    ptrs.reserve(storage.size());
+    for (std::string &s : storage)
+      ptrs.push_back(s.data());
+    return mlir::asMainReturnCode(mlir::MlirOptMain(
+        static_cast<int>(ptrs.size()), ptrs.data(),
+        "S2C2 optimizer driver\n", registry));
+  }
 
   return mlir::asMainReturnCode(
       mlir::MlirOptMain(argc, argv, "S2C2 optimizer driver\n", registry));

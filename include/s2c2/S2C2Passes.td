@@ -456,6 +456,11 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     `measured-storage-v1` records. Ranking does not retarget
     `default-3g` and does not rewrite the measured winner.
     Frozen `cost-v04` is unchanged. Does not flatten C||Storage.
+    Optional `schedule-policy` names which ranking is the
+    production selection (`default-3g` / `cost-v04` /
+    `measured-storage-v1`). Policy cannot create legality or a
+    rewrite license. Optional `explain` prints the selection
+    account. 5A–5D remain frozen. 5E is not opened.
   }];
   let dependentDialects = [
     "mlir::s2c2::sched::ScheduleDialect",
@@ -474,7 +479,12 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
            "Optional JSON dump of discovered candidates and decisions">,
     Option<"measuredCostTable", "measured-cost-table", "std::string",
            /*default=*/"\"\"",
-           "Optional JSONL of measured-storage-v1 candidate records">
+           "Optional JSONL of measured-storage-v1 candidate records">,
+    Option<"schedulePolicy", "schedule-policy", "std::string",
+           /*default=*/"\"\"",
+           "Selection policy: default-3g|cost-v04|measured-storage-v1">,
+    Option<"explain", "explain", "bool", /*default=*/"false",
+           "Print F, evidence, named-policy selection, rewrite=no">
   ];
 }
 
