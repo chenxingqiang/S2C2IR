@@ -213,3 +213,7 @@ changing the 4B chain definition
 memory-capacity-aware residency (later)
 growing F with a new enumerator
 ```
+
+Next structural question (design only):
+[`storage-measured-5d.md`](storage-measured-5d.md). Do not
+re-measure this n-tile 4-set.

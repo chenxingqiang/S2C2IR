@@ -851,7 +851,9 @@ re-measure that 8-set. Phase 5C implementation:
 [`storage-measured-5c.md`](storage-measured-5c.md). Host
 schema plus 4090 / 910B 4/4 device tables. Both devices
 `diverge=no`. Do not pre-claim contention. Do not re-measure
-this 4-set to manufacture `diverge=yes`.
+this 4-set to manufacture `diverge=yes`. Phase 5D design:
+[`storage-measured-5d.md`](storage-measured-5d.md). Last
+existing enumerated `|F|>2`. No device fill in this cut.
 
 ## Measured storage, |F| > 2 (Phase 5B)
 
@@ -885,6 +887,23 @@ not manufacture `diverge=yes`. Do not pre-claim contention.
 | 5C-5 | same | no FileCheck of microseconds; adapters `--storage-ntile-measured`; `#69` untouched |
 | 5C-6 | `test/Integration/storage-measured-5c-4090.mlir` | 4090 n-tile table: 4/4 measured; ArgMin is PREFETCH+PREFETCH / `diverge=no`; hierarchy table and 910B profile stay `not-measured` |
 | 5C-7 | `test/Integration/storage-measured-5c-910b.mlir` | 910B n-tile table: 4/4 measured; ArgMin is PREFETCH+PREFETCH / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
+
+## Measured storage, last existing F (Phase 5D)
+
+**Not Cost v0.4.** Same `policy=measured-storage-v1`. First
+target `@ssd_loop_pipeline` (PREFETCH/PRESERVE ×
+loop-invariant KEEP/TRANSFER). Do not re-measure frozen
+5A/5B/5C sets. Do not manufacture `diverge=yes`. Do not
+pre-claim the joint trade-off. Design lock only in this
+cut; device tables later.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5D-1 | `test/Integration/storage-measured-5d.mlir` | `@ssd_loop_pipeline` product=4 enumerated; `default-3g` is PREFETCH+KEEP |
+| 5D-2 | same | four compiler signatures; `cost-v04` scores 2/3/3/4 still `diverge=no` |
+| 5D-3 | same | 5B hierarchy and 5C n-tile tables stay `not-measured` |
+| 5D-4 | same | no FileCheck of microseconds; `#69` untouched; no `sched.wait` |
+| 5D-5 | later | 4090 / 910B device-log tables; ArgMin may be `diverge=yes` or `no` |
 
 ## Complete SSD + MLP program wall-clock
 
