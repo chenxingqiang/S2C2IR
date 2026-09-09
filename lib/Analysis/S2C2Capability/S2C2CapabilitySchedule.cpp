@@ -32,7 +32,11 @@
 // policy=cost-v04 and is FROZEN at the coincide witness. Do not add
 // structural ticks. Ranking does not invent members, does not
 // replace default-3g, and does not rank a truncated product.
-// Frozen --s2c2-cost / --s2c2-argmin / Score_3 stay untouched.
+// Phase 5A ranks enumerated F(program) under
+// policy=measured-storage-v1 from candidate-local records. It does
+// not add ticks, does not retarget default-3g, and does not apply
+// the measured winner as a rewrite. Frozen --s2c2-cost /
+// --s2c2-argmin / Score_3 stay untouched.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -1992,6 +1996,234 @@ static void printGlobalCostRank(const GlobalCostRank &r,
                  << "\n";
 }
 
+enum class MeasuredStatus { No, Yes, Pending };
+
+struct MeasuredCostRecord {
+  std::string profile;
+  std::string workloadClass;
+  std::string signature;
+  int64_t timeUs = 0;
+  int64_t correctness = 0;
+  MeasuredStatus measured = MeasuredStatus::No;
+};
+
+struct GlobalMeasuredRank {
+  SmallVector<ChainAssignment, 4> ranked;
+  unsigned measuredCount = 0;
+  unsigned argminSize = 0;
+  bool enumerated = false;
+  bool applicable = false;
+  bool rankedInLegal = false;
+  bool rankedEqDefault3g = false;
+  bool defaultMeasured = false;
+  SmallVector<bool, 16> hasEvidence;
+};
+
+static LogicalResult
+loadMeasuredCostTable(StringRef path,
+                      SmallVectorImpl<MeasuredCostRecord> &out) {
+  if (path.empty())
+    return success();
+  std::string resolved = resolveExistingPath(path, {});
+  auto fileOr = llvm::MemoryBuffer::getFile(resolved);
+  if (!fileOr) {
+    llvm::errs() << "s2c2-evidence-bounded-schedule: cannot read "
+                 << "measured-cost-table " << path << "\n";
+    return failure();
+  }
+  StringRef text = fileOr.get()->getBuffer();
+  while (!text.empty()) {
+    auto [line, rest] = text.split('\n');
+    text = rest;
+    line = line.trim();
+    if (line.empty() || line.starts_with("#"))
+      continue;
+    auto parsed = llvm::json::parse(line);
+    if (!parsed) {
+      llvm::errs() << "s2c2-evidence-bounded-schedule: invalid JSONL in "
+                   << path << "\n";
+      return failure();
+    }
+    auto *obj = parsed->getAsObject();
+    if (!obj)
+      continue;
+    MeasuredCostRecord rec;
+    if (auto p = obj->getString("profile"))
+      rec.profile = p->str();
+    if (auto w = obj->getString("workload_class"))
+      rec.workloadClass = w->str();
+    if (auto s = obj->getString("candidate_signature"))
+      rec.signature = s->str();
+    if (auto t = obj->getInteger("measured_time_us"))
+      rec.timeUs = *t;
+    else if (auto tn = obj->getNumber("measured_time_us"))
+      rec.timeUs = (int64_t)*tn;
+    if (auto c = obj->getInteger("correctness"))
+      rec.correctness = *c;
+    else if (auto cn = obj->getNumber("correctness"))
+      rec.correctness = (int64_t)*cn;
+    if (auto m = obj->getString("measured")) {
+      if (m->equals_insensitive("yes"))
+        rec.measured = MeasuredStatus::Yes;
+      else if (m->equals_insensitive("pending"))
+        rec.measured = MeasuredStatus::Pending;
+      else
+        rec.measured = MeasuredStatus::No;
+    }
+    // Keep no/pending rows so the matcher can reject them. Only
+    // measured=yes && correctness=1 is ranking evidence.
+    if (rec.signature.empty())
+      continue;
+    out.push_back(std::move(rec));
+  }
+  return success();
+}
+
+static const MeasuredCostRecord *
+findMeasuredRecord(ArrayRef<MeasuredCostRecord> table, StringRef profile,
+                   StringRef signature) {
+  const MeasuredCostRecord *hit = nullptr;
+  for (const MeasuredCostRecord &r : table) {
+    if (r.profile == profile && r.signature == signature &&
+        r.measured == MeasuredStatus::Yes && r.correctness == 1)
+      hit = &r;
+  }
+  return hit;
+}
+
+/// Rank enumerated F(program) under policy=measured-storage-v1.
+/// ArgMin is over measured ∩ F only. A truncated product is not
+/// ranked. default-3g is not retargeted. cost-v04 is not changed.
+static GlobalMeasuredRank
+rankGlobalMeasured(const GlobalSchedule &g, StringRef profile,
+                   ArrayRef<MeasuredCostRecord> table) {
+  GlobalMeasuredRank r;
+  if (!g.enumerated)
+    return r;
+  r.enumerated = true;
+  r.hasEvidence.resize(g.legal.size());
+  int64_t best = INT64_MAX;
+  SmallVector<unsigned, 8> argminIdx;
+  for (unsigned i = 0; i < g.legal.size(); ++i) {
+    std::string sig = joinGlobal(g.legal[i]);
+    const MeasuredCostRecord *rec = findMeasuredRecord(table, profile, sig);
+    if (!rec)
+      continue;
+    r.hasEvidence[i] = true;
+    r.measuredCount += 1;
+    if (sameGlobal(g.legal[i], g.selected))
+      r.defaultMeasured = true;
+    if (rec->timeUs < best) {
+      best = rec->timeUs;
+      argminIdx.clear();
+      argminIdx.push_back(i);
+    } else if (rec->timeUs == best) {
+      argminIdx.push_back(i);
+    }
+  }
+  if (r.measuredCount < 2)
+    return r;
+  r.applicable = true;
+  r.argminSize = argminIdx.size();
+  int pick = -1;
+  if (r.defaultMeasured) {
+    for (unsigned i : argminIdx) {
+      if (sameGlobal(g.legal[i], g.selected)) {
+        pick = (int)i;
+        break;
+      }
+    }
+  }
+  if (pick < 0 && !argminIdx.empty())
+    pick = (int)argminIdx.front();
+  if (pick >= 0) {
+    r.ranked.assign(g.legal[pick].begin(), g.legal[pick].end());
+    r.rankedInLegal = true;
+  }
+  r.rankedEqDefault3g = r.defaultMeasured && pick >= 0 &&
+                        sameGlobal(r.ranked, g.selected);
+  return r;
+}
+
+static void printGlobalMeasuredRank(const GlobalMeasuredRank &r,
+                                    const GlobalSchedule &g) {
+  if (!g.enumerated) {
+    llvm::errs() << "hierarchy-global-measured ranked=not-enumerated"
+                 << " policy=measured-storage-v1"
+                 << " note measured-does-not-rank-truncated-F"
+                 << " note measured-ne-legality"
+                 << " note measured-ne-rewrite-license"
+                 << " note default-3g-frozen"
+                 << " note cost-v04-structural-frozen"
+                 << " note not-new-capability-grid"
+                 << " note do-not-filecheck-microseconds\n";
+    llvm::errs() << "hierarchy-global-measured-schedule enumerated=no"
+                 << " truncated=yes ranked-in-legal=n/a"
+                 << " ranked-eq-default-3g=n/a measured-count=n/a"
+                 << " argmin-size=n/a policy=measured-storage-v1"
+                 << " note measured-does-not-rank-truncated-F"
+                 << " note default-3g-frozen\n";
+    llvm::errs() << "hierarchy-global-measured-diverge diverge=n/a"
+                 << " note measured-does-not-rank-truncated-F"
+                 << " note runtime-validation-pending"
+                 << " note cost-v04-structural-frozen\n";
+    return;
+  }
+  if (!r.applicable) {
+    llvm::errs() << "hierarchy-global-measured ranked=not-measured"
+                 << " policy=measured-storage-v1"
+                 << " note measured-needs-two-records"
+                 << " note measured-yes-and-correctness"
+                 << " note measured-ne-legality"
+                 << " note measured-ne-rewrite-license"
+                 << " note default-3g-frozen"
+                 << " note cost-v04-structural-frozen"
+                 << " note not-new-capability-grid"
+                 << " note do-not-filecheck-microseconds\n";
+    llvm::errs() << "hierarchy-global-measured-schedule enumerated=yes"
+                 << " truncated=no ranked-in-legal=n/a"
+                 << " ranked-eq-default-3g=n/a measured-count="
+                 << r.measuredCount << " argmin-size=n/a"
+                 << " policy=measured-storage-v1"
+                 << " note measured-needs-two-records"
+                 << " note measured-yes-and-correctness"
+                 << " note default-3g-frozen\n";
+    llvm::errs() << "hierarchy-global-measured-diverge diverge=n/a"
+                 << " note measured-needs-two-records"
+                 << " note runtime-validation-pending"
+                 << " note cost-v04-structural-frozen\n";
+    return;
+  }
+  llvm::errs() << "hierarchy-global-measured ranked=" << joinGlobal(r.ranked)
+               << " policy=measured-storage-v1"
+               << " note measured-yes-and-correctness"
+               << " note measured-ne-legality"
+               << " note measured-ne-rewrite-license"
+               << " note default-3g-frozen"
+               << " note cost-v04-structural-frozen"
+               << " note not-new-capability-grid"
+               << " note do-not-filecheck-microseconds\n";
+  llvm::errs() << "hierarchy-global-measured-schedule enumerated=yes"
+               << " truncated=no ranked-in-legal="
+               << (r.rankedInLegal ? "yes" : "no")
+               << " ranked-eq-default-3g="
+               << (!r.defaultMeasured ? "n/a"
+                                      : (r.rankedEqDefault3g ? "yes" : "no"))
+               << " measured-count=" << r.measuredCount
+               << " argmin-size=" << r.argminSize
+               << " policy=measured-storage-v1"
+               << " note measured-ne-legality note default-3g-frozen\n";
+  llvm::errs() << "hierarchy-global-measured-diverge diverge="
+               << (!r.defaultMeasured ? "n/a"
+                                      : (r.rankedEqDefault3g ? "no" : "yes"))
+               << " note runtime-validation-pending"
+               << " note cost-v04-structural-frozen\n";
+  for (unsigned i = 0; i < g.legal.size(); ++i)
+    llvm::errs() << "hierarchy-global-measured-candidate actions="
+                 << joinGlobal(g.legal[i])
+                 << " evidence=" << (r.hasEvidence[i] ? "yes" : "no") << "\n";
+}
+
 static bool isStorageOverlapConcurrent(ConcurrentOp conc) {
   SmallVector<TaskOp> tasks(conc.getBody().front().getOps<TaskOp>());
   if (tasks.size() != 2)
@@ -2046,7 +2278,8 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
                                           ArrayRef<WorkloadDecision> decs,
                                           ArrayRef<HierarchySite> sites,
                                           ArrayRef<JointChain> chains,
-                                          ReuseStats reuse) {
+                                          ReuseStats reuse,
+                                          ArrayRef<MeasuredCostRecord> table) {
   llvm::json::Array cands;
   unsigned keep = 0, flatten = 0, preserve = 0;
   for (const WorkloadDecision &d : decs) {
@@ -2235,6 +2468,44 @@ static LogicalResult dumpWorkloadSchedule(StringRef path,
     }
     root["hierarchy_global_cost"] = std::move(costCands);
   }
+  GlobalMeasuredRank measRank = rankGlobalMeasured(glob, evi.name, table);
+  root["hierarchy_global_measured_policy"] = "measured-storage-v1";
+  if (!glob.enumerated) {
+    root["hierarchy_global_measured_ranked"] = "not-enumerated";
+    root["hierarchy_global_measured_ranked_in_legal"] = "n/a";
+    root["hierarchy_global_measured_ranked_eq_default_3g"] = "n/a";
+    root["hierarchy_global_measured_count"] = "n/a";
+    root["hierarchy_global_measured_argmin_size"] = "n/a";
+    root["hierarchy_global_measured_diverge"] = "n/a";
+  } else if (!measRank.applicable) {
+    root["hierarchy_global_measured_ranked"] = "not-measured";
+    root["hierarchy_global_measured_ranked_in_legal"] = "n/a";
+    root["hierarchy_global_measured_ranked_eq_default_3g"] = "n/a";
+    root["hierarchy_global_measured_count"] = (int64_t)measRank.measuredCount;
+    root["hierarchy_global_measured_argmin_size"] = "n/a";
+    root["hierarchy_global_measured_diverge"] = "n/a";
+  } else {
+    root["hierarchy_global_measured_ranked"] = joinGlobal(measRank.ranked);
+    root["hierarchy_global_measured_ranked_in_legal"] =
+        measRank.rankedInLegal ? "yes" : "no";
+    root["hierarchy_global_measured_ranked_eq_default_3g"] =
+        !measRank.defaultMeasured ? "n/a"
+                                  : (measRank.rankedEqDefault3g ? "yes" : "no");
+    root["hierarchy_global_measured_count"] = (int64_t)measRank.measuredCount;
+    root["hierarchy_global_measured_argmin_size"] =
+        (int64_t)measRank.argminSize;
+    root["hierarchy_global_measured_diverge"] =
+        !measRank.defaultMeasured ? "n/a"
+                                  : (measRank.rankedEqDefault3g ? "no" : "yes");
+    llvm::json::Array measCands;
+    for (unsigned i = 0; i < glob.legal.size(); ++i) {
+      llvm::json::Object obj;
+      obj["actions"] = joinGlobal(glob.legal[i]);
+      obj["evidence"] = measRank.hasEvidence[i] ? "yes" : "no";
+      measCands.push_back(std::move(obj));
+    }
+    root["hierarchy_global_measured"] = std::move(measCands);
+  }
   root["hierarchy_reuse_applied"] = (int64_t)reuse.applied;
   root["hierarchy_reuse_skipped"] = (int64_t)reuse.skipped;
   root["cost"] = "unchanged";
@@ -2315,7 +2586,8 @@ static void walkAndQuery(ModuleOp module, StringRef device,
 static LogicalResult applySchedule(ModuleOp module, StringRef device,
                                    const CapCatalog &cat,
                                    const ResolvedProfile *evi = nullptr,
-                                   StringRef dumpPath = {}) {
+                                   StringRef dumpPath = {},
+                                   StringRef measuredTablePath = {}) {
   if (evi) {
     llvm::errs() << "evidence-bounded-schedule profile=" << evi->name
                  << " device=" << evi->device
@@ -2436,6 +2708,11 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     GlobalSchedule glob = planGlobalSchedule(chains);
     printGlobalSchedule(glob, chains.size());
     printGlobalCostRank(rankGlobalCost(chains, sites, glob), glob);
+    SmallVector<MeasuredCostRecord, 8> measuredTable;
+    if (failed(loadMeasuredCostTable(measuredTablePath, measuredTable)))
+      return failure();
+    printGlobalMeasuredRank(
+        rankGlobalMeasured(glob, evi->name, measuredTable), glob);
     ReuseStats reuse = applyProvenResidencyReuse(module);
     llvm::errs() << "hierarchy-reuse applied=" << reuse.applied
                  << " skipped=" << reuse.skipped
@@ -2447,7 +2724,7 @@ static LogicalResult applySchedule(ModuleOp module, StringRef device,
     reportLoopPipeline(module);
     if (!dumpPath.empty() &&
         failed(dumpWorkloadSchedule(dumpPath, *evi, decisions, sites, chains,
-                                    reuse)))
+                                    reuse, measuredTable)))
       return failure();
     if (!glob.historicalInF)
       return failure();
@@ -2511,7 +2788,7 @@ struct S2C2EvidenceBoundedSchedule
       return;
     }
     if (failed(applySchedule(getOperation(), resolved.device, cat, &resolved,
-                             dumpSchedule)))
+                             dumpSchedule, measuredCostTable)))
       signalPassFailure();
   }
 };
