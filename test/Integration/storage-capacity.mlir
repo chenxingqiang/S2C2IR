@@ -41,6 +41,23 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl 2>&1 | FileCheck %s --check-prefix=QUERYTRUNC
 // RUN: not s2c2-opt %s --query-capacity-plan 2>&1 | FileCheck %s --check-prefix=NOQCAP
 // RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=QBOTH
+// RUN: python3 %S/../../runtime/record_capacity.py --print-capacity-policy-contract | FileCheck %s --check-prefix=POLC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HSEL
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HSELFIT
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=HSELTRUNC
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=invented 2>&1 | FileCheck %s --check-prefix=HSELBAD
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 2>&1 | FileCheck %s --check-prefix=HSELMEAS
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SEL
+// RUN: s2c2-opt %s --capacity-policy=s0 --capacity=2 2>&1 | FileCheck %s --check-prefix=SEL
+// RUN: s2c2-opt %s --s2c2-capacity-plan-query="capacity=2 capacity-policy=s0" 2>&1 | FileCheck %s --check-prefix=SEL
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=s0 --dump-capacity-plan=%t.sel.json 2>&1 | FileCheck %s --check-prefix=SEL
+// RUN: FileCheck %s --check-prefix=SELJSON --input-file=%t.sel.json
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SELFIT
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SELTRUNC
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=invented 2>&1 | FileCheck %s --check-prefix=SELBAD
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 2>&1 | FileCheck %s --check-prefix=SELMEAS
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=none 2>&1 | FileCheck %s --check-prefix=QUERY
+// RUN: s2c2-opt %s --capacity-policy=s0 --capacity=2 --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=SELBOTH
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -313,6 +330,82 @@
 // QBOTH: evidence-bounded-schedule
 // QBOTH: s2c2-schedule-policy name=default-3g{{.*}}rewrite=no
 // QBOTH-NOT: rewrite-license=yes
+
+// POLC: capacity-policy consumer=query
+// POLC: policy none|s0
+// POLC: s0 first(F_capacity)
+// POLC: rewrite-license no
+// POLC: note selection-ne-rewrite-license
+// POLC: note s0-ne-must-evict
+// POLC: note truncated-ne-select
+// POLC: note six-c-d-query-frozen
+// POLC: note six-c-e-selection-this-cut
+// POLC: note measured-capacity-v1-not-opened
+// POLC: cost=unchanged
+
+// HSEL: capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
+// HSEL: capacity-plan-query candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
+// HSEL: capacity-plan-query candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
+// HSEL: capacity-plan-query candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
+// HSEL: capacity-plan-query note selected-in-f-capacity
+// HSEL: capacity-plan-query note s0-ne-must-evict
+// HSEL: capacity-policy name=s0 selected=keep{0,1}|evict{2}|rematerialize{}
+// HSEL: capacity-policy note selection-ne-rewrite-license
+// HSEL-NOT: selected=none policy=s0
+// HSEL-NOT: keep{0,1,2}
+
+// HSELFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0
+// HSELFIT: rewrite-license=no
+// HSELFIT-NOT: evict{0}
+
+// HSELTRUNC: truncated plan cannot be selected
+// HSELTRUNC-NOT: selected=keep
+
+// HSELBAD: unknown --capacity-policy=
+// HSELMEAS: measured-capacity-v1 is not opened
+
+// SEL: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
+// SEL: s2c2-capacity-plan-query candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
+// SEL: s2c2-capacity-plan-query candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
+// SEL: s2c2-capacity-plan-query candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
+// SEL: s2c2-capacity-plan-query note selected-in-f-capacity
+// SEL: s2c2-capacity-plan-query note s0-ne-must-evict
+// SEL: s2c2-capacity-plan-query note six-c-e-selection-this-cut
+// SEL: s2c2-capacity-policy name=s0 selected=keep{0,1}|evict{2}|rematerialize{}{{.*}}rewrite=no rewrite-license=no{{.*}}note selection-ne-rewrite-license{{.*}}note s0-ne-must-evict
+// SEL-NOT: s2c2-storage-capacity
+// SEL-NOT: evidence-bounded-schedule
+// SEL-NOT: hierarchy-global
+// SEL-NOT: s2c2-capacity-plan schema=
+// SEL-NOT: rewrite-license=yes
+// SEL-NOT: sched.wait
+// SEL-NOT: keep{0,1,2}
+
+// SELJSON-DAG: "schema":"s2c2.capacity_plan.v1"
+// SELJSON-DAG: "selected":"keep{0,1}|evict{2}|rematerialize{}"
+// SELJSON-DAG: "policy":"s0"
+// SELJSON-DAG: "rewrite":"no"
+// SELJSON-DAG: "rewrite_license":"no"
+// SELJSON-DAG: "identity":"keep{1,2}|evict{0}|rematerialize{}"
+// SELJSON-DAG: "identity":"keep{0,2}|evict{1}|rematerialize{}"
+// SELJSON-NOT: "selected":"none"
+
+// SELFIT: s2c2-capacity-plan-query selected=keep{0,1}|evict{}|rematerialize{} policy=s0
+// SELFIT: rewrite-license=no
+// SELFIT-NOT: s2c2-storage-capacity
+// SELFIT-NOT: evidence-bounded-schedule
+// SELFIT-NOT: evict{0}
+
+// SELTRUNC: truncated plan cannot be selected
+// SELTRUNC-NOT: evidence-bounded-schedule
+// SELTRUNC-NOT: rewrite-license=yes
+
+// SELBAD: unknown --capacity-policy=
+// SELMEAS: measured-capacity-v1 is not opened
+
+// SELBOTH: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0
+// SELBOTH: s2c2-capacity-plan selected=none
+// SELBOTH: s2c2-schedule-policy name=default-3g{{.*}}rewrite=no
+// SELBOTH-NOT: rewrite-license=yes
 
 module {
   // Four HBM tiles, capacity=2. Unpack tile0 after tile2 is

@@ -165,6 +165,11 @@ llvm::cl::opt<std::string> clDumpCapacityPlan(
     llvm::cl::desc("Query CapacityPlan as a consumer API (selected=none; "
                    "does not run the schedule pass)"),
     llvm::cl::init(false));
+llvm::cl::opt<std::string> clCapacityPolicy(
+    "capacity-policy",
+    llvm::cl::desc("Select from F_capacity: none or s0 (first / evict "
+                   "incoming). Selection only; not a rewrite license."),
+    llvm::cl::ValueRequired, llvm::cl::init(""));
 
 enum class Applicability { Yes, No, Unknown };
 
@@ -3390,16 +3395,65 @@ static void printCapacityPlanQuery(const CapacityPlan &plan) {
                << llvm::json::Value(capacityPlanToJson(plan)) << "\n";
   llvm::errs() << "s2c2-capacity-plan-query rewrite=no\n";
   llvm::errs() << "s2c2-capacity-plan-query note not-schedule-pass\n";
-  llvm::errs() << "s2c2-capacity-plan-query note selected-none\n";
+  if (plan.selected == "none")
+    llvm::errs() << "s2c2-capacity-plan-query note selected-none\n";
+  else
+    llvm::errs() << "s2c2-capacity-plan-query note selected-in-f-capacity\n";
   llvm::errs() << "s2c2-capacity-plan-query note rewrite-license-no\n";
   llvm::errs() << "s2c2-capacity-plan-query note consumer-api\n";
+  if (plan.policy == "s0")
+    llvm::errs() << "s2c2-capacity-plan-query note s0-ne-must-evict\n";
   llvm::errs() << "s2c2-capacity-plan-query note measured-capacity-v1-not-opened\n";
-  llvm::errs() << "s2c2-capacity-plan-query note six-c-d-query-this-cut "
-                  "cost=unchanged\n";
+  if (plan.policy == "none")
+    llvm::errs() << "s2c2-capacity-plan-query note six-c-d-query-this-cut "
+                    "cost=unchanged\n";
+  else
+    llvm::errs() << "s2c2-capacity-plan-query note six-c-e-selection-this-cut "
+                    "cost=unchanged\n";
+}
+
+static LogicalResult applyCapacityPolicy(CapacityPlan &plan, StringRef name) {
+  StringRef n = name.trim();
+  if (n.empty() || n.equals_insensitive("none"))
+    return success();
+  if (n.equals_insensitive("measured-capacity-v1") ||
+      n.equals_insensitive("measured")) {
+    llvm::errs() << "s2c2-capacity-policy: measured-capacity-v1 is not opened\n";
+    return failure();
+  }
+  if (!n.equals_insensitive("s0")) {
+    llvm::errs() << "s2c2-opt: unknown --capacity-policy=" << name << "\n";
+    return failure();
+  }
+  if (plan.truncated || !plan.enumerated) {
+    llvm::errs() << "s2c2-capacity-policy: truncated plan cannot be selected\n";
+    return failure();
+  }
+  if (plan.candidates.empty()) {
+    llvm::errs() << "s2c2-capacity-policy: empty F_capacity cannot be selected\n";
+    return failure();
+  }
+  plan.policy = "s0";
+  plan.selected = plan.candidates.front().identity;
+  return success();
+}
+
+static void printCapacityPolicy(const CapacityPlan &plan) {
+  if (plan.policy == "none")
+    return;
+  llvm::errs() << "s2c2-capacity-policy name=" << plan.policy
+               << " selected=" << plan.selected
+               << " applicable=yes source=s0 rewrite=no rewrite-license=no"
+               << " note selection-ne-legality"
+               << " note selection-ne-rewrite-license"
+               << " note s0-ne-must-evict"
+               << " note truncated-ne-select"
+               << " note measured-capacity-v1-not-opened cost=unchanged\n";
 }
 
 static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
-                                       StringRef specPath, StringRef dumpPath) {
+                                       StringRef specPath, StringRef dumpPath,
+                                       StringRef policyName) {
   if (budgetStr.empty() && specPath.empty()) {
     llvm::errs() << "s2c2-capacity-plan-query: --query-capacity-plan requires "
                     "--capacity or --capacity-spec\n";
@@ -3415,8 +3469,12 @@ static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
                                     "s2c2-capacity-plan-query");
   if (failed(planOr))
     return failure();
-  printCapacityPlanQuery(*planOr);
-  if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, *planOr)))
+  CapacityPlan plan = *planOr;
+  if (failed(applyCapacityPolicy(plan, policyName)))
+    return failure();
+  printCapacityPlanQuery(plan);
+  printCapacityPolicy(plan);
+  if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, plan)))
     return failure();
   return success();
 }
@@ -3674,12 +3732,15 @@ struct S2C2CapacityPlanQuery
 
   void runOnOperation() override {
     // Occupancy query only. Does not load Evidence DB or rewrite IR.
-    // selected stays none; this is not a rewrite license.
+    // Default selected=none. capacity-policy=s0 selects first(F_capacity);
+    // that is not a rewrite license.
     std::string cap = capacityBudget.empty() ? clCapacityBudget : capacityBudget;
     std::string spec = capacitySpec.empty() ? clCapacitySpec : capacitySpec;
     std::string dump =
         dumpCapacityPlan.empty() ? clDumpCapacityPlan : dumpCapacityPlan;
-    if (failed(queryCapacityPlan(getOperation(), cap, spec, dump)))
+    std::string policy =
+        capacityPolicy.empty() ? clCapacityPolicy : capacityPolicy;
+    if (failed(queryCapacityPlan(getOperation(), cap, spec, dump, policy)))
       signalPassFailure();
   }
 };
