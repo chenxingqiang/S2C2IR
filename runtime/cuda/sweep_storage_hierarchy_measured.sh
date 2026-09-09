@@ -17,7 +17,11 @@ mkdir -p "$(dirname "$OUT")"
 echo "sweep_storage_hierarchy_measured n-tile=$N_TILE k_ref=$K arms=8" >> "${OUT}.log"
 "$BIN" --storage-hierarchy-measured --n="$N_TILE" --k="$K" \
   --warmup="$WARMUP" --reps="$REPS" --device=gpu 2>> "${OUT}.log"
-python3 "$HERE/../ascend/record_ascend.py" \
+REC=${S2C2_RECORD_PY:-"$HERE/../ascend/record_ascend.py"}
+if [ ! -f "$REC" ]; then
+  REC="$HERE/record_ascend.py"
+fi
+python3 "$REC" \
   --emit-storage-measured-from-hierarchy "${OUT}.log" \
   | tee "${OUT}.jsonl"
 echo "sweep_storage_hierarchy_measured wrote ${OUT}.log ${OUT}.jsonl; not Cost; #69 untouched"

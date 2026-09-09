@@ -67,7 +67,11 @@ loop-program wall-clock (`measured=yes`).
 `storage-measured-4090.log` is the 4090 per-candidate
 `measured-storage-v1` fill. `storage-measured-910b.log`
 is the 910B counterpart and does not overwrite the 4090
-table. Do not FileCheck μs. Do not compare 4090 μs to 910B μs.
+table. `storage-measured-hierarchy-4090.log` and
+`storage-measured-hierarchy-910b.log` are the 8-inhabitant
+`@ssd_hierarchy_lifetime` fills and do not overwrite the
+pipeline S0/S1 tables. Do not FileCheck μs. Do not compare
+4090 μs to 910B μs.
 
 ## Batch check
 
@@ -104,6 +108,10 @@ runtime/ascend/sweep_storage_loop_wallclock.sh ./s2c2-ascend-run \
   docs/design/v3-dataset/storage-loop-wallclock
 runtime/ascend/sweep_storage_measured.sh ./s2c2-ascend-run \
   docs/design/v3-dataset/storage-measured-910b
+runtime/cuda/sweep_storage_hierarchy_measured.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/storage-measured-hierarchy-4090
+runtime/ascend/sweep_storage_hierarchy_measured.sh ./s2c2-ascend-run \
+  docs/design/v3-dataset/storage-measured-hierarchy-910b
 python3 runtime/record_hw_ledger.py --check-hw-ledger
 ```
 

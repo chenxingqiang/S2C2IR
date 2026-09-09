@@ -1,0 +1,28 @@
+sweep_storage_hierarchy_measured n-tile=4194304 k_ref=32 arms=8
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run storage-hierarchy-measured=1
+s2c2-ascend-run storage-hierarchy-measured program-measurement=yes
+s2c2-ascend-run storage-hierarchy-measured note one-arm-per-signature
+s2c2-ascend-run storage-hierarchy-measured note measurement-cannot-expand-F
+s2c2-ascend-run storage-hierarchy-measured note keep-residency-ne-rewrite
+s2c2-ascend-run storage-hierarchy-measured n-tile=4194304 k_ref=32 arms=8
+s2c2-ascend-run storage-hierarchy-measured measured=yes
+s2c2-ascend-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER|KEEP_RESIDENCY|KEEP_RESIDENCY timing=4102.0 correctness=1
+s2c2-ascend-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER|KEEP_RESIDENCY|TRANSFER timing=4751.8 correctness=1
+s2c2-ascend-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER|TRANSFER|KEEP_RESIDENCY timing=4939.8 correctness=1
+s2c2-ascend-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER|TRANSFER|TRANSFER timing=5672.1 correctness=1
+s2c2-ascend-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER|KEEP_RESIDENCY|KEEP_RESIDENCY timing=4498.7 correctness=1
+s2c2-ascend-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER|KEEP_RESIDENCY|TRANSFER timing=5164.9 correctness=1
+s2c2-ascend-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER|TRANSFER|KEEP_RESIDENCY timing=5556.0 correctness=1
+s2c2-ascend-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER|TRANSFER|TRANSFER timing=6295.5 correctness=1
+s2c2-ascend-run storage-hierarchy-measured count=8 note one-row-per-signature
+s2c2-ascend-run storage-hierarchy-measured note catalog-untouched
+s2c2-ascend-run storage-hierarchy-measured note not-pipeline-s0-s1
+s2c2-ascend-run storage-hierarchy-measured note not-cost-v04
+s2c2-ascend-run storage-hierarchy-measured note measured-ne-rewrite-license
+s2c2-ascend-run storage-hierarchy-measured cost=unchanged semantics=unchanged v3=not-claimed

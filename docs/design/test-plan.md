@@ -862,7 +862,8 @@ per `(profile, workload, signature)`.
 | 5B-3 | same | synth ArgMin follows the table; `cost-v04` still `diverge=no` |
 | 5B-4 | same | fixture `measured=no` and cross-profile tables stay `not-measured` |
 | 5B-5 | same | no FileCheck of microseconds; adapters `--storage-hierarchy-measured`; `#69` untouched |
-| 5B-6 | later | 4090 / 910B device-log tables; ArgMin may be `diverge=yes` or `no` |
+| 5B-6 | `test/Integration/storage-measured-5b-4090.mlir` | 4090 hierarchy table: 8 measured rows; ArgMin is PREFETCH+KEEP+KEEP / `diverge=no`; fixture and 910B profile stay `not-measured` |
+| 5B-7 | `test/Integration/storage-measured-5b-910b.mlir` | 910B hierarchy table: 8 measured rows; ArgMin is PREFETCH+KEEP+KEEP / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
 
 ## Complete SSD + MLP program wall-clock
 
