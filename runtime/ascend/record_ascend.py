@@ -1666,6 +1666,111 @@ def analyze_storage_cost(path: Path) -> int:
     return 0
 
 
+def print_storage_measured_contract() -> int:
+    print("storage-measured compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note measured-ranks-enumerated-F-only")
+    print("note measured-needs-two-records")
+    print("note measured-ne-legality")
+    print("note measured-ne-rewrite-license")
+    print("note policy=measured-storage-v1")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note truncated-ne-ranked")
+    print("note not-s2c2-argmin")
+    print("note not-score3")
+    print("note not-new-capability-grid")
+    print("note do-not-filecheck-microseconds")
+    print("note runtime-validation-pending")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_MEAS_RE = re.compile(
+    r"hierarchy-global-measured ranked=(\S+) policy=(\S+)"
+)
+_HIER_MEAS_SUM_RE = re.compile(
+    r"hierarchy-global-measured-schedule enumerated=(yes|no) truncated=(yes|no) "
+    r"ranked-in-legal=(\S+) ranked-eq-default-3g=(\S+) measured-count=(\S+) "
+    r"argmin-size=(\S+)"
+)
+_HIER_MEAS_DIV_RE = re.compile(
+    r"hierarchy-global-measured-diverge diverge=(\S+)"
+)
+
+
+def analyze_storage_measured(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    ranked = "not-measured"
+    enumerated = "no"
+    truncated = "yes"
+    in_legal = "n/a"
+    eq_default = "n/a"
+    measured_count = "n/a"
+    argmin = "n/a"
+    policy = "measured-storage-v1"
+    diverge = "n/a"
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        ranked = str(obj.get("hierarchy_global_measured_ranked", "not-measured"))
+        in_legal = str(
+            obj.get("hierarchy_global_measured_ranked_in_legal", "n/a")
+        )
+        eq_default = str(
+            obj.get("hierarchy_global_measured_ranked_eq_default_3g", "n/a")
+        )
+        measured_count = str(obj.get("hierarchy_global_measured_count", "n/a"))
+        argmin = str(obj.get("hierarchy_global_measured_argmin_size", "n/a"))
+        policy = str(
+            obj.get("hierarchy_global_measured_policy", "measured-storage-v1")
+        )
+        enumerated = str(obj.get("hierarchy_global_enumerated", "no"))
+        truncated = str(obj.get("hierarchy_global_truncated", "yes"))
+        diverge = str(obj.get("hierarchy_global_measured_diverge", "n/a"))
+    else:
+        m = _HIER_MEAS_SUM_RE.search(text)
+        g = _HIER_MEAS_RE.search(text)
+        d = _HIER_MEAS_DIV_RE.search(text)
+        if g:
+            ranked = g.group(1)
+            policy = g.group(2)
+        if m:
+            enumerated = m.group(1)
+            truncated = m.group(2)
+            in_legal = m.group(3)
+            eq_default = m.group(4)
+            measured_count = m.group(5)
+            argmin = m.group(6)
+        if d:
+            diverge = d.group(1)
+    print("storage-measured compiler-driven=yes")
+    print(f"storage-measured ranked={ranked}")
+    print(f"storage-measured enumerated={enumerated}")
+    print(f"storage-measured truncated={truncated}")
+    print(f"storage-measured ranked-in-legal={in_legal}")
+    print(f"storage-measured ranked-eq-default-3g={eq_default}")
+    print(f"storage-measured measured-count={measured_count}")
+    print(f"storage-measured argmin-size={argmin}")
+    print(f"storage-measured diverge={diverge}")
+    print(f"storage-measured policy={policy}")
+    print("note measured-ne-legality")
+    print("note measured-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note do-not-filecheck-microseconds")
+    print("note runtime-validation-pending")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
 def print_storage_ntile_contract() -> int:
     print("storage-ntile compiler-driven=yes")
     print("no-evidence => no-destructive-optimization")
@@ -1919,6 +2024,8 @@ def main() -> int:
     p.add_argument("--analyze-storage-global", type=Path)
     p.add_argument("--print-storage-cost-contract", action="store_true")
     p.add_argument("--analyze-storage-cost", type=Path)
+    p.add_argument("--print-storage-measured-contract", action="store_true")
+    p.add_argument("--analyze-storage-measured", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
     p.add_argument("--print-storage-loop-contract", action="store_true")
     p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
@@ -1964,6 +2071,8 @@ def main() -> int:
             args.analyze_storage_global,
             args.print_storage_cost_contract,
             args.analyze_storage_cost,
+            args.print_storage_measured_contract,
+            args.analyze_storage_measured,
             args.print_storage_ntile_contract,
             args.print_storage_loop_contract,
             args.print_storage_loop_wallclock_contract,
@@ -1997,6 +2106,8 @@ def main() -> int:
             "--analyze-storage-global, "
             "--print-storage-cost-contract, "
             "--analyze-storage-cost, "
+            "--print-storage-measured-contract, "
+            "--analyze-storage-measured, "
             "--print-storage-ntile-contract, "
             "--print-storage-loop-contract, "
             "--print-storage-loop-wallclock-contract, "
@@ -2095,6 +2206,10 @@ def main() -> int:
         return print_storage_cost_contract()
     if args.analyze_storage_cost:
         return analyze_storage_cost(args.analyze_storage_cost)
+    if args.print_storage_measured_contract:
+        return print_storage_measured_contract()
+    if args.analyze_storage_measured:
+        return analyze_storage_measured(args.analyze_storage_measured)
     if args.print_storage_ntile_contract:
         return print_storage_ntile_contract()
     if args.print_storage_loop_contract:

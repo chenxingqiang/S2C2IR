@@ -141,7 +141,8 @@ or another heuristic objective.
 ```text
 structural cost-v04     FROZEN
 diverge=no on current F FROZEN witness
-next Cost cut           measured-cost policy (new name)
+next Cost cut           measured-storage-v1
+                        (storage-measured.md)
                         or leave Cost frozen
 ```
 

@@ -401,6 +401,37 @@ static void printStorageCost() {
                "s2c2-ascend-adapter storage-cost semantics=unchanged\n");
 }
 
+static void printStorageMeasured() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-measured=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note measured-ne-legality\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note runtime-validation-pending\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -582,7 +613,7 @@ static void usage() {
                "[--cap-schema] [--mem] [--cc-phase] [--cc-size] "
                "[--cc-rewrite] [--ssd-mlp-wallclock] [--storage-hierarchy] "
                "[--storage-schedule] [--storage-joint] [--storage-global] "
-               "[--storage-cost] "
+               "[--storage-cost] [--storage-measured] "
                "[--storage-ntile] [--storage-loop] "
                "[--storage-loop-wallclock] [--workload-schedule] "
                "[--classify=ta:tb:tpar] "
@@ -605,6 +636,7 @@ int main(int argc, char **argv) {
   bool storageJoint = false;
   bool storageGlobal = false;
   bool storageCost = false;
+  bool storageMeasured = false;
   bool storageNtile = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
@@ -642,6 +674,8 @@ int main(int argc, char **argv) {
       storageGlobal = true;
     } else if (a == "--storage-cost") {
       storageCost = true;
+    } else if (a == "--storage-measured") {
+      storageMeasured = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
     } else if (a == "--storage-loop") {
@@ -676,8 +710,8 @@ int main(int argc, char **argv) {
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
               (int)ccPhase + (int)ccSize + (int)ccRewrite + (int)ssdMlp +
               (int)storageHier + (int)storageSched + (int)storageJoint +
-              (int)storageGlobal + (int)storageCost + (int)storageNtile +
-              (int)storageLoop +
+              (int)storageGlobal + (int)storageCost + (int)storageMeasured +
+              (int)storageNtile + (int)storageLoop +
               (int)storageLoopWc + (int)workloadSched +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
               (int)(acceptHw != nullptr);
@@ -686,7 +720,8 @@ int main(int argc, char **argv) {
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
                  "--cc-phase/--cc-size/--cc-rewrite/--ssd-mlp-wallclock/"
                  "--storage-hierarchy/--storage-schedule/--storage-joint/"
-                 "--storage-global/--storage-cost/--storage-ntile/"
+                 "--storage-global/--storage-cost/--storage-measured/"
+                 "--storage-ntile/"
                  "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule/"
                  "--classify/--emit-record/"
@@ -760,6 +795,10 @@ int main(int argc, char **argv) {
   }
   if (storageCost) {
     printStorageCost();
+    return 0;
+  }
+  if (storageMeasured) {
+    printStorageMeasured();
     return 0;
   }
   if (storageNtile) {

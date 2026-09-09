@@ -821,6 +821,25 @@ untouched.
 | 4D-5 | same | seven rematerialize chains: `ranked=not-enumerated`; no cost candidates |
 | 4D-6 | `test/Integration/storage-cost-coincide.mlir` | enumerated Storage fixtures `diverge=no`; truncated `diverge=n/a`; `runtime-correlation-not-applicable` |
 
+## Measured storage cost (Phase 5A)
+
+**Not Cost v0.4.** Design:
+[`storage-measured.md`](storage-measured.md). Rank enumerated
+\(F(\text{program})\) under `policy=measured-storage-v1`
+from candidate-local records. Does not invent members, does
+not retarget `default-3g`, does not rank a truncated product,
+and does not apply the measured winner as a rewrite. Frozen
+`cost-v04` / `--s2c2-argmin` / Score_3 untouched. `#69`
+untouched. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5A-1 | `test/Integration/storage-measured.mlir` | `--print-storage-measured-contract`; `measured-ne-legality`; `measured-ne-rewrite-license`; `cost-v04-structural-frozen` |
+| 5A-2 | same | pipeline + fixture table: `ranked` is PRESERVE inhabitant; `diverge=yes`; `cost-v04` still `diverge=no` |
+| 5A-3 | same | no table / unmatched hierarchy: `ranked=not-measured` |
+| 5A-4 | same | adapters `--storage-measured`; exclusive vs `--storage-cost` |
+| 5A-5 | same | seven rematerialize chains: `ranked=not-enumerated`; no measured candidates |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

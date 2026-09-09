@@ -452,7 +452,10 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     loop. For-iter-args stay underdetermined. Prints `loop-pipeline`
     for each `scf.for` (report only; the loop is not rewritten).
     Optional `dump-schedule` writes the same decisions as JSON.
-    Does not flatten C||Storage.
+    Optional `measured-cost-table` is a JSONL of candidate-local
+    `measured-storage-v1` records. Ranking does not retarget
+    `default-3g` and does not rewrite the measured winner.
+    Frozen `cost-v04` is unchanged. Does not flatten C||Storage.
   }];
   let dependentDialects = [
     "mlir::s2c2::sched::ScheduleDialect",
@@ -468,7 +471,10 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     Option<"evidencePath", "evidence", "std::string", /*default=*/"\"\"",
            "Optional evidence JSONL override (not a benchmark log)">,
     Option<"dumpSchedule", "dump-schedule", "std::string", /*default=*/"\"\"",
-           "Optional JSON dump of discovered candidates and decisions">
+           "Optional JSON dump of discovered candidates and decisions">,
+    Option<"measuredCostTable", "measured-cost-table", "std::string",
+           /*default=*/"\"\"",
+           "Optional JSONL of measured-storage-v1 candidate records">
   ];
 }
 

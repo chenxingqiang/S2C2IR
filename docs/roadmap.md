@@ -303,6 +303,17 @@ divergence needs a **new measured-cost policy**. Frozen
 measurements.
 Design: [`storage-cost.md`](design/storage-cost.md).
 
+Phase 5A: rank enumerated \(F(\text{program})\) under
+`policy=measured-storage-v1` from candidate-local records.
+Does not add ticks to frozen `cost-v04`, does not retarget
+`default-3g`, and does not apply the measured winner as a
+rewrite. A fixture table on `storage-aware-pipeline`
+(`|F|=2`) shows `diverge=yes` vs `default-3g` while
+`cost-v04` stays `diverge=no`. Live device fills of the
+same schema are a later artifact. Do not FileCheck
+microseconds. `#69` untouched.
+Design: [`storage-measured.md`](design/storage-measured.md).
+
 Cost v0.4 Search (`--s2c2-argmin` / `--s2c2-walk`) stays frozen.
 A second hardware (ROCm first) stays later in Phase 4.
 D2D/P2P is not the next CUDA arm.

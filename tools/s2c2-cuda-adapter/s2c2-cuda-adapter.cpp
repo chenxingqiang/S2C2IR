@@ -468,6 +468,37 @@ static void printStorageCost() {
                "s2c2-cuda-adapter storage-cost semantics=unchanged\n");
 }
 
+static void printStorageMeasured() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-measured=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note measured-ne-legality\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note runtime-validation-pending\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -644,6 +675,7 @@ int main(int argc, char **argv) {
   bool storageJoint = false;
   bool storageGlobal = false;
   bool storageCost = false;
+  bool storageMeasured = false;
   bool storageNtile = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
@@ -687,6 +719,8 @@ int main(int argc, char **argv) {
       storageGlobal = true;
     } else if (a == "--storage-cost") {
       storageCost = true;
+    } else if (a == "--storage-measured") {
+      storageMeasured = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
     } else if (a == "--storage-loop") {
@@ -705,7 +739,7 @@ int main(int argc, char **argv) {
                    "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
                    "[--storage-pipeline] [--storage-hierarchy] "
                    "[--storage-schedule] [--storage-joint] [--storage-global] "
-                   "[--storage-cost] "
+                   "[--storage-cost] [--storage-measured] "
                    "[--storage-ntile] [--storage-loop] "
                    "[--storage-loop-wallclock] "
                    "[--workload-schedule]\n"
@@ -730,7 +764,8 @@ int main(int argc, char **argv) {
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
               (int)ssdMlp + (int)storagePipe + (int)storageHier +
               (int)storageSched + (int)storageJoint + (int)storageGlobal +
-              (int)storageCost + (int)storageNtile + (int)storageLoop + (int)storageLoopWc +
+              (int)storageCost + (int)storageMeasured + (int)storageNtile +
+              (int)storageLoop + (int)storageLoopWc +
               (int)workloadSched;
   if (modes > 1) {
     std::fprintf(stderr,
@@ -738,7 +773,8 @@ int main(int argc, char **argv) {
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
                  "--matched/--ssd-mlp-wallclock/--storage-pipeline/"
                  "--storage-hierarchy/--storage-schedule/--storage-joint/"
-                 "--storage-global/--storage-cost/--storage-ntile/"
+                 "--storage-global/--storage-cost/--storage-measured/"
+                 "--storage-ntile/"
                  "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule "
                  "cannot combine\n");
@@ -826,6 +862,11 @@ int main(int argc, char **argv) {
   }
   if (storageCost) {
     printStorageCost();
+    printMaps();
+    return 0;
+  }
+  if (storageMeasured) {
+    printStorageMeasured();
     printMaps();
     return 0;
   }
