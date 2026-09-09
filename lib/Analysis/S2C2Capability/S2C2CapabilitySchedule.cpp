@@ -40,6 +40,8 @@
 // Phase 6C-B prints F_capacity occupancy candidates under
 // --capacity / --capacity-spec. Diagnostics only; rewrite=no.
 // measured-capacity-v1 is not opened. EVICT is not a rewrite.
+// Phase 6C-C materializes CapacityPlan as the compiler-visible
+// candidate object (selected=none). Not a rewrite license.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -54,6 +56,7 @@
 #include "s2c2/Comm/CommOps.h"
 #include "s2c2/Compute/ComputeDialect.h"
 #include "s2c2/Compute/ComputeOps.h"
+#include "s2c2/S2C2CapacityPlan.h"
 #include "s2c2/S2C2Passes.h"
 #include "s2c2/Schedule/ScheduleDialect.h"
 #include "s2c2/Schedule/ScheduleOps.h"
@@ -86,6 +89,7 @@
 #include <initializer_list>
 #include <optional>
 #include <string>
+#include <system_error>
 #include <utility>
 
 #ifndef S2C2_SOURCE_DIR
@@ -149,6 +153,11 @@ llvm::cl::opt<std::string> clCapacityBudget(
 llvm::cl::opt<std::string> clCapacitySpec(
     "capacity-spec",
     llvm::cl::desc("Optional s2c2.capacity.v1 JSONL (not a hardware ledger)"),
+    llvm::cl::ValueRequired, llvm::cl::init(""));
+llvm::cl::opt<std::string> clDumpCapacityPlan(
+    "dump-capacity-plan",
+    llvm::cl::desc("Write s2c2.capacity_plan.v1 JSON (selected=none; "
+                   "not a rewrite license)"),
     llvm::cl::ValueRequired, llvm::cl::init(""));
 
 enum class Applicability { Yes, No, Unknown };
@@ -2896,6 +2905,165 @@ static void printCapacityReport(Space space, int cap, int peak, bool conflict,
                   "cost=unchanged\n";
 }
 
+static FailureOr<CapacityPlan>
+buildCapacityPlan(ArrayRef<CapResidency> rs, Space space, int cap, int peak,
+                  bool truncated, ArrayRef<CapCandidate> cands) {
+  CapacityPlan plan;
+  plan.space = spaceName(space).str();
+  plan.capacity = cap;
+  plan.peakLive = peak;
+  plan.truncated = truncated;
+  plan.enumerated = !truncated;
+  plan.selected = "none";
+  plan.policy = "none";
+  plan.rewriteLicense = false;
+  llvm::StringSet<> objects;
+  for (const CapResidency &r : rs)
+    objects.insert(r.object);
+  if (truncated) {
+    plan.feasible = false;
+    return plan;
+  }
+  llvm::StringSet<> seenId;
+  for (unsigned i = 0; i < cands.size(); ++i) {
+    CapacityCandidate cc;
+    cc.id = i;
+    cc.keep = cands[i].keep;
+    cc.evict = cands[i].evict;
+    llvm::StringSet<> inKeep;
+    for (const std::string &k : cc.keep) {
+      if (!objects.contains(k)) {
+        llvm::errs() << "s2c2-capacity-plan: keep id not in residency\n";
+        return failure();
+      }
+      inKeep.insert(k);
+    }
+    for (const std::string &e : cc.evict) {
+      if (!objects.contains(e)) {
+        llvm::errs() << "s2c2-capacity-plan: evict id not in residency\n";
+        return failure();
+      }
+      if (inKeep.contains(e)) {
+        llvm::errs() << "s2c2-capacity-plan: keep/evict overlap\n";
+        return failure();
+      }
+    }
+    for (const std::string &m : cc.rematerialize) {
+      if (!objects.contains(m)) {
+        llvm::errs()
+            << "s2c2-capacity-plan: rematerialize id not in residency\n";
+        return failure();
+      }
+    }
+    cc.identity =
+        capacityCandidateIdentity(cc.keep, cc.evict, cc.rematerialize);
+    if (!seenId.insert(cc.identity).second) {
+      llvm::errs() << "s2c2-capacity-plan: duplicate identity\n";
+      return failure();
+    }
+    plan.candidates.push_back(std::move(cc));
+  }
+  plan.feasible = !plan.candidates.empty();
+  return plan;
+}
+
+static void printCapacityPlan(const CapacityPlan &plan) {
+  llvm::errs() << "s2c2-capacity-plan schema=" << plan.schema << "\n";
+  llvm::errs() << "s2c2-capacity-plan space=" << plan.space
+               << " capacity=" << plan.capacity
+               << " peak-live=" << plan.peakLive << "\n";
+  llvm::errs() << "s2c2-capacity-plan feasible="
+               << (plan.feasible ? "yes" : "no")
+               << " enumerated=" << (plan.enumerated ? "yes" : "no")
+               << " truncated=" << (plan.truncated ? "yes" : "no")
+               << " legal="
+               << (plan.truncated ? "not-enumerated"
+                                  : std::to_string(plan.candidates.size()))
+               << "\n";
+  llvm::errs() << "s2c2-capacity-plan selected=" << plan.selected
+               << " policy=" << plan.policy << " rewrite-license=no\n";
+  if (!plan.truncated) {
+    for (const CapacityCandidate &c : plan.candidates) {
+      llvm::errs() << "s2c2-capacity-plan candidate #" << c.id
+                   << " identity=" << c.identity << " keep=";
+      for (unsigned k = 0; k < c.keep.size(); ++k) {
+        if (k)
+          llvm::errs() << ",";
+        llvm::errs() << c.keep[k];
+      }
+      llvm::errs() << " evict=";
+      for (unsigned k = 0; k < c.evict.size(); ++k) {
+        if (k)
+          llvm::errs() << ",";
+        llvm::errs() << c.evict[k];
+      }
+      llvm::errs() << " rematerialize=";
+      for (unsigned k = 0; k < c.rematerialize.size(); ++k) {
+        if (k)
+          llvm::errs() << ",";
+        llvm::errs() << c.rematerialize[k];
+      }
+      llvm::errs() << "\n";
+    }
+  }
+  llvm::errs() << "s2c2-capacity-plan subseteq-residency=yes\n";
+  llvm::errs() << "s2c2-capacity-plan rewrite=no\n";
+  llvm::errs() << "s2c2-capacity-plan note f-capacity-subseteq-f-residency\n";
+  llvm::errs() << "s2c2-capacity-plan note selected-none\n";
+  llvm::errs() << "s2c2-capacity-plan note policy-none\n";
+  llvm::errs() << "s2c2-capacity-plan note rewrite-license-no\n";
+  llvm::errs() << "s2c2-capacity-plan note compiler-visible-candidate-object\n";
+  llvm::errs() << "s2c2-capacity-plan note six-c-b-diagnostics-frozen\n";
+  llvm::errs() << "s2c2-capacity-plan note six-c-c-candidate-object-this-cut "
+                  "cost=unchanged\n";
+}
+
+static LogicalResult dumpCapacityPlanJson(StringRef path,
+                                          const CapacityPlan &plan) {
+  llvm::json::Object root;
+  root["schema"] = plan.schema;
+  root["space"] = plan.space;
+  root["capacity"] = (int64_t)plan.capacity;
+  root["peak_live"] = (int64_t)plan.peakLive;
+  root["feasible"] = plan.feasible;
+  root["enumerated"] = plan.enumerated;
+  root["truncated"] = plan.truncated;
+  root["selected"] = plan.selected;
+  root["policy"] = plan.policy;
+  root["rewrite"] = "no";
+  root["rewrite_license"] = "no";
+  root["subseteq_residency"] = true;
+  llvm::json::Array cands;
+  for (const CapacityCandidate &c : plan.candidates) {
+    llvm::json::Object obj;
+    obj["id"] = (int64_t)c.id;
+    obj["identity"] = c.identity;
+    llvm::json::Array keep;
+    for (const std::string &k : c.keep)
+      keep.push_back(k);
+    llvm::json::Array evict;
+    for (const std::string &e : c.evict)
+      evict.push_back(e);
+    llvm::json::Array remat;
+    for (const std::string &m : c.rematerialize)
+      remat.push_back(m);
+    obj["keep"] = std::move(keep);
+    obj["evict"] = std::move(evict);
+    obj["rematerialize"] = std::move(remat);
+    cands.push_back(std::move(obj));
+  }
+  root["candidates"] = std::move(cands);
+  std::error_code ec;
+  llvm::raw_fd_ostream out(path, ec, llvm::sys::fs::OF_Text);
+  if (ec) {
+    llvm::errs() << "s2c2-capacity-plan: cannot write " << path << ": "
+                 << ec.message() << "\n";
+    return failure();
+  }
+  out << llvm::json::Value(std::move(root)) << "\n";
+  return success();
+}
+
 static void enumerateCapacityF(ArrayRef<CapResidency> rs, int cap,
                                bool &conflict, int &peak, bool &truncated,
                                SmallVectorImpl<CapCandidate> &cands) {
@@ -3122,9 +3290,15 @@ static void discoverCapacityFromIR(ModuleOp module, Space space,
 }
 
 static LogicalResult reportCapacity(ModuleOp module, StringRef budgetStr,
-                                    StringRef specPath) {
-  if (budgetStr.empty() && specPath.empty())
+                                    StringRef specPath, StringRef dumpPath) {
+  if (budgetStr.empty() && specPath.empty()) {
+    if (!dumpPath.empty()) {
+      llvm::errs() << "s2c2-capacity-plan: --dump-capacity-plan requires "
+                      "--capacity or --capacity-spec\n";
+      return failure();
+    }
     return success();
+  }
   SmallVector<CapResidency, 8> rs;
   Space space = Space::HBM;
   int cap = 0;
@@ -3154,6 +3328,12 @@ static LogicalResult reportCapacity(ModuleOp module, StringRef budgetStr,
   SmallVector<CapCandidate, 8> cands;
   enumerateCapacityF(rs, cap, conflict, peak, truncated, cands);
   printCapacityReport(space, cap, peak, conflict, truncated, cands);
+  auto planOr = buildCapacityPlan(rs, space, cap, peak, truncated, cands);
+  if (failed(planOr))
+    return failure();
+  printCapacityPlan(*planOr);
+  if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, *planOr)))
+    return failure();
   return success();
 }
 
@@ -3387,9 +3567,13 @@ struct S2C2EvidenceBoundedSchedule
     std::string spec = capacitySpec;
     if (spec.empty())
       spec = clCapacitySpec;
+    std::string dumpPlan = dumpCapacityPlan;
+    if (dumpPlan.empty())
+      dumpPlan = clDumpCapacityPlan;
     // Occupancy is a fact about the input program, not post-rewrite IR.
     // KEEP/EVICT candidates are diagnostic only; applySchedule is unchanged.
-    if (failed(reportCapacity(getOperation(), cap, spec))) {
+    // CapacityPlan is compiler-visible; selected=none; not a rewrite license.
+    if (failed(reportCapacity(getOperation(), cap, spec, dumpPlan))) {
       signalPassFailure();
       return;
     }

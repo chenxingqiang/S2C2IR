@@ -1,0 +1,66 @@
+//===- S2C2CapacityPlan.h - compiler-visible F_capacity object -*- C++ -*-===//
+//
+// Phase 6C-C. CapacityPlan is the candidate object for occupancy
+// feasibility. selected is always none. Not a rewrite license.
+// Not measured-capacity-v1. 6C-B diagnostics stay frozen.
+//
+//===----------------------------------------------------------------------===//
+
+#ifndef S2C2_S2C2CAPACITYPLAN_H
+#define S2C2_S2C2CAPACITYPLAN_H
+
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
+
+#include <string>
+
+namespace mlir::s2c2 {
+
+/// Stable identity for a capacity-feasible occupancy assignment.
+/// KEEP / EVICT / REMATERIALIZE sets; empty sets stay in the string
+/// so later measured-capacity-v1 / capacity-policy can match.
+inline std::string capacityCandidateIdentity(
+    llvm::ArrayRef<std::string> keep, llvm::ArrayRef<std::string> evict,
+    llvm::ArrayRef<std::string> rematerialize) {
+  auto join = [](llvm::ArrayRef<std::string> xs) {
+    std::string s;
+    for (size_t i = 0; i < xs.size(); ++i) {
+      if (i)
+        s += ',';
+      s += xs[i];
+    }
+    return s;
+  };
+  return "keep{" + join(keep) + "}|evict{" + join(evict) +
+         "}|rematerialize{" + join(rematerialize) + "}";
+}
+
+struct CapacityCandidate {
+  unsigned id = 0;
+  std::string identity;
+  llvm::SmallVector<std::string, 4> keep;
+  llvm::SmallVector<std::string, 4> evict;
+  llvm::SmallVector<std::string, 4> rematerialize;
+};
+
+/// Compiler-visible F_capacity. Policy does not rank. Rewrite does
+/// not run. F_capacity ⊆ F_residency; illegal ids cannot expand F.
+struct CapacityPlan {
+  static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};
+  std::string schema = std::string(kSchema);
+  std::string space = "hbm";
+  int capacity = 0;
+  int peakLive = 0;
+  bool feasible = false;
+  bool enumerated = false;
+  bool truncated = false;
+  std::string selected = "none";
+  std::string policy = "none";
+  bool rewriteLicense = false;
+  llvm::SmallVector<CapacityCandidate, 8> candidates;
+};
+
+} // namespace mlir::s2c2
+
+#endif // S2C2_S2C2CAPACITYPLAN_H

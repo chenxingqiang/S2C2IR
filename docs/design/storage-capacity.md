@@ -1,19 +1,18 @@
 # Capacity-aware Residency (Phase 6C-B, diagnostics)
 
-**Status:** FROZEN diagnostics. 5A–6B is the **stable
+**Status:** 6C-B diagnostics FROZEN; 6C-C opens the
+compiler-visible `CapacityPlan` candidate object
+(`selected=none`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
 froze \(F_{\mathrm{capacity}}\). 6C-B
 ([PR #108](https://github.com/chenxingqiang/S2C2IR/pull/108))
-wires that contract into `s2c2-opt` **diagnostics** and
-stops there. It does **not** rewrite, does **not** rank,
-does **not** open `measured-capacity-v1`, does **not**
-change `#69`, `cost-v04`, `default-3g`, or Evidence DB
-identity. 5E stays closed. Do not expand this diagnostic
-surface; the next cut is a compiler-visible
-\(F_{\mathrm{capacity}}\) candidate object, still without
-eviction rewrite.
+wired diagnostics and is frozen. This cut does **not**
+rewrite, does **not** rank, does **not** open
+`measured-capacity-v1`, does **not** change `#69`,
+`cost-v04`, `default-3g`, or Evidence DB identity. 5E
+stays closed. Do not expand the 6C-B diagnostic surface.
 
 ```text
 Goal     compiler reports F_capacity occupancy candidates
@@ -210,26 +209,52 @@ IR in [`test/Integration/storage-capacity.mlir`](../../test/Integration/storage-
 Prefix `s2c2-storage-capacity`. Same three legal
 candidates. `rewrite=no`.
 
-## Later (not this freeze)
+## Later (6C-C this cut; rewrite not opened)
 
 ```text
-F_capacity diagnostics          ← FROZEN (this cut)
+F_capacity diagnostics          ← FROZEN (6C-B)
    ↓
-compiler-visible candidate object
+compiler-visible CapacityPlan   ← this cut
    ↓
-policy
+policy                          ← not this cut
    ↓
-rewrite license
+rewrite license                 ← not this cut
    ↓
-eviction / rematerialize rewrite   ← not yet
+eviction / rematerialize rewrite
 ```
 
-Do **not** keep expanding diagnostics. The next cut makes
-\(F_{\mathrm{capacity}}\) a compiler-visible candidate
-object. It still does **not** rewrite.
+6C-C materializes `CapacityPlan` / `CapacityCandidateSet`:
 
-s2c2-opt emits \(F_{\mathrm{capacity}}\) as diagnostics.
-It does **not** rewrite KEEP / EVICT / REMATERIALIZE.
+```text
+CapacityPlan
+  ├── capacity
+  ├── peak_live
+  ├── feasible
+  ├── candidates[]
+  │     ├── KEEP set
+  │     ├── EVICT set
+  │     └── REMATERIALIZE set
+  └── selected = none
+```
+
+Identity is stable:
+
+```text
+keep{0,1}|evict{2}|rematerialize{}
+```
+
+```text
+F_capacity ⊆ F_residency
+selected = none
+policy = none
+rewrite-license = no
+rewrite = no
+```
+
+`s2c2-opt --dump-capacity-plan=` writes
+`s2c2.capacity_plan.v1` JSON. It does **not** rewrite
+KEEP / EVICT / REMATERIALIZE. Evidence DB is unchanged.
+`measured-capacity-v1` is not opened.
 
 ## Out of scope
 

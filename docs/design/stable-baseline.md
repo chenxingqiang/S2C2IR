@@ -75,9 +75,9 @@ rewrite license  unchanged
 6C-B diagnostics are **FROZEN**: `s2c2-opt --capacity`
 reports tile-count occupancy (`rewrite=no`).
 `discoverCapacityFromIR()` is not a byte allocator and
-not alias analysis. Rewrite, ranking, and
-`measured-capacity-v1` stay closed. The next 6C cut is a
-compiler-visible candidate object, not more diagnostics.
+not alias analysis. 6C-C adds compiler-visible
+`CapacityPlan` (`selected=none`); still not a rewrite.
+Rewrite, ranking, and `measured-capacity-v1` stay closed.
 
 When 6C is implemented, it is a new Storage problem class:
 

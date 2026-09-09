@@ -465,6 +465,8 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     occupancy candidates. Optional `capacity-spec` is a
     `s2c2.capacity.v1` JSONL. Diagnostics only; rewrite=no.
     measured-capacity-v1 is not opened.
+    Optional `dump-capacity-plan` writes the compiler-visible
+    CapacityPlan JSON (`selected=none`). Not a rewrite license.
   }];
   let dependentDialects = [
     "mlir::s2c2::sched::ScheduleDialect",
@@ -492,7 +494,10 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     Option<"capacityBudget", "capacity", "std::string", /*default=*/"\"\"",
            "Constrained space:tiles for F_capacity (hbm:2). Diagnostics only">,
     Option<"capacitySpec", "capacity-spec", "std::string", /*default=*/"\"\"",
-           "Optional s2c2.capacity.v1 JSONL occupancy spec">
+           "Optional s2c2.capacity.v1 JSONL occupancy spec">,
+    Option<"dumpCapacityPlan", "dump-capacity-plan", "std::string",
+           /*default=*/"\"\"",
+           "Write s2c2.capacity_plan.v1 JSON; selected=none">
   ];
 }
 
