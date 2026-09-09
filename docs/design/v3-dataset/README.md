@@ -89,4 +89,13 @@ and [`storage-capacity-2tile-fit.jsonl`](storage-capacity-2tile-fit.jsonl),
 Check with `python3 runtime/record_capacity.py --analyze-storage-capacity`.
 Consumer query: `python3 runtime/record_capacity.py --query-capacity-plan`.
 Selection: `--query-capacity-plan ... --capacity-policy=s0`.
+Measured ranking (fixtures, not a campaign, not Evidence DB):
+[`storage-capacity-measured-4tile.jsonl`](storage-capacity-measured-4tile.jsonl)
+(ArgMin coincides with s0),
+[`storage-capacity-measured-4tile-argmin.jsonl`](storage-capacity-measured-4tile-argmin.jsonl)
+(ArgMin ≠ s0),
+[`storage-capacity-measured-4tile-one.jsonl`](storage-capacity-measured-4tile-one.jsonl)
+(needs two usable records). Schema
+`s2c2.measured_capacity_cost.v1`. Do not FileCheck
+microseconds.
 

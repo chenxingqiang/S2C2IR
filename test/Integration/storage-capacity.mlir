@@ -58,11 +58,23 @@
 // RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 2>&1 | FileCheck %s --check-prefix=SELMEAS
 // RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=none 2>&1 | FileCheck %s --check-prefix=QUERY
 // RUN: s2c2-opt %s --capacity-policy=s0 --capacity=2 --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=SELBOTH
+// RUN: python3 %S/../../runtime/record_capacity.py --print-measured-capacity-contract | FileCheck %s --check-prefix=MEASC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl | FileCheck %s --check-prefix=HMEAS
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-argmin.jsonl | FileCheck %s --check-prefix=HMEASARG
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-one.jsonl 2>&1 | FileCheck %s --check-prefix=HMEASONE
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl 2>&1 | FileCheck %s --check-prefix=MEAS
+// RUN: s2c2-opt %s --capacity-policy=measured-capacity-v1 --capacity=2 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --dump-capacity-plan=%t.meas.json 2>&1 | FileCheck %s --check-prefix=MEAS
+// RUN: FileCheck %s --check-prefix=MEASJSON --input-file=%t.meas.json
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-argmin.jsonl 2>&1 | FileCheck %s --check-prefix=MEASARG
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-one.jsonl 2>&1 | FileCheck %s --check-prefix=MEASONE
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl 2>&1 | FileCheck %s --check-prefix=MEASTRUNC
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=MEASBOTH
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
 // restore realization, not a new action. No rewrite, no
-// ranking, no measured-capacity-v1, no hardware campaign.
+// ranking on this diagnostic path, no hardware campaign.
+// 6C-F ranks enumerated F_capacity on the query consumer only.
 // 5A-6B stay frozen. Do not FileCheck microseconds.
 
 // CONTRACT: storage-capacity compiler-driven=yes
@@ -332,15 +344,16 @@
 // QBOTH-NOT: rewrite-license=yes
 
 // POLC: capacity-policy consumer=query
-// POLC: policy none|s0
+// POLC: policy none|s0|measured-capacity-v1
 // POLC: s0 first(F_capacity)
 // POLC: rewrite-license no
 // POLC: note selection-ne-rewrite-license
 // POLC: note s0-ne-must-evict
 // POLC: note truncated-ne-select
 // POLC: note six-c-d-query-frozen
-// POLC: note six-c-e-selection-this-cut
-// POLC: note measured-capacity-v1-not-opened
+// POLC: note six-c-e-selection-frozen
+// POLC: note six-c-f-measured-ranking-this-cut
+// POLC: note measured-capacity-v1-ranking-only
 // POLC: cost=unchanged
 
 // HSEL: capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
@@ -362,7 +375,7 @@
 // HSELTRUNC-NOT: selected=keep
 
 // HSELBAD: unknown --capacity-policy=
-// HSELMEAS: measured-capacity-v1 is not opened
+// HSELMEAS: requires --measured-capacity-table
 
 // SEL: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
 // SEL: s2c2-capacity-plan-query candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
@@ -400,12 +413,92 @@
 // SELTRUNC-NOT: rewrite-license=yes
 
 // SELBAD: unknown --capacity-policy=
-// SELMEAS: measured-capacity-v1 is not opened
+// SELMEAS: requires --measured-capacity-table
 
 // SELBOTH: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0
 // SELBOTH: s2c2-capacity-plan selected=none
 // SELBOTH: s2c2-schedule-policy name=default-3g{{.*}}rewrite=no
 // SELBOTH-NOT: rewrite-license=yes
+
+// MEASC: measured-capacity-v1 ranking-only=yes
+// MEASC: schema s2c2.measured_capacity_cost.v1
+// MEASC: argmin measured-intersect-F
+// MEASC: rewrite-license no
+// MEASC: note measured-needs-two-records
+// MEASC: note measured-does-not-expand-f
+// MEASC: note do-not-filecheck-microseconds
+// MEASC: note not-hardware-campaign
+// MEASC: note not-new-evidence-db
+// MEASC: note six-c-f-measured-ranking-this-cut
+// MEASC: cost=unchanged
+
+// HMEAS: selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1 rewrite-license=no
+// HMEAS: candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
+// HMEAS: candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
+// HMEAS: candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
+// HMEAS: capacity-measured ranked=keep{0,1}|evict{2}|rematerialize{}{{.*}}coincide-s0=yes
+// HMEAS: capacity-measured note measured-does-not-expand-f
+// HMEAS: capacity-measured-candidate identity=keep{0,1}|evict{2}|rematerialize{} evidence=yes
+// HMEAS-NOT: keep{9}
+// HMEAS-NOT: 12401
+// HMEAS-NOT: 18881
+// HMEAS-NOT: 17771
+// HMEAS-NOT: 1001
+
+// HMEASARG: selected=keep{1,2}|evict{0}|rematerialize{} policy=measured-capacity-v1
+// HMEASARG: coincide-s0=no
+// HMEASARG: rewrite-license=no
+// HMEASARG-NOT: 11011
+// HMEASARG-NOT: 28881
+// HMEASARG-NOT: 19991
+
+// HMEASONE: measured-needs-two-records
+
+// MEAS: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1 rewrite-license=no
+// MEAS: s2c2-capacity-plan-query candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
+// MEAS: s2c2-capacity-plan-query candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
+// MEAS: s2c2-capacity-plan-query candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
+// MEAS: s2c2-capacity-plan-query note measured-capacity-v1-ranking-only
+// MEAS: s2c2-capacity-plan-query note six-c-f-measured-ranking-this-cut
+// MEAS: s2c2-capacity-measured ranked=keep{0,1}|evict{2}|rematerialize{}{{.*}}coincide-s0=yes{{.*}}rewrite=no rewrite-license=no
+// MEAS: s2c2-capacity-measured-candidate identity=keep{0,1}|evict{2}|rematerialize{} evidence=yes
+// MEAS: s2c2-capacity-measured-candidate identity=keep{1,2}|evict{0}|rematerialize{} evidence=yes
+// MEAS: s2c2-capacity-measured-candidate identity=keep{0,2}|evict{1}|rematerialize{} evidence=yes
+// MEAS-NOT: s2c2-storage-capacity
+// MEAS-NOT: evidence-bounded-schedule
+// MEAS-NOT: keep{9}
+// MEAS-NOT: 12401
+// MEAS-NOT: 18881
+// MEAS-NOT: 17771
+// MEAS-NOT: 1001
+// MEAS-NOT: rewrite-license=yes
+// MEAS-NOT: sched.wait
+
+// MEASJSON-DAG: "schema":"s2c2.capacity_plan.v1"
+// MEASJSON-DAG: "selected":"keep{0,1}|evict{2}|rematerialize{}"
+// MEASJSON-DAG: "policy":"measured-capacity-v1"
+// MEASJSON-DAG: "rewrite_license":"no"
+// MEASJSON-NOT: "selected":"none"
+// MEASJSON-NOT: 12401
+
+// MEASARG: s2c2-capacity-plan-query selected=keep{1,2}|evict{0}|rematerialize{} policy=measured-capacity-v1
+// MEASARG: s2c2-capacity-measured {{.*}}coincide-s0=no
+// MEASARG: rewrite-license=no
+// MEASARG-NOT: 11011
+// MEASARG-NOT: 28881
+// MEASARG-NOT: 19991
+// MEASARG-NOT: s2c2-storage-capacity
+
+// MEASONE: measured-needs-two-records
+// MEASONE-NOT: rewrite-license=yes
+
+// MEASTRUNC: truncated plan cannot be selected
+// MEASTRUNC-NOT: evidence-bounded-schedule
+
+// MEASBOTH: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1
+// MEASBOTH: s2c2-capacity-plan selected=none
+// MEASBOTH: s2c2-schedule-policy name=default-3g{{.*}}rewrite=no
+// MEASBOTH-NOT: rewrite-license=yes
 
 module {
   // Four HBM tiles, capacity=2. Unpack tile0 after tile2 is

@@ -1,8 +1,9 @@
 //===- S2C2CapacityPlan.h - compiler-visible F_capacity object -*- C++ -*-===//
 //
 // Phase 6C-C. CapacityPlan is the candidate object for occupancy
-// feasibility. selected is always none. Not a rewrite license.
-// Not measured-capacity-v1. 6C-B diagnostics stay frozen.
+// feasibility. Diagnostic path: selected is none. Query consumer
+// may apply s0 or measured-capacity-v1; not a rewrite license.
+// 6C-B diagnostics stay frozen.
 //
 //===----------------------------------------------------------------------===//
 
@@ -48,7 +49,8 @@ struct CapacityCandidate {
 /// capacity-policy is applied on the query consumer. Rewrite does
 /// not run. F_capacity ⊆ F_residency; illegal ids cannot expand F.
 /// Query via --query-capacity-plan (6C-D). Optional --capacity-policy=s0
-/// (6C-E) selects first(F_capacity); not a rewrite license.
+/// (6C-E) or measured-capacity-v1 (6C-F) selects from F_capacity;
+/// not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};
   std::string schema = std::string(kSchema);
