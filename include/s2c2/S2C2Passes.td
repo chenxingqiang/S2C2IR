@@ -509,8 +509,11 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     then prints `s2c2-capacity-plan-query` plus one
     `s2c2.capacity_plan.v1` JSON object. Does **not** apply a
     schedule, load Evidence DB, emit `s2c2-storage-capacity`, or
-    issue a rewrite license. `selected` stays `none`.
-    This is not `measured-capacity-v1`. 6C-B diagnostics stay frozen.
+    issue a rewrite license. Default `selected` is `none`.
+    Optional `capacity-policy=s0` selects first(F_capacity)
+    (evict incoming at t*). Selection is not a rewrite license.
+    Truncated plans cannot be selected. This is not
+    `measured-capacity-v1`. 6C-B diagnostics stay frozen.
   }];
   let dependentDialects = [
     "mlir::s2c2::stor::StorageDialect",
@@ -523,7 +526,10 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
            "JSON capacity spec (same as --capacity-spec).">,
     Option<"dumpCapacityPlan", "dump-capacity-plan", "std::string",
            /*default=*/"\"\"",
-           "Write s2c2.capacity_plan.v1 JSON to this path.">
+           "Write s2c2.capacity_plan.v1 JSON to this path.">,
+    Option<"capacityPolicy", "capacity-policy", "std::string",
+           /*default=*/"\"\"",
+           "Selection over F_capacity: none|s0. Not a rewrite license.">
   ];
 }
 

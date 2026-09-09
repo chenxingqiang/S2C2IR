@@ -44,9 +44,11 @@ struct CapacityCandidate {
   llvm::SmallVector<std::string, 4> rematerialize;
 };
 
-/// Compiler-visible F_capacity. Policy does not rank. Rewrite does
+/// Compiler-visible F_capacity. Policy does not rank unless a named
+/// capacity-policy is applied on the query consumer. Rewrite does
 /// not run. F_capacity ⊆ F_residency; illegal ids cannot expand F.
-/// Query via --query-capacity-plan (6C-D); selected stays none.
+/// Query via --query-capacity-plan (6C-D). Optional --capacity-policy=s0
+/// (6C-E) selects first(F_capacity); not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};
   std::string schema = std::string(kSchema);

@@ -1,8 +1,9 @@
-# Capacity-aware Residency (Phase 6C-D, query surface)
+# Capacity-aware Residency (Phase 6C-E, selection consumer)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
-FROZEN (`selected=none`); 6C-D opens the consumer query
-API. 5A–6B is the **stable
+FROZEN (`selected=none` on the diagnostic path); 6C-D
+query FROZEN; 6C-E opens named selection on the query
+consumer (`s0`; `rewrite-license=no`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
@@ -11,13 +12,13 @@ froze \(F_{\mathrm{capacity}}\). 6C-B
 wired diagnostics and is frozen. 6C-C
 ([PR #109](https://github.com/chenxingqiang/S2C2IR/pull/109))
 materialized the compiler-visible candidate object.
-This cut does **not** rewrite, does **not** rank, does
-**not** open `measured-capacity-v1`, does **not** change
+This cut does **not** rewrite, does **not** open
+`measured-capacity-v1`, does **not** change
 `#69`, `cost-v04`, `default-3g`, or Evidence DB identity.
 5E stays closed. Do not expand the 6C-B diagnostic surface.
 
 ```text
-Goal     compiler-visible CapacityPlan is queryable without scheduling
+Goal     query consumer may select from F_capacity; not a rewrite
 Not      an eviction rewrite, a new Capability grid, or a device campaign
 Rewrite  still only from an existing capability license
 ```
@@ -55,9 +56,10 @@ F_capacity
    ↓
 CapacityPlan (selected=none)   ← 6C-C frozen
    ↓
-query / consumer API           ← this cut
+query / consumer API           ← 6C-D frozen
    ↓
-Policy                         ← not this cut
+policy / selection (s0)        ← this cut
+   ↓
 Rewrite License                ← not this cut
 Rewrite / HB                   ← not this cut
 ```
@@ -222,9 +224,9 @@ F_capacity diagnostics          ← FROZEN (6C-B)
    ↓
 compiler-visible CapacityPlan   ← FROZEN (6C-C)
    ↓
-query / consumer API            ← this cut (6C-D)
+query / consumer API            ← FROZEN (6C-D)
    ↓
-policy                          ← not this cut
+policy / selection              ← this cut (6C-E)
    ↓
 rewrite license                 ← not this cut
    ↓
@@ -264,7 +266,7 @@ rewrite = no
 KEEP / EVICT / REMATERIALIZE. Evidence DB is unchanged.
 `measured-capacity-v1` is not opened.
 
-## Query surface (6C-D this cut)
+## Query surface (6C-D frozen)
 
 `CapacityPlan` is now reachable without running the
 schedule pass:
@@ -294,8 +296,44 @@ as 6C-C. Combining `--query-capacity-plan` with
 `--schedule-policy` runs both passes; the query pass does
 not rewrite, so the scheduler still sees input IR.
 
-This is **not** `measured-capacity-v1`. Policy ranking and
-eviction rewrite stay closed.
+This is **not** `measured-capacity-v1`. Eviction rewrite
+stays closed.
+
+## Selection consumer (6C-E this cut)
+
+The query API is the formal consumer of `F_capacity`.
+Named policy selects one enumerated candidate; it does
+**not** issue a rewrite license and does **not** rewrite.
+
+```bash
+s2c2-opt workload.mlir --query-capacity-plan --capacity=2 --capacity-policy=s0
+s2c2-opt workload.mlir --capacity-policy=s0 --capacity=2
+```
+
+```text
+policy           none | s0
+s0               first(F_capacity) = evict incoming at t*
+selected         candidate identity  (or none)
+rewrite-license  no
+rewrite          no
+```
+
+```text
+selection ∈ F_capacity
+selection ≠ rewrite license
+s0 ≠ must-evict-this-object
+truncated plan cannot be selected
+```
+
+`--capacity-policy` injects the query pass (same as
+`--query-capacity-plan`). 6C-B/C `--capacity` without a
+policy still prints `selected=none`. Combining with
+`--schedule-policy` runs both passes; the scheduler's
+`CapacityPlan` dump stays `selected=none`.
+
+`measured-capacity-v1` is rejected, not opened. Other
+candidates remain in the printed \(F_{\mathrm{capacity}}\);
+s0 is a name for candidate #0, not a collapse of F.
 
 ## Out of scope
 
