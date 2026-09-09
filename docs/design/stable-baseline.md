@@ -71,8 +71,10 @@ rewrite license  unchanged
 ## 6C rewrite is not this freeze
 
 6C **design** is [`storage-capacity.md`](storage-capacity.md):
-\(F_{\mathrm{capacity}}\) and occupancy candidates only.
-Rewrite, ranking, and `measured-capacity-v1` stay closed.
+\(F_{\mathrm{capacity}}\) and occupancy candidates.
+6C-B emits those candidates as `s2c2-opt --capacity`
+diagnostics (`rewrite=no`). Rewrite, ranking, and
+`measured-capacity-v1` stay closed.
 
 When 6C is implemented, it is a new Storage problem class:
 
