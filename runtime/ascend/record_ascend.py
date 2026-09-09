@@ -1786,12 +1786,19 @@ _SIG_S1 = (
 )
 
 
+def infer_measured_profile(text: str) -> str:
+    """Candidate-local profile from the pipeline log. Not a hardware law."""
+    if "s2c2-ascend-run" in text or "ascend910b:ascend" in text:
+        return "910B"
+    return "rtx4090"
+
+
 def emit_storage_measured_from_pipeline(path: Path) -> int:
     """Map a two-tile storage-pipeline log onto F(program) signatures.
 
     evi → S0 PREFETCH (default-3g). seq → S1 PRESERVE.
     par is not an F(program) inhabitant. Do not FileCheck microseconds.
-    Does not store host/password/IP.
+    Does not store host/password/IP. Do not compare 4090 μs to 910B μs.
     """
     text = path.read_text(encoding="utf-8", errors="replace")
     if not _PIPE_MEAS_RE.search(text) or not _PIPE_OK_RE.search(text):
@@ -1803,9 +1810,11 @@ def emit_storage_measured_from_pipeline(path: Path) -> int:
         return 4
     t_seq = int(round(float(m.group(1))))
     t_evi = int(round(float(m.group(2))))
+    profile = infer_measured_profile(text)
+    vendor = "910B" if profile == "910B" else "4090"
     common = {
         "schema": "s2c2.measured_storage_cost.v1",
-        "profile": "rtx4090",
+        "profile": profile,
         "workload_class": "storage-aware-pipeline",
         "repetitions": 5,
         "correctness": 1,
@@ -1816,22 +1825,23 @@ def emit_storage_measured_from_pipeline(path: Path) -> int:
     s0["candidate_signature"] = _SIG_S0
     s0["measured_time_us"] = t_evi
     s0["note"] = (
-        "S0 default-3g PREFETCH from 4090 storage-pipeline evi. "
+        f"S0 default-3g PREFETCH from {vendor} storage-pipeline evi. "
         "Not a Capability cell. Do not FileCheck microseconds."
     )
     s1 = dict(common)
     s1["candidate_signature"] = _SIG_S1
     s1["measured_time_us"] = t_seq
     s1["note"] = (
-        "S1 PRESERVE from 4090 storage-pipeline seq. "
+        f"S1 PRESERVE from {vendor} storage-pipeline seq. "
         "Not an F inhabitant for par. Do not FileCheck microseconds."
     )
     print(json.dumps(s0, ensure_ascii=True, separators=(",", ":")))
     print(json.dumps(s1, ensure_ascii=True, separators=(",", ":")))
-    print("storage-measured emit=device-log profile=rtx4090")
+    print(f"storage-measured emit=device-log profile={profile}")
     print("storage-measured note measured-yes-and-correctness")
     print("storage-measured note do-not-filecheck-microseconds")
     print("storage-measured note not-new-capability-grid")
+    print("storage-measured note do-not-compare-4090-to-910B")
     print("cost=unchanged")
     return 0
 

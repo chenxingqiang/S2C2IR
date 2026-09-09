@@ -34,6 +34,8 @@ C||C rewrite A/B: `runtime/ascend/sweep_cc_rewrite.sh`
 Serial band `rewrite_license=yes` is from that A/B, not from `#69`.
 SSD+MLP program wall-clock: `runtime/ascend/sweep_ssd_mlp_wallclock.sh`
 (`T_evi/T_seq`, not the stage A/B; `#69` untouched).
+Measured-storage-v1 (910B): `runtime/ascend/sweep_storage_measured.sh`
+(evi→S0 PREFETCH, seq→S1 PRESERVE; does not overwrite the 4090 table).
 Batch-check retained hardware files:
 `python3 runtime/record_hw_ledger.py --check-hw-ledger`.
 Size-band query: `python3 runtime/ascend/record_ascend.py --query-cap 'C||C' --cap-catalog docs/design/v3-dataset/ascend910b/cc-size-applicability.jsonl --n 33554432`
