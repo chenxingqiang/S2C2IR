@@ -165,7 +165,7 @@ Capability grid = unchanged
 
 ```text
 more structural ticks / heuristic knobs
-measured-cost policy (new name, later)
+measured-cost policy (5A FROZEN; 5B design later)
 new 4090 / 910B Capability measurements
 wrapping structural ticks as wall-clock
 FileCheck of microseconds

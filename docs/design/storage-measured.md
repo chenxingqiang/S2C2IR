@@ -1,14 +1,20 @@
 # Measured Storage Cost Policy (Phase 5A)
 
-**Status:** rank a **fully enumerated** \(F(\text{program})\) under
+**Status:** **FROZEN** (`#95` / `#96`). Measured-cost plumbing is
+open. Rank a **fully enumerated** \(F(\text{program})\) under
 `policy=measured-storage-v1` using **candidate-local** records.
-This is a **new policy**. It does **not** add structural ticks to
-frozen `cost-v04`, does **not** decide legality, does **not**
-replace `default-3g`, and does **not** rank a truncated product.
-Frozen `--s2c2-cost` / `--s2c2-argmin` / Score_3 stay untouched.
-Not a new Capability grid. Does **not** flatten `C||Storage`,
-overwrite `#69`, change the 4B chain definition, FileCheck
-microseconds, or apply the measured winner as a rewrite.
+On the two-tile pipeline, both 4090 and 910B pick S0 with
+`diverge=no`. That is **not** a policy identity. A later real
+divergence needs a natural \(|F|>2\) workload
+([`storage-measured-5b.md`](storage-measured-5b.md)), not another
+tick and not a retuned pair. This policy does **not** add
+structural ticks to frozen `cost-v04`, does **not** decide
+legality, does **not** replace `default-3g`, and does **not**
+rank a truncated product. Frozen `--s2c2-cost` / `--s2c2-argmin`
+/ Score_3 stay untouched. Not a new Capability grid. Does
+**not** flatten `C||Storage`, overwrite `#69`, change the 4B
+chain definition, FileCheck microseconds, or apply the measured
+winner as a rewrite.
 
 4D freeze:
 [`storage-cost.md`](storage-cost.md).
@@ -162,6 +168,22 @@ rewrite of the winner
     =  not this cut
 ```
 
+## Freeze
+
+```text
+4090  ArgMin S0 = default-3g S0 → diverge=no
+910B  ArgMin S0 = default-3g S0 → diverge=no
+#69              unchanged
+cost-v04         frozen
+default-3g       unchanged
+rewrite license  unchanged
+```
+
+Plumbing is proven. Policy divergence is **not**. Do not
+re-measure this S0/S1 pair to manufacture `diverge=yes`.
+Phase 5B:
+[`storage-measured-5b.md`](storage-measured-5b.md).
+
 Truncated `@seven_binary_chains` (product=128):
 `ranked=not-enumerated`. Hierarchy without matching rows:
 `ranked=not-measured`.
@@ -186,8 +208,9 @@ wrapping table times as wall-clock FileCheck
 FileCheck of 4090 / 910B microseconds
 comparing 4090 μs to 910B μs
 applying the measured winner as a rewrite
-applying the measured winner as a rewrite
+re-measuring pipeline S0/S1 to manufacture diverge=yes
 new 4090 / 910B Capability measurements
+Phase 5B |F|>2 measurement (later; design first)
 changing --s2c2-cost / --s2c2-argmin / --s2c2-walk
 retargeting default-3g
 changing the 4B chain definition
