@@ -45,14 +45,17 @@ does ArgMin differ from the historical tuple?
 
 ```text
 |F(program)| ≥ 2
-    and ≥ 2 inhabitants have correctness=1 records
+    and ≥ 2 inhabitants have
+      measured=yes && correctness=1
     → rank those inhabitants
     → diverge=yes  iff ArgMin ≠ default-3g
     → diverge=no   iff ArgMin = default-3g
 product > 64
     → ranked=not-enumerated
-< 2 measured inhabitants
+< 2 usable measured inhabitants
     → ranked=not-measured
+measured=no / pending
+    → not ranking evidence
 ```
 
 Unmeasured members are not invented. ArgMin is over the
@@ -78,13 +81,24 @@ MeasuredCostRecord {
 ```
 
 Matching key: `(profile, candidate_signature)` plus
-`correctness=1`. Last row wins. `workload_class` is diagnostic.
+`measured=yes` **and** `correctness=1`. Last usable row wins.
+`measured=no` and `pending` are parsed and rejected.
+`workload_class` is diagnostic.
 
-The first checked-in table is a **schema / ranking witness**
-(`source=fixture-table`, `measured=no`). It demonstrates that
-the compiler can select a different legal inhabitant than
-`default-3g` when the table says so. It is **not** a live 4090
-or 910B campaign and is **not** a Capability cell.
+```text
+measured=yes  && correctness=1  →  ranking evidence
+measured=no                     →  not-measured (schema only)
+pending                         →  not-measured
+correctness≠1                   →  not ranking evidence
+```
+
+The checked-in table is a **schema witness**
+(`source=fixture-table`, `measured=no`). The compiler must
+**not** rank it. A lit-only synthetic table with
+`measured=yes` and `source=synthetic-test` proves that usable
+evidence can pick a different inhabitant than `default-3g`.
+That synthetic table is **not** a live 4090 or 910B campaign
+and is **not** a Capability cell.
 
 A later device campaign fills the same schema with
 `measured=yes` and `source=device-log`. That is a new artifact,
@@ -101,7 +115,13 @@ S1 = MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER
      alternative legal inhabitant
 ```
 
-Fixture table ranks S1 above S0:
+Checked-in fixture (`measured=no`):
+
+```text
+measured-storage-v1   ranked=not-measured
+```
+
+Synthetic test table (`measured=yes`, not a device log):
 
 ```text
 cost-v04              ranked=S0  diverge=no
@@ -124,7 +144,8 @@ Truncated `@seven_binary_chains` (product=128):
 
 ```text
 policy = measured-storage-v1
-ranked ∈ measured ∩ F(program) when |measured ∩ F| ≥ 2
+ranked ∈ {S ∈ F | measured=yes ∧ correctness=1}
+         when that set has size ≥ 2
 default-3g selected = historical tuple (unchanged)
 cost-v04 = FROZEN
 Capability grid = unchanged

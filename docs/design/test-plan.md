@@ -835,8 +835,9 @@ untouched. Do not FileCheck microseconds.
 | ID | File | Checks |
 | -- | ---- | ------ |
 | 5A-1 | `test/Integration/storage-measured.mlir` | `--print-storage-measured-contract`; `measured-ne-legality`; `measured-ne-rewrite-license`; `cost-v04-structural-frozen` |
-| 5A-2 | same | pipeline + fixture table: `ranked` is PRESERVE inhabitant; `diverge=yes`; `cost-v04` still `diverge=no` |
-| 5A-3 | same | no table / unmatched hierarchy: `ranked=not-measured` |
+| 5A-2 | same | pipeline + checked-in `measured=no` fixture: `ranked=not-measured` |
+| 5A-3 | same | pipeline + synthetic `measured=yes` table: PRESERVE inhabitant; `diverge=yes`; `cost-v04` still `diverge=no` |
+| 5A-3b | same | no table / unmatched hierarchy: `ranked=not-measured` |
 | 5A-4 | same | adapters `--storage-measured`; exclusive vs `--storage-cost` |
 | 5A-5 | same | seven rematerialize chains: `ranked=not-enumerated`; no measured candidates |
 

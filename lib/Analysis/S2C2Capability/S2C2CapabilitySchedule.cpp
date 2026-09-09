@@ -1996,12 +1996,15 @@ static void printGlobalCostRank(const GlobalCostRank &r,
                  << "\n";
 }
 
+enum class MeasuredStatus { No, Yes, Pending };
+
 struct MeasuredCostRecord {
   std::string profile;
   std::string workloadClass;
   std::string signature;
   int64_t timeUs = 0;
   int64_t correctness = 0;
+  MeasuredStatus measured = MeasuredStatus::No;
 };
 
 struct GlobalMeasuredRank {
@@ -2059,7 +2062,17 @@ loadMeasuredCostTable(StringRef path,
       rec.correctness = *c;
     else if (auto cn = obj->getNumber("correctness"))
       rec.correctness = (int64_t)*cn;
-    if (rec.signature.empty() || rec.correctness != 1)
+    if (auto m = obj->getString("measured")) {
+      if (m->equals_insensitive("yes"))
+        rec.measured = MeasuredStatus::Yes;
+      else if (m->equals_insensitive("pending"))
+        rec.measured = MeasuredStatus::Pending;
+      else
+        rec.measured = MeasuredStatus::No;
+    }
+    // Keep no/pending rows so the matcher can reject them. Only
+    // measured=yes && correctness=1 is ranking evidence.
+    if (rec.signature.empty())
       continue;
     out.push_back(std::move(rec));
   }
@@ -2071,7 +2084,8 @@ findMeasuredRecord(ArrayRef<MeasuredCostRecord> table, StringRef profile,
                    StringRef signature) {
   const MeasuredCostRecord *hit = nullptr;
   for (const MeasuredCostRecord &r : table) {
-    if (r.profile == profile && r.signature == signature)
+    if (r.profile == profile && r.signature == signature &&
+        r.measured == MeasuredStatus::Yes && r.correctness == 1)
       hit = &r;
   }
   return hit;
@@ -2159,6 +2173,7 @@ static void printGlobalMeasuredRank(const GlobalMeasuredRank &r,
     llvm::errs() << "hierarchy-global-measured ranked=not-measured"
                  << " policy=measured-storage-v1"
                  << " note measured-needs-two-records"
+                 << " note measured-yes-and-correctness"
                  << " note measured-ne-legality"
                  << " note measured-ne-rewrite-license"
                  << " note default-3g-frozen"
@@ -2171,6 +2186,7 @@ static void printGlobalMeasuredRank(const GlobalMeasuredRank &r,
                  << r.measuredCount << " argmin-size=n/a"
                  << " policy=measured-storage-v1"
                  << " note measured-needs-two-records"
+                 << " note measured-yes-and-correctness"
                  << " note default-3g-frozen\n";
     llvm::errs() << "hierarchy-global-measured-diverge diverge=n/a"
                  << " note measured-needs-two-records"
@@ -2180,6 +2196,7 @@ static void printGlobalMeasuredRank(const GlobalMeasuredRank &r,
   }
   llvm::errs() << "hierarchy-global-measured ranked=" << joinGlobal(r.ranked)
                << " policy=measured-storage-v1"
+               << " note measured-yes-and-correctness"
                << " note measured-ne-legality"
                << " note measured-ne-rewrite-license"
                << " note default-3g-frozen"

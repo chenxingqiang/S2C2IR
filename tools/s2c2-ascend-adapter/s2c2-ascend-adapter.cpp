@@ -409,6 +409,9 @@ static void printStorageMeasured() {
                "policy=measured-storage-v1\n");
   std::fprintf(stderr,
                "s2c2-ascend-adapter storage-measured "
+               "note measured-yes-and-correctness\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
                "note measured-ne-legality\n");
   std::fprintf(stderr,
                "s2c2-ascend-adapter storage-measured "
