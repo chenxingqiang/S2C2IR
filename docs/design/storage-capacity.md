@@ -1,14 +1,19 @@
 # Capacity-aware Residency (Phase 6C-B, diagnostics)
 
-**Status:** diagnostics. 5A–6B is the **stable baseline**
-([`stable-baseline.md`](stable-baseline.md)). Phase 6C
-design ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
-froze \(F_{\mathrm{capacity}}\). This cut wires that
-contract into `s2c2-opt` **diagnostics**. It does **not**
-rewrite, does **not** rank, does **not** open
-`measured-capacity-v1`, does **not** change `#69`,
-`cost-v04`, `default-3g`, or Evidence DB identity. 5E
-stays closed.
+**Status:** FROZEN diagnostics. 5A–6B is the **stable
+baseline** ([`stable-baseline.md`](stable-baseline.md)).
+Phase 6C design
+([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
+froze \(F_{\mathrm{capacity}}\). 6C-B
+([PR #108](https://github.com/chenxingqiang/S2C2IR/pull/108))
+wires that contract into `s2c2-opt` **diagnostics** and
+stops there. It does **not** rewrite, does **not** rank,
+does **not** open `measured-capacity-v1`, does **not**
+change `#69`, `cost-v04`, `default-3g`, or Evidence DB
+identity. 5E stays closed. Do not expand this diagnostic
+surface; the next cut is a compiler-visible
+\(F_{\mathrm{capacity}}\) candidate object, still without
+eviction rewrite.
 
 ```text
 Goal     compiler reports F_capacity occupancy candidates
@@ -111,11 +116,21 @@ authorize rewrite.
 
 From IR, constrained-space `stor.materialize` /
 `stor.transfer` live ranges are
-\([\mathrm{defOrder},\;\mathrm{lastUseOrder}+1)\).
+\([\mathrm{defOrder},\;\mathrm{lastUseOrder}+1)\),
+each with default `size=1`. That is **tile-count occupancy
+diagnostics** under `--capacity=hbm:2`, not a byte-capacity
+allocator and not residency/alias analysis.
+`discoverCapacityFromIR()` must not be treated as complete
+lifetime analysis before an eviction rewrite.
+
 `--capacity-spec` is a `s2c2.capacity.v1` JSONL occupancy
 spec and overrides IR discovery. Extra keys are rejected.
 `--capacity` may still override tiles and space from the
 spec.
+
+`reportCapacity()` runs on the **input** IR, before
+`applySchedule()`. Occupancy is not computed on rewritten
+IR. KEEP/EVICT candidates are not a rewrite license.
 
 ## Actions (first version)
 
@@ -195,19 +210,23 @@ IR in [`test/Integration/storage-capacity.mlir`](../../test/Integration/storage-
 Prefix `s2c2-storage-capacity`. Same three legal
 candidates. `rewrite=no`.
 
-## Later (not this cut)
+## Later (not this freeze)
 
 ```text
-F_capacity
+F_capacity diagnostics          ← FROZEN (this cut)
    ↓
-Evidence DB  (existing 6B; new revision, not a second store)
+compiler-visible candidate object
    ↓
-measured-capacity-v1     ← new policy, does not retune cost-v04
-   ↓
-ArgMin
+policy
    ↓
 rewrite license
+   ↓
+eviction / rematerialize rewrite   ← not yet
 ```
+
+Do **not** keep expanding diagnostics. The next cut makes
+\(F_{\mathrm{capacity}}\) a compiler-visible candidate
+object. It still does **not** rewrite.
 
 s2c2-opt emits \(F_{\mathrm{capacity}}\) as diagnostics.
 It does **not** rewrite KEEP / EVICT / REMATERIALIZE.

@@ -46,9 +46,11 @@
 // CONTRACT: note not-hardware-campaign
 // CONTRACT: note stable-baseline
 // CONTRACT: note six-c-design-this-cut
-// CONTRACT: note six-c-diagnostics-this-cut
+// CONTRACT: note six-c-diagnostics-frozen
 // CONTRACT: note compiler-emits-f-capacity
 // CONTRACT: note compiler-ne-rewrite
+// CONTRACT: note tile-count-occupancy
+// CONTRACT: note ir-discovery-ne-alias-analysis
 // CONTRACT: cost=unchanged
 // CONTRACT-NOT: password
 // CONTRACT-NOT: 223.72
@@ -103,7 +105,9 @@
 // OPT4: s2c2-storage-capacity rewrite=no
 // OPT4: s2c2-storage-capacity note compiler-emits-f-capacity
 // OPT4: s2c2-storage-capacity note compiler-ne-rewrite
-// OPT4: s2c2-storage-capacity note six-c-diagnostics-this-cut
+// OPT4: s2c2-storage-capacity note tile-count-occupancy
+// OPT4: s2c2-storage-capacity note ir-discovery-ne-alias-analysis
+// OPT4: s2c2-storage-capacity note six-c-diagnostics-frozen
 // OPT4-NOT: keep=0,1,2
 // OPT4-NOT: evict=3
 // OPT4-NOT: rewrite=yes

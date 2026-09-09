@@ -973,10 +973,13 @@ Do not FileCheck microseconds.
 [`storage-capacity.md`](storage-capacity.md). Freezes
 \(F_{\mathrm{capacity}}\) and occupancy candidate generation.
 KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing restore
-realization. 6C-B prints the same candidates from
-`s2c2-opt --capacity` / `--capacity-spec`. No rewrite, no
+realization. 6C-B diagnostics are **FROZEN**: the same
+candidates from `s2c2-opt --capacity` / `--capacity-spec`.
+IR auto-discovery is tile-count occupancy (`size=1`), not
+a byte allocator and not alias analysis. No rewrite, no
 ranking, no `measured-capacity-v1`, no hardware campaign.
-5A–6B stay frozen. Do not FileCheck microseconds.
+5A–6B stay frozen. Do not expand this diagnostic surface.
+Do not FileCheck microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -988,6 +991,7 @@ ranking, no `measured-capacity-v1`, no hardware campaign.
 | 6C-B-2 | same | `--capacity-spec` 4-tile / fit / truncated match the host witness; extras rejected |
 | 6C-B-3 | same | `--capacity` absent prints nothing; invalid `--capacity` fails; no constrained-space residencies fails |
 | 6C-B-4 | same | spec overrides IR discovery; no `sched.wait`; `compiler-ne-rewrite` |
+| 6C-B-5 | same | freeze notes: tile-count occupancy; IR discovery ≠ alias analysis; diagnostics frozen |
 
 ## Complete SSD + MLP program wall-clock
 

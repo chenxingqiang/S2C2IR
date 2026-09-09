@@ -2889,8 +2889,10 @@ static void printCapacityReport(Space space, int cap, int peak, bool conflict,
   llvm::errs() << "s2c2-storage-capacity note selection-ne-rewrite-license\n";
   llvm::errs() << "s2c2-storage-capacity note compiler-emits-f-capacity\n";
   llvm::errs() << "s2c2-storage-capacity note compiler-ne-rewrite\n";
+  llvm::errs() << "s2c2-storage-capacity note tile-count-occupancy\n";
+  llvm::errs() << "s2c2-storage-capacity note ir-discovery-ne-alias-analysis\n";
   llvm::errs() << "s2c2-storage-capacity note measured-capacity-v1-not-opened\n";
-  llvm::errs() << "s2c2-storage-capacity note six-c-diagnostics-this-cut "
+  llvm::errs() << "s2c2-storage-capacity note six-c-diagnostics-frozen "
                   "cost=unchanged\n";
 }
 
@@ -3084,6 +3086,9 @@ static LogicalResult loadCapacitySpec(StringRef path,
 
 static void discoverCapacityFromIR(ModuleOp module, Space space,
                                    SmallVectorImpl<CapResidency> &out) {
+  // Tile-count occupancy diagnostics: each constrained-space
+  // materialize/transfer is one residency of size 1. Not a
+  // byte-capacity allocator and not residency/alias analysis.
   DenseMap<Operation *, unsigned> order;
   unsigned idx = 0;
   module.walk([&](Operation *op) { order[op] = idx++; });
@@ -3383,6 +3388,7 @@ struct S2C2EvidenceBoundedSchedule
     if (spec.empty())
       spec = clCapacitySpec;
     // Occupancy is a fact about the input program, not post-rewrite IR.
+    // KEEP/EVICT candidates are diagnostic only; applySchedule is unchanged.
     if (failed(reportCapacity(getOperation(), cap, spec))) {
       signalPassFailure();
       return;
