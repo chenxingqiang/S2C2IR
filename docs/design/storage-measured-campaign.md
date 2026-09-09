@@ -100,9 +100,12 @@ flatten `C||Storage`. Do **not** invent sibling `sched.wait`.
 
 ## What is still open (architecture, not another 5-cut)
 
-Phase 6A turns this campaign into a stable compiler path:
+Phase 6A is the production compiler path:
 [`storage-production-6a.md`](storage-production-6a.md).
-Capacity-aware residency is **6B**, later.
+Phase 6B is the Evidence DB / Contract:
+[`evidence-db.md`](evidence-db.md).
+Capacity-aware residency is **6C**, later. Do **not**
+open 6C in this freeze.
 
 The remaining long-term question is **not** “find a workload that
 diverges.” It is which production object this campaign

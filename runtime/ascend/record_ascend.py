@@ -1705,6 +1705,8 @@ def print_storage_measured_contract() -> int:
     print("note schedule-policy-selection-only")
     print("note explain-ne-rewrite")
     print("note production-path-6a")
+    print("note evidence-db-v1")
+    print("note not-capacity-aware")
     print("semantics=unchanged")
     print("v3=not-claimed")
     print("cost=unchanged")
@@ -1725,6 +1727,8 @@ def print_schedule_policy_contract() -> int:
     print("note compiler-ne-campaign-log")
     print("note do-not-filecheck-microseconds")
     print("note production-path-6a")
+    print("note evidence-db-v1")
+    print("note not-capacity-aware")
     print("cost=unchanged")
     return 0
 
