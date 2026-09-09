@@ -400,6 +400,30 @@ def print_contract() -> int:
     print("note not-capacity-aware")
     print("note not-hardware-ledger")
     print("note do-not-filecheck-microseconds")
+    print("note stable-baseline")
+    print("note six-c-not-opened")
+    print("cost=unchanged")
+    return 0
+
+
+def print_stable_baseline_contract() -> int:
+    print("stable-baseline compiler-facing=yes")
+    print("stack 5A-5D|6A|6B")
+    print("note campaign-5a-5d-frozen")
+    print("note production-path-6a")
+    print("note evidence-db-v1")
+    print("note export-revision-required")
+    print("note query-revision-optional")
+    print("note identity-immutable")
+    print("note measured-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note six-c-not-opened")
+    print("note not-capacity-aware")
+    print("note not-new-keep-transfer-rule")
+    print("note evidence-reuse-for-later-6c")
+    print("note do-not-filecheck-microseconds")
     print("cost=unchanged")
     return 0
 
@@ -407,6 +431,7 @@ def print_contract() -> int:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="S2C2 Evidence DB (Phase 6B)")
     p.add_argument("--print-evidence-db-contract", action="store_true")
+    p.add_argument("--print-stable-baseline-contract", action="store_true")
     p.add_argument("--ingest-measured-v1", type=Path)
     p.add_argument("--ingest-frozen-campaign", action="store_true")
     p.add_argument("--export-measured-v1", action="store_true")
@@ -423,6 +448,7 @@ def main(argv: list[str] | None = None) -> int:
         bool(x)
         for x in (
             args.print_evidence_db_contract,
+            args.print_stable_baseline_contract,
             args.ingest_measured_v1,
             args.ingest_frozen_campaign,
             args.export_measured_v1,
@@ -433,6 +459,7 @@ def main(argv: list[str] | None = None) -> int:
     if n != 1:
         print(
             "record_evidence: choose one of --print-evidence-db-contract, "
+            "--print-stable-baseline-contract, "
             "--ingest-measured-v1, --ingest-frozen-campaign, "
             "--export-measured-v1, --query-evidence, --check-evidence-db",
             file=sys.stderr,
@@ -440,6 +467,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.print_evidence_db_contract:
         return print_contract()
+    if args.print_stable_baseline_contract:
+        return print_stable_baseline_contract()
     if args.ingest_measured_v1:
         return ingest_measured_v1(
             args.ingest_measured_v1, args.db, args.measurement_revision or None

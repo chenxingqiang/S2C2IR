@@ -1,6 +1,8 @@
 # Production Path (Phase 6A)
 
-**Status:** implementation. Phases 5A–5D are **FROZEN**
+**Status:** FROZEN as part of the 5A–6B stable baseline
+([`stable-baseline.md`](stable-baseline.md)).
+Phases 5A–5D are **FROZEN**
 ([`storage-measured-campaign.md`](storage-measured-campaign.md)).
 This cut turns the verified selection stack into a stable
 `s2c2-opt` entry. It does **not** open 5E, does **not**

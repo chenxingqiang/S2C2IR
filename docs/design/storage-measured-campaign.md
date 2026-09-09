@@ -100,12 +100,17 @@ flatten `C||Storage`. Do **not** invent sibling `sched.wait`.
 
 ## What is still open (architecture, not another 5-cut)
 
+5A–6B is the **stable baseline**:
+[`stable-baseline.md`](stable-baseline.md).
 Phase 6A is the production compiler path:
 [`storage-production-6a.md`](storage-production-6a.md).
 Phase 6B is the Evidence DB / Contract:
 [`evidence-db.md`](evidence-db.md).
 Capacity-aware residency is **6C**, later. Do **not**
-open 6C in this freeze.
+open 6C in this freeze. When it opens, it is a new
+Storage problem class (capacity → live residency →
+evict/retain/rematerialize), not another KEEP/TRANSFER
+rule, and it reuses Evidence DB.
 
 The remaining long-term question is **not** “find a workload that
 diverges.” It is which production object this campaign
