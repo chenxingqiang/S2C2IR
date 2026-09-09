@@ -303,21 +303,21 @@ divergence needs a **new measured-cost policy**. Frozen
 measurements.
 Design: [`storage-cost.md`](design/storage-cost.md).
 
-Phase 5A: rank enumerated \(F(\text{program})\) under
-`policy=measured-storage-v1` from candidate-local records.
-Does not add ticks to frozen `cost-v04`, does not retarget
-`default-3g`, and does not apply the measured winner as a
-rewrite. Only `measured=yes && correctness=1` rows rank.
-A checked-in `measured=no` fixture stays `not-measured`.
-A lit-only synthetic `measured=yes` table on
-`storage-aware-pipeline` (`|F|=2`) shows `diverge=yes`
-vs `default-3g` while `cost-v04` stays `diverge=no`.
-The 4090 device-log fill of the same schema ranks S0
-(`diverge=no`): PREFETCH is faster than PRESERVE on that
-pair. The 910B counterpart also ranks S0 (`diverge=no`).
-Do not FileCheck microseconds. Do not compare 4090 μs to
-910B μs. `#69` untouched.
+Phase 5A: **FROZEN**. Rank enumerated \(F(\text{program})\)
+under `policy=measured-storage-v1` from candidate-local
+records. Plumbing is open. The two-tile pipeline coincides
+with `default-3g` on 4090 and 910B (`diverge=no`). That is
+not `cost-v04 ≡ measured-storage-v1`. Do not re-measure that
+S0/S1 pair to manufacture divergence. `#69` untouched.
 Design: [`storage-measured.md`](design/storage-measured.md).
+
+Phase 5B: natural \(|F|>2\) Storage workload, then measure
+inhabitants. Design first
+([`storage-measured-5b.md`](design/storage-measured-5b.md)).
+Do not open a device campaign until that design is approved.
+Recommended fixture: `@ssd_hierarchy_lifetime` (product=8).
+Rewrite of a measured winner stays gated on a real
+`S_measured ≠ S_default-3g`.
 
 Cost v0.4 Search (`--s2c2-argmin` / `--s2c2-walk`) stays frozen.
 A second hardware (ROCm first) stays later in Phase 4.

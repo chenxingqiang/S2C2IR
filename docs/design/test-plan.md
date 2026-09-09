@@ -843,6 +843,25 @@ untouched. Do not FileCheck microseconds.
 | 5A-7 | `test/Integration/storage-measured-4090.mlir` | 4090 device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture `measured=no` still `not-measured`; no FileCheck of microseconds |
 | 5A-8 | `test/Integration/storage-measured-910b.mlir` | 910B device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture and 4090 table stay `not-measured` under `profile=910B`; no FileCheck of microseconds; do not compare 4090 μs to 910B μs |
 
+Phase 5A is **FROZEN**. Do not add ticks or re-campaign the
+pipeline pair. Phase 5B design:
+[`storage-measured-5b.md`](storage-measured-5b.md). Tests
+below are drafts until that design is approved. No device
+fill in this cut.
+
+## Measured storage, |F| > 2 (Phase 5B, design)
+
+**Not Cost v0.4.** Same `policy=measured-storage-v1`. Natural
+\(|F|>2\); do not manufacture `diverge=yes`.
+
+| ID | File | Checks (draft) |
+| -- | ---- | -------------- |
+| 5B-1 | later | `@ssd_hierarchy_lifetime` product=8 enumerated; `default-3g` is PREFETCH+KEEP+KEEP |
+| 5B-2 | later | ≥ 3 measured inhabitants; each signature inhabits F; `par`-like extras excluded |
+| 5B-3 | later | ArgMin / `diverge` follow the device table; `cost-v04` still coincide |
+| 5B-4 | later | fixture `measured=no` and cross-profile tables stay `not-measured` |
+| 5B-5 | later | no FileCheck of microseconds; no 4090↔910B μs compare; `#69` untouched |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
