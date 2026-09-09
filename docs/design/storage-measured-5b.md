@@ -5,8 +5,9 @@
 5B reused existing `F(@ssd_hierarchy_lifetime)` (product=8)
 and recorded all eight candidate-local arms. On both 4090
 and 910B, ArgMin is default-3g S0 (`diverge=no`). That is a
-valid 5B result. Do **not** re-measure this 8-set. Next cut:
-[`storage-measured-5c.md`](storage-measured-5c.md).
+valid 5B result. Do **not** re-measure this 8-set. 5C and
+5D are also **FROZEN**. Campaign close:
+[`storage-measured-campaign.md`](storage-measured-campaign.md).
 
 ```text
 Goal     natural |F(program)| > 2 with ≥ 3 measurable inhabitants

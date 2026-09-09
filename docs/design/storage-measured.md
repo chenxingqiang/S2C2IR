@@ -4,10 +4,11 @@
 open. Rank a **fully enumerated** \(F(\text{program})\) under
 `policy=measured-storage-v1` using **candidate-local** records.
 On the two-tile pipeline, both 4090 and 910B pick S0 with
-`diverge=no`. That is **not** a policy identity. A later real
-divergence needs a natural \(|F|>2\) workload
-([`storage-measured-5b.md`](storage-measured-5b.md)), not another
-tick and not a retuned pair. This policy does **not** add
+`diverge=no`. That is **not** a policy identity. 5B, 5C, and
+5D later measured every remaining enumerated \(|F|>2\) and
+also froze as `diverge=no`. The campaign is closed
+([`storage-measured-campaign.md`](storage-measured-campaign.md)).
+Do **not** hunt for divergence by retuning a pair. This policy does **not** add
 structural ticks to frozen `cost-v04`, does **not** decide
 legality, does **not** replace `default-3g`, and does **not**
 rank a truncated product. Frozen `--s2c2-cost` / `--s2c2-argmin`
