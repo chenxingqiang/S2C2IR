@@ -844,10 +844,13 @@ untouched. Do not FileCheck microseconds.
 | 5A-8 | `test/Integration/storage-measured-910b.mlir` | 910B device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture and 4090 table stay `not-measured` under `profile=910B`; no FileCheck of microseconds; do not compare 4090 μs to 910B μs |
 
 Phase 5A is **FROZEN**. Do not add ticks or re-campaign the
-pipeline pair. Phase 5B implementation:
-[`storage-measured-5b.md`](storage-measured-5b.md). Device
-tables are a later fill on the same branch; `diverge=yes` is
-not an acceptance goal.
+pipeline pair. Phase 5B is **FROZEN**
+([`storage-measured-5b.md`](storage-measured-5b.md)):
+hierarchy 8/8 measured, both devices `diverge=no`. Do not
+re-measure that 8-set. Phase 5C design:
+[`storage-measured-5c.md`](storage-measured-5c.md). Tests
+below for 5C are drafts until that design is approved. No
+device fill in this cut.
 
 ## Measured storage, |F| > 2 (Phase 5B)
 
@@ -864,6 +867,21 @@ per `(profile, workload, signature)`.
 | 5B-5 | same | no FileCheck of microseconds; adapters `--storage-hierarchy-measured`; `#69` untouched |
 | 5B-6 | `test/Integration/storage-measured-5b-4090.mlir` | 4090 hierarchy table: 8 measured rows; ArgMin is PREFETCH+KEEP+KEEP / `diverge=no`; fixture and 910B profile stay `not-measured` |
 | 5B-7 | `test/Integration/storage-measured-5b-910b.mlir` | 910B hierarchy table: 8 measured rows; ArgMin is PREFETCH+KEEP+KEEP / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
+
+## Measured storage, structurally different F (Phase 5C, design)
+
+**Not Cost v0.4.** Same `policy=measured-storage-v1`. First
+target `@ssd_ntile_pipeline` (two independent PREFETCH
+sites). Do not re-measure the frozen hierarchy 8-set. Do
+not manufacture `diverge=yes`.
+
+| ID | File | Checks (draft) |
+| -- | ---- | -------------- |
+| 5C-1 | later | `@ssd_ntile_pipeline` product=4 enumerated; `default-3g` is PREFETCH+PREFETCH |
+| 5C-2 | later | 4/4 measured inhabitants; each signature inhabits F; extras / duplicates rejected |
+| 5C-3 | later | ArgMin / `diverge` follow the device table; `cost-v04` still coincide |
+| 5C-4 | later | fixture / 5B hierarchy table / cross-profile stay `not-measured` |
+| 5C-5 | later | no FileCheck of microseconds; no 4090↔910B μs compare; `#69` untouched |
 
 ## Complete SSD + MLP program wall-clock
 
