@@ -74,3 +74,11 @@ Batch index of every retained hardware artifact:
 with `python3 runtime/record_hw_ledger.py --check-hw-ledger`.
 Do not move campaign files. Do not FileCheck microseconds.
 
+Compiler-facing Evidence DB (Phase 6B):
+[`evidence-db.jsonl`](evidence-db.jsonl), schema
+`s2c2.evidence.v1`. Normalized from the frozen
+`storage-measured-v1*.jsonl` tables. Not the hardware
+ledger. Check with
+`python3 runtime/record_evidence.py --check-evidence-db`.
+Do not FileCheck microseconds.
+

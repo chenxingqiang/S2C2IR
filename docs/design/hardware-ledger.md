@@ -13,6 +13,7 @@ checked together later.
 
 ```text
 Ledger              ≠  Capability Schema v1
+Ledger              ≠  Evidence DB (s2c2.evidence.v1)
 Ledger status       ≠  a rewrite license
 device-absent       ≠  measured=no invented ratio
 npu-demo inferred   ≠  this ledger

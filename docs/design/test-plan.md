@@ -932,6 +932,27 @@ is not opened. Do not FileCheck microseconds.
 | 6A-4 | same | `--explain`; wrong profile / `measured=no` / truncated → fallback; extras cannot expand F |
 | 6A-5 | same | unknown profile preserves; unknown policy fails; no `sched.wait` |
 
+## Evidence DB / Contract (Phase 6B)
+
+**Not Cost v0.4.** Design: [`evidence-db.md`](evidence-db.md).
+Turns frozen `measured-storage-v1` campaign tables into a
+versioned Evidence Contract. Identity
+\(E=(profile, workload, candidate, measurement\_revision)\).
+Only `measurement_status=measured` and `correctness=1`
+project to v1 `measured=yes`. The compiler still consumes
+the v1 projection; matching keys are unchanged. 5A–5D stay
+frozen. 5E is not opened. Capacity-aware residency is **6C**,
+not this cut. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 6B-1 | `test/Integration/evidence-db.mlir` | `--print-evidence-db-contract`; statuses; not-capacity-aware |
+| 6B-2 | same | frozen-campaign ingest round-trips `evidence-db.jsonl`; unique E |
+| 6B-3 | same | fixture / inferred / pending / invalid are not ranking-eligible and do not export `measured=yes` |
+| 6B-4 | same | v1 export of 5A 4090 still ranks under `--schedule-policy=measured-storage-v1`; extras cannot expand F |
+| 6B-5 | same | duplicate E and extra keys fail `--check-evidence-db`; ledger ingest is skipped; no `sched.wait` |
+| 6B-6 | same | export without `--measurement-revision` fails; query without revision is a historical view; same-E ingest is idempotent or identity-collision |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

@@ -106,6 +106,13 @@ benchmark logs  →  evidence builder (host)
                 →  s2c2-opt
 ```
 
+Phase 6B stores those rows as `s2c2.evidence.v1` with
+identity \(E=(profile, workload, candidate, revision)\)
+and projects the ranking-eligible slice back to this
+v1 table. See [`evidence-db.md`](evidence-db.md).
+The compiler still does not read the Evidence DB,
+campaign logs, or `hardware-ledger.jsonl`.
+
 ## Explain
 
 `--explain` prints a stable, grep-able account of \(F\),
@@ -136,7 +143,8 @@ changing cost-v04 ticks
 retargeting default-3g
 expanding #69
 new Capability cells
-capacity-aware residency (6B)
+capacity-aware residency (6C)
+Evidence DB is 6B, not this cut
 C||Storage flatten
 invented sibling sched.wait
 ```
