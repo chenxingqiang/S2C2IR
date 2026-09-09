@@ -2725,6 +2725,176 @@ static int runStorageNtileMeasured(int nTile, int kRef, int warmup, int reps) {
   return 0;
 }
 
+static bool checkStorageLoop(PipeTile t[3], float *check, int k);
+
+// Phase 5D: one arm per @ssd_loop_pipeline inhabitant.
+// Axes: PREFETCH/PRESERVE × loop-invariant KEEP/TRANSFER.
+// KEEP skips tile-0 rematerialize; TRANSFER performs it.
+// After-loop HtoD uses scratch so silu on t0.dev is not clobbered.
+// Do not FileCheck microseconds. Do not overwrite 3J wall-clock.
+static const char *kLoopPrefix =
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//";
+
+static const char *loopTail(bool prefetch, bool keep) {
+  if (prefetch && keep)
+    return "PREFETCH//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE";
+  if (prefetch && !keep)
+    return "PREFETCH//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE";
+  if (!prefetch && keep)
+    return "PRESERVE//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE";
+  return "PRESERVE//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE";
+}
+
+static void runStorageLoopMeasuredArm(PipeTile t[3], float *scratch,
+                                      cudaStream_t sComp, cudaStream_t sCopy,
+                                      int k, bool prefetch, bool keep) {
+  ssdPrefetch(t[0]);
+  tileHtoD(t[0], sCopy);
+  CUDA_OK(cudaStreamSynchronize(sCopy));
+  for (int i = 0; i < 2; ++i) {
+    int next = i + 1;
+    if (prefetch) {
+      siluLaunch(t[i].dev, t[i].n, sComp, k);
+      ssdPrefetch(t[next]);
+      CUDA_OK(cudaStreamSynchronize(sComp));
+    } else {
+      siluLaunch(t[i].dev, t[i].n, sComp, k);
+      CUDA_OK(cudaStreamSynchronize(sComp));
+      ssdPrefetch(t[next]);
+    }
+    tileHtoD(t[next], sCopy);
+    CUDA_OK(cudaStreamSynchronize(sCopy));
+    if (!keep)
+      ssdPrefetch(t[0]);
+  }
+  if (!keep) {
+    ssdPrefetch(t[0]);
+    CUDA_OK(cudaMemcpyAsync(scratch, t[0].host, t[0].bytes(),
+                            cudaMemcpyHostToDevice, sCopy));
+    CUDA_OK(cudaStreamSynchronize(sCopy));
+  }
+}
+
+static double timeStorageLoopMeasured(PipeTile t[3], float *scratch,
+                                      float *check, cudaStream_t sComp,
+                                      cudaStream_t sCopy, int k, int warmup,
+                                      int reps, bool prefetch, bool keep) {
+  auto prep = [&](int seed) {
+    for (int i = 0; i < 3; ++i)
+      fillHost(t[i].ssd, t[i].n, seed + i);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    prep(i + 3);
+    runStorageLoopMeasuredArm(t, scratch, sComp, sCopy, k, prefetch, keep);
+  }
+  std::vector<float> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    prep(i + 11);
+    auto start = std::chrono::steady_clock::now();
+    runStorageLoopMeasuredArm(t, scratch, sComp, sCopy, k, prefetch, keep);
+    CUDA_OK(cudaStreamSynchronize(sComp));
+    CUDA_OK(cudaStreamSynchronize(sCopy));
+    auto stop = std::chrono::steady_clock::now();
+    samples.push_back(static_cast<float>(
+        std::chrono::duration<double, std::micro>(stop - start).count()));
+    if (!checkStorageLoop(t, check, k)) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run correctness=0 arm=storage-loop-measured\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static int runStorageLoopMeasured(int nTile, int kRef, int warmup, int reps) {
+  PipeTile t[3];
+  for (int i = 0; i < 3; ++i)
+    t[i].alloc(nTile);
+  float *check = nullptr;
+  float *scratch = nullptr;
+  CUDA_OK(cudaHostAlloc(&check, t[0].bytes(), cudaHostAllocDefault));
+  CUDA_OK(cudaMalloc(&scratch, t[0].bytes()));
+  cudaStream_t sComp = nullptr;
+  cudaStream_t sCopy = nullptr;
+  CUDA_OK(cudaStreamCreateWithFlags(&sComp, cudaStreamNonBlocking));
+  CUDA_OK(cudaStreamCreateWithFlags(&sCopy, cudaStreamNonBlocking));
+  for (int i = 0; i < 3; ++i)
+    fillHost(t[i].ssd, t[i].n, i + 1);
+  siluLaunch(t[0].dev, t[0].n, sComp, 1);
+  CUDA_OK(cudaStreamSynchronize(sComp));
+
+  std::fprintf(stderr, "s2c2-cuda-run hardware_id=rtx4090:cuda sched=%s "
+                       "map=%s device=gpu sync=named-nonblocking\n",
+               kSched, kMap);
+  std::fprintf(stderr, "s2c2-cuda-run storage-loop-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured "
+               "note prefetch-keep-joint\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured "
+               "note joint-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured n-tile=%d k_ref=%d "
+               "arms=4 trip=2\n",
+               nTile, kRef);
+  std::fprintf(stderr, "s2c2-cuda-run storage-loop-measured measured=yes\n");
+
+  int idx = 0;
+  for (int pf = 1; pf >= 0; --pf) {
+    for (int kh = 1; kh >= 0; --kh) {
+      double us = timeStorageLoopMeasured(t, scratch, check, sComp, sCopy,
+                                          kRef, warmup, reps, pf != 0,
+                                          kh != 0);
+      char sig[320];
+      std::snprintf(sig, sizeof(sig), "%s%s", kLoopPrefix,
+                    loopTail(pf != 0, kh != 0));
+      std::fprintf(stderr,
+                   "s2c2-cuda-run storage-loop-measured "
+                   "signature=%s timing=%.1f correctness=1\n",
+                   sig, us);
+      ++idx;
+    }
+  }
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured count=%d "
+               "note one-row-per-signature\n",
+               idx);
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured note not-ntile-4\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured note not-pipeline-s0-s1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured note not-3j-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-run storage-loop-measured cost=unchanged "
+               "semantics=unchanged v3=not-claimed\n");
+  CUDA_OK(cudaStreamDestroy(sCopy));
+  CUDA_OK(cudaStreamDestroy(sComp));
+  CUDA_OK(cudaFree(scratch));
+  CUDA_OK(cudaFreeHost(check));
+  for (int i = 0; i < 3; ++i)
+    t[i].freeAll();
+  return 0;
+}
+
 // 3I scf.for realization wall-clock. Prologue tile 0, then two
 // iterations of compute(i) || prefetch(i+1) and sequential HtoD.
 // T_evi keeps C||Storage. T_par is the same schedule (no C||C).
@@ -2898,6 +3068,7 @@ int main(int argc, char **argv) {
   bool ssdMlp = false;
   bool storagePipe = false;
   bool storageLoop = false;
+  bool storageLoopMeas = false;
   bool storageHier = false;
   bool storageNtile = false;
   bool kSet = false;
@@ -2924,6 +3095,8 @@ int main(int argc, char **argv) {
       storagePipe = true;
     else if (a == "--storage-loop-wallclock")
       storageLoop = true;
+    else if (a == "--storage-loop-measured")
+      storageLoopMeas = true;
     else if (a == "--storage-hierarchy-measured")
       storageHier = true;
     else if (a == "--storage-ntile-measured")
@@ -2983,6 +3156,8 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-run --storage-hierarchy-measured [--n=N] "
                    "--k=K --warmup=W --reps=R\n"
                    "s2c2-cuda-run --storage-ntile-measured [--n=N] "
+                   "--k=K --warmup=W --reps=R\n"
+                   "s2c2-cuda-run --storage-loop-measured [--n=N] "
                    "--k=K --warmup=W --reps=R\n"
                    "s2c2-cuda-run --print-meta\n");
       return 0;
@@ -3066,7 +3241,7 @@ int main(int argc, char **argv) {
     if (matchedOn || !capArms.empty() || !phaseArms.empty() ||
         !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
         !valCcArms.empty() || !valAsyncArms.empty() || storagePipe ||
-        storageLoop || storageHier || storageNtile) {
+        storageLoop || storageLoopMeas || storageHier || storageNtile) {
       std::fprintf(stderr,
                    "s2c2-cuda-run: --ssd-mlp-wallclock cannot combine with "
                    "other timed modes\n");
@@ -3095,7 +3270,7 @@ int main(int argc, char **argv) {
     if (ssdMlp || matchedOn || !capArms.empty() || !phaseArms.empty() ||
         !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
         !valCcArms.empty() || !valAsyncArms.empty() ||         storageLoop ||
-        storageHier || storageNtile) {
+        storageLoopMeas || storageHier || storageNtile) {
       std::fprintf(stderr,
                    "s2c2-cuda-run: --storage-pipeline cannot combine with "
                    "other timed modes\n");
@@ -3126,7 +3301,7 @@ int main(int argc, char **argv) {
     if (ssdMlp || storagePipe || matchedOn || !capArms.empty() ||
         !phaseArms.empty() || !pipeArms.empty() || !valArms.empty() ||
         !valMemArms.empty() || !valCcArms.empty() || !valAsyncArms.empty() ||
-        storageHier || storageNtile) {
+        storageLoopMeas || storageHier || storageNtile) {
       std::fprintf(stderr,
                    "s2c2-cuda-run: --storage-loop-wallclock cannot combine "
                    "with other timed modes\n");
@@ -3155,7 +3330,8 @@ int main(int argc, char **argv) {
     return runStorageLoopWallclock(n, k, warmup, reps);
   }
   if (storageHier) {
-    if (ssdMlp || storagePipe || storageLoop || matchedOn || !capArms.empty() ||
+    if (ssdMlp || storagePipe || storageLoop || storageLoopMeas ||
+        matchedOn || !capArms.empty() ||
         !phaseArms.empty() || !pipeArms.empty() || !valArms.empty() ||
         !valMemArms.empty() || !valCcArms.empty() || !valAsyncArms.empty() ||
         storageNtile) {
@@ -3187,7 +3363,8 @@ int main(int argc, char **argv) {
     return runStorageHierarchyMeasured(n, k, warmup, reps);
   }
   if (storageNtile) {
-    if (ssdMlp || storagePipe || storageLoop || storageHier || matchedOn ||
+    if (ssdMlp || storagePipe || storageLoop || storageLoopMeas ||
+        storageHier || matchedOn ||
         !capArms.empty() || !phaseArms.empty() || !pipeArms.empty() ||
         !valArms.empty() || !valMemArms.empty() || !valCcArms.empty() ||
         !valAsyncArms.empty()) {
@@ -3217,6 +3394,38 @@ int main(int argc, char **argv) {
       return 2;
     }
     return runStorageNtileMeasured(n, k, warmup, reps);
+  }
+  if (storageLoopMeas) {
+    if (ssdMlp || storagePipe || storageLoop || storageHier || storageNtile ||
+        matchedOn || !capArms.empty() || !phaseArms.empty() ||
+        !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
+        !valCcArms.empty() || !valAsyncArms.empty()) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --storage-loop-measured cannot "
+                   "combine with other timed modes\n");
+      return 1;
+    }
+    if (!gpu) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --storage-loop-measured is gpu only\n");
+      return 1;
+    }
+    if (!kSet)
+      k = 32;
+    if (n == (1 << 24))
+      n = 4194304;
+    if (n <= 0 || k <= 0) {
+      std::fprintf(stderr,
+                   "s2c2-cuda-run: --storage-loop-measured needs n>0 k>0\n");
+      return 1;
+    }
+    int count = 0;
+    CUDA_OK(cudaGetDeviceCount(&count));
+    if (count < 1) {
+      std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
+      return 2;
+    }
+    return runStorageLoopMeasured(n, k, warmup, reps);
   }
   if (m != 1 && valCcArms.empty()) {
     std::fprintf(stderr, "s2c2-cuda-run: --m is --cuda-val-cc only\n");

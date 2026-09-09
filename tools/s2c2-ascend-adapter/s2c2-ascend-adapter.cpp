@@ -478,6 +478,53 @@ static void printStorageHierarchyMeasured() {
                "semantics=unchanged\n");
 }
 
+static void printStorageLoopMeasured() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-loop-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note prefetch-keep-joint\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note joint-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note not-ntile-4\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note not-3j-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "semantics=unchanged\n");
+}
+
 static void printStorageNtileMeasured() {
   std::fprintf(stderr, "s2c2-ascend-adapter storage-ntile-measured=1\n");
   std::fprintf(stderr,
@@ -707,7 +754,8 @@ static void usage() {
                "[--storage-hierarchy-measured] "
                "[--storage-ntile] [--storage-ntile-measured] "
                "[--storage-loop] "
-               "[--storage-loop-wallclock] [--workload-schedule] "
+               "[--storage-loop-wallclock] [--storage-loop-measured] "
+               "[--workload-schedule] "
                "[--classify=ta:tb:tpar] "
                "[--emit-record=<pair>] [--accept-hardware=<id>]\n"
                "Host protocol only. Timed AscendCL: runtime/ascend/\n");
@@ -734,6 +782,7 @@ int main(int argc, char **argv) {
   bool storageNtileMeas = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
+  bool storageLoopMeas = false;
   bool workloadSched = false;
   const char *classify = nullptr;
   const char *emit = nullptr;
@@ -780,6 +829,8 @@ int main(int argc, char **argv) {
       storageLoop = true;
     } else if (a == "--storage-loop-wallclock") {
       storageLoopWc = true;
+    } else if (a == "--storage-loop-measured") {
+      storageLoopMeas = true;
     } else if (a == "--workload-schedule") {
       workloadSched = true;
     } else if (a.rfind("--classify=", 0) == 0) {
@@ -811,7 +862,8 @@ int main(int argc, char **argv) {
               (int)storageGlobal + (int)storageCost + (int)storageMeasured +
               (int)storageHierMeas + (int)storageNtile +
               (int)storageNtileMeas + (int)storageLoop +
-              (int)storageLoopWc + (int)workloadSched +
+              (int)storageLoopWc + (int)storageLoopMeas +
+              (int)workloadSched +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
               (int)(acceptHw != nullptr);
   if (modes > 1) {
@@ -823,7 +875,8 @@ int main(int argc, char **argv) {
                  "--storage-hierarchy-measured/--storage-ntile/"
                  "--storage-ntile-measured/"
                  "--storage-loop/"
-                 "--storage-loop-wallclock/--workload-schedule/"
+                 "--storage-loop-wallclock/"
+                 "--storage-loop-measured/--workload-schedule/"
                  "--classify/--emit-record/"
                  "--accept-hardware cannot combine\n");
     return 1;
@@ -915,6 +968,10 @@ int main(int argc, char **argv) {
   }
   if (storageLoop) {
     printStorageLoop();
+    return 0;
+  }
+  if (storageLoopMeas) {
+    printStorageLoopMeasured();
     return 0;
   }
   if (storageLoopWc) {

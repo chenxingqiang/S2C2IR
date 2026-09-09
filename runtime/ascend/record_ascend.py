@@ -1692,6 +1692,9 @@ def print_storage_measured_contract() -> int:
     print("note ntile-measured-this-cut")
     print("note two-independent-prefetch-sites")
     print("note contention-not-preclaimed")
+    print("note loop-measured-this-cut")
+    print("note prefetch-keep-joint")
+    print("note joint-not-preclaimed")
     print("note pipeline-s0-s1-frozen")
     print("note diverge-yes-not-goal")
     print("semantics=unchanged")
@@ -2025,6 +2028,92 @@ def emit_storage_measured_from_ntile(path: Path) -> int:
     return 0
 
 
+_LOOP_MEAS_LINE_RE = re.compile(
+    r"storage-loop-measured signature=(\S+) timing=([0-9.]+) "
+    r"correctness=1"
+)
+_LOOP_MEAS_YES_RE = re.compile(r"storage-loop-measured measured=yes")
+_LOOP_PREFIX = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//"
+)
+_LOOP_TAILS = (
+    "PREFETCH//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE",
+    "PREFETCH//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE",
+    "PRESERVE//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE",
+    "PRESERVE//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE",
+)
+_LOOP_LEGAL = {_LOOP_PREFIX + t for t in _LOOP_TAILS}
+
+
+def emit_storage_measured_from_loop(path: Path) -> int:
+    """One campaign row per loop F inhabitant. Refuse extras/dups.
+
+    Measure all 4 legal signatures. joinGlobal(S) is the full
+    compiler signature, not a MATERIALIZE token count.
+    Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if not _LOOP_MEAS_YES_RE.search(text):
+        print("record_ascend: loop log is not measured", file=sys.stderr)
+        return 4
+    profile = infer_measured_profile(text)
+    vendor = "910B" if profile == "910B" else "4090"
+    rows: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for m in _LOOP_MEAS_LINE_RE.finditer(text):
+        sig = m.group(1)
+        if sig not in _LOOP_LEGAL:
+            print(f"record_ascend: signature not in F: {sig}", file=sys.stderr)
+            return 4
+        if sig in seen:
+            print(
+                f"record_ascend: duplicate signature in campaign: {sig}",
+                file=sys.stderr,
+            )
+            return 4
+        seen.add(sig)
+        rec = {
+            "schema": "s2c2.measured_storage_cost.v1",
+            "profile": profile,
+            "workload_class": "ssd-loop-pipeline",
+            "repetitions": 5,
+            "correctness": 1,
+            "source": "device-log",
+            "measured": "yes",
+            "candidate_signature": sig,
+            "measured_time_us": int(round(float(m.group(2)))),
+            "note": (
+                f"{vendor} loop arm. One row per signature. "
+                "Not a Capability cell. Do not FileCheck microseconds."
+            ),
+        }
+        rows.append(rec)
+    if len(rows) != 4:
+        print(
+            f"record_ascend: need 4/4 measured inhabitants, got {len(rows)}",
+            file=sys.stderr,
+        )
+        return 4
+    for rec in rows:
+        print(json.dumps(rec, ensure_ascii=True, separators=(",", ":")))
+    print(f"storage-measured emit=device-log profile={profile}")
+    print(f"storage-measured loop-count={len(rows)}")
+    print("storage-measured note one-row-per-signature")
+    print("storage-measured note measurement-cannot-expand-F")
+    print("storage-measured note prefetch-keep-joint")
+    print("storage-measured note joint-not-preclaimed")
+    print("storage-measured note measured-yes-and-correctness")
+    print("storage-measured note do-not-filecheck-microseconds")
+    print("storage-measured note do-not-compare-4090-to-910B")
+    print("storage-measured note not-ntile-4")
+    print("storage-measured note not-hierarchy-8")
+    print("storage-measured note not-pipeline-s0-s1")
+    print("storage-measured note not-3j-wallclock")
+    print("storage-measured note measured-ne-rewrite-license")
+    print("cost=unchanged")
+    return 0
+
+
 def print_storage_ntile_contract() -> int:
     print("storage-ntile compiler-driven=yes")
     print("no-evidence => no-destructive-optimization")
@@ -2283,6 +2372,7 @@ def main() -> int:
     p.add_argument("--emit-storage-measured-from-pipeline", type=Path)
     p.add_argument("--emit-storage-measured-from-hierarchy", type=Path)
     p.add_argument("--emit-storage-measured-from-ntile", type=Path)
+    p.add_argument("--emit-storage-measured-from-loop", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
     p.add_argument("--print-storage-loop-contract", action="store_true")
     p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
@@ -2333,6 +2423,7 @@ def main() -> int:
             args.emit_storage_measured_from_pipeline,
             args.emit_storage_measured_from_hierarchy,
             args.emit_storage_measured_from_ntile,
+            args.emit_storage_measured_from_loop,
             args.print_storage_ntile_contract,
             args.print_storage_loop_contract,
             args.print_storage_loop_wallclock_contract,
@@ -2484,6 +2575,10 @@ def main() -> int:
     if args.emit_storage_measured_from_ntile:
         return emit_storage_measured_from_ntile(
             args.emit_storage_measured_from_ntile
+        )
+    if args.emit_storage_measured_from_loop:
+        return emit_storage_measured_from_loop(
+            args.emit_storage_measured_from_loop
         )
     if args.print_storage_ntile_contract:
         return print_storage_ntile_contract()
