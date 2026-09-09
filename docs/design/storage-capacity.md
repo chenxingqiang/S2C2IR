@@ -1,0 +1,192 @@
+# Capacity-aware Residency (Phase 6C, design)
+
+**Status:** design. 5A–6B is the **stable baseline**
+([`stable-baseline.md`](stable-baseline.md)). This cut
+freezes \(F_{\mathrm{capacity}}\) and the candidate
+contract. It does **not** rewrite, does **not** rank,
+does **not** open `measured-capacity-v1`, does **not**
+change `#69`, `cost-v04`, `default-3g`, or Evidence DB
+identity. 5E stays closed.
+
+```text
+Goal     F_capacity: capacity-feasible residency candidates
+Not      an eviction rewrite, a new Capability grid, or a device campaign
+Rewrite  still only from an existing capability license
+```
+
+```text
+Legality              ≠  Selection  ≠  Cost
+F_capacity            ≠  F(program)          (4C product)
+6C KEEP               ≠  3G KEEP_RESIDENCY
+capacity exceeded     ≠  must evict (this object)
+EVICT                 ≠  a semantic rewrite
+TRANSFER              ≠  a new 6C action (existing realization)
+measured-capacity-v1  ≠  this cut
+```
+
+## Why this cut
+
+The baseline already answers movement and measured ranking.
+The remaining Storage question is occupancy:
+
+> When HBM / fast memory is finite, which residencies stay,
+> which are dropped, and how is an evicted object restored?
+
+6C does **not** start from a new KEEP/TRANSFER local rule.
+It builds a new candidate family on live occupancy, then
+reuses Evidence DB later.
+
+```text
+Semantic
+   ↓
+Residency / lifetime
+   ↓
+Capacity feasibility
+   ↓
+F_capacity
+   ↓
+Policy                 ← not this cut
+Rewrite License        ← not this cut
+Rewrite / HB           ← not this cut
+```
+
+## Occupancy
+
+Each residency \(r\):
+
+```text
+id
+object
+space
+size
+live interval [t_start, t_end)
+producer
+consumer
+reuse_distance
+```
+
+At program point \(t\):
+
+$$
+Live(R,t)=\sum_{r\in R_t} size(r)
+$$
+
+where \(R_t=\{r\mid t_{\mathrm{start}}(r)\le t < t_{\mathrm{end}}(r)\}\).
+
+A **capacity conflict** exists iff \(\exists t.\; Live(R,t) > C\).
+The first such \(t^\*\) is the conflict point. This cut
+enumerates \(F_{\mathrm{capacity}}\) at \(t^\*\) only.
+
+```text
+Live ≤ C     →  F = { all KEEP }     enumerated=yes
+Live > C     →  drop occupancy until Live ≤ C
+```
+
+Capacity exceeded means the **all-KEEP** assignment of
+\(R_{t^\*}\) is **not** in \(F_{\mathrm{capacity}}\). It does
+**not** pick which object to drop, and it does **not**
+authorize rewrite.
+
+## Actions (first version)
+
+```text
+KEEP            retain r in the constrained space
+EVICT           drop r from the constrained space
+REMATERIALIZE   restore an evicted object by recompute
+```
+
+`TRANSFER` stays the **existing** restore realization
+(reload from a lower space). It is not redefined here.
+
+```text
+restore-legal = TRANSFER | REMATERIALIZE
+restore       = unspecified on this cut
+```
+
+Restore does **not** multiply \(F_{\mathrm{capacity}}\)
+in the design witness. Each occupancy candidate names
+one EVICT (or all-KEEP when there is no conflict).
+
+## First-cut enumeration
+
+When a single eviction restores \(Live(t^\*)\le C\):
+
+```text
+S0   evict the incoming object (latest t_start in R_t*)
+     = keep the already-live working set
+S1…  evict each remaining live object, sorted by object id
+```
+
+If one eviction is not enough, this cut reports
+`enumerated=no truncated=yes` and does **not** invent a
+pair-eviction product. Witness:
+[`v3-dataset/storage-capacity-3tile-tight.jsonl`](v3-dataset/storage-capacity-3tile-tight.jsonl).
+
+```text
+F_capacity cannot invent objects
+illegal ids cannot expand F
+selection is not performed
+rewrite=no
+```
+
+## First acceptance workload
+
+Four tiles, one constrained space (`hbm`), unit size:
+
+```text
+capacity = 2 × tile
+peak live = 3 × tile
+```
+
+```text
+tile0 live [0, 3)
+tile1 live [1, 4)
+tile2 live [2, 5)
+tile3 live [3, 6)
+```
+
+At \(t^\*=2\): live \(\{0,1,2\}\), \(Live=3>2\).
+
+```text
+capacity-conflict=yes
+candidate #0 keep=0,1 evict=2
+candidate #1 keep=1,2 evict=0
+candidate #2 keep=0,2 evict=1
+```
+
+This proves candidate generation. It does **not** pick a
+winner. Tile 3 is not in \(R_{t^\*}\).
+
+Host witness (not a device log, not the hardware ledger):
+[`v3-dataset/storage-capacity-4tile.jsonl`](v3-dataset/storage-capacity-4tile.jsonl).
+
+## Later (not this cut)
+
+```text
+F_capacity
+   ↓
+Evidence DB  (existing 6B; new revision, not a second store)
+   ↓
+measured-capacity-v1     ← new policy, does not retune cost-v04
+   ↓
+ArgMin
+   ↓
+rewrite license
+```
+
+s2c2-opt does not emit \(F_{\mathrm{capacity}}\) yet.
+
+## Out of scope
+
+```text
+eviction rewrite / HB A/B
+measured-capacity-v1
+new Capability matrix
+new hardware campaign
+changing cost-v04 / default-3g / #69
+changing Evidence DB identity
+changing F(program) 4C product
+C||Storage flatten
+invented sibling sched.wait
+FileCheck of microseconds
+```

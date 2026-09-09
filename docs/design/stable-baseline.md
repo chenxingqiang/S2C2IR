@@ -2,9 +2,10 @@
 
 **Status:** FROZEN. Phases 5A–5D, 6A, and 6B form the
 current production stack. Phase **5E is not opened**.
-Phase **6C is not opened**. Do not retune 5A–5D, do not
-change `#69`, `cost-v04`, `default-3g`, rewrite license,
-or the Evidence DB contract.
+Phase **6C rewrite is not opened**. 6C design lives above
+this freeze: [`storage-capacity.md`](storage-capacity.md).
+Do not retune 5A–5D, do not change `#69`, `cost-v04`,
+`default-3g`, rewrite license, or the Evidence DB contract.
 
 ```text
 5A–5D   measured campaign freeze
@@ -15,12 +16,12 @@ or the Evidence DB contract.
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← not opened
+6C      Capacity-aware residency   ← design; rewrite not opened
 ```
 
 ```text
 Goal     freeze the verified stack as the compiler baseline
-Not      a new F, a rewrite, or capacity-aware residency
+Not      a new F, a rewrite, or 6C rewrite implementation
 Rewrite  still only from an existing capability license
 ```
 
@@ -67,9 +68,13 @@ rewrite license  unchanged
 4B chain def     unchanged
 ```
 
-## 6C is not this freeze
+## 6C rewrite is not this freeze
 
-When 6C opens, it is a new Storage problem class:
+6C **design** is [`storage-capacity.md`](storage-capacity.md):
+\(F_{\mathrm{capacity}}\) and occupancy candidates only.
+Rewrite, ranking, and `measured-capacity-v1` stay closed.
+
+When 6C is implemented, it is a new Storage problem class:
 
 ```text
 HBM capacity
@@ -90,13 +95,13 @@ campaign store. It does **not** start from a new
 KEEP/TRANSFER local action. It answers: when fast memory
 is finite, which objects stay where.
 
-Do **not** open 6C until that capacity question is the
-work. Do **not** FileCheck microseconds.
+Do **not** implement 6C rewrite from this freeze. Do **not**
+FileCheck microseconds.
 
 ## Out of scope
 
 ```text
-opening 5E or 6C
+opening 5E or 6C rewrite
 re-measuring 5A–5D
 hunting for diverge=yes
 changing cost-v04 / default-3g / #69
