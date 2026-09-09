@@ -80,8 +80,7 @@ Recommended first workload: `@ssd_ntile_pipeline`
 (`test/Integration/storage-ntile.mlir`). Already enumerated
 (`chains=7`, `product=4`, `truncated=no`). 4090 / 910B
 `default-3g` / `cost-v04` already coincide on this \(F\)
-(`diverge=no`). Runtime today is the inherited two-tile
-pipeline witness, **not** four `joinGlobal` arms.
+(`diverge=no`).
 
 ```text
 PREFIX = MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//
@@ -91,9 +90,21 @@ S2 PREFIX+PRESERVE|TRANSFER//PREFETCH|TRANSFER//TRANSFER|TRANSFER
 S3 PREFIX+PRESERVE|TRANSFER//PRESERVE|TRANSFER//TRANSFER|TRANSFER
 ```
 
+These four `MATERIALIZE` tokens are the compiler's chain
+signature (`s2c2-opt` `hierarchy-global-candidate`), not a
+count of SSD objects. Sites 0–2 are per-object
+`MATERIALIZE`; the fourth is obj0 `MATERIALIZE|TRANSFER`.
+Do **not** rewrite the prefix to three `MATERIALIZE` tokens.
+
 ```text
 cost-v04  S0=2  S1=3  S2=3  S3=4     coincide with default-3g
 ```
+
+Those scores are what `s2c2-opt` prints under frozen
+`cost-v04`. `PREFETCH=0`, `PRESERVE=1`. The shared +2 is
+the last-chain rematerialize `TRANSFER|TRANSFER` (KEEP
+exists at those sites but is not an \(F\) axis). Do **not**
+renormalize to `0/1/1/2`. ArgMin is still S0 either way.
 
 Fallback if a honest n-tile runtime cannot realize both
 overlap sites independently: `@ssd_loop_pipeline`
