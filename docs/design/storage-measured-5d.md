@@ -1,7 +1,9 @@
 # Measured Storage, last existing enumerated F (Phase 5D)
 
 **Status:** FROZEN (device fill on this cut). Design approved
-on PR #101. Phase 5A / 5B / 5C are **FROZEN**. Both 4090
+on PR #101; fill approved on PR #102. The 5A–5D campaign is
+closed ([`storage-measured-campaign.md`](storage-measured-campaign.md)).
+Phase 5A / 5B / 5C are **FROZEN**. Both 4090
 and 910B measured all 4 legal signatures. ArgMin is
 default-3g S0 (`PREFETCH+KEEP`) on both profiles
 (`diverge=no`). That is a valid 5D result. Do **not**

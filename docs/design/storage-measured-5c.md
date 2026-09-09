@@ -214,6 +214,6 @@ memory-capacity-aware residency (later)
 growing F with a new enumerator
 ```
 
-Next structural question (design only):
-[`storage-measured-5d.md`](storage-measured-5d.md). Do not
-re-measure this n-tile 4-set.
+5D is **FROZEN**. The 5A–5D campaign is closed:
+[`storage-measured-campaign.md`](storage-measured-campaign.md).
+Do not re-measure this n-tile 4-set. Phase 5E is not opened.

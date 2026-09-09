@@ -843,18 +843,11 @@ untouched. Do not FileCheck microseconds.
 | 5A-7 | `test/Integration/storage-measured-4090.mlir` | 4090 device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture `measured=no` still `not-measured`; no FileCheck of microseconds |
 | 5A-8 | `test/Integration/storage-measured-910b.mlir` | 910B device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture and 4090 table stay `not-measured` under `profile=910B`; no FileCheck of microseconds; do not compare 4090 μs to 910B μs |
 
-Phase 5A is **FROZEN**. Do not add ticks or re-campaign the
-pipeline pair. Phase 5B is **FROZEN**
-([`storage-measured-5b.md`](storage-measured-5b.md)):
-hierarchy 8/8 measured, both devices `diverge=no`. Do not
-re-measure that 8-set. Phase 5C implementation:
-[`storage-measured-5c.md`](storage-measured-5c.md). Host
-schema plus 4090 / 910B 4/4 device tables. Both devices
-`diverge=no`. Do not pre-claim contention. Do not re-measure
-this 4-set to manufacture `diverge=yes`. Phase 5D design:
-[`storage-measured-5d.md`](storage-measured-5d.md). Last
-existing enumerated `|F|>2`. Host schema is this cut.
-Device tables land from a later 4090 / 910B campaign.
+Phases 5A–5D are **FROZEN** together
+([`storage-measured-campaign.md`](storage-measured-campaign.md)).
+Do not add ticks or re-campaign any frozen set. Do not hunt
+for `diverge=yes` by retuning workload. Phase 5E is **not
+opened**.
 
 ## Measured storage, |F| > 2 (Phase 5B)
 
@@ -907,6 +900,21 @@ ArgMin is default-3g S0 (`diverge=no`). Freeze the evidence.
 | 5D-5 | `test/Integration/storage-measured-5d.mlir` | emit 4/4; extras / duplicates / short campaigns rejected; adapters `--storage-loop-measured` |
 | 5D-6 | `test/Integration/storage-measured-5d-4090.mlir` | 4090 loop table: 4/4 measured; ArgMin is PREFETCH+KEEP / `diverge=no`; n-tile table and 910B profile stay `not-measured` |
 | 5D-7 | `test/Integration/storage-measured-5d-910b.mlir` | 910B loop table: 4/4 measured; ArgMin is PREFETCH+KEEP / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
+
+## Measured storage campaign freeze (5A–5D)
+
+**Not Cost v0.4.** Design:
+[`storage-measured-campaign.md`](storage-measured-campaign.md).
+Locks the completed campaign: every existing enumerated
+Storage \(F\) ranked under `measured-storage-v1` on both
+devices, ArgMin always `default-3g`, `diverge=no`. 5E is
+not opened. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5X-1 | `test/Integration/storage-measured-campaign.mlir` | campaign freeze contract; `five-e-not-opened`; `do-not-hunt-diverge` |
+| 5X-2 | same | 5A/5B/5C/5D 4090 and 910B tables still `diverge=no` and ranked-eq-default-3g |
+| 5X-3 | same | no FileCheck of microseconds; `#69` untouched; no password / host |
 
 ## Complete SSD + MLP program wall-clock
 
