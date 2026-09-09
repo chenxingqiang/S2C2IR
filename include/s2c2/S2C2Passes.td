@@ -501,6 +501,32 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
   ];
 }
 
+def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp"> {
+  let summary = "Query F_capacity as a consumer-visible CapacityPlan";
+  let description = [{
+    Phase 6C-D consumer query surface. Builds the same occupancy
+    CapacityPlan as `--s2c2-evidence-bounded-schedule --capacity=...`,
+    then prints `s2c2-capacity-plan-query` plus one
+    `s2c2.capacity_plan.v1` JSON object. Does **not** apply a
+    schedule, load Evidence DB, emit `s2c2-storage-capacity`, or
+    issue a rewrite license. `selected` stays `none`.
+    This is not `measured-capacity-v1`. 6C-B diagnostics stay frozen.
+  }];
+  let dependentDialects = [
+    "mlir::s2c2::stor::StorageDialect",
+    "mlir::s2c2::sched::ScheduleDialect"
+  ];
+  let options = [
+    Option<"capacityBudget", "capacity", "std::string", /*default=*/"\"\"",
+           "HBM occupancy budget (tiles). Same meaning as --capacity.">,
+    Option<"capacitySpec", "capacity-spec", "std::string", /*default=*/"\"\"",
+           "JSON capacity spec (same as --capacity-spec).">,
+    Option<"dumpCapacityPlan", "dump-capacity-plan", "std::string",
+           /*default=*/"\"\"",
+           "Write s2c2.capacity_plan.v1 JSON to this path.">
+  ];
+}
+
 def S2C2XForm : Pass<"s2c2-xform", "::mlir::ModuleOp"> {
   let summary = "Realization transformation T : P → P' (v0.5.1)";
   let description = [{

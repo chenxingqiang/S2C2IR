@@ -46,6 +46,7 @@ struct CapacityCandidate {
 
 /// Compiler-visible F_capacity. Policy does not rank. Rewrite does
 /// not run. F_capacity ⊆ F_residency; illegal ids cannot expand F.
+/// Query via --query-capacity-plan (6C-D); selected stays none.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};
   std::string schema = std::string(kSchema);
