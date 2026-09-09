@@ -1,13 +1,15 @@
 # Measured Storage, last existing enumerated F (Phase 5D)
 
-**Status:** implementation. Design approved on PR #101.
-Phase 5A / 5B / 5C are **FROZEN**. This cut picks the last
-remaining fully enumerated \(|F|>2\) that has not had
-per-signature `measured-storage-v1`. Device tables land only
-from a real 4090 / 910B campaign.
-Do **not** grow \(F\), do **not** add a Capability cell, do
-**not** add ticks to frozen `cost-v04`, do **not** retarget
-`default-3g`, and do **not** rewrite.
+**Status:** FROZEN (device fill on this cut). Design approved
+on PR #101. Phase 5A / 5B / 5C are **FROZEN**. Both 4090
+and 910B measured all 4 legal signatures. ArgMin is
+default-3g S0 (`PREFETCH+KEEP`) on both profiles
+(`diverge=no`). That is a valid 5D result. Do **not**
+pre-claim prefetch×KEEP contention: PRESERVE+KEEP did not
+win. Do **not** retune the workload to manufacture
+`diverge=yes`. Do **not** invent S4. 5D is **not** a new
+Capability grid, not new ticks on frozen `cost-v04`, not a
+retarget of `default-3g`, and not a rewrite license.
 
 ```text
 Goal     a natural F whose axes jointly claim prefetch
@@ -79,21 +81,21 @@ joint trade-off. The device table decides ArgMin.
 | `@ssd_pipeline_two_tiles` | 2 | one PREFETCH/PRESERVE | **5A FROZEN** |
 | `@ssd_hierarchy_lifetime` | 8 | PREFETCH/PRESERVE × two KEEP/TRANSFER | **5B FROZEN** |
 | `@ssd_ntile_pipeline` | 4 | two independent PREFETCH/PRESERVE | **5C FROZEN** |
-| `@ssd_loop_pipeline` | 4 | **PREFETCH/PRESERVE × loop-invariant KEEP/TRANSFER** | **5D first target** |
+| `@ssd_loop_pipeline` | 4 | **PREFETCH/PRESERVE × loop-invariant KEEP/TRANSFER** | **5D FROZEN** |
 | `@interleave_objects` | 1 | none | skip |
 | `@seven_binary_chains` | 128 | truncated | `not-enumerated` |
 
-Recommended first (and only remaining) workload:
-`@ssd_loop_pipeline` (`test/Integration/storage-loop.mlir`).
-Already enumerated (`chains=8`, `product=4`,
-`truncated=no`). 4090 / 910B `default-3g` / `cost-v04`
-already coincide on this \(F\) (`diverge=no`).
+Measured workload: `@ssd_loop_pipeline`
+(`test/Integration/storage-loop.mlir`). Already enumerated
+(`chains=8`, `product=4`, `truncated=no`). 4090 / 910B
+`default-3g` / `cost-v04` already coincide on this \(F\)
+(`diverge=no`), and both device tables now agree.
 
-This is the last existing fully enumerated \(|F|>2\). There
+This was the last existing fully enumerated \(|F|>2\). There
 is no later “try another fixture” on the current Storage
-IR. If 5D is again `diverge=no`, freeze the evidence. Do
-**not** retune tile size, \(k\), or trip count to
-manufacture divergence. Do **not** invent a fifth schedule.
+IR. 5D is `diverge=no`. Freeze the evidence. Do **not**
+retune tile size, \(k\), or trip count to manufacture
+divergence. Do **not** invent a fifth schedule.
 
 ## Why this is not 5B and not 5C
 
@@ -173,7 +175,7 @@ IR meaning
 
 Logical SSD remains a pageable host buffer, not NVMe.
 
-## What a later implementation must do
+## What the implementation does
 
 The compiler already names these four signatures. 3J times
 two arms. 5D is a **per-signature runtime** of the joint
@@ -210,7 +212,39 @@ cost-v04 = FROZEN
 rewrite of the measured winner = not this design
 ```
 
-Acceptance when implementation is later approved:
+## Device result (honest)
+
+```text
+4090  4/4  ArgMin = S0 PREFETCH+KEEP  = default-3g  → diverge=no
+910B  4/4  ArgMin = S0 PREFETCH+KEEP  = default-3g  → diverge=no
+```
+
+KEEP beat TRANSFER on both devices. PREFETCH beat PRESERVE
+on both devices while KEEP stayed on. PRESERVE+KEEP did
+**not** win. That does **not** prove prefetch×KEEP joint
+occupancy is free on every workload; it proves that **this**
+\(F\) did not change the historical choice. Freeze the
+evidence. Do not retune `n` / `k` / trip. Do not invent S4.
+Do not drop S0. Do not start 5E.
+
+Device-internal order only (do **not** compare 4090 μs to
+910B μs):
+
+```text
+4090  S0 < S2 < S1 < S3
+910B  S0 < S2 < S1 < S3
+```
+
+```text
+#69              unchanged
+cost-v04         frozen
+default-3g       unchanged
+F(program)       unchanged
+rewrite license  unchanged
+3J wall-clock    unchanged
+```
+
+Acceptance:
 
 ```text
 1. |F(program)| > 2 and enumerated; axes ≠ frozen 5B/5C products
@@ -228,8 +262,9 @@ Acceptance when implementation is later approved:
 ```
 
 ```text
-5D   measure all F  →  ArgMin  →  diverge?
+5D   measure all F  →  ArgMin  →  diverge=no   FROZEN
 5E   only if diverge=yes: rewrite → HB → runtime A/B
+     (not opened; 5D did not produce diverge=yes)
 ```
 
 A `diverge=no` 5D fill still freezes as evidence. It does
@@ -239,7 +274,7 @@ a new enumerator.
 ## Out of scope
 
 ```text
-opening a 4090 / 910B campaign before this design is approved
+re-measuring this loop 4-set
 re-measuring @ssd_ntile_pipeline
 re-measuring @ssd_hierarchy_lifetime
 re-measuring storage-aware-pipeline S0/S1
@@ -249,6 +284,7 @@ retuning n / k / trip to manufacture diverge=yes
 ranking @seven_binary_chains (truncated)
 adding structural ticks to cost-v04
 applying the measured winner as a rewrite
+opening 5E without a real diverge=yes
 new Capability grid points
 overwriting #69
 C||Storage flatten
