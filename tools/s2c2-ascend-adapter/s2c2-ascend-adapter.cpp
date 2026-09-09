@@ -478,6 +478,50 @@ static void printStorageHierarchyMeasured() {
                "semantics=unchanged\n");
 }
 
+static void printStorageNtileMeasured() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-ntile-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note two-independent-prefetch-sites\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note contention-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note not-pipeline-s0-s1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "semantics=unchanged\n");
+}
+
 static void printWorkloadSchedule() {
   std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule=1\n");
   std::fprintf(stderr,
@@ -661,7 +705,8 @@ static void usage() {
                "[--storage-schedule] [--storage-joint] [--storage-global] "
                "[--storage-cost] [--storage-measured] "
                "[--storage-hierarchy-measured] "
-               "[--storage-ntile] [--storage-loop] "
+               "[--storage-ntile] [--storage-ntile-measured] "
+               "[--storage-loop] "
                "[--storage-loop-wallclock] [--workload-schedule] "
                "[--classify=ta:tb:tpar] "
                "[--emit-record=<pair>] [--accept-hardware=<id>]\n"
@@ -686,6 +731,7 @@ int main(int argc, char **argv) {
   bool storageMeasured = false;
   bool storageHierMeas = false;
   bool storageNtile = false;
+  bool storageNtileMeas = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
   bool workloadSched = false;
@@ -728,6 +774,8 @@ int main(int argc, char **argv) {
       storageHierMeas = true;
     } else if (a == "--storage-ntile") {
       storageNtile = true;
+    } else if (a == "--storage-ntile-measured") {
+      storageNtileMeas = true;
     } else if (a == "--storage-loop") {
       storageLoop = true;
     } else if (a == "--storage-loop-wallclock") {
@@ -761,7 +809,8 @@ int main(int argc, char **argv) {
               (int)ccPhase + (int)ccSize + (int)ccRewrite + (int)ssdMlp +
               (int)storageHier + (int)storageSched + (int)storageJoint +
               (int)storageGlobal + (int)storageCost + (int)storageMeasured +
-              (int)storageHierMeas + (int)storageNtile + (int)storageLoop +
+              (int)storageHierMeas + (int)storageNtile +
+              (int)storageNtileMeas + (int)storageLoop +
               (int)storageLoopWc + (int)workloadSched +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
               (int)(acceptHw != nullptr);
@@ -772,6 +821,7 @@ int main(int argc, char **argv) {
                  "--storage-hierarchy/--storage-schedule/--storage-joint/"
                  "--storage-global/--storage-cost/--storage-measured/"
                  "--storage-hierarchy-measured/--storage-ntile/"
+                 "--storage-ntile-measured/"
                  "--storage-loop/"
                  "--storage-loop-wallclock/--workload-schedule/"
                  "--classify/--emit-record/"
@@ -857,6 +907,10 @@ int main(int argc, char **argv) {
   }
   if (storageNtile) {
     printStorageNtile();
+    return 0;
+  }
+  if (storageNtileMeas) {
+    printStorageNtileMeasured();
     return 0;
   }
   if (storageLoop) {

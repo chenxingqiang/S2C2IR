@@ -1,10 +1,15 @@
 # Measured Storage, structurally different F (Phase 5C)
 
-**Status:** design only. Do **not** open a device campaign
-until this document is approved. Phase 5A and Phase 5B are
-**FROZEN**. 5C is **not** a new Capability grid, not new
-ticks on frozen `cost-v04`, not a retarget of `default-3g`,
-and not a rewrite license.
+**Status:** FROZEN (device fill on this cut). Design approved
+on PR #99. Phase 5A and Phase 5B are **FROZEN**. Both 4090
+and 910B measured all 4 legal signatures. ArgMin is
+default-3g S0 (`PREFETCH|PREFETCH`) on both profiles
+(`diverge=no`). That is a valid 5C result. Do **not**
+pre-claim copy-engine contention: the table did not show a
+mixed-site winner. Do **not** retune the workload to
+manufacture `diverge=yes`. 5C is **not** a new Capability
+grid, not new ticks on frozen `cost-v04`, not a retarget of
+`default-3g`, and not a rewrite license.
 
 ```text
 Goal     natural |F|>2 whose axes are structurally different
@@ -75,8 +80,7 @@ Recommended first workload: `@ssd_ntile_pipeline`
 (`test/Integration/storage-ntile.mlir`). Already enumerated
 (`chains=7`, `product=4`, `truncated=no`). 4090 / 910B
 `default-3g` / `cost-v04` already coincide on this \(F\)
-(`diverge=no`). Runtime today is the inherited two-tile
-pipeline witness, **not** four `joinGlobal` arms.
+(`diverge=no`).
 
 ```text
 PREFIX = MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//
@@ -86,9 +90,21 @@ S2 PREFIX+PRESERVE|TRANSFER//PREFETCH|TRANSFER//TRANSFER|TRANSFER
 S3 PREFIX+PRESERVE|TRANSFER//PRESERVE|TRANSFER//TRANSFER|TRANSFER
 ```
 
+These four `MATERIALIZE` tokens are the compiler's chain
+signature (`s2c2-opt` `hierarchy-global-candidate`), not a
+count of SSD objects. Sites 0–2 are per-object
+`MATERIALIZE`; the fourth is obj0 `MATERIALIZE|TRANSFER`.
+Do **not** rewrite the prefix to three `MATERIALIZE` tokens.
+
 ```text
 cost-v04  S0=2  S1=3  S2=3  S3=4     coincide with default-3g
 ```
+
+Those scores are what `s2c2-opt` prints under frozen
+`cost-v04`. `PREFETCH=0`, `PRESERVE=1`. The shared +2 is
+the last-chain rematerialize `TRANSFER|TRANSFER` (KEEP
+exists at those sites but is not an \(F\) axis). Do **not**
+renormalize to `0/1/1/2`. ArgMin is still S0 either way.
 
 Fallback if a honest n-tile runtime cannot realize both
 overlap sites independently: `@ssd_loop_pipeline`
@@ -97,12 +113,14 @@ PREFETCH/PRESERVE × KEEP/TRANSFER. That axis set is closer
 to 5B (5B already showed KEEP beat TRANSFER on hierarchy),
 so it is second, not first.
 
-## What is missing
+## Runtime (this cut)
 
-The compiler already names these four signatures. N-tile's
-timed witness is still the two-tile pipeline log. 5C is a
-**per-signature runtime** of two independent prefetch
-decisions, not more `F(site)` code.
+The compiler already names these four signatures. This cut
+adds one `joinGlobal` arm per inhabitant
+(`--storage-ntile-measured`). Device tables land only from
+a real 4090 / 910B campaign. 5C is a **per-signature
+runtime** of two independent prefetch decisions, not more
+`F(site)` code.
 
 ```text
 joinGlobal(S)  →  one runnable arm
@@ -135,7 +153,28 @@ cost-v04 = FROZEN
 rewrite of the measured winner = not this design
 ```
 
-Acceptance when implementation is later approved:
+## Device result (honest)
+
+```text
+4090  4/4  ArgMin = S0 PREFETCH|PREFETCH  = default-3g  → diverge=no
+910B  4/4  ArgMin = S0 PREFETCH|PREFETCH  = default-3g  → diverge=no
+```
+
+Dual PREFETCH was still fastest on both devices. Mixed
+PREFETCH/PRESERVE did not win. That does **not** prove
+copy-engine contention is absent on every workload; it
+proves that **this** \(F\) did not change the historical
+choice. Freeze the evidence. Do not retune the workload.
+
+```text
+#69              unchanged
+cost-v04         frozen
+default-3g       unchanged
+F(program)       unchanged
+rewrite license  unchanged
+```
+
+Acceptance:
 
 ```text
 1. |F(program)| > 2 and enumerated; axes ≠ frozen 5B product
@@ -159,7 +198,6 @@ heuristic tick.
 ## Out of scope
 
 ```text
-opening a 4090 / 910B campaign before this design is approved
 re-measuring @ssd_hierarchy_lifetime
 re-measuring storage-aware-pipeline S0/S1
 picking 3 of 4 signatures just to hit ≥ 3

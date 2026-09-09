@@ -1,0 +1,20 @@
+# Synthetic host log for Phase 5C emit/rank wiring.
+# Not a device campaign. Times are dummy schema witnesses.
+# Do not FileCheck microseconds. Do not treat as 4090/910B fact.
+s2c2-cuda-run hardware_id=rtx4090:cuda sched=gpu-async map=default device=gpu
+s2c2-cuda-run storage-ntile-measured=1
+s2c2-cuda-run storage-ntile-measured program-measurement=yes
+s2c2-cuda-run storage-ntile-measured note one-arm-per-signature
+s2c2-cuda-run storage-ntile-measured note measurement-cannot-expand-F
+s2c2-cuda-run storage-ntile-measured note two-independent-prefetch-sites
+s2c2-cuda-run storage-ntile-measured note contention-not-preclaimed
+s2c2-cuda-run storage-ntile-measured measured=yes
+s2c2-cuda-run storage-ntile-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER//PREFETCH|TRANSFER//TRANSFER|TRANSFER timing=9000.0 correctness=1
+s2c2-cuda-run storage-ntile-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER//PRESERVE|TRANSFER//TRANSFER|TRANSFER timing=9100.0 correctness=1
+s2c2-cuda-run storage-ntile-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER//PREFETCH|TRANSFER//TRANSFER|TRANSFER timing=9200.0 correctness=1
+s2c2-cuda-run storage-ntile-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER//PRESERVE|TRANSFER//TRANSFER|TRANSFER timing=9300.0 correctness=1
+s2c2-cuda-run storage-ntile-measured count=4 note one-row-per-signature
+s2c2-cuda-run storage-ntile-measured note not-hierarchy-8
+s2c2-cuda-run storage-ntile-measured note not-pipeline-s0-s1
+s2c2-cuda-run storage-ntile-measured note not-cost-v04
+s2c2-cuda-run storage-ntile-measured cost=unchanged semantics=unchanged v3=not-claimed
