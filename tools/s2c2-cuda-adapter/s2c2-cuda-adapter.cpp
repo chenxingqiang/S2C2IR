@@ -545,6 +545,53 @@ static void printStorageHierarchyMeasured() {
                "semantics=unchanged\n");
 }
 
+static void printStorageLoopMeasured() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note prefetch-keep-joint\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note joint-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note not-ntile-4\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note not-3j-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "semantics=unchanged\n");
+}
+
 static void printStorageNtileMeasured() {
   std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile-measured=1\n");
   std::fprintf(stderr,
@@ -771,6 +818,7 @@ int main(int argc, char **argv) {
   bool storageNtileMeas = false;
   bool storageLoop = false;
   bool storageLoopWc = false;
+  bool storageLoopMeas = false;
   bool workloadSched = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
@@ -823,6 +871,8 @@ int main(int argc, char **argv) {
       storageLoop = true;
     } else if (a == "--storage-loop-wallclock") {
       storageLoopWc = true;
+    } else if (a == "--storage-loop-measured") {
+      storageLoopMeas = true;
     } else if (a == "--workload-schedule") {
       workloadSched = true;
     } else if (a.rfind("--func=", 0) == 0) {
@@ -840,6 +890,7 @@ int main(int argc, char **argv) {
                    "[--storage-ntile] [--storage-ntile-measured] "
                    "[--storage-loop] "
                    "[--storage-loop-wallclock] "
+                   "[--storage-loop-measured] "
                    "[--workload-schedule]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
@@ -865,6 +916,7 @@ int main(int argc, char **argv) {
               (int)storageCost + (int)storageMeasured + (int)storageHierMeas +
               (int)storageNtile + (int)storageNtileMeas +
               (int)storageLoop + (int)storageLoopWc +
+              (int)storageLoopMeas +
               (int)workloadSched;
   if (modes > 1) {
     std::fprintf(stderr,
@@ -876,7 +928,8 @@ int main(int argc, char **argv) {
                  "--storage-hierarchy-measured/--storage-ntile/"
                  "--storage-ntile-measured/"
                  "--storage-loop/"
-                 "--storage-loop-wallclock/--workload-schedule "
+                 "--storage-loop-wallclock/"
+                 "--storage-loop-measured/--workload-schedule "
                  "cannot combine\n");
     return 1;
   }
@@ -982,6 +1035,11 @@ int main(int argc, char **argv) {
   }
   if (storageNtileMeas) {
     printStorageNtileMeasured();
+    printMaps();
+    return 0;
+  }
+  if (storageLoopMeas) {
+    printStorageLoopMeasured();
     printMaps();
     return 0;
   }

@@ -1735,12 +1735,180 @@ static int runStorageNtileMeasured(int nTile, int kRef, int warmup, int reps) {
   return 0;
 }
 
+// Phase 5D: one arm per @ssd_loop_pipeline inhabitant.
+// PREFETCH/PRESERVE × loop-invariant KEEP/TRANSFER.
+// After-loop HtoD uses a scratch Buf so tile0 compute is kept.
+static const char *kLoopPrefix =
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//";
+
+static const char *loopTail(bool prefetch, bool keep) {
+  if (prefetch && keep)
+    return "PREFETCH//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE";
+  if (prefetch && !keep)
+    return "PREFETCH//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE";
+  if (!prefetch && keep)
+    return "PRESERVE//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE";
+  return "PRESERVE//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE";
+}
+
+static void runStorageLoopMeasuredArm(Buf t[3], Buf &scratch, int k,
+                                      bool prefetch, bool keep) {
+  ssdPrefetchTile(t[0]);
+  tileHtoDAscend(t[0]);
+  ACL_OK(aclrtSynchronizeStream(t[0].s0));
+  for (int i = 0; i < 2; ++i) {
+    int next = i + 1;
+    if (prefetch) {
+      elemwiseLaunch(t[i], t[i].dev0, t[i].dev2, k, t[i].s0);
+      ssdPrefetchTile(t[next]);
+      ACL_OK(aclrtSynchronizeStream(t[i].s0));
+    } else {
+      elemwiseLaunch(t[i], t[i].dev0, t[i].dev2, k, t[i].s0);
+      ACL_OK(aclrtSynchronizeStream(t[i].s0));
+      ssdPrefetchTile(t[next]);
+    }
+    tileHtoDAscend(t[next]);
+    ACL_OK(aclrtSynchronizeStream(t[next].s0));
+    if (!keep)
+      ssdPrefetchTile(t[0]);
+  }
+  if (!keep) {
+    ssdPrefetchTile(t[0]);
+    ACL_OK(aclrtMemcpyAsync(scratch.dev0, scratch.bytes(), t[0].host0,
+                            t[0].bytes(), ACL_MEMCPY_HOST_TO_DEVICE,
+                            scratch.s0));
+    ACL_OK(aclrtSynchronizeStream(scratch.s0));
+  }
+}
+
+static double timeStorageLoopMeasured(Buf t[3], Buf &scratch, int k,
+                                      int warmup, int reps, bool prefetch,
+                                      bool keep) {
+  auto prep = [&](int seed) {
+    for (int i = 0; i < 3; ++i)
+      fillHost(t[i].hostPage, t[i].n, seed + i);
+  };
+  for (int i = 0; i < warmup; ++i) {
+    prep(i + 3);
+    runStorageLoopMeasuredArm(t, scratch, k, prefetch, keep);
+    for (int j = 0; j < 3; ++j)
+      t[j].reapStaleWorkspace();
+    scratch.reapStaleWorkspace();
+  }
+  std::vector<double> samples;
+  samples.reserve(reps);
+  for (int i = 0; i < reps; ++i) {
+    prep(i + 11);
+    auto start = std::chrono::steady_clock::now();
+    runStorageLoopMeasuredArm(t, scratch, k, prefetch, keep);
+    ACL_OK(aclrtSynchronizeStream(t[0].s0));
+    ACL_OK(aclrtSynchronizeStream(t[0].s1));
+    ACL_OK(aclrtSynchronizeStream(t[1].s0));
+    ACL_OK(aclrtSynchronizeStream(t[1].s1));
+    ACL_OK(aclrtSynchronizeStream(t[2].s0));
+    ACL_OK(aclrtSynchronizeStream(t[2].s1));
+    ACL_OK(aclrtSynchronizeStream(scratch.s0));
+    auto stop = std::chrono::steady_clock::now();
+    for (int j = 0; j < 3; ++j)
+      t[j].reapStaleWorkspace();
+    scratch.reapStaleWorkspace();
+    samples.push_back(
+        std::chrono::duration<double, std::micro>(stop - start).count());
+    if (!checkStorageLoopProgram(t, k)) {
+      std::fprintf(stderr,
+                   "s2c2-ascend-run correctness=0 "
+                   "arm=storage-loop-measured\n");
+      std::exit(1);
+    }
+  }
+  return medianUs(samples);
+}
+
+static int runStorageLoopMeasured(int nTile, int kRef, int warmup, int reps) {
+  Buf t[3];
+  Buf scratch;
+  for (int i = 0; i < 3; ++i)
+    t[i].alloc(nTile, true);
+  scratch.alloc(nTile, true);
+  for (int i = 0; i < 3; ++i)
+    fillHost(t[i].hostPage, t[i].n, i + 1);
+  elemwiseLaunch(t[0], t[0].dev0, t[0].dev2, 1, t[0].s0);
+  ACL_OK(aclrtSynchronizeStream(t[0].s0));
+  t[0].reapStaleWorkspace();
+
+  std::fprintf(stderr, "s2c2-ascend-run storage-loop-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured "
+               "program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured "
+               "note prefetch-keep-joint\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured "
+               "note joint-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured n-tile=%d "
+               "k_ref=%d arms=4 trip=2\n",
+               nTile, kRef);
+  std::fprintf(stderr, "s2c2-ascend-run storage-loop-measured measured=yes\n");
+
+  int idx = 0;
+  for (int pf = 1; pf >= 0; --pf) {
+    for (int kh = 1; kh >= 0; --kh) {
+      double us = timeStorageLoopMeasured(t, scratch, kRef, warmup, reps,
+                                          pf != 0, kh != 0);
+      char sig[320];
+      std::snprintf(sig, sizeof(sig), "%s%s", kLoopPrefix,
+                    loopTail(pf != 0, kh != 0));
+      std::fprintf(stderr,
+                   "s2c2-ascend-run storage-loop-measured "
+                   "signature=%s timing=%.1f correctness=1\n",
+                   sig, us);
+      ++idx;
+    }
+  }
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured count=%d "
+               "note one-row-per-signature\n",
+               idx);
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured note not-ntile-4\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured "
+               "note not-pipeline-s0-s1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured note not-3j-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-run storage-loop-measured cost=unchanged "
+               "semantics=unchanged v3=not-claimed\n");
+  for (int i = 0; i < 3; ++i)
+    t[i].freeAll();
+  scratch.freeAll();
+  return 0;
+}
+
 static void usage() {
   std::fprintf(
       stderr,
       "s2c2-ascend-run --pairs|--mem|--cc-phase|--cc-rewrite|"
       "--ssd-mlp-wallclock|--storage-loop-wallclock|--storage-pipeline|"
-      "--storage-hierarchy-measured|--storage-ntile-measured "
+      "--storage-hierarchy-measured|--storage-ntile-measured|"
+      "--storage-loop-measured "
       "[--n=N] [--n-cc=N] "
       "[--k=K|--k=0] [--r=r1,r2,...] [--warmup=W] [--reps=R]\n"
       "--k=0 calibrates k from pinned HtoD / compute(k=1) (mem only). "
@@ -1756,6 +1924,8 @@ static void usage() {
       "inhabitants of @ssd_hierarchy_lifetime. "
       "--storage-ntile-measured times all 4 F(program) "
       "inhabitants of @ssd_ntile_pipeline. "
+      "--storage-loop-measured times all 4 F(program) "
+      "inhabitants of @ssd_loop_pipeline. "
       "Do not FileCheck microseconds.\n");
 }
 
@@ -1774,6 +1944,7 @@ int main(int argc, char **argv) {
   bool storagePipe = false;
   bool storageHier = false;
   bool storageNtile = false;
+  bool storageLoopMeas = false;
   int nHtod = 22528000;
   int nCc = 33554432;
   std::vector<double> rs = {0.5, 0.75, 1.0, 1.5, 2.0};
@@ -1798,6 +1969,8 @@ int main(int argc, char **argv) {
       storageHier = true;
     } else if (a == "--storage-ntile-measured") {
       storageNtile = true;
+    } else if (a == "--storage-loop-measured") {
+      storageLoopMeas = true;
     } else if (a.rfind("--n-cc=", 0) == 0) {
       nCc = std::atoi(argv[i] + 7);
     } else if (a.rfind("--n=", 0) == 0) {
@@ -1822,20 +1995,22 @@ int main(int argc, char **argv) {
     }
   }
   int modes = (int)pairs + (int)mem + (int)ccPhase + (int)ccRewrite +
-              (int)ssdMlp + (int)storageLoop + (int)storagePipe +
+              (int)ssdMlp + (int)storageLoop + (int)storageLoopMeas +
+              (int)storagePipe +
               (int)storageHier + (int)storageNtile;
   if (modes != 1) {
     usage();
     return 1;
   }
-  if ((pairs || ccPhase || ccRewrite || ssdMlp || storageLoop || storagePipe ||
+  if ((pairs || ccPhase || ccRewrite || ssdMlp || storageLoop ||
+       storageLoopMeas || storagePipe ||
        storageHier || storageNtile) &&
       k <= 0) {
     std::fprintf(stderr,
                  "s2c2-ascend-run: --pairs/--cc-phase/--cc-rewrite/"
                  "--ssd-mlp-wallclock/--storage-loop-wallclock/"
                  "--storage-pipeline/--storage-hierarchy-measured/"
-                 "--storage-ntile-measured "
+                 "--storage-ntile-measured/--storage-loop-measured "
                  "needs k > 0\n");
     return 1;
   }
@@ -1921,6 +2096,12 @@ int main(int argc, char **argv) {
     if (n == (1 << 20))
       n = 4194304;
     rc = runStorageNtileMeasured(n, k, warmup, reps);
+  } else if (storageLoopMeas) {
+    if (!kSet)
+      k = 32;
+    if (n == (1 << 20))
+      n = 4194304;
+    rc = runStorageLoopMeasured(n, k, warmup, reps);
   } else {
   std::fprintf(stderr, "s2c2-ascend-run n=%d k=%d bytes=%zu\n", n, k,
                sizeof(float) * static_cast<size_t>(n));

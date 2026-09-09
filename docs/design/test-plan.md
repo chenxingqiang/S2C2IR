@@ -853,7 +853,8 @@ schema plus 4090 / 910B 4/4 device tables. Both devices
 `diverge=no`. Do not pre-claim contention. Do not re-measure
 this 4-set to manufacture `diverge=yes`. Phase 5D design:
 [`storage-measured-5d.md`](storage-measured-5d.md). Last
-existing enumerated `|F|>2`. No device fill in this cut.
+existing enumerated `|F|>2`. Host schema is this cut.
+Device tables land from a later 4090 / 910B campaign.
 
 ## Measured storage, |F| > 2 (Phase 5B)
 
@@ -903,7 +904,8 @@ cut; device tables later.
 | 5D-2 | same | four compiler signatures; `cost-v04` scores 2/3/3/4 still `diverge=no` |
 | 5D-3 | same | 5B hierarchy and 5C n-tile tables stay `not-measured` |
 | 5D-4 | same | no FileCheck of microseconds; `#69` untouched; no `sched.wait` |
-| 5D-5 | later | 4090 / 910B device-log tables; ArgMin may be `diverge=yes` or `no` |
+| 5D-5 | `test/Integration/storage-measured-5d.mlir` | emit 4/4; extras / duplicates / short campaigns rejected; adapters `--storage-loop-measured` |
+| 5D-6 | later | 4090 / 910B device-log tables; ArgMin may be `diverge=yes` or `no` |
 
 ## Complete SSD + MLP program wall-clock
 

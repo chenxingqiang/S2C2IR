@@ -1,9 +1,10 @@
 # Measured Storage, last existing enumerated F (Phase 5D)
 
-**Status:** design. Phase 5A / 5B / 5C are **FROZEN**. This
-cut picks the last remaining fully enumerated \(|F|>2\) that
-has not had per-signature `measured-storage-v1`. Do **not**
-open a 4090 / 910B campaign until this design is approved.
+**Status:** implementation. Design approved on PR #101.
+Phase 5A / 5B / 5C are **FROZEN**. This cut picks the last
+remaining fully enumerated \(|F|>2\) that has not had
+per-signature `measured-storage-v1`. Device tables land only
+from a real 4090 / 910B campaign.
 Do **not** grow \(F\), do **not** add a Capability cell, do
 **not** add ticks to frozen `cost-v04`, do **not** retarget
 `default-3g`, and do **not** rewrite.
