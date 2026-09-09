@@ -844,23 +844,25 @@ untouched. Do not FileCheck microseconds.
 | 5A-8 | `test/Integration/storage-measured-910b.mlir` | 910B device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture and 4090 table stay `not-measured` under `profile=910B`; no FileCheck of microseconds; do not compare 4090 μs to 910B μs |
 
 Phase 5A is **FROZEN**. Do not add ticks or re-campaign the
-pipeline pair. Phase 5B design:
-[`storage-measured-5b.md`](storage-measured-5b.md). Tests
-below are drafts until that design is approved. No device
-fill in this cut.
+pipeline pair. Phase 5B implementation:
+[`storage-measured-5b.md`](storage-measured-5b.md). Device
+tables are a later fill on the same branch; `diverge=yes` is
+not an acceptance goal.
 
-## Measured storage, |F| > 2 (Phase 5B, design)
+## Measured storage, |F| > 2 (Phase 5B)
 
 **Not Cost v0.4.** Same `policy=measured-storage-v1`. Natural
-\(|F|>2\); do not manufacture `diverge=yes`.
+\(|F|>2\); do not manufacture `diverge=yes`. One campaign row
+per `(profile, workload, signature)`.
 
-| ID | File | Checks (draft) |
-| -- | ---- | -------------- |
-| 5B-1 | later | `@ssd_hierarchy_lifetime` product=8 enumerated; `default-3g` is PREFETCH+KEEP+KEEP |
-| 5B-2 | later | ≥ 3 measured inhabitants; each signature inhabits F; `par`-like extras excluded |
-| 5B-3 | later | ArgMin / `diverge` follow the device table; `cost-v04` still coincide |
-| 5B-4 | later | fixture `measured=no` and cross-profile tables stay `not-measured` |
-| 5B-5 | later | no FileCheck of microseconds; no 4090↔910B μs compare; `#69` untouched |
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5B-1 | `test/Integration/storage-measured-5b.mlir` | `@ssd_hierarchy_lifetime` product=8 enumerated; `default-3g` is PREFETCH+KEEP+KEEP |
+| 5B-2 | same | emit 8 legal signatures; extras / duplicates / `<3` rows rejected |
+| 5B-3 | same | synth ArgMin follows the table; `cost-v04` still `diverge=no` |
+| 5B-4 | same | fixture `measured=no` and cross-profile tables stay `not-measured` |
+| 5B-5 | same | no FileCheck of microseconds; adapters `--storage-hierarchy-measured`; `#69` untouched |
+| 5B-6 | later | 4090 / 910B device-log tables; ArgMin may be `diverge=yes` or `no` |
 
 ## Complete SSD + MLP program wall-clock
 

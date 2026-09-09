@@ -2156,7 +2156,8 @@ static void printGlobalMeasuredRank(const GlobalMeasuredRank &r,
                  << " note default-3g-frozen"
                  << " note cost-v04-structural-frozen"
                  << " note not-new-capability-grid"
-                 << " note do-not-filecheck-microseconds\n";
+                 << " note do-not-filecheck-microseconds"
+                 << " note measured-last-wins-duplicate-policy\n";
     llvm::errs() << "hierarchy-global-measured-schedule enumerated=no"
                  << " truncated=yes ranked-in-legal=n/a"
                  << " ranked-eq-default-3g=n/a measured-count=n/a"
@@ -2179,7 +2180,8 @@ static void printGlobalMeasuredRank(const GlobalMeasuredRank &r,
                  << " note default-3g-frozen"
                  << " note cost-v04-structural-frozen"
                  << " note not-new-capability-grid"
-                 << " note do-not-filecheck-microseconds\n";
+                 << " note do-not-filecheck-microseconds"
+                 << " note measured-last-wins-duplicate-policy\n";
     llvm::errs() << "hierarchy-global-measured-schedule enumerated=yes"
                  << " truncated=no ranked-in-legal=n/a"
                  << " ranked-eq-default-3g=n/a measured-count="
@@ -2202,7 +2204,8 @@ static void printGlobalMeasuredRank(const GlobalMeasuredRank &r,
                << " note default-3g-frozen"
                << " note cost-v04-structural-frozen"
                << " note not-new-capability-grid"
-               << " note do-not-filecheck-microseconds\n";
+               << " note do-not-filecheck-microseconds"
+               << " note measured-last-wins-duplicate-policy\n";
   llvm::errs() << "hierarchy-global-measured-schedule enumerated=yes"
                << " truncated=no ranked-in-legal="
                << (r.rankedInLegal ? "yes" : "no")

@@ -1685,6 +1685,12 @@ def print_storage_measured_contract() -> int:
     print("note not-new-capability-grid")
     print("note do-not-filecheck-microseconds")
     print("note runtime-validation-pending")
+    print("note one-row-per-signature")
+    print("note measurement-cannot-expand-F")
+    print("note measured-last-wins-duplicate-policy")
+    print("note hierarchy-measured-this-cut")
+    print("note pipeline-s0-s1-frozen")
+    print("note diverge-yes-not-goal")
     print("semantics=unchanged")
     print("v3=not-claimed")
     print("cost=unchanged")
@@ -1768,6 +1774,9 @@ def analyze_storage_measured(path: Path) -> int:
     print("note cost-v04-structural-frozen")
     print("note do-not-filecheck-microseconds")
     print("note runtime-validation-pending")
+    print("note one-row-per-signature")
+    print("note measurement-cannot-expand-F")
+    print("note measured-last-wins-duplicate-policy")
     print("r3-gate=scoped-evidence")
     print("cost=unchanged")
     return 0
@@ -1842,6 +1851,90 @@ def emit_storage_measured_from_pipeline(path: Path) -> int:
     print("storage-measured note do-not-filecheck-microseconds")
     print("storage-measured note not-new-capability-grid")
     print("storage-measured note do-not-compare-4090-to-910B")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_MEAS_LINE_RE = re.compile(
+    r"storage-hierarchy-measured signature=(\S+) timing=([0-9.]+) "
+    r"correctness=1"
+)
+_HIER_MEAS_YES_RE = re.compile(r"storage-hierarchy-measured measured=yes")
+_HIER_PREFIX = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//"
+)
+_HIER_TAILS = (
+    "PREFETCH|TRANSFER|KEEP_RESIDENCY|KEEP_RESIDENCY",
+    "PREFETCH|TRANSFER|KEEP_RESIDENCY|TRANSFER",
+    "PREFETCH|TRANSFER|TRANSFER|KEEP_RESIDENCY",
+    "PREFETCH|TRANSFER|TRANSFER|TRANSFER",
+    "PRESERVE|TRANSFER|KEEP_RESIDENCY|KEEP_RESIDENCY",
+    "PRESERVE|TRANSFER|KEEP_RESIDENCY|TRANSFER",
+    "PRESERVE|TRANSFER|TRANSFER|KEEP_RESIDENCY",
+    "PRESERVE|TRANSFER|TRANSFER|TRANSFER",
+)
+_HIER_LEGAL = { _HIER_PREFIX + t for t in _HIER_TAILS }
+
+
+def emit_storage_measured_from_hierarchy(path: Path) -> int:
+    """One campaign row per F inhabitant. Refuse duplicate signatures.
+
+    Measurement cannot expand F. Do not FileCheck microseconds.
+    Do not compare 4090 μs to 910B μs. Do not store host/password/IP.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if not _HIER_MEAS_YES_RE.search(text):
+        print("record_ascend: hierarchy log is not measured", file=sys.stderr)
+        return 4
+    profile = infer_measured_profile(text)
+    vendor = "910B" if profile == "910B" else "4090"
+    rows: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for m in _HIER_MEAS_LINE_RE.finditer(text):
+        sig = m.group(1)
+        if sig not in _HIER_LEGAL:
+            print(f"record_ascend: signature not in F: {sig}", file=sys.stderr)
+            return 4
+        if sig in seen:
+            print(
+                f"record_ascend: duplicate signature in campaign: {sig}",
+                file=sys.stderr,
+            )
+            return 4
+        seen.add(sig)
+        rec = {
+            "schema": "s2c2.measured_storage_cost.v1",
+            "profile": profile,
+            "workload_class": "ssd-hierarchy-lifetime",
+            "repetitions": 5,
+            "correctness": 1,
+            "source": "device-log",
+            "measured": "yes",
+            "candidate_signature": sig,
+            "measured_time_us": int(round(float(m.group(2)))),
+            "note": (
+                f"{vendor} hierarchy arm. One row per signature. "
+                "Not a Capability cell. Do not FileCheck microseconds."
+            ),
+        }
+        rows.append(rec)
+    if len(rows) < 3:
+        print(
+            f"record_ascend: need ≥3 measured inhabitants, got {len(rows)}",
+            file=sys.stderr,
+        )
+        return 4
+    for rec in rows:
+        print(json.dumps(rec, ensure_ascii=True, separators=(",", ":")))
+    print(f"storage-measured emit=device-log profile={profile}")
+    print(f"storage-measured hierarchy-count={len(rows)}")
+    print("storage-measured note one-row-per-signature")
+    print("storage-measured note measurement-cannot-expand-F")
+    print("storage-measured note measured-yes-and-correctness")
+    print("storage-measured note do-not-filecheck-microseconds")
+    print("storage-measured note do-not-compare-4090-to-910B")
+    print("storage-measured note not-pipeline-s0-s1")
+    print("storage-measured note measured-ne-rewrite-license")
     print("cost=unchanged")
     return 0
 
@@ -2102,6 +2195,7 @@ def main() -> int:
     p.add_argument("--print-storage-measured-contract", action="store_true")
     p.add_argument("--analyze-storage-measured", type=Path)
     p.add_argument("--emit-storage-measured-from-pipeline", type=Path)
+    p.add_argument("--emit-storage-measured-from-hierarchy", type=Path)
     p.add_argument("--print-storage-ntile-contract", action="store_true")
     p.add_argument("--print-storage-loop-contract", action="store_true")
     p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
@@ -2150,6 +2244,7 @@ def main() -> int:
             args.print_storage_measured_contract,
             args.analyze_storage_measured,
             args.emit_storage_measured_from_pipeline,
+            args.emit_storage_measured_from_hierarchy,
             args.print_storage_ntile_contract,
             args.print_storage_loop_contract,
             args.print_storage_loop_wallclock_contract,
@@ -2186,6 +2281,7 @@ def main() -> int:
             "--print-storage-measured-contract, "
             "--analyze-storage-measured, "
             "--emit-storage-measured-from-pipeline, "
+            "--emit-storage-measured-from-hierarchy, "
             "--print-storage-ntile-contract, "
             "--print-storage-loop-contract, "
             "--print-storage-loop-wallclock-contract, "
@@ -2291,6 +2387,10 @@ def main() -> int:
     if args.emit_storage_measured_from_pipeline:
         return emit_storage_measured_from_pipeline(
             args.emit_storage_measured_from_pipeline
+        )
+    if args.emit_storage_measured_from_hierarchy:
+        return emit_storage_measured_from_hierarchy(
+            args.emit_storage_measured_from_hierarchy
         )
     if args.print_storage_ntile_contract:
         return print_storage_ntile_contract()

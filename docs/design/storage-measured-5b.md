@@ -1,12 +1,12 @@
 # Measured Storage, |F| > 2 (Phase 5B)
 
-**Status:** design only. Do **not** open a device campaign until
-this document is approved. Phase 5A is **FROZEN**
-([`storage-measured.md`](storage-measured.md)): plumbing works;
-the two-tile pipeline coincides with `default-3g` on 4090 and
-910B (`diverge=no`). 5B is **not** a new Capability grid, not
-new ticks on frozen `cost-v04`, not a retarget of `default-3g`,
-and not a rewrite license.
+**Status:** implementation. Design approved on PR #97. Phase 5A
+is **FROZEN** ([`storage-measured.md`](storage-measured.md)):
+plumbing works; the two-tile pipeline coincides with
+`default-3g` on 4090 and 910B (`diverge=no`). 5B is **not** a
+new Capability grid, not new ticks on frozen `cost-v04`, not a
+retarget of `default-3g`, and not a rewrite license. Device
+tables land only from a real 4090 / 910B campaign.
 
 ```text
 Goal     natural |F(program)| > 2 with ≥ 3 measurable inhabitants
@@ -143,7 +143,7 @@ heuristic tick.
 ## Out of scope
 
 ```text
-opening a 4090 / 910B campaign before this design is approved
+picking 3 of 8 signatures just to hit ≥ 3
 re-measuring storage-aware-pipeline S0/S1
 dropping S0 from a table to force diverge=yes
 ranking @seven_binary_chains (truncated)
