@@ -314,7 +314,9 @@ A lit-only synthetic `measured=yes` table on
 vs `default-3g` while `cost-v04` stays `diverge=no`.
 The 4090 device-log fill of the same schema ranks S0
 (`diverge=no`): PREFETCH is faster than PRESERVE on that
-pair. Do not FileCheck microseconds. `#69` untouched.
+pair. The 910B counterpart also ranks S0 (`diverge=no`).
+Do not FileCheck microseconds. Do not compare 4090 μs to
+910B μs. `#69` untouched.
 Design: [`storage-measured.md`](design/storage-measured.md).
 
 Cost v0.4 Search (`--s2c2-argmin` / `--s2c2-walk`) stays frozen.

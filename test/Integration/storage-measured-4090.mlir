@@ -12,6 +12,7 @@
 // EMIT: storage-measured emit=device-log profile=rtx4090
 // EMIT: note measured-yes-and-correctness
 // EMIT: note do-not-filecheck-microseconds
+// EMIT: note do-not-compare-4090-to-910B
 // EMIT: cost=unchanged
 // EMIT-NOT: password
 // EMIT-NOT: 223.72

@@ -100,11 +100,12 @@ evidence can pick a different inhabitant than `default-3g`.
 That synthetic table is **not** a live 4090 or 910B campaign
 and is **not** a Capability cell.
 
-The 4090 two-tile pipeline log fills the same schema with
-`measured=yes` and `source=device-log`. Mapping is local to
-this workload: `evi` → S0 PREFETCH, `seq` → S1 PRESERVE.
+The 4090 and 910B two-tile pipeline logs fill the same schema
+with `measured=yes` and `source=device-log`. Mapping is local
+to this workload: `evi` → S0 PREFETCH, `seq` → S1 PRESERVE.
 `par` is not an \(F(\text{program})\) inhabitant. Do not
-FileCheck microseconds. Not a Capability cell.
+FileCheck microseconds. Do not compare 4090 μs to 910B μs.
+A 4090 row is not 910B ranking evidence. Not a Capability cell.
 
 ## Witness
 
@@ -138,15 +139,25 @@ measured-storage-v1   ranked=S0  diverge=no
 cost-v04              ranked=S0  diverge=no
 ```
 
-On this device and this \(F\), measured ArgMin **coincides**
-with `default-3g`. That is a 4090 fact for this pair, not a
-claim that the two policies are the same object, and not a
-rewrite of S0.
+910B device-log (`source=device-log`, `measured=yes`):
+
+```text
+S0 evi  <  S1 seq
+measured-storage-v1   ranked=S0  diverge=no
+cost-v04              ranked=S0  diverge=no
+```
+
+On each device and this \(F\), measured ArgMin **coincides**
+with `default-3g`. That is a per-device fact for this pair,
+not a claim that the two policies are the same object, not
+a claim that 4090 ≡ 910B, and not a rewrite of S0.
 
 ```text
 diverge=no on 4090
+diverge=no on 910B
     ≠  cost-v04 ≡ measured-storage-v1
-    =  this device table picks the historical tuple
+    ≠  4090 μs comparable to 910B μs
+    =  each device table picks the historical tuple
 rewrite of the winner
     =  not this cut
 ```
@@ -172,8 +183,8 @@ rewrite of the measured winner = not this cut
 ```text
 adding structural ticks to cost-v04
 wrapping table times as wall-clock FileCheck
-FileCheck of 4090 microseconds
-910B per-candidate campaign (later)
+FileCheck of 4090 / 910B microseconds
+comparing 4090 μs to 910B μs
 applying the measured winner as a rewrite
 applying the measured winner as a rewrite
 new 4090 / 910B Capability measurements
