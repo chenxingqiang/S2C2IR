@@ -100,9 +100,13 @@ flatten `C||Storage`. Do **not** invent sibling `sched.wait`.
 
 ## What is still open (architecture, not another 5-cut)
 
-The remaining question is **not** “find a workload that
+Phase 6A turns this campaign into a stable compiler path:
+[`storage-production-6a.md`](storage-production-6a.md).
+Capacity-aware residency is **6B**, later.
+
+The remaining long-term question is **not** “find a workload that
 diverges.” It is which production object this campaign
-becomes:
+becomes after 6A:
 
 ```text
 A. new Storage problem class / new candidate family
