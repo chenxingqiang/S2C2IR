@@ -10,7 +10,7 @@ s2c2-ascend-run storage-pipeline program-measurement=yes
 s2c2-ascend-run storage-pipeline note storage-prefetch||compute
 s2c2-ascend-run storage-pipeline n-tile=4194304 n-cc16=4194304 n-cc128=33554432 k_ref=32
 s2c2-ascend-run storage-pipeline measured=yes
-s2c2-ascend-run storage-pipeline timing seq=13368.6 evi=12861.3 par=33018.2 opt_over_base=0.962
+s2c2-ascend-run storage-pipeline timing seq=13381.1 evi=12719.7 par=28590.0 opt_over_base=0.951
 s2c2-ascend-run storage-pipeline correctness=1
 s2c2-ascend-run storage-pipeline evi=keep-C||Storage,serialize-licensed-C||C
 s2c2-ascend-run storage-pipeline note catalog-untouched

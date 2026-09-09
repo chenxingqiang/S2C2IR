@@ -29,8 +29,8 @@
 // DEV-SAME: ranked-eq-default-3g=yes
 // DEV-SAME: measured-count=2
 // DEV: hierarchy-global-measured-diverge diverge=no
-// DEV-NOT: 12861
-// DEV-NOT: 13369
+// DEV-NOT: 12720
+// DEV-NOT: 13381
 
 // FIXTURE: hierarchy-global-measured ranked=not-measured
 // FIXTURE: hierarchy-global-measured-diverge diverge=n/a
@@ -45,8 +45,8 @@
 // AN: note measured-yes-and-correctness
 // AN: cost=unchanged
 // AN-NOT: password
-// AN-NOT: 12861
-// AN-NOT: 13369
+// AN-NOT: 12720
+// AN-NOT: 13381
 
 module {
 }

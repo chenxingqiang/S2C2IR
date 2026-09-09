@@ -1179,6 +1179,21 @@ static void tileHtoDPipe(Buf &t) {
                           ACL_MEMCPY_HOST_TO_DEVICE, t.s0));
 }
 
+// Host wall-clock ends only after every launched stream completes.
+// Evi/Par already sync t0.s0 after tile0 compute (overlap with
+// prefetch). This barrier is the completion contract for the timer
+// and for reapStaleWorkspace.
+static void completeStoragePipeline(Buf &t0, Buf &t1, Buf &cc16, Buf &cc128) {
+  ACL_OK(aclrtSynchronizeStream(t0.s0));
+  ACL_OK(aclrtSynchronizeStream(t0.s1));
+  ACL_OK(aclrtSynchronizeStream(t1.s0));
+  ACL_OK(aclrtSynchronizeStream(t1.s1));
+  ACL_OK(aclrtSynchronizeStream(cc16.s0));
+  ACL_OK(aclrtSynchronizeStream(cc16.s1));
+  ACL_OK(aclrtSynchronizeStream(cc128.s0));
+  ACL_OK(aclrtSynchronizeStream(cc128.s1));
+}
+
 static void runStoragePipeline(Buf &t0, Buf &t1, Buf &cc16, Buf &cc128,
                                int kTile, int kCc, ProgArm arm) {
   if (arm == ProgArm::Seq) {
@@ -1198,6 +1213,7 @@ static void runStoragePipeline(Buf &t0, Buf &t1, Buf &cc16, Buf &cc128,
     ACL_OK(aclrtSynchronizeStream(cc128.s0));
     elemwiseLaunch(cc128, cc128.dev1, cc128.dev3, kCc, cc128.s1);
     ACL_OK(aclrtSynchronizeStream(cc128.s1));
+    completeStoragePipeline(t0, t1, cc16, cc128);
     return;
   }
   ssdPrefetchPipe(t0);
@@ -1217,6 +1233,7 @@ static void runStoragePipeline(Buf &t0, Buf &t1, Buf &cc16, Buf &cc128,
     ACL_OK(aclrtSynchronizeStream(cc128.s0));
     elemwiseLaunch(cc128, cc128.dev1, cc128.dev3, kCc, cc128.s1);
     ACL_OK(aclrtSynchronizeStream(cc128.s1));
+    completeStoragePipeline(t0, t1, cc16, cc128);
     return;
   }
   runArm(cc16, Arm::ComputeCompute, kCc);
@@ -1225,6 +1242,7 @@ static void runStoragePipeline(Buf &t0, Buf &t1, Buf &cc16, Buf &cc128,
   runArm(cc128, Arm::ComputeCompute, kCc);
   ACL_OK(aclrtSynchronizeStream(cc128.s0));
   ACL_OK(aclrtSynchronizeStream(cc128.s1));
+  completeStoragePipeline(t0, t1, cc16, cc128);
 }
 
 static bool checkStoragePipeline(Buf &t0, Buf &t1, Buf &cc16, Buf &cc128,
