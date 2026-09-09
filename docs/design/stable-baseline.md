@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design; rewrite not opened
+6C      Capacity-aware residency   ← design frozen; 6C-B diagnostics frozen; rewrite not opened
 ```
 
 ```text
@@ -71,8 +71,13 @@ rewrite license  unchanged
 ## 6C rewrite is not this freeze
 
 6C **design** is [`storage-capacity.md`](storage-capacity.md):
-\(F_{\mathrm{capacity}}\) and occupancy candidates only.
-Rewrite, ranking, and `measured-capacity-v1` stay closed.
+\(F_{\mathrm{capacity}}\) and occupancy candidates.
+6C-B diagnostics are **FROZEN**: `s2c2-opt --capacity`
+reports tile-count occupancy (`rewrite=no`).
+`discoverCapacityFromIR()` is not a byte allocator and
+not alias analysis. Rewrite, ranking, and
+`measured-capacity-v1` stay closed. The next 6C cut is a
+compiler-visible candidate object, not more diagnostics.
 
 When 6C is implemented, it is a new Storage problem class:
 

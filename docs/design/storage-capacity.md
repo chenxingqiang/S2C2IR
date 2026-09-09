@@ -1,15 +1,22 @@
-# Capacity-aware Residency (Phase 6C, design)
+# Capacity-aware Residency (Phase 6C-B, diagnostics)
 
-**Status:** design. 5A–6B is the **stable baseline**
-([`stable-baseline.md`](stable-baseline.md)). This cut
-freezes \(F_{\mathrm{capacity}}\) and the candidate
-contract. It does **not** rewrite, does **not** rank,
+**Status:** FROZEN diagnostics. 5A–6B is the **stable
+baseline** ([`stable-baseline.md`](stable-baseline.md)).
+Phase 6C design
+([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
+froze \(F_{\mathrm{capacity}}\). 6C-B
+([PR #108](https://github.com/chenxingqiang/S2C2IR/pull/108))
+wires that contract into `s2c2-opt` **diagnostics** and
+stops there. It does **not** rewrite, does **not** rank,
 does **not** open `measured-capacity-v1`, does **not**
 change `#69`, `cost-v04`, `default-3g`, or Evidence DB
-identity. 5E stays closed.
+identity. 5E stays closed. Do not expand this diagnostic
+surface; the next cut is a compiler-visible
+\(F_{\mathrm{capacity}}\) candidate object, still without
+eviction rewrite.
 
 ```text
-Goal     F_capacity: capacity-feasible residency candidates
+Goal     compiler reports F_capacity occupancy candidates
 Not      an eviction rewrite, a new Capability grid, or a device campaign
 Rewrite  still only from an existing capability license
 ```
@@ -50,6 +57,26 @@ Rewrite License        ← not this cut
 Rewrite / HB           ← not this cut
 ```
 
+This cut stops at the diagnostic report:
+
+```bash
+s2c2-opt workload.mlir --capacity=hbm:2
+s2c2-opt workload.mlir --capacity-spec=docs/design/v3-dataset/storage-capacity-4tile.jsonl
+```
+
+```text
+capacity
+peak occupancy
+capacity conflict
+F_capacity size
+legal candidates
+rewrite=no
+```
+
+`all-KEEP` of \(R_{t^\*}\) is **not** in \(F_{\mathrm{capacity}}\)
+when occupancy exceeds \(C\). That is a candidate-space
+constraint, not a greedy eviction rule.
+
 ## Occupancy
 
 Each residency \(r\):
@@ -87,6 +114,24 @@ Capacity exceeded means the **all-KEEP** assignment of
 **not** pick which object to drop, and it does **not**
 authorize rewrite.
 
+From IR, constrained-space `stor.materialize` /
+`stor.transfer` live ranges are
+\([\mathrm{defOrder},\;\mathrm{lastUseOrder}+1)\),
+each with default `size=1`. That is **tile-count occupancy
+diagnostics** under `--capacity=hbm:2`, not a byte-capacity
+allocator and not residency/alias analysis.
+`discoverCapacityFromIR()` must not be treated as complete
+lifetime analysis before an eviction rewrite.
+
+`--capacity-spec` is a `s2c2.capacity.v1` JSONL occupancy
+spec and overrides IR discovery. Extra keys are rejected.
+`--capacity` may still override tiles and space from the
+spec.
+
+`reportCapacity()` runs on the **input** IR, before
+`applySchedule()`. Occupancy is not computed on rewritten
+IR. KEEP/EVICT candidates are not a rewrite license.
+
 ## Actions (first version)
 
 ```text
@@ -104,7 +149,7 @@ restore       = unspecified on this cut
 ```
 
 Restore does **not** multiply \(F_{\mathrm{capacity}}\)
-in the design witness. Each occupancy candidate names
+in the diagnostic witness. Each occupancy candidate names
 one EVICT (or all-KEEP when there is no conflict).
 
 ## First-cut enumeration
@@ -160,21 +205,31 @@ winner. Tile 3 is not in \(R_{t^\*}\).
 Host witness (not a device log, not the hardware ledger):
 [`v3-dataset/storage-capacity-4tile.jsonl`](v3-dataset/storage-capacity-4tile.jsonl).
 
-## Later (not this cut)
+Compiler witness: `s2c2-opt --capacity=2` on the 4-tile
+IR in [`test/Integration/storage-capacity.mlir`](../../test/Integration/storage-capacity.mlir).
+Prefix `s2c2-storage-capacity`. Same three legal
+candidates. `rewrite=no`.
+
+## Later (not this freeze)
 
 ```text
-F_capacity
+F_capacity diagnostics          ← FROZEN (this cut)
    ↓
-Evidence DB  (existing 6B; new revision, not a second store)
+compiler-visible candidate object
    ↓
-measured-capacity-v1     ← new policy, does not retune cost-v04
-   ↓
-ArgMin
+policy
    ↓
 rewrite license
+   ↓
+eviction / rematerialize rewrite   ← not yet
 ```
 
-s2c2-opt does not emit \(F_{\mathrm{capacity}}\) yet.
+Do **not** keep expanding diagnostics. The next cut makes
+\(F_{\mathrm{capacity}}\) a compiler-visible candidate
+object. It still does **not** rewrite.
+
+s2c2-opt emits \(F_{\mathrm{capacity}}\) as diagnostics.
+It does **not** rewrite KEEP / EVICT / REMATERIALIZE.
 
 ## Out of scope
 

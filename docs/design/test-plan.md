@@ -967,15 +967,19 @@ Do not FileCheck microseconds.
 | SB-2 | same | Evidence DB still unique E; 6A `--schedule-policy=default-3g` is `rewrite=no` |
 | SB-3 | same | no `sched.wait`; no FileCheck of microseconds |
 
-## Capacity-aware residency (Phase 6C, design)
+## Capacity-aware residency (Phase 6C, design + diagnostics)
 
 **Not Cost v0.4.** Design:
 [`storage-capacity.md`](storage-capacity.md). Freezes
 \(F_{\mathrm{capacity}}\) and occupancy candidate generation.
 KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing restore
-realization. No rewrite, no ranking, no `measured-capacity-v1`,
-no hardware campaign. 5A–6B stay frozen. Do not FileCheck
-microseconds.
+realization. 6C-B diagnostics are **FROZEN**: the same
+candidates from `s2c2-opt --capacity` / `--capacity-spec`.
+IR auto-discovery is tile-count occupancy (`size=1`), not
+a byte allocator and not alias analysis. No rewrite, no
+ranking, no `measured-capacity-v1`, no hardware campaign.
+5A–6B stay frozen. Do not expand this diagnostic surface.
+Do not FileCheck microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -983,6 +987,11 @@ microseconds.
 | 6C-2 | same | 4-tile `capacity=2` `peak-live=3`: keep 0,1 / evict 0 / evict 1; incoming is S0 |
 | 6C-3 | same | fitting live set is all KEEP; one-evict-not-enough is truncated; extra keys rejected |
 | 6C-4 | same | Evidence DB identity unchanged; baseline still `six-c-not-opened` for rewrite |
+| 6C-B-1 | same | `s2c2-opt --capacity=2` on 4-tile IR: `capacity-conflict=yes` `legal=3` `rewrite=no` |
+| 6C-B-2 | same | `--capacity-spec` 4-tile / fit / truncated match the host witness; extras rejected |
+| 6C-B-3 | same | `--capacity` absent prints nothing; invalid `--capacity` fails; no constrained-space residencies fails |
+| 6C-B-4 | same | spec overrides IR discovery; no `sched.wait`; `compiler-ne-rewrite` |
+| 6C-B-5 | same | freeze notes: tile-count occupancy; IR discovery ≠ alias analysis; diagnostics frozen |
 
 ## Complete SSD + MLP program wall-clock
 

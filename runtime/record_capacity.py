@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (design).
+"""Phase 6C Capacity-aware Residency (diagnostics frozen).
 
-Host witness for F_capacity. Does not rank, rewrite, or
-touch cost-v04 / #69 / Evidence DB identity / F(program).
+Host witness for F_capacity. Compiler diagnostics live in
+s2c2-opt --capacity (tile-count occupancy). Does not rank,
+rewrite, or touch cost-v04 / #69 / Evidence DB identity /
+F(program). IR discovery is not alias analysis.
 Do not FileCheck microseconds.
 """
 
@@ -62,6 +64,11 @@ def print_contract() -> int:
     print("note not-hardware-campaign")
     print("note stable-baseline")
     print("note six-c-design-this-cut")
+    print("note six-c-diagnostics-frozen")
+    print("note compiler-emits-f-capacity")
+    print("note compiler-ne-rewrite")
+    print("note tile-count-occupancy")
+    print("note ir-discovery-ne-alias-analysis")
     print("note do-not-filecheck-microseconds")
     print("cost=unchanged")
     return 0
@@ -216,6 +223,8 @@ def analyze_capacity(path: Path) -> int:
     print("storage-capacity note selection-ne-rewrite-license")
     print("storage-capacity note measured-capacity-v1-not-opened")
     print("storage-capacity note six-c-design-this-cut")
+    print("storage-capacity note six-c-diagnostics-frozen")
+    print("storage-capacity note tile-count-occupancy")
     print("cost=unchanged")
     return 0
 

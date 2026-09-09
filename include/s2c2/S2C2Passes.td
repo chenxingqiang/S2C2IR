@@ -459,8 +459,12 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     Optional `schedule-policy` names which ranking is the
     production selection (`default-3g` / `cost-v04` /
     `measured-storage-v1`). Policy cannot create legality or a
-    rewrite license. Optional `explain` prints the selection
+    rewrite license.     Optional `explain` prints the selection
     account. 5A–5D remain frozen. 5E is not opened.
+    Optional `capacity` (`hbm:2`) prints F_capacity
+    occupancy candidates. Optional `capacity-spec` is a
+    `s2c2.capacity.v1` JSONL. Diagnostics only; rewrite=no.
+    measured-capacity-v1 is not opened.
   }];
   let dependentDialects = [
     "mlir::s2c2::sched::ScheduleDialect",
@@ -484,7 +488,11 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
            /*default=*/"\"\"",
            "Selection policy: default-3g|cost-v04|measured-storage-v1">,
     Option<"explain", "explain", "bool", /*default=*/"false",
-           "Print F, evidence, named-policy selection, rewrite=no">
+           "Print F, evidence, named-policy selection, rewrite=no">,
+    Option<"capacityBudget", "capacity", "std::string", /*default=*/"\"\"",
+           "Constrained space:tiles for F_capacity (hbm:2). Diagnostics only">,
+    Option<"capacitySpec", "capacity-spec", "std::string", /*default=*/"\"\"",
+           "Optional s2c2.capacity.v1 JSONL occupancy spec">
   ];
 }
 

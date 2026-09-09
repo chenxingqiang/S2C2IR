@@ -37,6 +37,9 @@
 // not add ticks, does not retarget default-3g, and does not apply
 // the measured winner as a rewrite. Frozen --s2c2-cost /
 // --s2c2-argmin / Score_3 stay untouched.
+// Phase 6C-B prints F_capacity occupancy candidates under
+// --capacity / --capacity-spec. Diagnostics only; rewrite=no.
+// measured-capacity-v1 is not opened. EVICT is not a rewrite.
 //
 // Generic rewrite pipeline (one inhabitant: concurrent→serial):
 //   RewriteCandidate → EvidenceQuery → Applicability
@@ -111,6 +114,7 @@ using stor::MaterializeOp;
 using stor::PackOp;
 using stor::Space;
 using stor::TransferOp;
+using stor::UnpackOp;
 
 namespace {
 llvm::cl::opt<std::string> clS2C2Profile(
@@ -136,6 +140,15 @@ llvm::cl::opt<bool> clScheduleExplain(
 llvm::cl::opt<std::string> clMeasuredCostTable(
     "measured-cost-table",
     llvm::cl::desc("Canonical measured-storage-v1 JSONL (not a campaign log)"),
+    llvm::cl::ValueRequired, llvm::cl::init(""));
+llvm::cl::opt<std::string> clCapacityBudget(
+    "capacity",
+    llvm::cl::desc("F_capacity budget as space:tiles (hbm:2). Diagnostics "
+                   "only; not a rewrite license."),
+    llvm::cl::ValueRequired, llvm::cl::init(""));
+llvm::cl::opt<std::string> clCapacitySpec(
+    "capacity-spec",
+    llvm::cl::desc("Optional s2c2.capacity.v1 JSONL (not a hardware ledger)"),
     llvm::cl::ValueRequired, llvm::cl::init(""));
 
 enum class Applicability { Yes, No, Unknown };
@@ -1152,6 +1165,24 @@ static StringRef spaceName(std::optional<Space> space) {
     return "host";
   }
   return "none";
+}
+
+static std::optional<Space> parseSpaceName(StringRef name) {
+  if (name.equals_insensitive("hbm"))
+    return Space::HBM;
+  if (name.equals_insensitive("host"))
+    return Space::Host;
+  if (name.equals_insensitive("ssd"))
+    return Space::SSD;
+  if (name.equals_insensitive("dram"))
+    return Space::DRAM;
+  if (name.equals_insensitive("sram"))
+    return Space::SRAM;
+  if (name.equals_insensitive("cim"))
+    return Space::CIM;
+  if (name.equals_insensitive("register"))
+    return Space::Register;
+  return std::nullopt;
 }
 
 static StringRef hierarchyActionStr(HierarchyAction action) {
@@ -2761,6 +2792,371 @@ static void walkAndQuery(ModuleOp module, StringRef device,
   });
 }
 
+struct CapResidency {
+  std::string object;
+  int64_t size = 1;
+  int start = 0;
+  int end = 0;
+};
+
+struct CapCandidate {
+  std::string action;
+  SmallVector<std::string, 4> keep;
+  SmallVector<std::string, 4> evict;
+};
+
+static FailureOr<std::pair<Space, int>> parseCapacityBudget(StringRef spec) {
+  if (spec.empty())
+    return failure();
+  StringRef left, right;
+  std::tie(left, right) = spec.split(':');
+  Space space = Space::HBM;
+  StringRef tiles = spec;
+  if (!right.empty()) {
+    auto parsed = parseSpaceName(left);
+    if (!parsed)
+      return failure();
+    space = *parsed;
+    tiles = right;
+  }
+  int n = 0;
+  if (tiles.getAsInteger(10, n) || n <= 0)
+    return failure();
+  return std::make_pair(space, n);
+}
+
+static int capLiveSum(ArrayRef<CapResidency> live) {
+  int s = 0;
+  for (const CapResidency &r : live)
+    s += (int)r.size;
+  return s;
+}
+
+static SmallVector<CapResidency, 8> capLiveAt(ArrayRef<CapResidency> rs, int t) {
+  SmallVector<CapResidency, 8> out;
+  for (const CapResidency &r : rs)
+    if (r.start <= t && t < r.end)
+      out.push_back(r);
+  return out;
+}
+
+static void printCapacityReport(Space space, int cap, int peak, bool conflict,
+                                bool truncated,
+                                ArrayRef<CapCandidate> cands) {
+  llvm::errs() << "s2c2-storage-capacity query=f-capacity\n";
+  llvm::errs() << "s2c2-storage-capacity space=" << spaceName(space)
+               << " capacity=" << cap << " peak-live=" << peak << "\n";
+  llvm::errs() << "s2c2-storage-capacity capacity-conflict="
+               << (conflict ? "yes" : "no") << "\n";
+  if (truncated) {
+    llvm::errs() << "s2c2-storage-capacity enumerated=no truncated=yes "
+                    "legal=not-enumerated\n";
+    llvm::errs() << "s2c2-storage-capacity candidate-count=0\n";
+  } else {
+    llvm::errs() << "s2c2-storage-capacity enumerated=yes truncated=no legal="
+                 << cands.size() << "\n";
+    llvm::errs() << "s2c2-storage-capacity candidate-count=" << cands.size()
+                 << "\n";
+    for (unsigned i = 0; i < cands.size(); ++i) {
+      const CapCandidate &c = cands[i];
+      llvm::errs() << "s2c2-storage-capacity candidate #" << i << " keep=";
+      for (unsigned k = 0; k < c.keep.size(); ++k) {
+        if (k)
+          llvm::errs() << ",";
+        llvm::errs() << c.keep[k];
+      }
+      if (!c.evict.empty()) {
+        llvm::errs() << " evict=";
+        for (unsigned k = 0; k < c.evict.size(); ++k) {
+          if (k)
+            llvm::errs() << ",";
+          llvm::errs() << c.evict[k];
+        }
+      }
+      llvm::errs() << " action=" << c.action;
+      if (!c.evict.empty())
+        llvm::errs() << " restore-legal=TRANSFER,REMATERIALIZE "
+                        "restore=unspecified";
+      else
+        llvm::errs() << " restore=unspecified";
+      llvm::errs() << "\n";
+    }
+  }
+  llvm::errs() << "s2c2-storage-capacity rewrite=no\n";
+  llvm::errs() << "s2c2-storage-capacity note f-capacity-ne-f-program\n";
+  llvm::errs() << "s2c2-storage-capacity note capacity-exceeded-ne-must-evict\n";
+  llvm::errs() << "s2c2-storage-capacity note evict-ne-rewrite\n";
+  llvm::errs() << "s2c2-storage-capacity note selection-ne-rewrite-license\n";
+  llvm::errs() << "s2c2-storage-capacity note compiler-emits-f-capacity\n";
+  llvm::errs() << "s2c2-storage-capacity note compiler-ne-rewrite\n";
+  llvm::errs() << "s2c2-storage-capacity note tile-count-occupancy\n";
+  llvm::errs() << "s2c2-storage-capacity note ir-discovery-ne-alias-analysis\n";
+  llvm::errs() << "s2c2-storage-capacity note measured-capacity-v1-not-opened\n";
+  llvm::errs() << "s2c2-storage-capacity note six-c-diagnostics-frozen "
+                  "cost=unchanged\n";
+}
+
+static void enumerateCapacityF(ArrayRef<CapResidency> rs, int cap,
+                               bool &conflict, int &peak, bool &truncated,
+                               SmallVectorImpl<CapCandidate> &cands) {
+  SmallVector<int, 8> times;
+  for (const CapResidency &r : rs)
+    times.push_back(r.start);
+  llvm::sort(times);
+  times.erase(llvm::unique(times), times.end());
+  peak = 0;
+  conflict = false;
+  truncated = false;
+  SmallVector<CapResidency, 8> liveStar;
+  for (int t : times) {
+    auto live = capLiveAt(rs, t);
+    int occ = capLiveSum(live);
+    if (occ > peak)
+      peak = occ;
+    if (occ > cap && !conflict) {
+      conflict = true;
+      liveStar = live;
+    }
+  }
+  cands.clear();
+  if (!conflict) {
+    CapCandidate all;
+    all.action = "KEEP";
+    for (const CapResidency &r : rs)
+      all.keep.push_back(r.object);
+    llvm::sort(all.keep);
+    if (!all.keep.empty())
+      cands.push_back(std::move(all));
+    return;
+  }
+  int occ = capLiveSum(liveStar);
+  const CapResidency *incoming = &*std::max_element(
+      liveStar.begin(), liveStar.end(),
+      [](const CapResidency &a, const CapResidency &b) {
+        if (a.start != b.start)
+          return a.start < b.start;
+        return a.object < b.object;
+      });
+  SmallVector<const CapResidency *, 8> order;
+  order.push_back(incoming);
+  SmallVector<const CapResidency *, 8> rest;
+  for (const CapResidency &r : liveStar)
+    if (&r != incoming)
+      rest.push_back(&r);
+  llvm::sort(rest, [](const CapResidency *a, const CapResidency *b) {
+    return a->object < b->object;
+  });
+  order.append(rest.begin(), rest.end());
+  for (const CapResidency *rec : order) {
+    if (occ - (int)rec->size > cap) {
+      truncated = true;
+      cands.clear();
+      return;
+    }
+    CapCandidate c;
+    c.action = "EVICT";
+    c.evict.push_back(rec->object);
+    for (const CapResidency &r : liveStar)
+      if (&r != rec)
+        c.keep.push_back(r.object);
+    llvm::sort(c.keep);
+    cands.push_back(std::move(c));
+  }
+}
+
+static LogicalResult loadCapacitySpec(StringRef path,
+                                      SmallVectorImpl<CapResidency> &out,
+                                      Space &space, int &cap) {
+  std::string resolved = resolveExistingPath(path, {});
+  auto fileOr = llvm::MemoryBuffer::getFile(resolved);
+  if (!fileOr) {
+    llvm::errs() << "s2c2-storage-capacity: cannot read capacity-spec " << path
+                 << "\n";
+    return failure();
+  }
+  StringRef text = fileOr.get()->getBuffer();
+  int rows = 0;
+  llvm::StringSet<> specOk;
+  specOk.insert("schema");
+  specOk.insert("workload_class");
+  specOk.insert("space");
+  specOk.insert("capacity_tiles");
+  specOk.insert("residencies");
+  specOk.insert("note");
+  llvm::StringSet<> resOk;
+  resOk.insert("id");
+  resOk.insert("object");
+  resOk.insert("space");
+  resOk.insert("size");
+  resOk.insert("live");
+  resOk.insert("producer");
+  resOk.insert("consumer");
+  resOk.insert("reuse_distance");
+  while (!text.empty()) {
+    auto [line, rest] = text.split('\n');
+    text = rest;
+    line = line.trim();
+    if (line.empty() || line.starts_with("#"))
+      continue;
+    auto parsed = llvm::json::parse(line);
+    if (!parsed) {
+      llvm::errs() << "s2c2-storage-capacity: invalid JSONL in " << path << "\n";
+      return failure();
+    }
+    auto *obj = parsed->getAsObject();
+    if (!obj)
+      return failure();
+    ++rows;
+    if (rows != 1) {
+      llvm::errs() << "s2c2-storage-capacity: capacity spec must be one row\n";
+      return failure();
+    }
+    for (const auto &kv : *obj) {
+      if (!specOk.contains(kv.getFirst())) {
+        llvm::errs() << "s2c2-storage-capacity: extra keys\n";
+        return failure();
+      }
+    }
+    auto schema = obj->getString("schema");
+    if (!schema || *schema != "s2c2.capacity.v1") {
+      llvm::errs() << "s2c2-storage-capacity: bad schema\n";
+      return failure();
+    }
+    auto spaceS = obj->getString("space");
+    auto parsedSpace = spaceS ? parseSpaceName(*spaceS) : std::nullopt;
+    if (!parsedSpace) {
+      llvm::errs() << "s2c2-storage-capacity: bad space\n";
+      return failure();
+    }
+    space = *parsedSpace;
+    if (auto c = obj->getInteger("capacity_tiles"))
+      cap = (int)*c;
+    else {
+      llvm::errs() << "s2c2-storage-capacity: capacity_tiles required\n";
+      return failure();
+    }
+    if (cap <= 0)
+      return failure();
+    auto *arr = obj->getArray("residencies");
+    if (!arr || arr->empty()) {
+      llvm::errs() << "s2c2-storage-capacity: residencies required\n";
+      return failure();
+    }
+    for (const llvm::json::Value &item : *arr) {
+      auto *rec = item.getAsObject();
+      if (!rec)
+        return failure();
+      for (const auto &kv : *rec) {
+        if (!resOk.contains(kv.getFirst())) {
+          llvm::errs() << "s2c2-storage-capacity: residency extra keys\n";
+          return failure();
+        }
+      }
+      CapResidency r;
+      auto objN = rec->getString("object");
+      if (!objN)
+        return failure();
+      StringRef name = *objN;
+      if (name.starts_with("tile") && name.drop_front(4).ltrim("0123456789").empty())
+        r.object = name.drop_front(4).str();
+      else
+        r.object = name.str();
+      if (auto sz = rec->getInteger("size"))
+        r.size = *sz;
+      if (r.size <= 0)
+        return failure();
+      auto *live = rec->getArray("live");
+      if (!live || live->size() != 2)
+        return failure();
+      auto s0 = (*live)[0].getAsInteger();
+      auto s1 = (*live)[1].getAsInteger();
+      if (!s0 || !s1 || *s0 >= *s1)
+        return failure();
+      r.start = (int)*s0;
+      r.end = (int)*s1;
+      out.push_back(std::move(r));
+    }
+  }
+  if (rows != 1) {
+    llvm::errs() << "s2c2-storage-capacity: capacity spec must be one row\n";
+    return failure();
+  }
+  return success();
+}
+
+static void discoverCapacityFromIR(ModuleOp module, Space space,
+                                   SmallVectorImpl<CapResidency> &out) {
+  // Tile-count occupancy diagnostics: each constrained-space
+  // materialize/transfer is one residency of size 1. Not a
+  // byte-capacity allocator and not residency/alias analysis.
+  DenseMap<Operation *, unsigned> order;
+  unsigned idx = 0;
+  module.walk([&](Operation *op) { order[op] = idx++; });
+  unsigned n = 0;
+  module.walk([&](Operation *op) {
+    Value buf;
+    if (auto xfer = dyn_cast<TransferOp>(op))
+      buf = xfer.getBuffer();
+    else if (auto mat = dyn_cast<MaterializeOp>(op))
+      buf = mat.getBuffer();
+    else
+      return;
+    auto ty = dyn_cast<BufferType>(buf.getType());
+    if (!ty || ty.getSpace() != space)
+      return;
+    CapResidency r;
+    r.object = std::to_string(n++);
+    r.size = 1;
+    r.start = (int)order[op];
+    int last = r.start;
+    for (Operation *user : buf.getUsers()) {
+      auto it = order.find(user);
+      if (it != order.end() && (int)it->second > last)
+        last = (int)it->second;
+    }
+    r.end = last + 1;
+    if (r.end <= r.start)
+      r.end = r.start + 1;
+    out.push_back(std::move(r));
+  });
+}
+
+static LogicalResult reportCapacity(ModuleOp module, StringRef budgetStr,
+                                    StringRef specPath) {
+  if (budgetStr.empty() && specPath.empty())
+    return success();
+  SmallVector<CapResidency, 8> rs;
+  Space space = Space::HBM;
+  int cap = 0;
+  if (!specPath.empty()) {
+    if (failed(loadCapacitySpec(specPath, rs, space, cap)))
+      return failure();
+  }
+  if (!budgetStr.empty()) {
+    auto parsed = parseCapacityBudget(budgetStr);
+    if (failed(parsed)) {
+      llvm::errs() << "s2c2-storage-capacity: invalid --capacity=" << budgetStr
+                   << "\n";
+      return failure();
+    }
+    space = parsed->first;
+    cap = parsed->second;
+  }
+  if (specPath.empty())
+    discoverCapacityFromIR(module, space, rs);
+  if (rs.empty()) {
+    llvm::errs() << "s2c2-storage-capacity: no constrained-space residencies\n";
+    return failure();
+  }
+  bool conflict = false;
+  int peak = 0;
+  bool truncated = false;
+  SmallVector<CapCandidate, 8> cands;
+  enumerateCapacityF(rs, cap, conflict, peak, truncated, cands);
+  printCapacityReport(space, cap, peak, conflict, truncated, cands);
+  return success();
+}
+
 static LogicalResult applySchedule(ModuleOp module, StringRef device,
                                    const CapCatalog &cat,
                                    const ResolvedProfile *evi = nullptr,
@@ -2985,6 +3381,18 @@ struct S2C2EvidenceBoundedSchedule
     std::string table = measuredCostTable;
     if (table.empty())
       table = clMeasuredCostTable;
+    std::string cap = capacityBudget;
+    if (cap.empty())
+      cap = clCapacityBudget;
+    std::string spec = capacitySpec;
+    if (spec.empty())
+      spec = clCapacitySpec;
+    // Occupancy is a fact about the input program, not post-rewrite IR.
+    // KEEP/EVICT candidates are diagnostic only; applySchedule is unchanged.
+    if (failed(reportCapacity(getOperation(), cap, spec))) {
+      signalPassFailure();
+      return;
+    }
     if (failed(applySchedule(getOperation(), resolved.device, cat, &resolved,
                              dumpSchedule, table, policy, doExplain)))
       signalPassFailure();
