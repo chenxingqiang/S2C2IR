@@ -1,12 +1,13 @@
 # Measured Storage, |F| > 2 (Phase 5B)
 
-**Status:** design only. Do **not** open a device campaign until
-this document is approved. Phase 5A is **FROZEN**
-([`storage-measured.md`](storage-measured.md)): plumbing works;
-the two-tile pipeline coincides with `default-3g` on 4090 and
-910B (`diverge=no`). 5B is **not** a new Capability grid, not
-new ticks on frozen `cost-v04`, not a retarget of `default-3g`,
-and not a rewrite license.
+**Status:** measured. Design approved on PR #97. Phase 5A is
+**FROZEN** ([`storage-measured.md`](storage-measured.md)).
+5B reused existing `F(@ssd_hierarchy_lifetime)` (product=8)
+and recorded all eight candidate-local arms. On both 4090
+and 910B, ArgMin is default-3g S0 (`diverge=no`). That is a
+valid 5B result. 5B is **not** a new Capability grid, not
+new ticks on frozen `cost-v04`, not a retarget of
+`default-3g`, and not a rewrite license.
 
 ```text
 Goal     natural |F(program)| > 2 with ≥ 3 measurable inhabitants
@@ -120,7 +121,24 @@ cost-v04 = FROZEN
 rewrite of the measured winner = not this design
 ```
 
-Acceptance when implementation is later approved:
+## Freeze
+
+```text
+4090  ArgMin S0 = default-3g S0 → diverge=no
+910B  ArgMin S0 = default-3g S0 → diverge=no
+measured-count   8 / 8 legal signatures
+one row          per (profile, workload, signature)
+#69              unchanged
+cost-v04         frozen
+default-3g       unchanged
+rewrite license  unchanged
+```
+
+`diverge=no` is the honest device fact. Do not drop S0 or
+re-time a subset to manufacture `diverge=yes`. Rewrite + HB
++ runtime A/B stays gated on a later real `≠`.
+
+Acceptance:
 
 ```text
 1. |F(program)| > 2 and enumerated
@@ -143,7 +161,7 @@ heuristic tick.
 ## Out of scope
 
 ```text
-opening a 4090 / 910B campaign before this design is approved
+picking 3 of 8 signatures just to hit ≥ 3
 re-measuring storage-aware-pipeline S0/S1
 dropping S0 from a table to force diverge=yes
 ranking @seven_binary_chains (truncated)
