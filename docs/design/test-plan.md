@@ -967,6 +967,23 @@ Do not FileCheck microseconds.
 | SB-2 | same | Evidence DB still unique E; 6A `--schedule-policy=default-3g` is `rewrite=no` |
 | SB-3 | same | no `sched.wait`; no FileCheck of microseconds |
 
+## Capacity-aware residency (Phase 6C, design)
+
+**Not Cost v0.4.** Design:
+[`storage-capacity.md`](storage-capacity.md). Freezes
+\(F_{\mathrm{capacity}}\) and occupancy candidate generation.
+KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing restore
+realization. No rewrite, no ranking, no `measured-capacity-v1`,
+no hardware campaign. 5A–6B stay frozen. Do not FileCheck
+microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 6C-1 | `test/Integration/storage-capacity.mlir` | `--print-storage-capacity-contract`; \(F_{\mathrm{capacity}} \neq F(\mathrm{program})\); `rewrite=no` |
+| 6C-2 | same | 4-tile `capacity=2` `peak-live=3`: keep 0,1 / evict 0 / evict 1; incoming is S0 |
+| 6C-3 | same | fitting live set is all KEEP; one-evict-not-enough is truncated; extra keys rejected |
+| 6C-4 | same | Evidence DB identity unchanged; baseline still `six-c-not-opened` for rewrite |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
