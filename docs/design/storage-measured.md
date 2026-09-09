@@ -181,8 +181,11 @@ rewrite license  unchanged
 
 Plumbing is proven. Policy divergence is **not**. Do not
 re-measure this S0/S1 pair to manufacture `diverge=yes`.
-Phase 5B:
-[`storage-measured-5b.md`](storage-measured-5b.md).
+Phase 5B is **FROZEN**
+([`storage-measured-5b.md`](storage-measured-5b.md)):
+hierarchy 8/8 measured, both devices `diverge=no`. Do not
+re-measure that 8-set. Phase 5C design:
+[`storage-measured-5c.md`](storage-measured-5c.md).
 
 Truncated `@seven_binary_chains` (product=128):
 `ranked=not-enumerated`. Hierarchy without matching rows:
@@ -209,8 +212,9 @@ FileCheck of 4090 / 910B microseconds
 comparing 4090 μs to 910B μs
 applying the measured winner as a rewrite
 re-measuring pipeline S0/S1 to manufacture diverge=yes
+re-measuring the frozen hierarchy 8-set
 new 4090 / 910B Capability measurements
-Phase 5B |F|>2 measurement (later; design first)
+Phase 5C implementation before that design is approved
 changing --s2c2-cost / --s2c2-argmin / --s2c2-walk
 retargeting default-3g
 changing the 4B chain definition
