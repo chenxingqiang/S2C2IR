@@ -127,5 +127,5 @@ arbitrary runtime-N / alias-complete overwrite
 changing the 3J wall-clock logs
 ```
 
-Phase 4D ranking:
+Phase 4D ranking is **FROZEN** at `#92`:
 [`storage-cost.md`](storage-cost.md).

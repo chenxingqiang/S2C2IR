@@ -1,12 +1,15 @@
 # Storage Cost Ranking (Phase 4D)
 
-**Status:** rank a **fully enumerated** \(F(\text{program})\) under
-`policy=cost-v04`. Cost does **not** invent members of \(F\), does
-**not** decide legality, does **not** replace `default-3g`, and does
-**not** rank a truncated product. Frozen `--s2c2-cost` / `--s2c2-argmin`
-/ Score_3 stay untouched. Not a new Capability grid. Does **not**
-flatten `C||Storage`, overwrite `#69`, change the 4B chain
-definition, or FileCheck microseconds.
+**Status:** **FROZEN** (coincide witness `#92`). Rank a
+**fully enumerated** \(F(\text{program})\) under `policy=cost-v04`.
+Do **not** add more structural ticks. A later divergence requires
+a **new measured-cost policy**, not another heuristic. Cost does
+**not** invent members of \(F\), does **not** decide legality, does
+**not** replace `default-3g`, and does **not** rank a truncated
+product. Frozen `--s2c2-cost` / `--s2c2-argmin` / Score_3 stay
+untouched. Not a new Capability grid. Does **not** flatten
+`C||Storage`, overwrite `#69`, change the 4B chain definition, or
+FileCheck microseconds.
 
 4C entry:
 [`storage-global.md`](storage-global.md).
@@ -130,6 +133,23 @@ A later **measured** cost table is a new policy. It must still
 rank only enumerated \(F\), must not invent members, and must
 not retarget `default-3g`. Do not FileCheck microseconds here.
 
+## Frozen
+
+`#92` freezes this structural-ranking stage. Do not add ticks
+or another heuristic objective.
+
+```text
+structural cost-v04     FROZEN
+diverge=no on current F FROZEN witness
+next Cost cut           measured-cost policy (new name)
+                        or leave Cost frozen
+```
+
+```text
+no divergence  ≠  two policies are the same object
+structural     ≠  runtime cost
+```
+
 ## Policy
 
 ```text
@@ -143,6 +163,8 @@ Capability grid = unchanged
 ## Out of scope
 
 ```text
+more structural ticks / heuristic knobs
+measured-cost policy (new name, later)
 new 4090 / 910B Capability measurements
 wrapping structural ticks as wall-clock
 FileCheck of microseconds
@@ -153,5 +175,4 @@ changing the 4B chain definition
 overwriting #69
 C||Storage flatten
 invented sibling sched.wait
-FileCheck of microseconds
 ```

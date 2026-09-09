@@ -455,6 +455,9 @@ static void printStorageCost() {
                "note not-new-capability-grid\n");
   std::fprintf(stderr,
                "s2c2-cuda-adapter storage-cost "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
                "note not-c-storage-flatten\n");
   std::fprintf(stderr,
                "s2c2-cuda-adapter storage-cost note catalog-untouched\n");
