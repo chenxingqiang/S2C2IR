@@ -7,6 +7,13 @@
 // RUN: python3 %S/../../runtime/record_evidence.py --query-evidence --db %t.fix.jsonl --profile=rtx4090 --workload-signature=storage-aware-pipeline --measurement-revision=fixture-v1 | FileCheck %s --check-prefix=FIXTURE
 // RUN: python3 %S/../../runtime/record_evidence.py --export-measured-v1 --db %t.fix.jsonl --profile=rtx4090 --workload-signature=storage-aware-pipeline --measurement-revision=fixture-v1 --out %t.fix.v1.jsonl | FileCheck %s --check-prefix=FIXEXP
 // RUN: python3 %S/../../runtime/record_evidence.py --export-measured-v1 --db %S/../../docs/design/v3-dataset/evidence-db.jsonl --profile=rtx4090 --workload-signature=storage-aware-pipeline --measurement-revision=5a-pipeline-4090 --out %t.a4090.jsonl | FileCheck %s --check-prefix=EXP5A
+// RUN: not python3 %S/../../runtime/record_evidence.py --export-measured-v1 --db %S/../../docs/design/v3-dataset/evidence-db.jsonl --profile=rtx4090 --workload-signature=storage-aware-pipeline --out %t.norev.jsonl 2>&1 | FileCheck %s --check-prefix=NOREV
+// RUN: python3 %S/../../runtime/record_evidence.py --query-evidence --db %S/../../docs/design/v3-dataset/evidence-db.jsonl --profile=rtx4090 --workload-signature=storage-aware-pipeline | FileCheck %s --check-prefix=QHIST
+// RUN: python3 %S/../../runtime/record_evidence.py --ingest-measured-v1 %S/../../docs/design/v3-dataset/storage-measured-v1.jsonl --db %t.idem.jsonl --measurement-revision=fixture-v1
+// RUN: python3 %S/../../runtime/record_evidence.py --ingest-measured-v1 %S/../../docs/design/v3-dataset/storage-measured-v1.jsonl --db %t.idem.jsonl --measurement-revision=fixture-v1 | FileCheck %s --check-prefix=IDEM
+// RUN: python3 %S/../../runtime/record_evidence.py --ingest-measured-v1 %S/../../docs/design/v3-dataset/storage-measured-v1.jsonl --db %t.col.jsonl --measurement-revision=fixture-v1
+// RUN: sed 's/"measured_time_us":12400/"measured_time_us":1/' %S/../../docs/design/v3-dataset/storage-measured-v1.jsonl > %t.col-src.jsonl
+// RUN: not python3 %S/../../runtime/record_evidence.py --ingest-measured-v1 %t.col-src.jsonl --db %t.col.jsonl --measurement-revision=fixture-v1 2>&1 | FileCheck %s --check-prefix=COLLIDE
 // RUN: s2c2-opt %S/storage-aware-pipeline.mlir --profile=rtx4090 --schedule-policy=measured-storage-v1 --measured-cost-table=%t.a4090.jsonl --check-s2c2-execution 2>&1 | grep -E 's2c2-schedule-policy|hierarchy-global-measured-diverge|hierarchy-global-measured-schedule' | FileCheck %s --check-prefix=RANK
 // RUN: python3 %S/../../runtime/record_evidence.py --query-evidence --db %S/../../docs/design/v3-dataset/evidence-db.jsonl --profile=rtx4090 --workload-signature=ssd-loop-pipeline --measurement-revision=5d-loop-4090 | FileCheck %s --check-prefix=Q5D
 // RUN: python3 %S/../../runtime/record_evidence.py --query-evidence --db %S/../../docs/design/v3-dataset/evidence-db.jsonl --profile=rtx4090 --workload-signature=ssd-loop-pipeline --measurement-revision=does-not-exist | FileCheck %s --check-prefix=ABSENT
@@ -52,6 +59,10 @@
 // CONTRACT: status measured|inferred|fixture|pending|invalid
 // CONTRACT: note ranking-status-measured-only
 // CONTRACT: note compiler-consumes-v1-projection
+// CONTRACT: note export-revision-required
+// CONTRACT: note query-revision-optional
+// CONTRACT: note identity-immutable
+// CONTRACT: note export-ne-last-row-wins
 // CONTRACT: note compiler-ne-campaign-log
 // CONTRACT: note extras-cannot-expand-F
 // CONTRACT: note measured-ne-rewrite-license
@@ -102,9 +113,27 @@
 // FIXEXP: evidence-db note compiler-consumes-v1-projection
 
 // EXP5A: evidence-db export=measured-v1 profile=rtx4090 workload=storage-aware-pipeline revision=5a-pipeline-4090 rows=2
+// EXP5A: evidence-db note export-revision-required
 // EXP5A: evidence-db note do-not-filecheck-microseconds
 // EXP5A-NOT: 25420
 // EXP5A-NOT: 25657
+
+// NOREV: measurement revision required for export
+// NOREV: evidence-db note export-revision-required
+// NOREV: evidence-db note export-ne-last-row-wins
+// NOREV-NOT: export=measured-v1
+
+// QHIST: evidence-db query=applicability
+// QHIST: evidence-db hits=4 ranking-eligible=2
+// QHIST: evidence-db ranking-eligible=yes revision=5a-pipeline-4090
+// QHIST: evidence-db note measured-ne-rewrite-license
+
+// IDEM: evidence-db ingest=measured-v1 revision=fixture-v1 rows=2
+// IDEM: evidence-db note identity-E
+
+// COLLIDE: identity collision E
+// COLLIDE: evidence-db note identity-immutable
+// COLLIDE-NOT: ingest=measured-v1{{.*}}rows=2
 
 // RANK: hierarchy-global-measured-schedule enumerated=yes truncated=no
 // RANK-SAME: ranked-eq-default-3g=yes

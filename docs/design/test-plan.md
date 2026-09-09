@@ -951,6 +951,7 @@ not this cut. Do not FileCheck microseconds.
 | 6B-3 | same | fixture / inferred / pending / invalid are not ranking-eligible and do not export `measured=yes` |
 | 6B-4 | same | v1 export of 5A 4090 still ranks under `--schedule-policy=measured-storage-v1`; extras cannot expand F |
 | 6B-5 | same | duplicate E and extra keys fail `--check-evidence-db`; ledger ingest is skipped; no `sched.wait` |
+| 6B-6 | same | export without `--measurement-revision` fails; query without revision is a historical view; same-E ingest is idempotent or identity-collision |
 
 ## Complete SSD + MLP program wall-clock
 

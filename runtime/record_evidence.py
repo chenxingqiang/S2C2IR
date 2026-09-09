@@ -137,13 +137,23 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             fh.write(json.dumps(rec, ensure_ascii=True, separators=(",", ":")) + "\n")
 
 
-def upsert(db: list[dict[str, Any]], rec: dict[str, Any]) -> None:
+class IdentityCollision(ValueError):
+    """Same E with a different payload. Revision slices are immutable."""
+
+
+def upsert(db: list[dict[str, Any]], rec: dict[str, Any]) -> str:
     eid = evidence_id(rec)
-    for i, old in enumerate(db):
+    for old in db:
         if evidence_id(old) == eid:
-            db[i] = rec
-            return
+            if old == rec:
+                return "noop"
+            raise IdentityCollision(
+                "identity collision E="
+                f"(profile={eid[0]}, workload={eid[1]}, "
+                f"candidate={eid[2]}, revision={eid[3]})"
+            )
     db.append(rec)
+    return "insert"
 
 
 def ingest_measured_v1(
@@ -166,7 +176,12 @@ def ingest_measured_v1(
         rec = normalize_v1_row(obj, rev, recorded_at)
         if rec is None:
             continue
-        upsert(db, rec)
+        try:
+            upsert(db, rec)
+        except IdentityCollision as exc:
+            print(f"record_evidence: {exc}", file=sys.stderr)
+            print("evidence-db note identity-immutable", file=sys.stderr)
+            return 4
         n += 1
     write_jsonl(db_path, db)
     print(f"evidence-db ingest=measured-v1 revision={rev} rows={n} store={db_path.name}")
@@ -233,6 +248,14 @@ def export_measured_v1(
     revision: str,
     out: Path | None,
 ) -> int:
+    if not revision:
+        print(
+            "record_evidence: measurement revision required for export",
+            file=sys.stderr,
+        )
+        print("evidence-db note export-revision-required", file=sys.stderr)
+        print("evidence-db note export-ne-last-row-wins", file=sys.stderr)
+        return 2
     rows = load_jsonl(db_path)
     chosen: dict[str, dict[str, Any]] = {}
     for rec in rows:
@@ -242,12 +265,19 @@ def export_measured_v1(
             continue
         if workload and rec.get("workload_signature") != workload:
             continue
-        if revision and rec.get("measurement_revision") != revision:
+        if rec.get("measurement_revision") != revision:
             continue
         if not ranking_eligible(rec):
             continue
-        # Last matching row wins inside the slice (same as v1 loader).
-        chosen[rec["candidate_signature"]] = rec
+        sig = rec["candidate_signature"]
+        if sig in chosen:
+            print(
+                "record_evidence: export slice not unique on candidate_signature",
+                file=sys.stderr,
+            )
+            print("evidence-db note export-ne-last-row-wins", file=sys.stderr)
+            return 4
+        chosen[sig] = rec
     projected = [project_v1(rec) for rec in chosen.values()]
     if out:
         write_jsonl(out, projected)
@@ -255,10 +285,11 @@ def export_measured_v1(
         for rec in projected:
             print(json.dumps(rec, ensure_ascii=True, separators=(",", ":")))
     print(f"evidence-db export=measured-v1 profile={profile or '*'} "
-          f"workload={workload or '*'} revision={revision or '*'} "
+          f"workload={workload or '*'} revision={revision} "
           f"rows={len(projected)}")
     print("evidence-db note ranking-status-measured-only")
     print("evidence-db note compiler-consumes-v1-projection")
+    print("evidence-db note export-revision-required")
     print("evidence-db note do-not-filecheck-microseconds")
     print("cost=unchanged")
     return 0
@@ -355,6 +386,10 @@ def print_contract() -> int:
     print("status measured|inferred|fixture|pending|invalid")
     print("note ranking-status-measured-only")
     print("note compiler-consumes-v1-projection")
+    print("note export-revision-required")
+    print("note query-revision-optional")
+    print("note identity-immutable")
+    print("note export-ne-last-row-wins")
     print("note compiler-ne-campaign-log")
     print("note extras-cannot-expand-F")
     print("note measured-ne-rewrite-license")

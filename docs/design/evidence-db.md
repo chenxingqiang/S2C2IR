@@ -92,14 +92,32 @@ measured=pending                      →  pending
 anything else                         →  invalid
 ```
 
-## Query
+## Query vs export
+
+```text
+query   historical DB view; --measurement-revision optional
+export  deterministic compiler snapshot; revision required
+```
 
 ```text
 ranking-eligible  iff  status=measured ∧ correctness=1
-export v1         last ranking-eligible row per
-                  (profile, candidate_signature)
-                  inside the requested revision/workload slice
+export v1         ranking-eligible rows in one explicit
+                  measurement_revision
+                  (optionally narrowed by profile / workload)
+                  candidate_signature must be unique in the slice
 ```
+
+Missing `--measurement-revision` on export is an error.
+Export does **not** last-row-wins across revisions.
+
+Same identity E on ingest:
+
+```text
+identical record  →  idempotent no-op
+different record  →  error: identity collision
+```
+
+`measurement_revision` is an immutable campaign slice.
 
 `s2c2-opt` matching stays:
 
@@ -128,6 +146,8 @@ python3 runtime/record_evidence.py --export-measured-v1 \
   --out table.jsonl
 ```
 
+`--export-measured-v1` requires `--measurement-revision`.
+`--query-evidence` may omit it to inspect history.
 `--ingest-measured-v1` accepts only `s2c2.measured_storage_cost.v1`.
 Unknown JSON keys are dropped. Hardware-ledger rows are skipped.
 
