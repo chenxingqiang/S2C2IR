@@ -3,6 +3,8 @@
 // Phase 6C-C. CapacityPlan is the candidate object for occupancy
 // feasibility. Diagnostic path: selected is none. Query consumer
 // may apply s0 or measured-capacity-v1; not a rewrite license.
+// 6C-G freezes the license gate (still no). 6C-H attaches a
+// TRANSFER restore record to each EVICT object.
 // 6C-B diagnostics stay frozen.
 //
 //===----------------------------------------------------------------------===//
@@ -37,12 +39,26 @@ inline std::string capacityCandidateIdentity(
          "}|rematerialize{" + join(rematerialize) + "}";
 }
 
+/// Per-EVICT TRANSFER restore attached to a CapacityCandidate.
+/// TRANSFER is the existing slower-space restore realization, not a
+/// new 6C action. valid iff the occupancy spec names a restore source
+/// on ssd or host. Occupancy IR has no restore sources. Closure is
+/// proven only when every EVICT has a valid restore. 6C-H does not
+/// issue rewrite-license=yes.
+struct CapacityRestore {
+  std::string object;
+  std::string kind = "TRANSFER";
+  bool valid = false;
+  std::string reason;
+};
+
 struct CapacityCandidate {
   unsigned id = 0;
   std::string identity;
   llvm::SmallVector<std::string, 4> keep;
   llvm::SmallVector<std::string, 4> evict;
   llvm::SmallVector<std::string, 4> rematerialize;
+  llvm::SmallVector<CapacityRestore, 4> restores;
 };
 
 /// Compiler-visible F_capacity. Policy does not rank unless a named
@@ -54,6 +70,8 @@ struct CapacityCandidate {
 /// Duplicate (profile, workload, candidate) is rejected.
 /// Equal measured times pick the earliest F_capacity inhabitant.
 /// 6C-G freezes the rewrite-license gate (still no).
+/// 6C-H attaches TRANSFER restore records to EVICT objects
+/// (candidate semantics, not an identity-string parse).
 /// Not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};

@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B–F frozen; 6C-G license gate is still no
+6C      Capacity-aware residency   ← design frozen; 6C-B–G frozen; 6C-H restore is still no license
 ```
 
 ```text
@@ -87,7 +87,9 @@ Duplicate scoped identity is rejected; equal times pick
 the earliest \(F_{\mathrm{capacity}}\) inhabitant.
 6C-G freezes the capacity rewrite-license gate on that
 winner (`rewrite-license=no`; EVICT requires restore).
-Eviction rewrite stays closed.
+6C-H attaches a TRANSFER restore record to each EVICT
+object (candidate semantics; closed restore still does
+not issue a license). Eviction rewrite stays closed.
 
 When 6C is implemented, it is a new Storage problem class:
 

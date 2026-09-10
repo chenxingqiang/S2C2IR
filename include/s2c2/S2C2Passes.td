@@ -522,9 +522,12 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     selection only; not a rewrite license. Prints the 6C-G
     capacity rewrite-license gate (`s2c2.capacity_license.v1`)
     with result still `no`: selected is not a license; EVICT
-    requires a restore (`TRANSFER|REMATERIALIZE`). Truncated
-    plans cannot be selected. Do not FileCheck microseconds.
-    6C-B diagnostics stay frozen.
+    requires a restore (`TRANSFER|REMATERIALIZE`). Prints the
+    6C-H TRANSFER restore closure (`s2c2.capacity_restore.v1`)
+    from candidate records, not the identity string. Closed
+    restore still does not issue `rewrite-license=yes`.
+    Truncated plans cannot be selected. Do not FileCheck
+    microseconds. 6C-B diagnostics stay frozen.
   }];
   let dependentDialects = [
     "mlir::s2c2::stor::StorageDialect",
