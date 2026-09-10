@@ -994,6 +994,9 @@ consumer (`rewrite-license=no`; EVICT requires restore).
 `rewrite-license=no`). 6C-I classifies the structured
 license predicate (`s2c2.capacity_predicate.v1`;
 necessary ≠ sufficient; still `rewrite-license=no`).
+6C-J classifies source-data validity
+(`s2c2.capacity_sourcedata.v1`; `source-data=yes` is
+still not sufficient; still `rewrite-license=no`).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1046,6 +1049,11 @@ Do not FileCheck microseconds.
 | 6C-I-3 | same | transfer-restore spec: `necessary=yes sufficient=no`; 6C-G still `restore=unspecified`; still `rewrite-license=no` |
 | 6C-I-4 | same | all-KEEP `necessary=n/a`; query `selected=none` `necessary=no` |
 | 6C-I-5 | same | diagnostic `--capacity` does not print `s2c2-capacity-predicate`; no `applySchedule` |
+| 6C-J-1 | same | `--print-capacity-sourcedata-contract`; source-declaration ≠ data-validity; `rewrite-license=no` |
+| 6C-J-2 | same | 4-tile s0 / occupancy IR: `source-data=no reason=no-source-replica`; `sufficient=no` |
+| 6C-J-3 | same | transfer-restore spec: `closed=yes` `source-data=no reason=no-liveness-proof`; still `sufficient=no` |
+| 6C-J-4 | same | source-data fixture: `source-data=yes reason=live-unmutated-replica`; still `sufficient=no` `rewrite-license=no` |
+| 6C-J-5 | same | all-KEEP / `selected=none`: `source-data=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-sourcedata` |
 
 ## Complete SSD + MLP program wall-clock
 

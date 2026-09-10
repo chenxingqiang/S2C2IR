@@ -532,8 +532,12 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     closure, TRANSFER restore kind, capacity proof) versus
     sufficient proof still missing (source-data validity,
     restore ordering, destination invalidation, rewrite
-    path). Result still `no`. Truncated plans cannot be
-    selected. Do not FileCheck microseconds. 6C-B
+    path). Prints the 6C-J source-data classification
+    (`s2c2.capacity_sourcedata.v1`) from structured
+    `CapacityRestore` records. Source declaration is not
+    data validity; `source-data=yes` is still not
+    sufficient. Result still `no`. Truncated plans cannot
+    be selected. Do not FileCheck microseconds. 6C-B
     diagnostics stay frozen.
   }];
   let dependentDialects = [

@@ -1,13 +1,14 @@
-# Capacity-aware Residency (Phase 6C-I, license predicate)
+# Capacity-aware Residency (Phase 6C-J, source-data validity)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
 FROZEN (`selected=none` on the diagnostic path); 6C-D
 query FROZEN; 6C-E `s0` selection FROZEN; 6C-F
 `measured-capacity-v1` ranking FROZEN; 6C-G rewrite-license
 gate FROZEN (`rewrite-license=no`); 6C-H TRANSFER restore
-records FROZEN; 6C-I classifies the structured license
-predicate (necessary vs sufficient, still
-`rewrite-license=no`). 5A–6B is the **stable
+records FROZEN; 6C-I license predicate FROZEN
+(`necessary` ≠ `sufficient`, still `rewrite-license=no`);
+6C-J classifies source-data validity (still not
+sufficient, still `rewrite-license=no`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
@@ -24,7 +25,7 @@ Do not expand the 6C-B diagnostic surface. Do not
 FileCheck microseconds.
 
 ```text
-Goal     freeze necessary vs sufficient for a capacity rewrite license; result still no
+Goal     freeze source-data validity as a sufficient conjunct; still not sufficient, still no license
 Not      an eviction rewrite, a yes-license, IR alias analysis, or a device campaign
 Rewrite  still only from an existing capability license
 ```
@@ -75,7 +76,15 @@ rewrite license gate           ← 6C-G frozen (still no)
    ↓
 EVICT → TRANSFER restore       ← 6C-H frozen (candidate semantics)
    ↓
-license predicate              ← this cut (necessary ≠ sufficient; still no)
+license predicate              ← 6C-I frozen (necessary ≠ sufficient; still no)
+   ↓
+source-data validity           ← this cut (still not sufficient; still no)
+   ↓
+restore ordering               ← not this cut
+   ↓
+dest invalidation              ← not this cut
+   ↓
+rewrite path                   ← not this cut
    ↓
 eviction rewrite               ← not this cut
 ```
@@ -85,7 +94,7 @@ This cut's consumer surface:
 ```bash
 s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
   --capacity-policy=s0
-python3 runtime/record_capacity.py --print-capacity-predicate-contract
+python3 runtime/record_capacity.py --print-capacity-sourcedata-contract
 ```
 
 Frozen 6C-B diagnostics remain:
@@ -241,7 +250,7 @@ IR in [`test/Integration/storage-capacity.mlir`](../../test/Integration/storage-
 Prefix `s2c2-storage-capacity`. Same three legal
 candidates. `rewrite=no`.
 
-## Later (6C-C–H frozen; predicate this cut; rewrite not opened)
+## Later (6C-C–I frozen; source-data this cut; rewrite not opened)
 
 ```text
 F_capacity diagnostics          ← FROZEN (6C-B)
@@ -258,7 +267,11 @@ rewrite license gate            ← FROZEN (6C-G; still no)
    ↓
 EVICT → TRANSFER restore        ← FROZEN (6C-H)
    ↓
-license predicate               ← this cut (6C-I; still no)
+license predicate               ← FROZEN (6C-I; still no)
+   ↓
+source-data validity            ← this cut (6C-J; still not sufficient)
+   ↓
+restore ordering / dest invalidation / rewrite path
    ↓
 eviction / rematerialize rewrite
 ```
@@ -552,10 +565,10 @@ diagnostics. This cut does **not** invent IR alias analysis,
 does **not** add extra funcs to the 4-tile module, and does
 **not** open eviction rewrite.
 
-## License predicate (6C-I, this cut)
+## License predicate (6C-I, frozen)
 
 `closed=yes` is **necessary, not sufficient** for a future
-capacity rewrite license. This cut freezes that split as a
+capacity rewrite license. 6C-I froze that split as a
 query-only predicate. It does **not** replace the frozen
 6C-G identity-string gate or the 6C-H restore records.
 `CapacityPlan.rewriteLicense` stays `false`.
@@ -578,10 +591,11 @@ evict-closed=yes   every EVICT has a valid TRANSFER restore record
 restore-kind=TRANSFER
 ```
 
-Still **not** sufficient (always `no` this stage):
+Still **not** sufficient until every conjunct is proven.
+6C-J classifies `source-data`; the other three stay `no`:
 
 ```text
-source-data          restore source contents are live and correct
+source-data          restore source contents are live and unmutated
 restore-ordering     TRANSFER is sequenced relative to uses
 dest-invalidation    fast-space copy is dropped without stale reads
 rewrite-path         an IR rewrite exists and is applied
@@ -599,13 +613,77 @@ Occupancy `capacity-proof` is membership in enumerated
 \(F_{\mathrm{capacity}}\), not a byte allocator and not
 alias analysis. Source declaration (`has-source-replica`)
 is **not** data-validity, restore ordering, or destination
-invalidation. Those remain open; this cut does **not**
-claim them.
+invalidation. 6C-J classifies data-validity; ordering,
+invalidation, and the rewrite path remain open.
 
 The predicate prints only on the query consumer. Diagnostic
 `--capacity` does not print it. No `--capacity-license=yes`,
 no `--dump-capacity-license`, no `applySchedule()`, no
 `replace`/`erase` of IR.
+
+## Source-data validity (6C-J, this cut)
+
+A declared restore source is **not** a proof that the
+slower-space replica is live and unmutated over occupancy.
+This cut classifies that proof as a query-only record on
+each EVICT restore. It does **not** issue
+`rewrite-license=yes`. `CapacityPlan.rewriteLicense` stays
+`false`. 6C-G license print and 6C-H restore print lines
+stay frozen.
+
+```text
+prefix           s2c2-capacity-sourcedata
+schema           s2c2.capacity_sourcedata.v1
+sufficient       no
+rewrite-license  no
+rewrite          no
+```
+
+Optional occupancy-spec field `source_data` (not occupancy,
+not a new \(F\) member):
+
+```text
+object    occupancy id (tileN normalizes to N)
+live      [start, end) covering occupancy live
+mutated   bool; true is not valid source data
+```
+
+Per-EVICT classification, after the 6C-H restore record:
+
+```text
+!restore source          source-data=no  reason=no-source-replica
+no source_data row       source-data=no  reason=no-liveness-proof
+mutated=true             source-data=no  reason=mutated-replica
+live does not cover occ  source-data=no  reason=interval-does-not-cover
+else                     source-data=yes reason=live-unmutated-replica
+```
+
+Coverage is `proof.start <= occ.start && proof.end >= occ.end`.
+Occupancy IR has no restore sources and no proofs.
+Existing transfer-restore fixture has sources but no
+`source_data`, so `closed=yes` and `source-data=no`.
+Fixture
+[`v3-dataset/storage-capacity-4tile-source-data.jsonl`](v3-dataset/storage-capacity-4tile-source-data.jsonl)
+adds unmutated proofs for tiles 0, 1, and 2;
+\(F_{\mathrm{capacity}}\) is unchanged.
+
+```text
+selected=none                         source-data=n/a
+all-KEEP (no EVICT)                   source-data=n/a
+EVICT, no source / no proof           source-data=no
+EVICT, live unmutated replica         source-data=yes
+source-data=yes ∧ restore-ordering=no ≠  sufficient=yes
+sufficient=no                         ≠  rewrite-license=yes
+```
+
+`sufficient` stays **no** until source-data, restore
+ordering, destination invalidation, and the rewrite path
+are all yes. This cut does **not** claim restore ordering,
+destination invalidation, IR alias analysis, or
+`replace`/`erase`.
+
+The sourcedata prefix prints only on the query consumer.
+Diagnostic `--capacity` does not print it.
 
 ## Out of scope
 

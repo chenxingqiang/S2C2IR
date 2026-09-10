@@ -2940,23 +2940,55 @@ static std::string normalizeCapacityObject(StringRef name) {
   return name.str();
 }
 
-static void attachCapacityRestores(CapacityCandidate &cc,
-                                   const llvm::StringSet<> &restoreSources) {
+struct CapSourceDataProof {
+  int start = 0;
+  int end = 0;
+  bool mutated = true;
+};
+
+static void attachCapacityRestores(
+    CapacityCandidate &cc, const llvm::StringSet<> &restoreSources,
+    ArrayRef<CapResidency> rs,
+    const llvm::StringMap<CapSourceDataProof> &sourceData) {
+  llvm::StringMap<std::pair<int, int>> occLive;
+  for (const CapResidency &r : rs)
+    occLive[r.object] = {r.start, r.end};
   cc.restores.clear();
   for (const std::string &e : cc.evict) {
-    CapacityRestore r;
-    r.object = e;
-    r.kind = "TRANSFER";
-    r.valid = restoreSources.contains(e);
-    r.reason = r.valid ? "has-source-replica" : "no-source-replica";
-    cc.restores.push_back(std::move(r));
+    CapacityRestore rec;
+    rec.object = e;
+    rec.kind = "TRANSFER";
+    rec.valid = restoreSources.contains(e);
+    rec.reason = rec.valid ? "has-source-replica" : "no-source-replica";
+    rec.sourceData = false;
+    if (!rec.valid) {
+      rec.sourceDataReason = "no-source-replica";
+    } else {
+      auto it = sourceData.find(e);
+      if (it == sourceData.end()) {
+        rec.sourceDataReason = "no-liveness-proof";
+      } else if (it->second.mutated) {
+        rec.sourceDataReason = "mutated-replica";
+      } else {
+        auto liveIt = occLive.find(e);
+        if (liveIt == occLive.end() || it->second.start > liveIt->second.first ||
+            it->second.end < liveIt->second.second) {
+          rec.sourceDataReason = "interval-does-not-cover";
+        } else {
+          rec.sourceData = true;
+          rec.sourceDataReason = "live-unmutated-replica";
+        }
+      }
+    }
+    cc.restores.push_back(std::move(rec));
   }
 }
 
 static FailureOr<CapacityPlan>
 buildCapacityPlan(ArrayRef<CapResidency> rs, Space space, int cap, int peak,
                   bool truncated, ArrayRef<CapCandidate> cands,
-                  const llvm::StringSet<> &restoreSources) {
+                  const llvm::StringSet<> &restoreSources,
+                  const llvm::StringMap<CapSourceDataProof> &sourceData) {
   CapacityPlan plan;
   plan.space = spaceName(space).str();
   plan.capacity = cap;
@@ -3010,7 +3042,7 @@ buildCapacityPlan(ArrayRef<CapResidency> rs, Space space, int cap, int peak,
       llvm::errs() << "s2c2-capacity-plan: duplicate identity\n";
       return failure();
     }
-    attachCapacityRestores(cc, restoreSources);
+    attachCapacityRestores(cc, restoreSources, rs, sourceData);
     plan.candidates.push_back(std::move(cc));
   }
   plan.feasible = !plan.candidates.empty();
@@ -3106,6 +3138,8 @@ static llvm::json::Object capacityPlanToJson(const CapacityPlan &plan) {
       rec["kind"] = r.kind;
       rec["valid"] = r.valid;
       rec["reason"] = r.reason;
+      rec["source_data"] = r.sourceData;
+      rec["source_data_reason"] = r.sourceDataReason;
       restores.push_back(std::move(rec));
     }
     obj["restores"] = std::move(restores);
@@ -3200,7 +3234,9 @@ static LogicalResult loadCapacitySpec(StringRef path,
                                       SmallVectorImpl<CapResidency> &out,
                                       Space &space, int &cap,
                                       std::string *workloadClass = nullptr,
-                                      llvm::StringSet<> *restoreSources = nullptr) {
+                                      llvm::StringSet<> *restoreSources = nullptr,
+                                      llvm::StringMap<CapSourceDataProof> *sourceData =
+                                          nullptr) {
   std::string resolved = resolveExistingPath(path, {});
   auto fileOr = llvm::MemoryBuffer::getFile(resolved);
   if (!fileOr) {
@@ -3217,6 +3253,7 @@ static LogicalResult loadCapacitySpec(StringRef path,
   specOk.insert("capacity_tiles");
   specOk.insert("residencies");
   specOk.insert("restore_sources");
+  specOk.insert("source_data");
   specOk.insert("note");
   llvm::StringSet<> resOk;
   resOk.insert("id");
@@ -3373,6 +3410,69 @@ static LogicalResult loadCapacitySpec(StringRef path,
           restoreSources->insert(id);
       }
     }
+    if (obj->get("source_data")) {
+      auto *proofs = obj->getArray("source_data");
+      if (!proofs) {
+        llvm::errs()
+            << "s2c2-storage-capacity: source_data must be an array\n";
+        return failure();
+      }
+      llvm::StringSet<> dataOk;
+      dataOk.insert("object");
+      dataOk.insert("live");
+      dataOk.insert("mutated");
+      llvm::StringSet<> seenData;
+      for (const llvm::json::Value &item : *proofs) {
+        auto *rec = item.getAsObject();
+        if (!rec)
+          return failure();
+        for (const auto &kv : *rec) {
+          if (!dataOk.contains(kv.getFirst())) {
+            llvm::errs()
+                << "s2c2-storage-capacity: source_data extra keys\n";
+            return failure();
+          }
+        }
+        auto objN = rec->getString("object");
+        if (!objN) {
+          llvm::errs()
+              << "s2c2-storage-capacity: source_data object required\n";
+          return failure();
+        }
+        std::string id = normalizeCapacityObject(*objN);
+        if (!occupancyIds.contains(id)) {
+          llvm::errs()
+              << "s2c2-storage-capacity: source_data not in occupancy\n";
+          return failure();
+        }
+        auto *live = rec->getArray("live");
+        if (!live || live->size() != 2) {
+          llvm::errs()
+              << "s2c2-storage-capacity: source_data live must be [start, end)\n";
+          return failure();
+        }
+        auto s0 = (*live)[0].getAsInteger();
+        auto s1 = (*live)[1].getAsInteger();
+        if (!s0 || !s1 || *s0 >= *s1) {
+          llvm::errs()
+              << "s2c2-storage-capacity: source_data live must be [start, end)\n";
+          return failure();
+        }
+        auto mutated = rec->getBoolean("mutated");
+        if (!mutated) {
+          llvm::errs()
+              << "s2c2-storage-capacity: source_data mutated required\n";
+          return failure();
+        }
+        if (!seenData.insert(id).second) {
+          llvm::errs()
+              << "s2c2-storage-capacity: duplicate source_data\n";
+          return failure();
+        }
+        if (sourceData)
+          (*sourceData)[id] = CapSourceDataProof{(int)*s0, (int)*s1, *mutated};
+      }
+    }
   }
   if (rows != 1) {
     llvm::errs() << "s2c2-storage-capacity: capacity spec must be one row\n";
@@ -3434,11 +3534,12 @@ computeCapacityPlan(ModuleOp module, StringRef budgetStr, StringRef specPath,
   space = Space::HBM;
   cap = 0;
   llvm::StringSet<> restoreSources;
+  llvm::StringMap<CapSourceDataProof> sourceData;
   if (workloadClass)
     *workloadClass = std::string(kCapacityIrWorkload);
   if (!specPath.empty()) {
     if (failed(loadCapacitySpec(specPath, rs, space, cap, workloadClass,
-                                &restoreSources)))
+                                &restoreSources, &sourceData)))
       return failure();
   }
   if (!budgetStr.empty()) {
@@ -3462,7 +3563,7 @@ computeCapacityPlan(ModuleOp module, StringRef budgetStr, StringRef specPath,
   SmallVector<CapCandidate, 8> cands;
   enumerateCapacityF(rs, cap, conflict, peak, truncated, cands);
   auto planOr = buildCapacityPlan(rs, space, cap, peak, truncated, cands,
-                                  restoreSources);
+                                  restoreSources, sourceData);
   if (failed(planOr))
     return failure();
   if (candsOut)
@@ -3922,8 +4023,18 @@ static void printCapacityPredicate(const CapacityPlan &plan) {
                << " capacity-proof=" << capacityProof
                << " evict-closed=" << closed
                << " restore-kind=" << restoreKind << "\n";
-  llvm::errs() << "s2c2-capacity-predicate source-data=no restore-ordering=no"
-               << " dest-invalidation=no rewrite-path=no\n";
+  StringRef sourceDataStatus = "no";
+  if (!sel || sel->evict.empty())
+    sourceDataStatus = "n/a";
+  else {
+    bool allData = !sel->restores.empty() &&
+                   sel->restores.size() == sel->evict.size();
+    for (const CapacityRestore &r : sel->restores)
+      allData = allData && r.sourceData;
+    sourceDataStatus = allData ? "yes" : "no";
+  }
+  llvm::errs() << "s2c2-capacity-predicate source-data=" << sourceDataStatus
+               << " restore-ordering=no dest-invalidation=no rewrite-path=no\n";
   llvm::errs() << "s2c2-capacity-predicate note necessary-ne-sufficient\n";
   llvm::errs() << "s2c2-capacity-predicate note closed-ne-rewrite-license\n";
   llvm::errs() << "s2c2-capacity-predicate note source-declaration-ne-data-validity\n";
@@ -3934,6 +4045,45 @@ static void printCapacityPredicate(const CapacityPlan &plan) {
   llvm::errs() << "s2c2-capacity-predicate note six-c-i-license-predicate-this-cut "
                   "cost=unchanged\n";
   llvm::errs() << "s2c2-capacity-predicate rewrite=no\n";
+}
+
+static StringRef sourceDataOf(const CapacityCandidate *sel) {
+  if (!sel || sel->evict.empty())
+    return "n/a";
+  bool allData =
+      !sel->restores.empty() && sel->restores.size() == sel->evict.size();
+  for (const CapacityRestore &r : sel->restores)
+    allData = allData && r.sourceData;
+  return allData ? "yes" : "no";
+}
+
+static void printCapacitySourceData(const CapacityPlan &plan) {
+  const CapacityCandidate *sel = selectedCapacityCandidate(plan);
+  StringRef status = sourceDataOf(sel);
+  llvm::errs() << "s2c2-capacity-sourcedata schema=s2c2.capacity_sourcedata.v1\n";
+  llvm::errs() << "s2c2-capacity-sourcedata selected=" << plan.selected
+               << " source-data=" << status << "\n";
+  if (sel && sel->evict.empty())
+    llvm::errs() << "s2c2-capacity-sourcedata restore=unused\n";
+  if (sel && !sel->evict.empty()) {
+    for (const CapacityRestore &r : sel->restores) {
+      llvm::errs() << "s2c2-capacity-sourcedata object=" << r.object
+                   << " source-data=" << (r.sourceData ? "yes" : "no")
+                   << " reason=" << r.sourceDataReason << "\n";
+    }
+  }
+  llvm::errs() << "s2c2-capacity-sourcedata rewrite-license=no\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note source-declaration-ne-data-validity\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note closed-ne-data-valid\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note source-data-ne-sufficient\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note restore-source-ne-ordering\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note restore-source-ne-invalidation\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note six-c-g-license-gate-frozen\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note six-c-h-restore-closure-frozen\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note six-c-i-license-predicate-frozen\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note six-c-j-source-data-this-cut "
+                  "cost=unchanged\n";
+  llvm::errs() << "s2c2-capacity-sourcedata rewrite=no\n";
 }
 
 static void printCapacityPolicy(const CapacityPlan &plan) {
@@ -3986,6 +4136,7 @@ static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
   printCapacityLicense(plan);
   printCapacityRestore(plan);
   printCapacityPredicate(plan);
+  printCapacitySourceData(plan);
   if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, plan)))
     return failure();
   return success();

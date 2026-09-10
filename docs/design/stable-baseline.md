@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B–H frozen; 6C-I predicate is still no license
+6C      Capacity-aware residency   ← design frozen; 6C-B–I frozen; 6C-J source-data is still no license
 ```
 
 ```text
@@ -91,8 +91,9 @@ winner (`rewrite-license=no`; EVICT requires restore).
 object (candidate semantics; closed restore still does
 not issue a license). 6C-I classifies the structured
 license predicate on that restore (`necessary` vs
-`sufficient`; still `rewrite-license=no`). Eviction
-rewrite stays closed.
+`sufficient`; still `rewrite-license=no`). 6C-J classifies
+source-data validity (`source-data=yes` is still not
+sufficient). Eviction rewrite stays closed.
 
 When 6C is implemented, it is a new Storage problem class:
 
