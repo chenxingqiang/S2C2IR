@@ -42,6 +42,8 @@
 // EVICT is not a rewrite. 6C-E selects first(F_capacity) on
 // the query consumer. 6C-F ranks enumerated F_capacity under
 // measured-capacity-v1 (ArgMin; still not a rewrite license).
+// Duplicate (profile, workload, candidate) is rejected.
+// Equal times pick the earliest F_capacity inhabitant.
 // Phase 6C-C materializes CapacityPlan as the compiler-visible
 // candidate object (selected=none on the diagnostic path).
 //
@@ -3474,6 +3476,7 @@ loadMeasuredCapacityTable(StringRef path,
   ok.insert("source");
   ok.insert("measured");
   ok.insert("note");
+  llvm::StringSet<> seen;
   StringRef text = fileOr.get()->getBuffer();
   while (!text.empty()) {
     auto [line, rest] = text.split('\n');
@@ -3533,6 +3536,15 @@ loadMeasuredCapacityTable(StringRef path,
       llvm::errs() << "s2c2-capacity-policy: profile and workload_class required\n";
       return failure();
     }
+    std::string scoped = rec.profile;
+    scoped.push_back('\x1f');
+    scoped += rec.workloadClass;
+    scoped.push_back('\x1f');
+    scoped += rec.identity;
+    if (!seen.insert(scoped).second) {
+      llvm::errs() << "s2c2-capacity-policy: duplicate-measured-identity\n";
+      return failure();
+    }
     out.push_back(std::move(rec));
   }
   return success();
@@ -3564,6 +3576,10 @@ rankMeasuredCapacity(CapacityPlan &plan,
       continue;
     if (r.measured != MeasuredStatus::Yes || r.correctness != 1)
       continue;
+    if (us.count(r.identity)) {
+      llvm::errs() << "s2c2-capacity-policy: duplicate-measured-identity\n";
+      return failure();
+    }
     us[r.identity] = r.timeUs;
   }
   if (us.size() < 2) {
@@ -3631,6 +3647,8 @@ static void printMeasuredCapacity(const CapacityPlan &plan,
                << " note measured-ne-rewrite-license"
                << " note measured-does-not-expand-f"
                << " note measured-does-not-rank-truncated-F"
+               << " note duplicate-measured-identity"
+               << " note argmin-ties-earliest-F"
                << " note do-not-filecheck-microseconds"
                << " note not-hardware-campaign"
                << " note not-new-evidence-db"

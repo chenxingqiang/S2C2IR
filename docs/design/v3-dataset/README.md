@@ -99,8 +99,14 @@ Measured ranking (fixtures, not a campaign, not Evidence DB):
 [`storage-capacity-measured-4tile-wrong-profile.jsonl`](storage-capacity-measured-4tile-wrong-profile.jsonl),
 [`storage-capacity-measured-4tile-wrong-workload.jsonl`](storage-capacity-measured-4tile-wrong-workload.jsonl),
 [`storage-capacity-measured-4tile-cross-workload.jsonl`](storage-capacity-measured-4tile-cross-workload.jsonl)
-(same candidate, different workload must not reuse). Matcher is
+(same candidate, different workload must not reuse),
+[`storage-capacity-measured-4tile-tie.jsonl`](storage-capacity-measured-4tile-tie.jsonl)
+(equal times pick earliest \(F\)),
+[`storage-capacity-measured-4tile-dup.jsonl`](storage-capacity-measured-4tile-dup.jsonl)
+(duplicate scoped identity is rejected). Matcher is
 `profile + workload_class + candidate_identity`. Schema
-`s2c2.measured_capacity_cost.v1`. Do not FileCheck
-microseconds. No `measurement_revision` on this v1 table.
+`s2c2.measured_capacity_cost.v1`. `workload_class` here is
+the occupancy witness, not an Evidence DB field. Do not
+FileCheck microseconds. No `measurement_revision` on this
+v1 table.
 

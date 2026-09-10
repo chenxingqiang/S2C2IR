@@ -1021,6 +1021,8 @@ microseconds.
 | 6C-F-5 | same | query+schedule: query selected from measured, 6C-C dump still `selected=none` |
 | 6C-F-6 | same | wrong-profile / wrong-workload records ignored (`measured-needs-two-records`) |
 | 6C-F-7 | same | same candidate + same profile + different workload cannot steal ArgMin |
+| 6C-F-8 | same | equal times pick earliest \(F_{\mathrm{capacity}}\) (`argmin-size=2`, selected=A); not JSONL order |
+| 6C-F-9 | same | duplicate `(profile, workload, candidate)` rejects `duplicate-measured-identity`; C++/Python same |
 
 ## Complete SSD + MLP program wall-clock
 
