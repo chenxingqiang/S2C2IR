@@ -81,12 +81,21 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-tie.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEASTIE
 // RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-dup.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEASDUP
 // RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-rtx4090.jsonl --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=MEASBOTH
+// RUN: python3 %S/../../runtime/record_capacity.py --print-capacity-license-contract | FileCheck %s --check-prefix=LICENSEC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HLIC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HLICFIT
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=LIC
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=LICFIT
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=LICMEAS
+// RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOLIC
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
 // restore realization, not a new action. No rewrite, no
 // ranking on this diagnostic path, no hardware campaign.
 // 6C-F ranks enumerated F_capacity on the query consumer only.
+// 6C-G prints the capacity rewrite-license gate (still no):
+// selected is not a license; EVICT requires restore.
 // 5A-6B stay frozen. Do not FileCheck microseconds.
 
 // CONTRACT: storage-capacity compiler-driven=yes
@@ -295,17 +304,21 @@
 // HQUERY: capacity-plan-query rewrite=no
 // HQUERY: capacity-plan-query note not-schedule-pass
 // HQUERY: capacity-plan-query note consumer-api
+// HQUERY: capacity-license selected=none rewrite-license=no
+// HQUERY: capacity-license restore=n/a
 // HQUERY-NOT: keep{0,1,2}
 // HQUERY-NOT: selected={{[0-9]}}
 
 // HQUERYFIT: capacity-plan-query feasible=yes
 // HQUERYFIT: selected=none
 // HQUERYFIT: identity=keep{0,1}|evict{}|rematerialize{}
+// HQUERYFIT: capacity-license restore=n/a
 // HQUERYFIT-NOT: evict{0}
 
 // HQUERYTRUNC: capacity-plan-query feasible=no enumerated=no truncated=yes legal=not-enumerated
 // HQUERYTRUNC: selected=none
 // HQUERYTRUNC: rewrite=no
+// HQUERYTRUNC: capacity-license restore=n/a
 // HQUERYTRUNC-NOT: candidate #0
 
 // QUERY: s2c2-capacity-plan-query schema=s2c2.capacity_plan.v1
@@ -322,6 +335,10 @@
 // QUERY: s2c2-capacity-plan-query note consumer-api
 // QUERY: s2c2-capacity-plan-query note measured-capacity-v1-not-opened
 // QUERY: s2c2-capacity-plan-query note six-c-d-query-this-cut
+// QUERY: s2c2-capacity-license selected=none rewrite-license=no
+// QUERY: s2c2-capacity-license restore=n/a{{.*}}evict-closed=n/a
+// QUERY: s2c2-capacity-license note selected-ne-rewrite-license
+// QUERY: s2c2-capacity-license rewrite=no
 // QUERY-NOT: s2c2-storage-capacity
 // QUERY-NOT: evidence-bounded-schedule
 // QUERY-NOT: hierarchy-global
@@ -331,10 +348,60 @@
 // QUERY-NOT: rewrite-license=yes
 // QUERY-NOT: sched.wait
 
+// LICENSEC: capacity-license gate=query
+// LICENSEC: schema s2c2.capacity_license.v1
+// LICENSEC: rewrite-license no
+// LICENSEC: restore-legal TRANSFER|REMATERIALIZE
+// LICENSEC: note selected-ne-rewrite-license
+// LICENSEC: note evict-requires-restore
+// LICENSEC: note restore-unspecified
+// LICENSEC: note rematerialize-empty-this-stage
+// LICENSEC: note transfer-existing-realization
+// LICENSEC: note capability-license-ne-capacity-license
+// LICENSEC: note measured-ne-rewrite-license
+// LICENSEC: note six-c-g-license-gate-this-cut
+// LICENSEC-NOT: rewrite-license yes
+
+// HLIC: capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
+// HLIC: capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
+// HLIC: capacity-license restore=unspecified{{.*}}evict-closed=no
+// HLIC: capacity-license rewrite=no
+// HLIC-NOT: rewrite-license=yes
+
+// HLICFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0 rewrite-license=no
+// HLICFIT: capacity-license restore=unused{{.*}}evict-closed=n/a
+// HLICFIT: capacity-license rewrite=no
+// HLICFIT-NOT: rewrite-license=yes
+
+// LIC: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
+// LIC: s2c2-capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
+// LIC: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
+// LIC: s2c2-capacity-license note evict-requires-restore
+// LIC: s2c2-capacity-license rewrite=no
+// LIC-NOT: rewrite-license=yes
+// LIC-NOT: s2c2-opt: applySchedule
+
+// LICFIT: s2c2-capacity-plan-query selected=keep{0,1}|evict{}|rematerialize{} policy=s0
+// LICFIT: s2c2-capacity-license restore=unused{{.*}}evict-closed=n/a
+// LICFIT: s2c2-capacity-license rewrite=no
+// LICFIT-NOT: rewrite-license=yes
+
+// LICMEAS: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1 rewrite-license=no
+// LICMEAS: s2c2-capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
+// LICMEAS: s2c2-capacity-license restore=unspecified
+// LICMEAS: s2c2-capacity-license note measured-ne-rewrite-license
+// LICMEAS: s2c2-capacity-license rewrite=no
+// LICMEAS-NOT: rewrite-license=yes
+
+// NOLIC: s2c2-capacity-plan selected=none
+// NOLIC-NOT: s2c2-capacity-license
+// NOLIC-NOT: rewrite-license=yes
+
 // QUERYFIT: s2c2-capacity-plan-query feasible=yes
 // QUERYFIT: selected=none
 // QUERYFIT: identity=keep{0,1}|evict{}|rematerialize{}
 // QUERYFIT: rewrite=no
+// QUERYFIT: s2c2-capacity-license restore=n/a
 // QUERYFIT-NOT: s2c2-storage-capacity
 // QUERYFIT-NOT: evidence-bounded-schedule
 // QUERYFIT-NOT: evict{0}
@@ -342,6 +409,7 @@
 // QUERYTRUNC: s2c2-capacity-plan-query feasible=no enumerated=no truncated=yes legal=not-enumerated
 // QUERYTRUNC: selected=none
 // QUERYTRUNC: rewrite=no
+// QUERYTRUNC: s2c2-capacity-license restore=n/a
 // QUERYTRUNC-NOT: candidate #0
 // QUERYTRUNC-NOT: s2c2-storage-capacity
 // QUERYTRUNC-NOT: evidence-bounded-schedule
@@ -376,11 +444,14 @@
 // HSEL: capacity-plan-query note s0-ne-must-evict
 // HSEL: capacity-policy name=s0 selected=keep{0,1}|evict{2}|rematerialize{}
 // HSEL: capacity-policy note selection-ne-rewrite-license
+// HSEL: capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
+// HSEL: capacity-license restore=unspecified{{.*}}evict-closed=no
 // HSEL-NOT: selected=none policy=s0
 // HSEL-NOT: keep{0,1,2}
 
 // HSELFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0
 // HSELFIT: rewrite-license=no
+// HSELFIT: capacity-license restore=unused
 // HSELFIT-NOT: evict{0}
 
 // HSELTRUNC: truncated plan cannot be selected
@@ -397,6 +468,10 @@
 // SEL: s2c2-capacity-plan-query note s0-ne-must-evict
 // SEL: s2c2-capacity-plan-query note six-c-e-selection-this-cut
 // SEL: s2c2-capacity-policy name=s0 selected=keep{0,1}|evict{2}|rematerialize{}{{.*}}rewrite=no rewrite-license=no{{.*}}note selection-ne-rewrite-license{{.*}}note s0-ne-must-evict
+// SEL: s2c2-capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
+// SEL: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
+// SEL: s2c2-capacity-license note evict-requires-restore
+// SEL: s2c2-capacity-license rewrite=no
 // SEL-NOT: s2c2-storage-capacity
 // SEL-NOT: evidence-bounded-schedule
 // SEL-NOT: hierarchy-global
@@ -416,6 +491,8 @@
 
 // SELFIT: s2c2-capacity-plan-query selected=keep{0,1}|evict{}|rematerialize{} policy=s0
 // SELFIT: rewrite-license=no
+// SELFIT: s2c2-capacity-license restore=unused
+// SELFIT: evict-closed=n/a
 // SELFIT-NOT: s2c2-storage-capacity
 // SELFIT-NOT: evidence-bounded-schedule
 // SELFIT-NOT: evict{0}
@@ -458,6 +535,8 @@
 // HMEAS: capacity-measured note measured-does-not-expand-f
 // HMEAS: capacity-measured note measured-scope-profile-workload-candidate
 // HMEAS: capacity-measured-candidate identity=keep{0,1}|evict{2}|rematerialize{} evidence=yes
+// HMEAS: capacity-license restore=unspecified
+// HMEAS: capacity-license rewrite=no
 // HMEAS-NOT: keep{9}
 // HMEAS-NOT: 12401
 // HMEAS-NOT: 18881
@@ -500,6 +579,9 @@
 // MEAS: s2c2-capacity-measured-candidate identity=keep{0,1}|evict{2}|rematerialize{} evidence=yes
 // MEAS: s2c2-capacity-measured-candidate identity=keep{1,2}|evict{0}|rematerialize{} evidence=yes
 // MEAS: s2c2-capacity-measured-candidate identity=keep{0,2}|evict{1}|rematerialize{} evidence=yes
+// MEAS: s2c2-capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
+// MEAS: s2c2-capacity-license restore=unspecified
+// MEAS: s2c2-capacity-license note measured-ne-rewrite-license
 // MEAS-NOT: s2c2-storage-capacity
 // MEAS-NOT: evidence-bounded-schedule
 // MEAS-NOT: keep{9}

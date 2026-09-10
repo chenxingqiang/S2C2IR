@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B/C/D/E frozen; 6C-F ranking is not a rewrite
+6C      Capacity-aware residency   ← design frozen; 6C-B–F frozen; 6C-G license gate is still no
 ```
 
 ```text
@@ -83,6 +83,10 @@ consumer apply `--capacity-policy=s0` (select
 first(\(F_{\mathrm{capacity}}\)); still not a rewrite).
 6C-F ranks enumerated \(F_{\mathrm{capacity}}\) under
 `measured-capacity-v1` (ArgMin; still not a rewrite).
+Duplicate scoped identity is rejected; equal times pick
+the earliest \(F_{\mathrm{capacity}}\) inhabitant.
+6C-G freezes the capacity rewrite-license gate on that
+winner (`rewrite-license=no`; EVICT requires restore).
 Eviction rewrite stays closed.
 
 When 6C is implemented, it is a new Storage problem class:

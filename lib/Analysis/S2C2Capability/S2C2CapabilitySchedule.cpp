@@ -44,6 +44,8 @@
 // measured-capacity-v1 (ArgMin; still not a rewrite license).
 // Duplicate (profile, workload, candidate) is rejected.
 // Equal times pick the earliest F_capacity inhabitant.
+// 6C-G freezes the capacity rewrite-license gate: selected is
+// not a license; EVICT requires restore; the gate is still no.
 // Phase 6C-C materializes CapacityPlan as the compiler-visible
 // candidate object (selected=none on the diagnostic path).
 //
@@ -3706,6 +3708,30 @@ static LogicalResult applyCapacityPolicy(CapacityPlan &plan, StringRef name,
   return failure();
 }
 
+static void printCapacityLicense(const CapacityPlan &plan) {
+  StringRef sel = plan.selected;
+  bool none = sel == "none";
+  bool evictEmpty = none || sel.contains("|evict{}|");
+  StringRef restore = none ? "n/a" : (evictEmpty ? "unused" : "unspecified");
+  StringRef closed = none || evictEmpty ? "n/a" : "no";
+  llvm::errs() << "s2c2-capacity-license schema=s2c2.capacity_license.v1\n";
+  llvm::errs() << "s2c2-capacity-license selected=" << sel
+               << " rewrite-license=no\n";
+  llvm::errs() << "s2c2-capacity-license restore=" << restore
+               << " restore-legal=TRANSFER|REMATERIALIZE"
+               << " rematerialize-empty=yes evict-closed=" << closed << "\n";
+  llvm::errs() << "s2c2-capacity-license note selected-ne-rewrite-license\n";
+  llvm::errs() << "s2c2-capacity-license note evict-requires-restore\n";
+  llvm::errs() << "s2c2-capacity-license note restore-unspecified\n";
+  llvm::errs() << "s2c2-capacity-license note rematerialize-empty-this-stage\n";
+  llvm::errs() << "s2c2-capacity-license note transfer-existing-realization\n";
+  llvm::errs() << "s2c2-capacity-license note capability-license-ne-capacity-license\n";
+  llvm::errs() << "s2c2-capacity-license note measured-ne-rewrite-license\n";
+  llvm::errs() << "s2c2-capacity-license note six-c-g-license-gate-this-cut "
+                  "cost=unchanged\n";
+  llvm::errs() << "s2c2-capacity-license rewrite=no\n";
+}
+
 static void printCapacityPolicy(const CapacityPlan &plan) {
   if (plan.policy == "none")
     return;
@@ -3753,6 +3779,7 @@ static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
   printCapacityPlanQuery(plan);
   printMeasuredCapacity(plan, measured);
   printCapacityPolicy(plan);
+  printCapacityLicense(plan);
   if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, plan)))
     return failure();
   return success();

@@ -1,9 +1,10 @@
-# Capacity-aware Residency (Phase 6C-F, measured ranking)
+# Capacity-aware Residency (Phase 6C-G, rewrite-license gate)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
 FROZEN (`selected=none` on the diagnostic path); 6C-D
-query FROZEN; 6C-E `s0` selection FROZEN; 6C-F opens
-`measured-capacity-v1` ranking on the query consumer
+query FROZEN; 6C-E `s0` selection FROZEN; 6C-F
+`measured-capacity-v1` ranking FROZEN; 6C-G freezes the
+capacity rewrite-license gate on the query consumer
 (`rewrite-license=no`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
@@ -13,15 +14,16 @@ froze \(F_{\mathrm{capacity}}\). 6C-B
 wired diagnostics and is frozen. 6C-C
 ([PR #109](https://github.com/chenxingqiang/S2C2IR/pull/109))
 materialized the compiler-visible candidate object.
-This cut does **not** rewrite, does **not** issue a rewrite
-license, does **not** start a hardware campaign, and does
-**not** change `#69`, `cost-v04`, `default-3g`, or Evidence
-DB identity. 5E stays closed. Do not expand the 6C-B
-diagnostic surface. Do not FileCheck microseconds.
+This cut does **not** rewrite, does **not** issue
+`rewrite-license=yes`, does **not** start a hardware
+campaign, and does **not** change `#69`, `cost-v04`,
+`default-3g`, or Evidence DB identity. 5E stays closed.
+Do not expand the 6C-B diagnostic surface. Do not
+FileCheck microseconds.
 
 ```text
-Goal     rank enumerated F_capacity under measured-capacity-v1; not a rewrite
-Not      an eviction rewrite, a new Capability grid, or a device campaign
+Goal     freeze how a capacity winner enters the rewrite-license gate; result still no
+Not      an eviction rewrite, a yes-license, a new Capability grid, or a device campaign
 Rewrite  still only from an existing capability license
 ```
 
@@ -32,8 +34,10 @@ F_capacity            ≠  F(program)          (4C product)
 capacity exceeded     ≠  must evict (this object)
 EVICT                 ≠  a semantic rewrite
 TRANSFER              ≠  a new 6C action (existing realization)
+selected              ≠  rewrite license
 measured-capacity-v1  ≠  rewrite license
-s0                    ≠  measured-capacity-v1
+s0                    ≠  rewrite license
+capability license    ≠  capacity license
 ```
 
 ## Why this cut
@@ -63,19 +67,19 @@ query / consumer API           ← 6C-D frozen
    ↓
 policy / selection (s0)        ← 6C-E frozen
    ↓
-measured-capacity-v1 ranking   ← this cut
+measured-capacity-v1 ranking   ← 6C-F frozen
    ↓
-Rewrite License                ← not this cut
-Rewrite / HB                   ← not this cut
+rewrite license gate           ← this cut (still no)
+   ↓
+eviction rewrite               ← not this cut
 ```
 
 This cut's consumer surface:
 
 ```bash
 s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
-  --profile=fixture \
-  --capacity-policy=measured-capacity-v1 \
-  --measured-capacity-table=docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl
+  --capacity-policy=s0
+python3 runtime/record_capacity.py --print-capacity-license-contract
 ```
 
 Frozen 6C-B diagnostics remain:
@@ -231,7 +235,7 @@ IR in [`test/Integration/storage-capacity.mlir`](../../test/Integration/storage-
 Prefix `s2c2-storage-capacity`. Same three legal
 candidates. `rewrite=no`.
 
-## Later (6C-C–E frozen; rewrite not opened)
+## Later (6C-C–F frozen; rewrite not opened)
 
 ```text
 F_capacity diagnostics          ← FROZEN (6C-B)
@@ -242,9 +246,9 @@ query / consumer API            ← FROZEN (6C-D)
    ↓
 policy / selection (s0)         ← FROZEN (6C-E)
    ↓
-measured-capacity-v1 ranking    ← this cut (6C-F)
+measured-capacity-v1 ranking    ← FROZEN (6C-F)
    ↓
-rewrite license                 ← not this cut
+rewrite license gate            ← this cut (6C-G; still no)
    ↓
 eviction / rematerialize rewrite
 ```
@@ -350,7 +354,7 @@ policy still prints `selected=none`. Combining with
 `--capacity-policy=measured-capacity-v1` without
 `--measured-capacity-table` fails. Ranking is 6C-F.
 
-## Measured ranking (6C-F, this cut)
+## Measured ranking (6C-F frozen)
 
 Enumerated \(F_{\mathrm{capacity}}\) can now be ranked
 under scoped measured records (profile + workload +
@@ -408,13 +412,78 @@ selects `keep{0,1}|evict{2}|rematerialize{}`
 so ranking is not an alias of `s0`. Combined with
 `--schedule-policy`, query may select the measured winner
 while the scheduler `CapacityPlan` dump stays
-`selected=none`.
+`selected=none`. Ranking does **not** issue a license.
+
+## Capacity rewrite-license gate (6C-G, this cut)
+
+A selected capacity winner is **not** a rewrite license.
+This cut freezes the gate that a later eviction rewrite
+must pass. The printed result is still `no`.
+
+```text
+selected ∈ F_capacity
+    ≠
+capacity rewrite license
+    ≠
+eviction rewrite
+    ≠
+capability rewrite_license (concurrent→serial)
+```
+
+```text
+prefix           s2c2-capacity-license
+schema           s2c2.capacity_license.v1
+rewrite-license  no
+restore-legal    TRANSFER | REMATERIALIZE
+rewrite          no
+```
+
+Necessary, **not** sufficient, for a future yes:
+
+```text
+enumerated && !truncated && selected ∈ F_capacity
+```
+
+EVICT must close through restore:
+
+```text
+for every object in selected.EVICT:
+    restore must be specified
+    restore ∈ {TRANSFER, REMATERIALIZE}
+restore unspecified  ⇒  rewrite-license = no
+REMATERIALIZE = ∅ this stage
+    ⇒  only TRANSFER can close EVICT later
+```
+
+Printed restore classification (from the selected identity):
+
+```text
+selected=none                         restore=n/a          evict-closed=n/a
+keep{…}|evict{}|rematerialize{}       restore=unused       evict-closed=n/a
+nonempty EVICT, rematerialize{}       restore=unspecified  evict-closed=no
+```
+
+On the 4-tile / capacity=2 witness,
+`keep{0,1}|evict{2}|rematerialize{}` has EVICT={2} and
+empty rematerialize, so restore is unspecified and the
+gate stays `no`. All-KEEP
+(`keep{0,1}|evict{}|rematerialize{}`) does not need
+restore (`unused`); that is still not a license.
+`s0` and `measured-capacity-v1` cannot issue a license.
+
+The gate prints only on the query consumer. It does **not**
+print on frozen 6C-B/C `--capacity` diagnostics, does **not**
+add `--capacity-license=yes`, does **not** add
+`--dump-capacity-license`, and does **not** call
+`applySchedule()`. Capability `rewrite_license` remains a
+different object (concurrent→serial).
 
 ## Out of scope
 
 ```text
 eviction rewrite / HB A/B
-measured-capacity rewrite license
+opening rewrite-license=yes
+rematerialize rewrite
 new Capability matrix
 new hardware campaign
 changing cost-v04 / default-3g / #69

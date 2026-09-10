@@ -53,6 +53,7 @@ struct CapacityCandidate {
 /// measured ranking matches profile + workload + candidate.
 /// Duplicate (profile, workload, candidate) is rejected.
 /// Equal measured times pick the earliest F_capacity inhabitant.
+/// 6C-G freezes the rewrite-license gate (still no).
 /// Not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};
