@@ -1,11 +1,12 @@
-# Capacity-aware Residency (Phase 6C-G, rewrite-license gate)
+# Capacity-aware Residency (Phase 6C-H, EVICT→TRANSFER restore)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
 FROZEN (`selected=none` on the diagnostic path); 6C-D
 query FROZEN; 6C-E `s0` selection FROZEN; 6C-F
-`measured-capacity-v1` ranking FROZEN; 6C-G freezes the
-capacity rewrite-license gate on the query consumer
-(`rewrite-license=no`). 5A–6B is the **stable
+`measured-capacity-v1` ranking FROZEN; 6C-G rewrite-license
+gate FROZEN (`rewrite-license=no`); 6C-H attaches a
+TRANSFER restore record to each EVICT object (candidate
+semantics, still `rewrite-license=no`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
@@ -22,8 +23,8 @@ Do not expand the 6C-B diagnostic surface. Do not
 FileCheck microseconds.
 
 ```text
-Goal     freeze how a capacity winner enters the rewrite-license gate; result still no
-Not      an eviction rewrite, a yes-license, a new Capability grid, or a device campaign
+Goal     prove EVICT → TRANSFER restore as candidate semantics; license still no
+Not      an eviction rewrite, a yes-license, IR alias analysis, or a device campaign
 Rewrite  still only from an existing capability license
 ```
 
@@ -69,7 +70,9 @@ policy / selection (s0)        ← 6C-E frozen
    ↓
 measured-capacity-v1 ranking   ← 6C-F frozen
    ↓
-rewrite license gate           ← this cut (still no)
+rewrite license gate           ← 6C-G frozen (still no)
+   ↓
+EVICT → TRANSFER restore       ← this cut (candidate semantics)
    ↓
 eviction rewrite               ← not this cut
 ```
@@ -79,7 +82,7 @@ This cut's consumer surface:
 ```bash
 s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
   --capacity-policy=s0
-python3 runtime/record_capacity.py --print-capacity-license-contract
+python3 runtime/record_capacity.py --print-capacity-restore-contract
 ```
 
 Frozen 6C-B diagnostics remain:
@@ -235,7 +238,7 @@ IR in [`test/Integration/storage-capacity.mlir`](../../test/Integration/storage-
 Prefix `s2c2-storage-capacity`. Same three legal
 candidates. `rewrite=no`.
 
-## Later (6C-C–F frozen; rewrite not opened)
+## Later (6C-C–G frozen; restore this cut; rewrite not opened)
 
 ```text
 F_capacity diagnostics          ← FROZEN (6C-B)
@@ -248,7 +251,9 @@ policy / selection (s0)         ← FROZEN (6C-E)
    ↓
 measured-capacity-v1 ranking    ← FROZEN (6C-F)
    ↓
-rewrite license gate            ← this cut (6C-G; still no)
+rewrite license gate            ← FROZEN (6C-G; still no)
+   ↓
+EVICT → TRANSFER restore        ← this cut (6C-H)
    ↓
 eviction / rematerialize rewrite
 ```
@@ -414,7 +419,7 @@ so ranking is not an alias of `s0`. Combined with
 while the scheduler `CapacityPlan` dump stays
 `selected=none`. Ranking does **not** issue a license.
 
-## Capacity rewrite-license gate (6C-G, this cut)
+## Capacity rewrite-license gate (6C-G, frozen)
 
 A selected capacity winner is **not** a rewrite license.
 This cut freezes the gate that a later eviction rewrite
@@ -477,6 +482,70 @@ add `--capacity-license=yes`, does **not** add
 `--dump-capacity-license`, and does **not** call
 `applySchedule()`. Capability `rewrite_license` remains a
 different object (concurrent→serial).
+
+## EVICT → TRANSFER restore (6C-H, this cut)
+
+The 6C-G gate still classifies restore from the selected
+identity string (`restore=unspecified` / `evict-closed=no`
+on `s2c2-capacity-license`). That print is **frozen**.
+This cut attaches a structured restore record to each
+EVICT object on the candidate, so a later `license=yes`
+will not parse identity text.
+
+```text
+CapacityCandidate
+    EVICT object
+        ↓
+restore realization = TRANSFER
+        ↓
+restore dataflow / validity
+        ↓
+proof of closure
+        ↓
+only then discuss license=yes   ← not this cut
+```
+
+```text
+prefix           s2c2-capacity-restore
+schema           s2c2.capacity_restore.v1
+kind             TRANSFER
+rewrite-license  no
+rewrite          no
+```
+
+TRANSFER is the existing slower-space restore realization,
+not a new 6C action. A TRANSFER restore is **valid** iff
+the occupancy spec names a restore source for that object
+on `ssd` or `host`. Occupancy IR (`--capacity=2` without
+a spec) has no restore sources. Optional spec field
+`restore_sources` is **not** occupancy and **not** a new
+\(F_{\mathrm{capacity}}\) member. Extra unknown keys are
+still rejected. Object ids are normalized the same way as
+residencies (`tile2` → `2`).
+
+```text
+selected=none                         closed=n/a
+keep{…}|evict{}|rematerialize{}       restore=unused  closed=n/a
+EVICT nonempty, no source             valid=no        closed=no
+EVICT nonempty, every source valid    valid=yes       closed=yes
+closed=yes                            ≠  rewrite-license=yes
+```
+
+On the default 4-tile witness,
+`keep{0,1}|evict{2}|rematerialize{}` has a TRANSFER record
+for object `2` with `valid=no` (`no-source-replica`) and
+`closed=no`. Fixture
+[`v3-dataset/storage-capacity-4tile-transfer-restore.jsonl`](v3-dataset/storage-capacity-4tile-transfer-restore.jsonl)
+declares SSD sources for tiles 0, 1, and 2; \(F_{\mathrm{capacity}}\)
+is unchanged and the selected winner is `closed=yes`, still
+`rewrite-license=no`. The frozen 6C-G license line remains
+`restore=unspecified`.
+
+The restore prefix prints only on the query consumer. It
+does **not** print on frozen 6C-B/C `--capacity`
+diagnostics. This cut does **not** invent IR alias analysis,
+does **not** add extra funcs to the 4-tile module, and does
+**not** open eviction rewrite.
 
 ## Out of scope
 

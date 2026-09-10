@@ -111,4 +111,10 @@ FileCheck microseconds. No `measurement_revision` on this
 v1 table.
 The capacity rewrite-license gate (`s2c2.capacity_license.v1`)
 is a printed query contract, not a dataset file.
+TRANSFER restore sources (optional, not occupancy, not a
+new \(F\) member):
+[`storage-capacity-4tile-transfer-restore.jsonl`](storage-capacity-4tile-transfer-restore.jsonl).
+Same 4-tile \(F_{\mathrm{capacity}}\); `closed=yes` still
+`rewrite-license=no`. Check with
+`python3 runtime/record_capacity.py --print-capacity-restore-contract`.
 

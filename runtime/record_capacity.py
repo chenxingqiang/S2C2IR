@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (6C-B–F frozen, 6C-G license gate).
+"""Phase 6C Capacity-aware Residency (6C-B–G frozen, 6C-H restore).
 
 Host witness for F_capacity, CapacityPlan identity, query,
-s0 selection, measured-capacity-v1 ArgMin, and the capacity
-rewrite-license gate. Duplicate scoped identity is rejected.
+s0 selection, measured-capacity-v1 ArgMin, the capacity
+rewrite-license gate, and EVICT→TRANSFER restore records.
+Duplicate scoped identity is rejected.
 Equal times pick the earliest F_capacity inhabitant.
-The gate result is still no; not an eviction rewrite.
+The gate result is still no; restore closure is candidate
+semantics, not an eviction rewrite.
 Do not FileCheck microseconds.
 """
 
@@ -29,6 +31,8 @@ SPEC_FIELDS = (
     "residencies",
     "note",
 )
+OPTIONAL_SPEC_FIELDS = ("restore_sources",)
+RESTORE_SRC_FIELDS = ("object", "space", "kind")
 
 RES_FIELDS = (
     "id",
@@ -233,6 +237,68 @@ def print_capacity_license(plan: dict[str, Any]) -> None:
     print("capacity-license rewrite=no")
 
 
+def print_restore_contract() -> int:
+    print("capacity-restore candidate-semantics=yes")
+    print("schema s2c2.capacity_restore.v1")
+    print("kind TRANSFER")
+    print("restore-legal TRANSFER|REMATERIALIZE")
+    print("rewrite-license no")
+    print("note restore-ne-identity-string")
+    print("note transfer-existing-realization")
+    print("note occupancy-ir-ne-restore-source")
+    print("note closed-ne-rewrite-license")
+    print("note rematerialize-empty-this-stage")
+    print("note six-c-g-license-gate-frozen")
+    print("note six-c-h-restore-closure-this-cut")
+    print("note evidence-db-identity-frozen")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    return 0
+
+
+def print_capacity_restore(plan: dict[str, Any]) -> None:
+    selected = str(plan.get("selected") or "none")
+    sel = None
+    if selected != "none":
+        for c in plan.get("candidates") or []:
+            if c.get("identity") == selected:
+                sel = c
+                break
+    none = sel is None
+    evict = list(sel.get("evict") or []) if sel else []
+    restores = list(sel.get("restores") or []) if sel else []
+    if none or not evict:
+        closed = "n/a"
+    else:
+        all_valid = bool(restores) and len(restores) == len(evict)
+        for r in restores:
+            all_valid = all_valid and bool(r.get("valid"))
+        closed = "yes" if all_valid else "no"
+    print("capacity-restore schema=s2c2.capacity_restore.v1")
+    print(f"capacity-restore selected={selected} closed={closed}")
+    if sel is not None and not evict:
+        print("capacity-restore restore=unused")
+    if sel is not None and evict:
+        for r in restores:
+            valid = "yes" if r.get("valid") else "no"
+            print(
+                f"capacity-restore object={r['object']} kind={r['kind']} "
+                f"valid={valid} reason={r['reason']}"
+            )
+    print("capacity-restore rewrite-license=no")
+    print("capacity-restore note restore-ne-identity-string")
+    print("capacity-restore note transfer-existing-realization")
+    print("capacity-restore note occupancy-ir-ne-restore-source")
+    print("capacity-restore note closed-ne-rewrite-license")
+    print("capacity-restore note rematerialize-empty-this-stage")
+    print("capacity-restore note six-c-g-license-gate-frozen")
+    print("capacity-restore note six-c-h-restore-closure-this-cut")
+    print("capacity-restore rewrite=no")
+
+
 def capacity_candidate_identity(
     keep: list[str], evict: list[str], rematerialize: list[str] | None = None
 ) -> str:
@@ -264,7 +330,7 @@ def _load_spec(path: Path) -> dict[str, Any]:
     spec = rows[0]
     if spec.get("schema") != SCHEMA:
         raise ValueError("bad schema")
-    extra = sorted(set(spec) - set(SPEC_FIELDS))
+    extra = sorted(set(spec) - set(SPEC_FIELDS) - set(OPTIONAL_SPEC_FIELDS))
     if extra:
         raise ValueError(f"extra keys {extra}")
     missing = [k for k in SPEC_FIELDS if k not in spec]
@@ -299,6 +365,33 @@ def _load_spec(path: Path) -> dict[str, Any]:
         raise ValueError("capacity_tiles must be int") from exc
     if cap <= 0:
         raise ValueError("capacity_tiles must be positive")
+    occupancy = {_tile_key(str(r["object"])) for r in residencies}
+    raw_src = spec.get("restore_sources")
+    if raw_src is not None:
+        if not isinstance(raw_src, list):
+            raise ValueError("restore_sources must be an array")
+        seen_src: set[str] = set()
+        for rec in raw_src:
+            if not isinstance(rec, dict):
+                raise ValueError("restore source must be an object")
+            extra_s = sorted(set(rec) - set(RESTORE_SRC_FIELDS))
+            if extra_s:
+                raise ValueError(f"restore_sources extra keys {extra_s}")
+            obj_n = rec.get("object")
+            if not obj_n:
+                raise ValueError("restore source object required")
+            oid = _tile_key(str(obj_n))
+            if oid not in occupancy:
+                raise ValueError("restore source not in occupancy")
+            space_s = rec.get("space")
+            if space_s not in ("ssd", "host"):
+                raise ValueError("restore source space must be ssd or host")
+            kind = rec.get("kind", "TRANSFER")
+            if kind != "TRANSFER":
+                raise ValueError("restore kind must be TRANSFER")
+            if oid in seen_src:
+                raise ValueError("duplicate restore source")
+            seen_src.add(oid)
     return spec
 
 
@@ -317,6 +410,29 @@ def _live_sum(live: list[dict[str, Any]]) -> int:
 
 def _object_id(rec: dict[str, Any]) -> str:
     return _tile_key(str(rec["object"]))
+
+
+def _restore_sources(spec: dict[str, Any]) -> set[str]:
+    raw = spec.get("restore_sources") or []
+    out: set[str] = set()
+    for rec in raw:
+        out.add(_tile_key(str(rec["object"])))
+    return out
+
+
+def _attach_restores(evict: list[str], sources: set[str]) -> list[dict[str, Any]]:
+    restores = []
+    for e in evict:
+        valid = e in sources
+        restores.append(
+            {
+                "object": e,
+                "kind": "TRANSFER",
+                "valid": valid,
+                "reason": "has-source-replica" if valid else "no-source-replica",
+            }
+        )
+    return restores
 
 
 def _enumerate_capacity(spec: dict[str, Any]) -> dict[str, Any]:
@@ -370,6 +486,7 @@ def _enumerate_capacity(spec: dict[str, Any]) -> dict[str, Any]:
 def _build_capacity_plan(spec: dict[str, Any]) -> dict[str, Any]:
     enum = _enumerate_capacity(spec)
     objects: set[str] = enum["objects"]
+    sources = _restore_sources(spec)
     plan_cands = []
     if not enum["truncated"]:
         seen = set()
@@ -395,6 +512,7 @@ def _build_capacity_plan(spec: dict[str, Any]) -> dict[str, Any]:
                     "keep": keep,
                     "evict": evict,
                     "rematerialize": rematerialize,
+                    "restores": _attach_restores(evict, sources),
                 }
             )
     return {
@@ -739,6 +857,7 @@ def query_capacity_plan(
         print(f"{prefix} note measured-capacity-v1-not-opened")
         print(f"{prefix} note six-c-d-query-this-cut")
     print_capacity_license(plan)
+    print_capacity_restore(plan)
     print("cost=unchanged")
     return 0
 
@@ -766,6 +885,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--print-capacity-policy-contract", action="store_true")
     p.add_argument("--print-measured-capacity-contract", action="store_true")
     p.add_argument("--print-capacity-license-contract", action="store_true")
+    p.add_argument("--print-capacity-restore-contract", action="store_true")
     p.add_argument("--query-capacity-plan", type=Path)
     p.add_argument("--capacity-policy", default="")
     p.add_argument("--measured-capacity-table", type=Path)
@@ -783,6 +903,7 @@ def main(argv: list[str] | None = None) -> int:
             args.print_capacity_policy_contract,
             args.print_measured_capacity_contract,
             args.print_capacity_license_contract,
+            args.print_capacity_restore_contract,
             args.query_capacity_plan,
         )
     )
@@ -794,7 +915,8 @@ def main(argv: list[str] | None = None) -> int:
             "--dump-capacity-plan, --print-capacity-plan-query-contract, "
             "--print-capacity-policy-contract, "
             "--print-measured-capacity-contract, "
-            "--print-capacity-license-contract, --query-capacity-plan",
+            "--print-capacity-license-contract, "
+            "--print-capacity-restore-contract, --query-capacity-plan",
             file=sys.stderr,
         )
         return 2
@@ -833,6 +955,8 @@ def main(argv: list[str] | None = None) -> int:
         return print_measured_capacity_contract()
     if args.print_capacity_license_contract:
         return print_license_contract()
+    if args.print_capacity_restore_contract:
+        return print_restore_contract()
     if args.query_capacity_plan:
         return query_capacity_plan(
             args.query_capacity_plan,

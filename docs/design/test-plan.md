@@ -989,6 +989,9 @@ without running the schedule pass. 6C-E adds
 earliest \(F\); still `rewrite-license=no`). 6C-G
 freezes the capacity rewrite-license gate on the query
 consumer (`rewrite-license=no`; EVICT requires restore).
+6C-H attaches TRANSFER restore records to EVICT objects
+(`s2c2.capacity_restore.v1`; closed restore still
+`rewrite-license=no`).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1031,6 +1034,11 @@ Do not FileCheck microseconds.
 | 6C-G-3 | same | fit all-KEEP: `restore=unused` `evict-closed=n/a`; still `rewrite-license=no` |
 | 6C-G-4 | same | query `selected=none`: `restore=n/a`; diagnostic `--capacity` path does not print the gate |
 | 6C-G-5 | same | `CHECK-NOT: rewrite-license=yes`; no `applySchedule`; capability license ≠ capacity license |
+| 6C-H-1 | same | `--print-capacity-restore-contract`; candidate semantics; kind=`TRANSFER`; `rewrite-license=no` |
+| 6C-H-2 | same | 4-tile s0 / occupancy IR: `kind=TRANSFER valid=no reason=no-source-replica closed=no` |
+| 6C-H-3 | same | transfer-restore spec: `valid=yes closed=yes`; F unchanged; still `rewrite-license=no` |
+| 6C-H-4 | same | all-KEEP `restore=unused closed=n/a`; query `selected=none` `closed=n/a` |
+| 6C-H-5 | same | diagnostic `--capacity` does not print `s2c2-capacity-restore`; no `applySchedule` |
 
 ## Complete SSD + MLP program wall-clock
 
