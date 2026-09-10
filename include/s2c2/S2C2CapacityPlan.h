@@ -6,6 +6,7 @@
 // 6C-G freezes the license gate (still no). 6C-H attaches a
 // TRANSFER restore record to each EVICT object. 6C-I classifies
 // the license predicate (necessary vs sufficient; still no).
+// 6C-J classifies source-data validity (still not sufficient).
 // 6C-B diagnostics stay frozen.
 //
 //===----------------------------------------------------------------------===//
@@ -45,12 +46,22 @@ inline std::string capacityCandidateIdentity(
 /// new 6C action. valid iff the occupancy spec names a restore source
 /// on ssd or host. Occupancy IR has no restore sources. Closure is
 /// proven only when every EVICT has a valid restore. 6C-H does not
-/// issue rewrite-license=yes.
+/// issue rewrite-license=yes. 6C-J classifies source-data
+/// validity as a scoped witness, not a valid/stale/dirty FSM:
+/// replica-exists ≠ source-data-valid ≠ restore-usable.
+/// Declaration is not data validity. Usable stays no (6C-K).
 struct CapacityRestore {
   std::string object;
   std::string kind = "TRANSFER";
   bool valid = false;
   std::string reason;
+  bool replicaExists = false;
+  std::string replica = "n/a";
+  std::string witness = "n/a";
+  std::string scope = "n/a";
+  bool sourceData = false;
+  std::string sourceDataReason;
+  bool usable = false;
 };
 
 struct CapacityCandidate {
@@ -75,6 +86,7 @@ struct CapacityCandidate {
 /// (candidate semantics, not an identity-string parse).
 /// 6C-I classifies the license predicate on the query consumer:
 /// necessary conjuncts vs still-missing sufficient proof.
+/// 6C-J classifies source-data validity (still not sufficient).
 /// Not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};

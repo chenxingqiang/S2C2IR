@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (6C-B–H frozen, 6C-I predicate).
+"""Phase 6C Capacity-aware Residency (6C-B–I frozen, 6C-J source-data).
 
 Host witness for F_capacity, CapacityPlan identity, query,
 s0 selection, measured-capacity-v1 ArgMin, the capacity
-rewrite-license gate, EVICT→TRANSFER restore records, and
-the structured license predicate. Duplicate scoped identity
-is rejected. Equal times pick the earliest F_capacity
-inhabitant. Necessary conjuncts are classified; sufficient
-proof is still missing. The gate result is still no.
-Do not FileCheck microseconds.
+rewrite-license gate, EVICT→TRANSFER restore records, the
+structured license predicate, and scoped source-data
+validity. replica-exists ≠ source-data-valid ≠ usable.
+Token = validity witness; no valid/stale/dirty FSM.
+source-data=yes is still not sufficient. The gate is still
+no. Do not FileCheck microseconds.
 """
 
 from __future__ import annotations
@@ -31,8 +31,11 @@ SPEC_FIELDS = (
     "residencies",
     "note",
 )
-OPTIONAL_SPEC_FIELDS = ("restore_sources",)
+OPTIONAL_SPEC_FIELDS = ("restore_sources", "source_data")
 RESTORE_SRC_FIELDS = ("object", "space", "kind")
+SOURCE_DATA_FIELDS = ("object", "replica", "witness", "live", "scope")
+SOURCE_WITNESS = "spec-unmutated-cover"
+SOURCE_SCOPE = "occupancy-live"
 
 RES_FIELDS = (
     "id",
@@ -322,6 +325,19 @@ def print_predicate_contract() -> int:
     return 0
 
 
+def _source_data_status(sel: dict[str, Any] | None) -> str:
+    if sel is None:
+        return "n/a"
+    evict = list(sel.get("evict") or [])
+    if not evict:
+        return "n/a"
+    restores = list(sel.get("restores") or [])
+    all_data = bool(restores) and len(restores) == len(evict)
+    for r in restores:
+        all_data = all_data and bool(r.get("source_data"))
+    return "yes" if all_data else "no"
+
+
 def print_capacity_predicate(plan: dict[str, Any]) -> None:
     selected = str(plan.get("selected") or "none")
     sel = None
@@ -376,8 +392,8 @@ def print_capacity_predicate(plan: dict[str, Any]) -> None:
         f"restore-kind={restore_kind}"
     )
     print(
-        "capacity-predicate source-data=no restore-ordering=no "
-        "dest-invalidation=no rewrite-path=no"
+        f"capacity-predicate source-data={_source_data_status(sel)} "
+        "restore-ordering=no dest-invalidation=no rewrite-path=no"
     )
     print("capacity-predicate note necessary-ne-sufficient")
     print("capacity-predicate note closed-ne-rewrite-license")
@@ -388,6 +404,115 @@ def print_capacity_predicate(plan: dict[str, Any]) -> None:
     print("capacity-predicate note six-c-h-restore-closure-frozen")
     print("capacity-predicate note six-c-i-license-predicate-this-cut")
     print("capacity-predicate rewrite=no")
+
+
+def print_sourcedata_contract() -> int:
+    print("capacity-sourcedata gate=query")
+    print("schema s2c2.capacity_sourcedata.v1")
+    print("source-declaration-ne-data-validity yes")
+    print("replica-exists-ne-data-validity yes")
+    print("source-data-ne-usable yes")
+    print("token-eq-validity-witness yes")
+    print("no-validity-fsm yes")
+    print("rewrite-license no")
+    print("note replica-exists-ne-data-validity")
+    print("note source-declaration-ne-data-validity")
+    print("note source-data-ne-usable")
+    print("note token-eq-validity-witness")
+    print("note no-validity-fsm")
+    print("note closed-ne-data-valid")
+    print("note unknown-ne-rewrite")
+    print("note source-data-ne-sufficient")
+    print("note restore-source-ne-ordering")
+    print("note restore-source-ne-invalidation")
+    print("note six-c-g-license-gate-frozen")
+    print("note six-c-h-restore-closure-frozen")
+    print("note six-c-i-license-predicate-frozen")
+    print("note six-c-j-source-data-this-cut")
+    print("note evidence-db-identity-frozen")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    return 0
+
+
+def _replica_exists_status(sel: dict[str, Any] | None) -> str:
+    if sel is None:
+        return "n/a"
+    evict = list(sel.get("evict") or [])
+    if not evict:
+        return "n/a"
+    restores = list(sel.get("restores") or [])
+    any_ex = False
+    all_ex = bool(restores) and len(restores) == len(evict)
+    for r in restores:
+        exists = bool(r.get("replica_exists"))
+        any_ex = any_ex or exists
+        all_ex = all_ex and exists
+    if all_ex:
+        return "yes"
+    if any_ex:
+        return "mixed"
+    return "no"
+
+
+def _usable_status(sel: dict[str, Any] | None) -> str:
+    if sel is None:
+        return "n/a"
+    if not list(sel.get("evict") or []):
+        return "n/a"
+    return "no"
+
+
+def print_capacity_sourcedata(plan: dict[str, Any]) -> None:
+    selected = str(plan.get("selected") or "none")
+    sel = None
+    if selected != "none":
+        for c in plan.get("candidates") or []:
+            if c.get("identity") == selected:
+                sel = c
+                break
+    status = _source_data_status(sel)
+    evict = list(sel.get("evict") or []) if sel else []
+    restores = list(sel.get("restores") or []) if sel else []
+    print("capacity-sourcedata schema=s2c2.capacity_sourcedata.v1")
+    print(
+        f"capacity-sourcedata selected={selected} source-data={status} "
+        f"replica-exists={_replica_exists_status(sel)} "
+        f"usable={_usable_status(sel)}"
+    )
+    if sel is not None and not evict:
+        print("capacity-sourcedata restore=unused")
+    if sel is not None and evict:
+        for r in restores:
+            print(
+                f"capacity-sourcedata object={r['object']} "
+                f"replica={r.get('replica', 'n/a')} "
+                f"witness={r.get('witness', 'n/a')} "
+                f"scope={r.get('scope', 'n/a')} "
+                f"replica-exists={'yes' if r.get('replica_exists') else 'no'} "
+                f"source-data={'yes' if r.get('source_data') else 'no'} "
+                f"usable={'yes' if r.get('usable') else 'no'} "
+                f"reason={r.get('source_data_reason')}"
+            )
+    print("capacity-sourcedata rewrite-license=no")
+    print("capacity-sourcedata note replica-exists-ne-data-validity")
+    print("capacity-sourcedata note source-declaration-ne-data-validity")
+    print("capacity-sourcedata note source-data-ne-usable")
+    print("capacity-sourcedata note token-eq-validity-witness")
+    print("capacity-sourcedata note no-validity-fsm")
+    print("capacity-sourcedata note closed-ne-data-valid")
+    print("capacity-sourcedata note unknown-ne-rewrite")
+    print("capacity-sourcedata note source-data-ne-sufficient")
+    print("capacity-sourcedata note restore-source-ne-ordering")
+    print("capacity-sourcedata note restore-source-ne-invalidation")
+    print("capacity-sourcedata note six-c-g-license-gate-frozen")
+    print("capacity-sourcedata note six-c-h-restore-closure-frozen")
+    print("capacity-sourcedata note six-c-i-license-predicate-frozen")
+    print("capacity-sourcedata note six-c-j-source-data-this-cut")
+    print("capacity-sourcedata rewrite=no")
 
 
 def capacity_candidate_identity(
@@ -483,6 +608,38 @@ def _load_spec(path: Path) -> dict[str, Any]:
             if oid in seen_src:
                 raise ValueError("duplicate restore source")
             seen_src.add(oid)
+    raw_data = spec.get("source_data")
+    if raw_data is not None:
+        if not isinstance(raw_data, list):
+            raise ValueError("source_data must be an array")
+        seen_data: set[str] = set()
+        for rec in raw_data:
+            if not isinstance(rec, dict):
+                raise ValueError("source_data must be an object")
+            extra_d = sorted(set(rec) - set(SOURCE_DATA_FIELDS))
+            if extra_d:
+                raise ValueError(f"source_data extra keys {extra_d}")
+            obj_n = rec.get("object")
+            if not obj_n:
+                raise ValueError("source_data object required")
+            oid = _tile_key(str(obj_n))
+            if oid not in occupancy:
+                raise ValueError("source_data not in occupancy")
+            live = rec.get("live")
+            replica = rec.get("replica")
+            if replica not in ("ssd", "host"):
+                raise ValueError("source_data replica must be ssd or host")
+            if not rec.get("witness") or not rec.get("scope"):
+                raise ValueError("source_data witness and scope required")
+            if (
+                not isinstance(live, list)
+                or len(live) != 2
+                or int(live[0]) >= int(live[1])
+            ):
+                raise ValueError("source_data live must be [start, end)")
+            if oid in seen_data:
+                raise ValueError("duplicate source_data")
+            seen_data.add(oid)
     return spec
 
 
@@ -503,24 +660,93 @@ def _object_id(rec: dict[str, Any]) -> str:
     return _tile_key(str(rec["object"]))
 
 
-def _restore_sources(spec: dict[str, Any]) -> set[str]:
+def _restore_sources(spec: dict[str, Any]) -> dict[str, str]:
     raw = spec.get("restore_sources") or []
-    out: set[str] = set()
+    out: dict[str, str] = {}
     for rec in raw:
-        out.add(_tile_key(str(rec["object"])))
+        out[_tile_key(str(rec["object"]))] = str(rec["space"])
     return out
 
 
-def _attach_restores(evict: list[str], sources: set[str]) -> list[dict[str, Any]]:
+def _occ_live(spec: dict[str, Any]) -> dict[str, tuple[int, int]]:
+    out: dict[str, tuple[int, int]] = {}
+    for rec in spec["residencies"]:
+        oid = _object_id(rec)
+        live = rec["live"]
+        out[oid] = (int(live[0]), int(live[1]))
+    return out
+
+
+def _source_data_proofs(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    raw = spec.get("source_data") or []
+    out: dict[str, dict[str, Any]] = {}
+    for rec in raw:
+        oid = _tile_key(str(rec["object"]))
+        live = rec["live"]
+        out[oid] = {
+            "replica": str(rec["replica"]),
+            "witness": str(rec["witness"]),
+            "scope": str(rec["scope"]),
+            "start": int(live[0]),
+            "end": int(live[1]),
+        }
+    return out
+
+
+def _attach_restores(
+    evict: list[str],
+    sources: dict[str, str],
+    occ_live: dict[str, tuple[int, int]],
+    proofs: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
     restores = []
     for e in evict:
-        valid = e in sources
+        replica_exists = e in sources
+        replica = sources[e] if replica_exists else "n/a"
+        witness = "n/a"
+        scope = "n/a"
+        source_data = False
+        if not replica_exists:
+            source_data_reason = "no-source-replica"
+        else:
+            proof = proofs.get(e)
+            if proof is None:
+                source_data_reason = "no-validity-witness"
+            else:
+                witness = proof["witness"]
+                scope = proof["scope"]
+                if proof["replica"] != replica:
+                    source_data_reason = "replica-scope-mismatch"
+                elif proof["witness"] != SOURCE_WITNESS:
+                    source_data_reason = "unknown-witness"
+                elif proof["scope"] != SOURCE_SCOPE:
+                    source_data_reason = "unknown-scope"
+                else:
+                    occ = occ_live.get(e)
+                    if (
+                        occ is None
+                        or proof["start"] > occ[0]
+                        or proof["end"] < occ[1]
+                    ):
+                        source_data_reason = "interval-does-not-cover"
+                    else:
+                        source_data = True
+                        source_data_reason = "witnessed-unmutated-cover"
         restores.append(
             {
                 "object": e,
                 "kind": "TRANSFER",
-                "valid": valid,
-                "reason": "has-source-replica" if valid else "no-source-replica",
+                "valid": replica_exists,
+                "reason": (
+                    "has-source-replica" if replica_exists else "no-source-replica"
+                ),
+                "replica_exists": replica_exists,
+                "replica": replica,
+                "witness": witness,
+                "scope": scope,
+                "source_data": source_data,
+                "source_data_reason": source_data_reason,
+                "usable": False,
             }
         )
     return restores
@@ -578,6 +804,8 @@ def _build_capacity_plan(spec: dict[str, Any]) -> dict[str, Any]:
     enum = _enumerate_capacity(spec)
     objects: set[str] = enum["objects"]
     sources = _restore_sources(spec)
+    occ_live = _occ_live(spec)
+    proofs = _source_data_proofs(spec)
     plan_cands = []
     if not enum["truncated"]:
         seen = set()
@@ -603,7 +831,9 @@ def _build_capacity_plan(spec: dict[str, Any]) -> dict[str, Any]:
                     "keep": keep,
                     "evict": evict,
                     "rematerialize": rematerialize,
-                    "restores": _attach_restores(evict, sources),
+                    "restores": _attach_restores(
+                        evict, sources, occ_live, proofs
+                    ),
                 }
             )
     return {
@@ -950,6 +1180,7 @@ def query_capacity_plan(
     print_capacity_license(plan)
     print_capacity_restore(plan)
     print_capacity_predicate(plan)
+    print_capacity_sourcedata(plan)
     print("cost=unchanged")
     return 0
 
@@ -979,6 +1210,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--print-capacity-license-contract", action="store_true")
     p.add_argument("--print-capacity-restore-contract", action="store_true")
     p.add_argument("--print-capacity-predicate-contract", action="store_true")
+    p.add_argument("--print-capacity-sourcedata-contract", action="store_true")
     p.add_argument("--query-capacity-plan", type=Path)
     p.add_argument("--capacity-policy", default="")
     p.add_argument("--measured-capacity-table", type=Path)
@@ -998,6 +1230,7 @@ def main(argv: list[str] | None = None) -> int:
             args.print_capacity_license_contract,
             args.print_capacity_restore_contract,
             args.print_capacity_predicate_contract,
+            args.print_capacity_sourcedata_contract,
             args.query_capacity_plan,
         )
     )
@@ -1011,7 +1244,8 @@ def main(argv: list[str] | None = None) -> int:
             "--print-measured-capacity-contract, "
             "--print-capacity-license-contract, "
             "--print-capacity-restore-contract, "
-            "--print-capacity-predicate-contract, --query-capacity-plan",
+            "--print-capacity-predicate-contract, "
+            "--print-capacity-sourcedata-contract, --query-capacity-plan",
             file=sys.stderr,
         )
         return 2
@@ -1054,6 +1288,8 @@ def main(argv: list[str] | None = None) -> int:
         return print_restore_contract()
     if args.print_capacity_predicate_contract:
         return print_predicate_contract()
+    if args.print_capacity_sourcedata_contract:
+        return print_sourcedata_contract()
     if args.query_capacity_plan:
         return query_capacity_plan(
             args.query_capacity_plan,

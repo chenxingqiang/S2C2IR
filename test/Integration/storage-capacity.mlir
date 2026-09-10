@@ -104,6 +104,16 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=PREDFIT
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-transfer-restore.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=PREDYES
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOPRED
+// RUN: python3 %S/../../runtime/record_capacity.py --print-capacity-sourcedata-contract | FileCheck %s --check-prefix=SRCC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HSRC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HSRCFIT
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-transfer-restore.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HSRCYES
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-source-data.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HSRCDATA
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SRC
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SRCFIT
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-transfer-restore.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SRCYES
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-source-data.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SRCDATA
+// RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOSRC
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -117,6 +127,11 @@
 // 6C-I classifies the structured license predicate
 // (necessary vs sufficient; still rewrite-license=no).
 // Closed restore is necessary, not sufficient.
+// 6C-J classifies scoped source-data validity on the query
+// consumer. replica-exists ≠ source-data-valid ≠ usable.
+// Token = validity witness; no valid/stale/dirty FSM.
+// source-data=yes is still not sufficient, still usable=no,
+// and still rewrite-license=no.
 // 5A-6B stay frozen. Do not FileCheck microseconds.
 
 // CONTRACT: storage-capacity compiler-driven=yes
@@ -332,6 +347,7 @@
 // HQUERY: capacity-restore selected=none closed=n/a
 // HQUERY: capacity-restore rewrite-license=no
 // HQUERY: capacity-predicate selected=none necessary=no sufficient=no rewrite-license=no
+// HQUERY: capacity-sourcedata selected=none source-data=n/a replica-exists=n/a usable=n/a
 // HQUERY-NOT: keep{0,1,2}
 // HQUERY-NOT: selected={{[0-9]}}
 
@@ -369,6 +385,7 @@
 // QUERY: s2c2-capacity-restore rewrite-license=no
 // QUERY: s2c2-capacity-predicate selected=none necessary=no sufficient=no rewrite-license=no
 // QUERY: s2c2-capacity-predicate selected-in-f=no{{.*}}capacity-proof=n/a{{.*}}evict-closed=n/a{{.*}}restore-kind=n/a
+// QUERY: s2c2-capacity-sourcedata selected=none source-data=n/a replica-exists=n/a usable=n/a
 // QUERY-NOT: s2c2-storage-capacity
 // QUERY-NOT: evidence-bounded-schedule
 // QUERY-NOT: hierarchy-global
@@ -437,6 +454,7 @@
 // NOLIC-NOT: s2c2-capacity-license
 // NOLIC-NOT: s2c2-capacity-restore
 // NOLIC-NOT: s2c2-capacity-predicate
+// NOLIC-NOT: s2c2-capacity-sourcedata
 // NOLIC-NOT: rewrite-license=yes
 
 // RESTOREC: capacity-restore candidate-semantics=yes
@@ -507,6 +525,7 @@
 // NOREST-NOT: s2c2-capacity-restore
 // NOREST-NOT: s2c2-capacity-license
 // NOREST-NOT: s2c2-capacity-predicate
+// NOREST-NOT: s2c2-capacity-sourcedata
 // NOREST-NOT: rewrite-license=yes
 
 // PREDC: capacity-predicate gate=query
@@ -525,11 +544,14 @@
 // HPRED: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=no sufficient=no rewrite-license=no
 // HPRED: capacity-predicate selected-in-f=yes enumerated=yes capacity-proof=yes evict-closed=no restore-kind=TRANSFER
 // HPRED: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// HPRED: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=no replica-exists=no usable=no
+// HPRED: capacity-sourcedata object=2 replica=n/a witness=n/a scope=n/a replica-exists=no source-data=no usable=no reason=no-source-replica
 // HPRED-NOT: rewrite-license=yes
 
 // HPREDFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0 rewrite-license=no
 // HPREDFIT: capacity-predicate selected={{.*}} necessary=n/a sufficient=no rewrite-license=no
 // HPREDFIT: capacity-predicate selected-in-f=yes{{.*}}capacity-proof=yes{{.*}}evict-closed=n/a{{.*}}restore-kind=unused
+// HPREDFIT: capacity-predicate source-data=n/a restore-ordering=no dest-invalidation=no rewrite-path=no
 // HPREDFIT-NOT: rewrite-license=yes
 
 // HPREDYES: capacity-license restore=unspecified{{.*}}evict-closed=no
@@ -538,6 +560,8 @@
 // HPREDYES: capacity-predicate selected-in-f=yes enumerated=yes capacity-proof=yes evict-closed=yes restore-kind=TRANSFER
 // HPREDYES: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
 // HPREDYES: capacity-predicate note necessary-ne-sufficient
+// HPREDYES: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=no replica-exists=yes usable=no
+// HPREDYES: capacity-sourcedata object=2 replica=ssd witness=n/a scope=n/a replica-exists=yes source-data=no usable=no reason=no-validity-witness
 // HPREDYES-NOT: rewrite-license=yes
 // HPREDYES-NOT: keep{0,1,2}
 
@@ -545,11 +569,13 @@
 // PRED: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=no sufficient=no rewrite-license=no
 // PRED: s2c2-capacity-predicate selected-in-f=yes enumerated=yes capacity-proof=yes evict-closed=no restore-kind=TRANSFER
 // PRED: s2c2-capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// PRED: s2c2-capacity-sourcedata object=2 replica=n/a witness=n/a scope=n/a replica-exists=no source-data=no usable=no reason=no-source-replica
 // PRED-NOT: rewrite-license=yes
 // PRED-NOT: s2c2-opt: applySchedule
 
 // PREDFIT: s2c2-capacity-predicate selected={{.*}} necessary=n/a sufficient=no rewrite-license=no
 // PREDFIT: s2c2-capacity-predicate selected-in-f=yes{{.*}}capacity-proof=yes{{.*}}evict-closed=n/a{{.*}}restore-kind=unused
+// PREDFIT: s2c2-capacity-predicate source-data=n/a restore-ordering=no dest-invalidation=no rewrite-path=no
 // PREDFIT-NOT: rewrite-license=yes
 
 // PREDYES: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
@@ -558,6 +584,7 @@
 // PREDYES: s2c2-capacity-predicate selected-in-f=yes enumerated=yes capacity-proof=yes evict-closed=yes restore-kind=TRANSFER
 // PREDYES: s2c2-capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
 // PREDYES: s2c2-capacity-predicate note source-declaration-ne-data-validity
+// PREDYES: s2c2-capacity-sourcedata object=2 replica=ssd witness=n/a scope=n/a replica-exists=yes source-data=no usable=no reason=no-validity-witness
 // PREDYES-NOT: rewrite-license=yes
 // PREDYES-NOT: s2c2-opt: applySchedule
 // PREDYES-NOT: keep{0,1,2}
@@ -566,7 +593,110 @@
 // NOPRED-NOT: s2c2-capacity-predicate
 // NOPRED-NOT: s2c2-capacity-restore
 // NOPRED-NOT: s2c2-capacity-license
+// NOPRED-NOT: s2c2-capacity-sourcedata
 // NOPRED-NOT: rewrite-license=yes
+
+// SRCC: capacity-sourcedata gate=query
+// SRCC: schema s2c2.capacity_sourcedata.v1
+// SRCC: source-declaration-ne-data-validity yes
+// SRCC: replica-exists-ne-data-validity yes
+// SRCC: source-data-ne-usable yes
+// SRCC: token-eq-validity-witness yes
+// SRCC: no-validity-fsm yes
+// SRCC: rewrite-license no
+// SRCC: note replica-exists-ne-data-validity
+// SRCC: note source-declaration-ne-data-validity
+// SRCC: note source-data-ne-usable
+// SRCC: note token-eq-validity-witness
+// SRCC: note no-validity-fsm
+// SRCC: note closed-ne-data-valid
+// SRCC: note unknown-ne-rewrite
+// SRCC: note source-data-ne-sufficient
+// SRCC: note six-c-i-license-predicate-frozen
+// SRCC: note six-c-j-source-data-this-cut
+// SRCC-NOT: rewrite-license yes
+
+// HSRC: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=no
+// HSRC: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// HSRC: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=no replica-exists=no usable=no
+// HSRC: capacity-sourcedata object=2 replica=n/a witness=n/a scope=n/a replica-exists=no source-data=no usable=no reason=no-source-replica
+// HSRC: capacity-sourcedata rewrite-license=no
+// HSRC: capacity-sourcedata note replica-exists-ne-data-validity
+// HSRC-NOT: rewrite-license=yes
+
+// HSRCFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0 rewrite-license=no
+// HSRCFIT: capacity-predicate source-data=n/a
+// HSRCFIT: capacity-sourcedata selected={{.*}} source-data=n/a replica-exists=n/a usable=n/a
+// HSRCFIT: capacity-sourcedata restore=unused
+// HSRCFIT: capacity-sourcedata rewrite-license=no
+// HSRCFIT-NOT: rewrite-license=yes
+
+// HSRCYES: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// HSRCYES: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HSRCYES: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// HSRCYES: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=no replica-exists=yes usable=no
+// HSRCYES: capacity-sourcedata object=2 replica=ssd witness=n/a scope=n/a replica-exists=yes source-data=no usable=no reason=no-validity-witness
+// HSRCYES: capacity-sourcedata note replica-exists-ne-data-validity
+// HSRCYES: capacity-sourcedata note closed-ne-data-valid
+// HSRCYES-NOT: rewrite-license=yes
+// HSRCYES-NOT: keep{0,1,2}
+
+// HSRCDATA: capacity-license restore=unspecified{{.*}}evict-closed=no
+// HSRCDATA: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// HSRCDATA: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HSRCDATA: capacity-predicate source-data=yes restore-ordering=no dest-invalidation=no rewrite-path=no
+// HSRCDATA: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=yes replica-exists=yes usable=no
+// HSRCDATA: capacity-sourcedata object=2 replica=ssd witness=spec-unmutated-cover scope=occupancy-live replica-exists=yes source-data=yes usable=no reason=witnessed-unmutated-cover
+// HSRCDATA: capacity-sourcedata rewrite-license=no
+// HSRCDATA: capacity-sourcedata note source-data-ne-usable
+// HSRCDATA: capacity-sourcedata note no-validity-fsm
+// HSRCDATA: capacity-sourcedata note source-data-ne-sufficient
+// HSRCDATA-NOT: rewrite-license=yes
+// HSRCDATA-NOT: keep{0,1,2}
+
+// SRC: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=no
+// SRC: s2c2-capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// SRC: s2c2-capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=no replica-exists=no usable=no
+// SRC: s2c2-capacity-sourcedata object=2 replica=n/a witness=n/a scope=n/a replica-exists=no source-data=no usable=no reason=no-source-replica
+// SRC: s2c2-capacity-sourcedata rewrite-license=no
+// SRC-NOT: rewrite-license=yes
+// SRC-NOT: s2c2-opt: applySchedule
+
+// SRCFIT: s2c2-capacity-predicate source-data=n/a
+// SRCFIT: s2c2-capacity-sourcedata selected={{.*}} source-data=n/a replica-exists=n/a usable=n/a
+// SRCFIT: s2c2-capacity-sourcedata restore=unused
+// SRCFIT: s2c2-capacity-sourcedata rewrite-license=no
+// SRCFIT-NOT: rewrite-license=yes
+
+// SRCYES: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// SRCYES: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// SRCYES: s2c2-capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// SRCYES: s2c2-capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=no replica-exists=yes usable=no
+// SRCYES: s2c2-capacity-sourcedata object=2 replica=ssd witness=n/a scope=n/a replica-exists=yes source-data=no usable=no reason=no-validity-witness
+// SRCYES: s2c2-capacity-sourcedata note replica-exists-ne-data-validity
+// SRCYES: s2c2-capacity-sourcedata note closed-ne-data-valid
+// SRCYES-NOT: rewrite-license=yes
+// SRCYES-NOT: s2c2-opt: applySchedule
+// SRCYES-NOT: keep{0,1,2}
+
+// SRCDATA: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
+// SRCDATA: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// SRCDATA: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// SRCDATA: s2c2-capacity-predicate source-data=yes restore-ordering=no dest-invalidation=no rewrite-path=no
+// SRCDATA: s2c2-capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=yes replica-exists=yes usable=no
+// SRCDATA: s2c2-capacity-sourcedata object=2 replica=ssd witness=spec-unmutated-cover scope=occupancy-live replica-exists=yes source-data=yes usable=no reason=witnessed-unmutated-cover
+// SRCDATA: s2c2-capacity-sourcedata rewrite-license=no
+// SRCDATA: s2c2-capacity-sourcedata note source-data-ne-usable
+// SRCDATA: s2c2-capacity-sourcedata note no-validity-fsm
+// SRCDATA: s2c2-capacity-sourcedata note source-data-ne-sufficient
+// SRCDATA-NOT: rewrite-license=yes
+// SRCDATA-NOT: s2c2-opt: applySchedule
+// SRCDATA-NOT: keep{0,1,2}
+
+// NOSRC: s2c2-capacity-plan selected=none
+// NOSRC-NOT: s2c2-capacity-sourcedata
+// NOSRC-NOT: s2c2-capacity-predicate
+// NOSRC-NOT: rewrite-license=yes
 
 // QUERYFIT: s2c2-capacity-plan-query feasible=yes
 // QUERYFIT: selected=none
