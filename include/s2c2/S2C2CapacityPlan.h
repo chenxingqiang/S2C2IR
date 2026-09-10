@@ -46,16 +46,22 @@ inline std::string capacityCandidateIdentity(
 /// new 6C action. valid iff the occupancy spec names a restore source
 /// on ssd or host. Occupancy IR has no restore sources. Closure is
 /// proven only when every EVICT has a valid restore. 6C-H does not
-/// issue rewrite-license=yes. 6C-J adds source-data validity:
-/// an unmutated slower-space replica whose live interval covers
-/// occupancy. Source declaration is not data validity.
+/// issue rewrite-license=yes. 6C-J classifies source-data
+/// validity as a scoped witness, not a valid/stale/dirty FSM:
+/// replica-exists ≠ source-data-valid ≠ restore-usable.
+/// Declaration is not data validity. Usable stays no (6C-K).
 struct CapacityRestore {
   std::string object;
   std::string kind = "TRANSFER";
   bool valid = false;
   std::string reason;
+  bool replicaExists = false;
+  std::string replica = "n/a";
+  std::string witness = "n/a";
+  std::string scope = "n/a";
   bool sourceData = false;
   std::string sourceDataReason;
+  bool usable = false;
 };
 
 struct CapacityCandidate {

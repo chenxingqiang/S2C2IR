@@ -7,8 +7,10 @@ query FROZEN; 6C-E `s0` selection FROZEN; 6C-F
 gate FROZEN (`rewrite-license=no`); 6C-H TRANSFER restore
 records FROZEN; 6C-I license predicate FROZEN
 (`necessary` ≠ `sufficient`, still `rewrite-license=no`);
-6C-J classifies source-data validity (still not
-sufficient, still `rewrite-license=no`). 5A–6B is the **stable
+6C-J classifies scoped source-data validity
+(`replica-exists` ≠ `source-data-valid` ≠ `usable`;
+token = validity witness; no valid/stale/dirty FSM;
+still not sufficient, still `rewrite-license=no`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
@@ -25,8 +27,8 @@ Do not expand the 6C-B diagnostic surface. Do not
 FileCheck microseconds.
 
 ```text
-Goal     freeze source-data validity as a sufficient conjunct; still not sufficient, still no license
-Not      an eviction rewrite, a yes-license, IR alias analysis, or a device campaign
+Goal     freeze scoped source-data validity as a sufficient prerequisite; still not sufficient, still no license
+Not      an eviction rewrite, a yes-license, a validity FSM, restore ordering, or a device campaign
 Rewrite  still only from an existing capability license
 ```
 
@@ -78,9 +80,9 @@ EVICT → TRANSFER restore       ← 6C-H frozen (candidate semantics)
    ↓
 license predicate              ← 6C-I frozen (necessary ≠ sufficient; still no)
    ↓
-source-data validity           ← this cut (still not sufficient; still no)
+source-data validity           ← this cut (scoped witness; usable=no; still no)
    ↓
-restore ordering               ← not this cut
+restore ordering               ← 6C-K, not this cut
    ↓
 dest invalidation              ← not this cut
    ↓
@@ -269,9 +271,11 @@ EVICT → TRANSFER restore        ← FROZEN (6C-H)
    ↓
 license predicate               ← FROZEN (6C-I; still no)
    ↓
-source-data validity            ← this cut (6C-J; still not sufficient)
+source-data validity            ← this cut (6C-J; scoped witness; usable=no)
    ↓
-restore ordering / dest invalidation / rewrite path
+restore ordering                ← 6C-K, not this cut
+   ↓
+dest invalidation / rewrite path
    ↓
 eviction / rematerialize rewrite
 ```
@@ -595,7 +599,7 @@ Still **not** sufficient until every conjunct is proven.
 6C-J classifies `source-data`; the other three stay `no`:
 
 ```text
-source-data          restore source contents are live and unmutated
+source-data          scoped replica has a validity witness covering occupancy
 restore-ordering     TRANSFER is sequenced relative to uses
 dest-invalidation    fast-space copy is dropped without stale reads
 rewrite-path         an IR rewrite exists and is applied
@@ -623,18 +627,55 @@ no `--dump-capacity-license`, no `applySchedule()`, no
 
 ## Source-data validity (6C-J, this cut)
 
-A declared restore source is **not** a proof that the
-slower-space replica is live and unmutated over occupancy.
-This cut classifies that proof as a query-only record on
-each EVICT restore. It does **not** issue
-`rewrite-license=yes`. `CapacityPlan.rewriteLicense` stays
-`false`. 6C-G license print and 6C-H restore print lines
-stay frozen.
+A declared restore source is **not** a proof that that
+replica currently holds a semantically usable value.
+This cut classifies a scoped validity witness as a
+query-only record on each EVICT restore. It does **not**
+issue `rewrite-license=yes`. `CapacityPlan.rewriteLicense`
+stays `false`. 6C-G license print and 6C-H restore print
+lines stay frozen.
+
+Three concepts stay distinct:
+
+```text
+source replica exists
+        ≠
+source-data valid
+        ≠
+source usable for restore
+```
+
+`has-source-replica` is the 6C-H declaration. It is not
+`source-data-valid`. `usable` stays **no** this cut
+(restore-at-the-required-point is 6C-K).
+
+No implicit validity FSM:
+
+```text
+valid/stale/dirty FSM     ❌
+token = validity witness  ✅
+unknown → no rewrite
+```
+
+The proof reports what the occupancy spec can show.
+Unknown witness or unknown scope classifies as no; it
+does not invent a stale/dirty state.
+
+Scope is explicit. An SSD replica on object A is not
+automatically the current semantic value of A:
+
+```text
+source object            = occupancy id
+source replica           = restore_sources.space (ssd|host)
+source validity witness  = source_data.witness
+applicability scope      = source_data.scope
+```
 
 ```text
 prefix           s2c2-capacity-sourcedata
 schema           s2c2.capacity_sourcedata.v1
 sufficient       no
+usable           no   (EVICT) / n/a (none, all-KEEP)
 rewrite-license  no
 rewrite          no
 ```
@@ -644,34 +685,53 @@ not a new \(F\) member):
 
 ```text
 object    occupancy id (tileN normalizes to N)
+replica   ssd|host; must match restore_sources.space
+witness   token; accepted this stage: spec-unmutated-cover
 live      [start, end) covering occupancy live
-mutated   bool; true is not valid source data
+scope     token; accepted this stage: occupancy-live
 ```
 
-Per-EVICT classification, after the 6C-H restore record:
+Extra keys are rejected. Other witness/scope values parse
+and classify as `unknown-witness` / `unknown-scope`. They
+do not open a validity FSM.
+
+Per-EVICT classification, after the 6C-H restore record
+(`valid`/`reason` stay source-declaration):
 
 ```text
-!restore source          source-data=no  reason=no-source-replica
-no source_data row       source-data=no  reason=no-liveness-proof
-mutated=true             source-data=no  reason=mutated-replica
-live does not cover occ  source-data=no  reason=interval-does-not-cover
-else                     source-data=yes reason=live-unmutated-replica
+!restore source              replica-exists=no  source-data=no  usable=no
+                             replica/witness/scope = n/a
+                             reason=no-source-replica
+restore, no source_data      replica-exists=yes source-data=no  usable=no
+                             replica=<restore space> witness=n/a scope=n/a
+                             reason=no-validity-witness
+replica space mismatch       replica-exists=yes source-data=no  usable=no
+                             reason=replica-scope-mismatch
+witness ≠ spec-unmutated-cover  reason=unknown-witness
+scope ≠ occupancy-live          reason=unknown-scope
+live does not cover occupancy   reason=interval-does-not-cover
+else                         replica-exists=yes source-data=yes usable=no
+                             reason=witnessed-unmutated-cover
 ```
 
 Coverage is `proof.start <= occ.start && proof.end >= occ.end`.
 Occupancy IR has no restore sources and no proofs.
 Existing transfer-restore fixture has sources but no
-`source_data`, so `closed=yes` and `source-data=no`.
+`source_data`, so `closed=yes` and
+`source-data=no reason=no-validity-witness`.
 Fixture
 [`v3-dataset/storage-capacity-4tile-source-data.jsonl`](v3-dataset/storage-capacity-4tile-source-data.jsonl)
-adds unmutated proofs for tiles 0, 1, and 2;
-\(F_{\mathrm{capacity}}\) is unchanged.
+adds scoped `spec-unmutated-cover` witnesses on the SSD
+replica for tiles 0, 1, and 2; \(F_{\mathrm{capacity}}\)
+is unchanged.
 
 ```text
-selected=none                         source-data=n/a
-all-KEEP (no EVICT)                   source-data=n/a
-EVICT, no source / no proof           source-data=no
-EVICT, live unmutated replica         source-data=yes
+selected=none                         source-data=n/a replica-exists=n/a usable=n/a
+all-KEEP (no EVICT)                   source-data=n/a replica-exists=n/a usable=n/a
+EVICT, no source replica              replica-exists=no  source-data=no usable=no
+EVICT, replica exists, no witness     replica-exists=yes source-data=no usable=no
+EVICT, witnessed unmutated cover      replica-exists=yes source-data=yes usable=no
+source-data=yes                       ≠  usable=yes
 source-data=yes ∧ restore-ordering=no ≠  sufficient=yes
 sufficient=no                         ≠  rewrite-license=yes
 ```
@@ -690,6 +750,9 @@ Diagnostic `--capacity` does not print it.
 ```text
 eviction rewrite / HB A/B
 opening rewrite-license=yes
+valid/stale/dirty FSM
+opening 6C-K restore ordering
+F_storage_schedule
 rematerialize rewrite
 new Capability matrix
 new hardware campaign

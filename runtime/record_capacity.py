@@ -4,12 +4,11 @@
 Host witness for F_capacity, CapacityPlan identity, query,
 s0 selection, measured-capacity-v1 ArgMin, the capacity
 rewrite-license gate, EVICT→TRANSFER restore records, the
-structured license predicate, and source-data validity.
-Duplicate scoped identity is rejected. Equal times pick
-the earliest F_capacity inhabitant. Necessary conjuncts
-are classified; source-data may be yes while sufficient
-proof is still missing. The gate result is still no.
-Do not FileCheck microseconds.
+structured license predicate, and scoped source-data
+validity. replica-exists ≠ source-data-valid ≠ usable.
+Token = validity witness; no valid/stale/dirty FSM.
+source-data=yes is still not sufficient. The gate is still
+no. Do not FileCheck microseconds.
 """
 
 from __future__ import annotations
@@ -34,7 +33,9 @@ SPEC_FIELDS = (
 )
 OPTIONAL_SPEC_FIELDS = ("restore_sources", "source_data")
 RESTORE_SRC_FIELDS = ("object", "space", "kind")
-SOURCE_DATA_FIELDS = ("object", "live", "mutated")
+SOURCE_DATA_FIELDS = ("object", "replica", "witness", "live", "scope")
+SOURCE_WITNESS = "spec-unmutated-cover"
+SOURCE_SCOPE = "occupancy-live"
 
 RES_FIELDS = (
     "id",
@@ -409,9 +410,18 @@ def print_sourcedata_contract() -> int:
     print("capacity-sourcedata gate=query")
     print("schema s2c2.capacity_sourcedata.v1")
     print("source-declaration-ne-data-validity yes")
+    print("replica-exists-ne-data-validity yes")
+    print("source-data-ne-usable yes")
+    print("token-eq-validity-witness yes")
+    print("no-validity-fsm yes")
     print("rewrite-license no")
+    print("note replica-exists-ne-data-validity")
     print("note source-declaration-ne-data-validity")
+    print("note source-data-ne-usable")
+    print("note token-eq-validity-witness")
+    print("note no-validity-fsm")
     print("note closed-ne-data-valid")
+    print("note unknown-ne-rewrite")
     print("note source-data-ne-sufficient")
     print("note restore-source-ne-ordering")
     print("note restore-source-ne-invalidation")
@@ -428,6 +438,34 @@ def print_sourcedata_contract() -> int:
     return 0
 
 
+def _replica_exists_status(sel: dict[str, Any] | None) -> str:
+    if sel is None:
+        return "n/a"
+    evict = list(sel.get("evict") or [])
+    if not evict:
+        return "n/a"
+    restores = list(sel.get("restores") or [])
+    any_ex = False
+    all_ex = bool(restores) and len(restores) == len(evict)
+    for r in restores:
+        exists = bool(r.get("replica_exists"))
+        any_ex = any_ex or exists
+        all_ex = all_ex and exists
+    if all_ex:
+        return "yes"
+    if any_ex:
+        return "mixed"
+    return "no"
+
+
+def _usable_status(sel: dict[str, Any] | None) -> str:
+    if sel is None:
+        return "n/a"
+    if not list(sel.get("evict") or []):
+        return "n/a"
+    return "no"
+
+
 def print_capacity_sourcedata(plan: dict[str, Any]) -> None:
     selected = str(plan.get("selected") or "none")
     sel = None
@@ -440,19 +478,33 @@ def print_capacity_sourcedata(plan: dict[str, Any]) -> None:
     evict = list(sel.get("evict") or []) if sel else []
     restores = list(sel.get("restores") or []) if sel else []
     print("capacity-sourcedata schema=s2c2.capacity_sourcedata.v1")
-    print(f"capacity-sourcedata selected={selected} source-data={status}")
+    print(
+        f"capacity-sourcedata selected={selected} source-data={status} "
+        f"replica-exists={_replica_exists_status(sel)} "
+        f"usable={_usable_status(sel)}"
+    )
     if sel is not None and not evict:
         print("capacity-sourcedata restore=unused")
     if sel is not None and evict:
         for r in restores:
-            data = "yes" if r.get("source_data") else "no"
             print(
                 f"capacity-sourcedata object={r['object']} "
-                f"source-data={data} reason={r.get('source_data_reason')}"
+                f"replica={r.get('replica', 'n/a')} "
+                f"witness={r.get('witness', 'n/a')} "
+                f"scope={r.get('scope', 'n/a')} "
+                f"replica-exists={'yes' if r.get('replica_exists') else 'no'} "
+                f"source-data={'yes' if r.get('source_data') else 'no'} "
+                f"usable={'yes' if r.get('usable') else 'no'} "
+                f"reason={r.get('source_data_reason')}"
             )
     print("capacity-sourcedata rewrite-license=no")
+    print("capacity-sourcedata note replica-exists-ne-data-validity")
     print("capacity-sourcedata note source-declaration-ne-data-validity")
+    print("capacity-sourcedata note source-data-ne-usable")
+    print("capacity-sourcedata note token-eq-validity-witness")
+    print("capacity-sourcedata note no-validity-fsm")
     print("capacity-sourcedata note closed-ne-data-valid")
+    print("capacity-sourcedata note unknown-ne-rewrite")
     print("capacity-sourcedata note source-data-ne-sufficient")
     print("capacity-sourcedata note restore-source-ne-ordering")
     print("capacity-sourcedata note restore-source-ne-invalidation")
@@ -574,14 +626,17 @@ def _load_spec(path: Path) -> dict[str, Any]:
             if oid not in occupancy:
                 raise ValueError("source_data not in occupancy")
             live = rec.get("live")
+            replica = rec.get("replica")
+            if replica not in ("ssd", "host"):
+                raise ValueError("source_data replica must be ssd or host")
+            if not rec.get("witness") or not rec.get("scope"):
+                raise ValueError("source_data witness and scope required")
             if (
                 not isinstance(live, list)
                 or len(live) != 2
                 or int(live[0]) >= int(live[1])
             ):
                 raise ValueError("source_data live must be [start, end)")
-            if not isinstance(rec.get("mutated"), bool):
-                raise ValueError("source_data mutated required")
             if oid in seen_data:
                 raise ValueError("duplicate source_data")
             seen_data.add(oid)
@@ -605,11 +660,11 @@ def _object_id(rec: dict[str, Any]) -> str:
     return _tile_key(str(rec["object"]))
 
 
-def _restore_sources(spec: dict[str, Any]) -> set[str]:
+def _restore_sources(spec: dict[str, Any]) -> dict[str, str]:
     raw = spec.get("restore_sources") or []
-    out: set[str] = set()
+    out: dict[str, str] = {}
     for rec in raw:
-        out.add(_tile_key(str(rec["object"])))
+        out[_tile_key(str(rec["object"]))] = str(rec["space"])
     return out
 
 
@@ -629,50 +684,69 @@ def _source_data_proofs(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
         oid = _tile_key(str(rec["object"]))
         live = rec["live"]
         out[oid] = {
+            "replica": str(rec["replica"]),
+            "witness": str(rec["witness"]),
+            "scope": str(rec["scope"]),
             "start": int(live[0]),
             "end": int(live[1]),
-            "mutated": bool(rec["mutated"]),
         }
     return out
 
 
 def _attach_restores(
     evict: list[str],
-    sources: set[str],
+    sources: dict[str, str],
     occ_live: dict[str, tuple[int, int]],
     proofs: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     restores = []
     for e in evict:
-        valid = e in sources
+        replica_exists = e in sources
+        replica = sources[e] if replica_exists else "n/a"
+        witness = "n/a"
+        scope = "n/a"
         source_data = False
-        if not valid:
+        if not replica_exists:
             source_data_reason = "no-source-replica"
         else:
             proof = proofs.get(e)
             if proof is None:
-                source_data_reason = "no-liveness-proof"
-            elif proof["mutated"]:
-                source_data_reason = "mutated-replica"
+                source_data_reason = "no-validity-witness"
             else:
-                occ = occ_live.get(e)
-                if (
-                    occ is None
-                    or proof["start"] > occ[0]
-                    or proof["end"] < occ[1]
-                ):
-                    source_data_reason = "interval-does-not-cover"
+                witness = proof["witness"]
+                scope = proof["scope"]
+                if proof["replica"] != replica:
+                    source_data_reason = "replica-scope-mismatch"
+                elif proof["witness"] != SOURCE_WITNESS:
+                    source_data_reason = "unknown-witness"
+                elif proof["scope"] != SOURCE_SCOPE:
+                    source_data_reason = "unknown-scope"
                 else:
-                    source_data = True
-                    source_data_reason = "live-unmutated-replica"
+                    occ = occ_live.get(e)
+                    if (
+                        occ is None
+                        or proof["start"] > occ[0]
+                        or proof["end"] < occ[1]
+                    ):
+                        source_data_reason = "interval-does-not-cover"
+                    else:
+                        source_data = True
+                        source_data_reason = "witnessed-unmutated-cover"
         restores.append(
             {
                 "object": e,
                 "kind": "TRANSFER",
-                "valid": valid,
-                "reason": "has-source-replica" if valid else "no-source-replica",
+                "valid": replica_exists,
+                "reason": (
+                    "has-source-replica" if replica_exists else "no-source-replica"
+                ),
+                "replica_exists": replica_exists,
+                "replica": replica,
+                "witness": witness,
+                "scope": scope,
                 "source_data": source_data,
                 "source_data_reason": source_data_reason,
+                "usable": False,
             }
         )
     return restores

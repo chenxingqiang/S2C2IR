@@ -92,8 +92,9 @@ object (candidate semantics; closed restore still does
 not issue a license). 6C-I classifies the structured
 license predicate on that restore (`necessary` vs
 `sufficient`; still `rewrite-license=no`). 6C-J classifies
-source-data validity (`source-data=yes` is still not
-sufficient). Eviction rewrite stays closed. Post-6C-I
+scoped source-data validity (`replica-exists` ≠
+`source-data-valid` ≠ `usable`; token = validity witness;
+`source-data=yes` is still not sufficient). Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Do **not** open \(F_{\mathrm{storage\_schedule}}\) or a

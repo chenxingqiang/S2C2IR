@@ -52,6 +52,9 @@
 // source. Still not a rewrite license.
 // 6C-I classifies a structured license predicate: necessary
 // conjuncts versus still-missing sufficient proof. Still no.
+// 6C-J classifies scoped source-data validity
+// (replica-exists ≠ data-valid ≠ usable). Token =
+// validity witness; no valid/stale/dirty FSM. Still no.
 // Phase 6C-C materializes CapacityPlan as the compiler-visible
 // candidate object (selected=none on the diagnostic path).
 //
@@ -2941,13 +2944,18 @@ static std::string normalizeCapacityObject(StringRef name) {
 }
 
 struct CapSourceDataProof {
+  std::string replica;
+  std::string witness;
+  std::string scope;
   int start = 0;
   int end = 0;
-  bool mutated = true;
 };
 
+static constexpr llvm::StringLiteral kSourceWitness{"spec-unmutated-cover"};
+static constexpr llvm::StringLiteral kSourceScope{"occupancy-live"};
+
 static void attachCapacityRestores(
-    CapacityCandidate &cc, const llvm::StringSet<> &restoreSources,
+    CapacityCandidate &cc, const llvm::StringMap<std::string> &restoreSources,
     ArrayRef<CapResidency> rs,
     const llvm::StringMap<CapSourceDataProof> &sourceData) {
   llvm::StringMap<std::pair<int, int>> occLive;
@@ -2958,25 +2966,41 @@ static void attachCapacityRestores(
     CapacityRestore rec;
     rec.object = e;
     rec.kind = "TRANSFER";
-    rec.valid = restoreSources.contains(e);
+    auto srcIt = restoreSources.find(e);
+    rec.replicaExists = srcIt != restoreSources.end();
+    rec.valid = rec.replicaExists;
     rec.reason = rec.valid ? "has-source-replica" : "no-source-replica";
     rec.sourceData = false;
-    if (!rec.valid) {
+    rec.usable = false;
+    rec.replica = "n/a";
+    rec.witness = "n/a";
+    rec.scope = "n/a";
+    if (!rec.replicaExists) {
       rec.sourceDataReason = "no-source-replica";
     } else {
+      rec.replica = srcIt->second;
       auto it = sourceData.find(e);
       if (it == sourceData.end()) {
-        rec.sourceDataReason = "no-liveness-proof";
-      } else if (it->second.mutated) {
-        rec.sourceDataReason = "mutated-replica";
+        rec.sourceDataReason = "no-validity-witness";
       } else {
-        auto liveIt = occLive.find(e);
-        if (liveIt == occLive.end() || it->second.start > liveIt->second.first ||
-            it->second.end < liveIt->second.second) {
-          rec.sourceDataReason = "interval-does-not-cover";
+        rec.witness = it->second.witness;
+        rec.scope = it->second.scope;
+        if (it->second.replica != rec.replica) {
+          rec.sourceDataReason = "replica-scope-mismatch";
+        } else if (it->second.witness != kSourceWitness) {
+          rec.sourceDataReason = "unknown-witness";
+        } else if (it->second.scope != kSourceScope) {
+          rec.sourceDataReason = "unknown-scope";
         } else {
-          rec.sourceData = true;
-          rec.sourceDataReason = "live-unmutated-replica";
+          auto liveIt = occLive.find(e);
+          if (liveIt == occLive.end() ||
+              it->second.start > liveIt->second.first ||
+              it->second.end < liveIt->second.second) {
+            rec.sourceDataReason = "interval-does-not-cover";
+          } else {
+            rec.sourceData = true;
+            rec.sourceDataReason = "witnessed-unmutated-cover";
+          }
         }
       }
     }
@@ -2987,7 +3011,7 @@ static void attachCapacityRestores(
 static FailureOr<CapacityPlan>
 buildCapacityPlan(ArrayRef<CapResidency> rs, Space space, int cap, int peak,
                   bool truncated, ArrayRef<CapCandidate> cands,
-                  const llvm::StringSet<> &restoreSources,
+                  const llvm::StringMap<std::string> &restoreSources,
                   const llvm::StringMap<CapSourceDataProof> &sourceData) {
   CapacityPlan plan;
   plan.space = spaceName(space).str();
@@ -3140,6 +3164,11 @@ static llvm::json::Object capacityPlanToJson(const CapacityPlan &plan) {
       rec["reason"] = r.reason;
       rec["source_data"] = r.sourceData;
       rec["source_data_reason"] = r.sourceDataReason;
+      rec["replica_exists"] = r.replicaExists;
+      rec["replica"] = r.replica;
+      rec["witness"] = r.witness;
+      rec["scope"] = r.scope;
+      rec["usable"] = r.usable;
       restores.push_back(std::move(rec));
     }
     obj["restores"] = std::move(restores);
@@ -3234,7 +3263,8 @@ static LogicalResult loadCapacitySpec(StringRef path,
                                       SmallVectorImpl<CapResidency> &out,
                                       Space &space, int &cap,
                                       std::string *workloadClass = nullptr,
-                                      llvm::StringSet<> *restoreSources = nullptr,
+                                      llvm::StringMap<std::string> *restoreSources =
+                                          nullptr,
                                       llvm::StringMap<CapSourceDataProof> *sourceData =
                                           nullptr) {
   std::string resolved = resolveExistingPath(path, {});
@@ -3407,7 +3437,7 @@ static LogicalResult loadCapacitySpec(StringRef path,
           return failure();
         }
         if (restoreSources)
-          restoreSources->insert(id);
+          (*restoreSources)[id] = spaceS->str();
       }
     }
     if (obj->get("source_data")) {
@@ -3419,8 +3449,10 @@ static LogicalResult loadCapacitySpec(StringRef path,
       }
       llvm::StringSet<> dataOk;
       dataOk.insert("object");
+      dataOk.insert("replica");
       dataOk.insert("live");
-      dataOk.insert("mutated");
+      dataOk.insert("witness");
+      dataOk.insert("scope");
       llvm::StringSet<> seenData;
       for (const llvm::json::Value &item : *proofs) {
         auto *rec = item.getAsObject();
@@ -3445,6 +3477,19 @@ static LogicalResult loadCapacitySpec(StringRef path,
               << "s2c2-storage-capacity: source_data not in occupancy\n";
           return failure();
         }
+        auto replica = rec->getString("replica");
+        if (!replica || (*replica != "ssd" && *replica != "host")) {
+          llvm::errs() << "s2c2-storage-capacity: source_data replica must "
+                          "be ssd or host\n";
+          return failure();
+        }
+        auto witness = rec->getString("witness");
+        auto scope = rec->getString("scope");
+        if (!witness || !scope) {
+          llvm::errs() << "s2c2-storage-capacity: source_data witness and "
+                          "scope required\n";
+          return failure();
+        }
         auto *live = rec->getArray("live");
         if (!live || live->size() != 2) {
           llvm::errs()
@@ -3458,19 +3503,20 @@ static LogicalResult loadCapacitySpec(StringRef path,
               << "s2c2-storage-capacity: source_data live must be [start, end)\n";
           return failure();
         }
-        auto mutated = rec->getBoolean("mutated");
-        if (!mutated) {
-          llvm::errs()
-              << "s2c2-storage-capacity: source_data mutated required\n";
-          return failure();
-        }
         if (!seenData.insert(id).second) {
           llvm::errs()
               << "s2c2-storage-capacity: duplicate source_data\n";
           return failure();
         }
-        if (sourceData)
-          (*sourceData)[id] = CapSourceDataProof{(int)*s0, (int)*s1, *mutated};
+        if (sourceData) {
+          CapSourceDataProof proof;
+          proof.replica = replica->str();
+          proof.witness = witness->str();
+          proof.scope = scope->str();
+          proof.start = (int)*s0;
+          proof.end = (int)*s1;
+          (*sourceData)[id] = proof;
+        }
       }
     }
   }
@@ -3533,7 +3579,7 @@ computeCapacityPlan(ModuleOp module, StringRef budgetStr, StringRef specPath,
   SmallVector<CapResidency, 8> rs;
   space = Space::HBM;
   cap = 0;
-  llvm::StringSet<> restoreSources;
+  llvm::StringMap<std::string> restoreSources;
   llvm::StringMap<CapSourceDataProof> sourceData;
   if (workloadClass)
     *workloadClass = std::string(kCapacityIrWorkload);
@@ -4057,24 +4103,57 @@ static StringRef sourceDataOf(const CapacityCandidate *sel) {
   return allData ? "yes" : "no";
 }
 
+static StringRef replicaExistsOf(const CapacityCandidate *sel) {
+  if (!sel || sel->evict.empty())
+    return "n/a";
+  bool any = false;
+  bool all = !sel->restores.empty() && sel->restores.size() == sel->evict.size();
+  for (const CapacityRestore &r : sel->restores) {
+    any = any || r.replicaExists;
+    all = all && r.replicaExists;
+  }
+  if (all)
+    return "yes";
+  if (any)
+    return "mixed";
+  return "no";
+}
+
+static StringRef usableOf(const CapacityCandidate *sel) {
+  if (!sel || sel->evict.empty())
+    return "n/a";
+  return "no";
+}
+
 static void printCapacitySourceData(const CapacityPlan &plan) {
   const CapacityCandidate *sel = selectedCapacityCandidate(plan);
   StringRef status = sourceDataOf(sel);
   llvm::errs() << "s2c2-capacity-sourcedata schema=s2c2.capacity_sourcedata.v1\n";
   llvm::errs() << "s2c2-capacity-sourcedata selected=" << plan.selected
-               << " source-data=" << status << "\n";
+               << " source-data=" << status
+               << " replica-exists=" << replicaExistsOf(sel)
+               << " usable=" << usableOf(sel) << "\n";
   if (sel && sel->evict.empty())
     llvm::errs() << "s2c2-capacity-sourcedata restore=unused\n";
   if (sel && !sel->evict.empty()) {
     for (const CapacityRestore &r : sel->restores) {
       llvm::errs() << "s2c2-capacity-sourcedata object=" << r.object
+                   << " replica=" << r.replica << " witness=" << r.witness
+                   << " scope=" << r.scope
+                   << " replica-exists=" << (r.replicaExists ? "yes" : "no")
                    << " source-data=" << (r.sourceData ? "yes" : "no")
+                   << " usable=" << (r.usable ? "yes" : "no")
                    << " reason=" << r.sourceDataReason << "\n";
     }
   }
   llvm::errs() << "s2c2-capacity-sourcedata rewrite-license=no\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note replica-exists-ne-data-validity\n";
   llvm::errs() << "s2c2-capacity-sourcedata note source-declaration-ne-data-validity\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note source-data-ne-usable\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note token-eq-validity-witness\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note no-validity-fsm\n";
   llvm::errs() << "s2c2-capacity-sourcedata note closed-ne-data-valid\n";
+  llvm::errs() << "s2c2-capacity-sourcedata note unknown-ne-rewrite\n";
   llvm::errs() << "s2c2-capacity-sourcedata note source-data-ne-sufficient\n";
   llvm::errs() << "s2c2-capacity-sourcedata note restore-source-ne-ordering\n";
   llvm::errs() << "s2c2-capacity-sourcedata note restore-source-ne-invalidation\n";

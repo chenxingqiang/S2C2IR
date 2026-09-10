@@ -122,6 +122,9 @@ Source-data proofs (optional, not occupancy, not a new
 \(F\) member):
 [`storage-capacity-4tile-source-data.jsonl`](storage-capacity-4tile-source-data.jsonl).
 Same \(F_{\mathrm{capacity}}\); `source-data=yes` still
-`sufficient=no` `rewrite-license=no`. Check with
+`usable=no` `sufficient=no` `rewrite-license=no`. Replica
+scope is explicit (`replica=ssd`,
+`witness=spec-unmutated-cover`, `scope=occupancy-live`).
+Check with
 `python3 runtime/record_capacity.py --print-capacity-sourcedata-contract`.
 
