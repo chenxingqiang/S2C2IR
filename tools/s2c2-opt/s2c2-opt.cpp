@@ -44,7 +44,8 @@ int main(int argc, char **argv) {
   // still injects the schedule pass (frozen 6C-B/C diagnostics).
   bool wantsQuery = argvHas(argc, argv, "--query-capacity-plan") ||
                     argvHas(argc, argv, "--s2c2-capacity-plan-query") ||
-                    argvHas(argc, argv, "--capacity-policy");
+                    argvHas(argc, argv, "--capacity-policy") ||
+                    argvHas(argc, argv, "--measured-capacity-table");
   bool wantsScheduleExplicit =
       argvHas(argc, argv, "--schedule-policy") ||
       argvHas(argc, argv, "--explain") ||

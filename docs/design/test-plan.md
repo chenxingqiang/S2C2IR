@@ -967,7 +967,7 @@ Do not FileCheck microseconds.
 | SB-2 | same | Evidence DB still unique E; 6A `--schedule-policy=default-3g` is `rewrite=no` |
 | SB-3 | same | no `sched.wait`; no FileCheck of microseconds |
 
-## Capacity-aware residency (Phase 6C, design + diagnostics + candidate object + query + selection)
+## Capacity-aware residency (Phase 6C, design + diagnostics + candidate object + query + selection + measured ranking)
 
 **Not Cost v0.4.** Design:
 [`storage-capacity.md`](storage-capacity.md). Freezes
@@ -977,13 +977,16 @@ realization. 6C-B diagnostics are **FROZEN**: the same
 candidates from `s2c2-opt --capacity` / `--capacity-spec`.
 IR auto-discovery is tile-count occupancy (`size=1`), not
 a byte allocator and not alias analysis. No rewrite, no
-ranking, no `measured-capacity-v1`, no hardware campaign.
-5A–6B stay frozen. Do not expand the 6C-B diagnostic surface.
-6C-C adds compiler-visible `CapacityPlan` (`selected=none`,
-`rewrite-license=no`). 6C-D exposes that object as
-`--query-capacity-plan` without running the schedule pass.
-6C-E adds `--capacity-policy=s0` on that consumer
-(`rewrite-license=no`). Do not FileCheck microseconds.
+hardware campaign. 5A–6B stay frozen. Do not expand the
+6C-B diagnostic surface. 6C-C adds compiler-visible
+`CapacityPlan` (`selected=none`, `rewrite-license=no`).
+6C-D exposes that object as `--query-capacity-plan`
+without running the schedule pass. 6C-E adds
+`--capacity-policy=s0` on that consumer
+(`rewrite-license=no`). 6C-F ranks enumerated
+\(F_{\mathrm{capacity}}\) under scoped `measured-capacity-v1`
+(\(P,W,c\); ArgMin; still `rewrite-license=no`). Do not FileCheck
+microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -1008,9 +1011,16 @@ ranking, no `measured-capacity-v1`, no hardware campaign.
 | 6C-D-5 | same | `--query-capacity-plan` + `--schedule-policy` still `selected=none`; query does not rewrite |
 | 6C-E-1 | same | `--print-capacity-policy-contract`; `s0=first(F_capacity)`; `rewrite-license=no` |
 | 6C-E-2 | same | host/compiler `--capacity-policy=s0` selects `keep{0,1}\|evict{2}\|rematerialize{}`; other identities remain |
-| 6C-E-3 | same | fit all-KEEP selected; truncated cannot be selected; unknown / `measured-capacity-v1` rejected |
+| 6C-E-3 | same | fit all-KEEP selected; truncated cannot be selected; unknown rejected; measured-capacity-v1 needs a table |
 | 6C-E-4 | same | `--capacity-policy=s0` injects query not schedule; dump JSON `selected` is the identity |
 | 6C-E-5 | same | query+schedule: query selected=s0, 6C-C dump still `selected=none`; no rewrite license |
+| 6C-F-1 | same | `--print-measured-capacity-contract`; ranking-only; `rewrite-license=no`; no microseconds |
+| 6C-F-2 | same | 4-tile table ArgMin coincides with s0; extra identity does not expand F |
+| 6C-F-3 | same | synthetic table ArgMin ≠ s0 (`keep{1,2}\|evict{0}`); still `rewrite=no` |
+| 6C-F-4 | same | one usable record / truncated plan cannot rank; dump JSON policy=`measured-capacity-v1` |
+| 6C-F-5 | same | query+schedule: query selected from measured, 6C-C dump still `selected=none` |
+| 6C-F-6 | same | wrong-profile / wrong-workload records ignored (`measured-needs-two-records`) |
+| 6C-F-7 | same | same candidate + same profile + different workload cannot steal ArgMin |
 
 ## Complete SSD + MLP program wall-clock
 

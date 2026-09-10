@@ -509,11 +509,17 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     then prints `s2c2-capacity-plan-query` plus one
     `s2c2.capacity_plan.v1` JSON object. Does **not** apply a
     schedule, load Evidence DB, emit `s2c2-storage-capacity`, or
-    issue a rewrite license. Default `selected` is `none`.
+    issue a rewrite license.     Default `selected` is `none`.
     Optional `capacity-policy=s0` selects first(F_capacity)
-    (evict incoming at t*). Selection is not a rewrite license.
-    Truncated plans cannot be selected. This is not
-    `measured-capacity-v1`. 6C-B diagnostics stay frozen.
+    (evict incoming at t*). Optional
+    `capacity-policy=measured-capacity-v1` ranks enumerated
+    F_capacity under scoped `s2c2.measured_capacity_cost.v1`
+    records (`measured-capacity-table`). Matcher is
+    profile + workload_class + candidate_identity, then
+    measured=yes and correctness=1. ArgMin is selection
+    only; not a rewrite license. Truncated plans cannot be
+    selected. Do not FileCheck microseconds. 6C-B
+    diagnostics stay frozen.
   }];
   let dependentDialects = [
     "mlir::s2c2::stor::StorageDialect",
@@ -529,7 +535,10 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
            "Write s2c2.capacity_plan.v1 JSON to this path.">,
     Option<"capacityPolicy", "capacity-policy", "std::string",
            /*default=*/"\"\"",
-           "Selection over F_capacity: none|s0. Not a rewrite license.">
+           "Selection over F_capacity: none|s0|measured-capacity-v1.">,
+    Option<"measuredCapacityTable", "measured-capacity-table", "std::string",
+           /*default=*/"\"\"",
+           "JSONL of s2c2.measured_capacity_cost.v1 (not a campaign log).">
   ];
 }
 

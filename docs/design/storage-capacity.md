@@ -1,9 +1,10 @@
-# Capacity-aware Residency (Phase 6C-E, selection consumer)
+# Capacity-aware Residency (Phase 6C-F, measured ranking)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
 FROZEN (`selected=none` on the diagnostic path); 6C-D
-query FROZEN; 6C-E opens named selection on the query
-consumer (`s0`; `rewrite-license=no`). 5A–6B is the **stable
+query FROZEN; 6C-E `s0` selection FROZEN; 6C-F opens
+`measured-capacity-v1` ranking on the query consumer
+(`rewrite-license=no`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
@@ -12,13 +13,14 @@ froze \(F_{\mathrm{capacity}}\). 6C-B
 wired diagnostics and is frozen. 6C-C
 ([PR #109](https://github.com/chenxingqiang/S2C2IR/pull/109))
 materialized the compiler-visible candidate object.
-This cut does **not** rewrite, does **not** open
-`measured-capacity-v1`, does **not** change
-`#69`, `cost-v04`, `default-3g`, or Evidence DB identity.
-5E stays closed. Do not expand the 6C-B diagnostic surface.
+This cut does **not** rewrite, does **not** issue a rewrite
+license, does **not** start a hardware campaign, and does
+**not** change `#69`, `cost-v04`, `default-3g`, or Evidence
+DB identity. 5E stays closed. Do not expand the 6C-B
+diagnostic surface. Do not FileCheck microseconds.
 
 ```text
-Goal     query consumer may select from F_capacity; not a rewrite
+Goal     rank enumerated F_capacity under measured-capacity-v1; not a rewrite
 Not      an eviction rewrite, a new Capability grid, or a device campaign
 Rewrite  still only from an existing capability license
 ```
@@ -30,7 +32,8 @@ F_capacity            ≠  F(program)          (4C product)
 capacity exceeded     ≠  must evict (this object)
 EVICT                 ≠  a semantic rewrite
 TRANSFER              ≠  a new 6C action (existing realization)
-measured-capacity-v1  ≠  this cut
+measured-capacity-v1  ≠  rewrite license
+s0                    ≠  measured-capacity-v1
 ```
 
 ## Why this cut
@@ -58,13 +61,24 @@ CapacityPlan (selected=none)   ← 6C-C frozen
    ↓
 query / consumer API           ← 6C-D frozen
    ↓
-policy / selection (s0)        ← this cut
+policy / selection (s0)        ← 6C-E frozen
+   ↓
+measured-capacity-v1 ranking   ← this cut
    ↓
 Rewrite License                ← not this cut
 Rewrite / HB                   ← not this cut
 ```
 
-This cut stops at the diagnostic report:
+This cut's consumer surface:
+
+```bash
+s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
+  --profile=fixture \
+  --capacity-policy=measured-capacity-v1 \
+  --measured-capacity-table=docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl
+```
+
+Frozen 6C-B diagnostics remain:
 
 ```bash
 s2c2-opt workload.mlir --capacity=hbm:2
@@ -217,7 +231,7 @@ IR in [`test/Integration/storage-capacity.mlir`](../../test/Integration/storage-
 Prefix `s2c2-storage-capacity`. Same three legal
 candidates. `rewrite=no`.
 
-## Later (6C-C frozen; rewrite not opened)
+## Later (6C-C–E frozen; rewrite not opened)
 
 ```text
 F_capacity diagnostics          ← FROZEN (6C-B)
@@ -226,7 +240,9 @@ compiler-visible CapacityPlan   ← FROZEN (6C-C)
    ↓
 query / consumer API            ← FROZEN (6C-D)
    ↓
-policy / selection              ← this cut (6C-E)
+policy / selection (s0)         ← FROZEN (6C-E)
+   ↓
+measured-capacity-v1 ranking    ← this cut (6C-F)
    ↓
 rewrite license                 ← not this cut
    ↓
@@ -264,7 +280,7 @@ rewrite = no
 `s2c2-opt --dump-capacity-plan=` writes
 `s2c2.capacity_plan.v1` JSON. It does **not** rewrite
 KEEP / EVICT / REMATERIALIZE. Evidence DB is unchanged.
-`measured-capacity-v1` is not opened.
+The diagnostic path does not rank.
 
 ## Query surface (6C-D frozen)
 
@@ -296,10 +312,10 @@ as 6C-C. Combining `--query-capacity-plan` with
 `--schedule-policy` runs both passes; the query pass does
 not rewrite, so the scheduler still sees input IR.
 
-This is **not** `measured-capacity-v1`. Eviction rewrite
-stays closed.
+This default query is **not** `measured-capacity-v1`.
+Eviction rewrite stays closed.
 
-## Selection consumer (6C-E this cut)
+## Selection consumer (6C-E frozen)
 
 The query API is the formal consumer of `F_capacity`.
 Named policy selects one enumerated candidate; it does
@@ -331,15 +347,66 @@ policy still prints `selected=none`. Combining with
 `--schedule-policy` runs both passes; the scheduler's
 `CapacityPlan` dump stays `selected=none`.
 
-`measured-capacity-v1` is rejected, not opened. Other
-candidates remain in the printed \(F_{\mathrm{capacity}}\);
-s0 is a name for candidate #0, not a collapse of F.
+`--capacity-policy=measured-capacity-v1` without
+`--measured-capacity-table` fails. Ranking is 6C-F.
+
+## Measured ranking (6C-F, this cut)
+
+Enumerated \(F_{\mathrm{capacity}}\) can now be ranked
+under scoped measured records (profile + workload +
+candidate). ArgMin is
+**selection only**. It does **not** issue a rewrite
+license and does **not** rewrite.
+
+```bash
+s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
+  --profile=fixture \
+  --capacity-policy=measured-capacity-v1 \
+  --measured-capacity-table=docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl
+```
+
+```text
+schema           s2c2.measured_capacity_cost.v1
+match            profile + workload_class + candidate_identity
+need             ≥2 scoped records with measured=yes and correctness=1
+ArgMin           M ∩ F_capacity  (F order; ties pick earliest)
+coincide-s0      yes iff selected == first(F_capacity)
+prefix           s2c2-capacity-measured
+rewrite-license  no
+rewrite          no
+```
+
+```text
+F_capacity → scoped measured capacity cost → ArgMin
+M = { r | r.profile=P ∧ r.workload=W ∧ r.candidate ∈ F_capacity
+          ∧ r.measured=yes ∧ r.correctness=1 }
+measurement cannot expand F
+wrong profile / wrong workload → ignored
+truncated || !enumerated → failure
+one usable record → measured-needs-two-records
+```
+
+`--measured-capacity-table` injects the query pass, not
+the schedule pass. Extra identities not in
+\(F_{\mathrm{capacity}}\) are ignored. Do **not** FileCheck
+microseconds. The tables under
+[`v3-dataset/`](v3-dataset/README.md) are fixtures, not a
+device campaign and not a new Evidence DB.
+
+On the 4-tile / capacity=2 witness, the fixture table
+selects `keep{0,1}|evict{2}|rematerialize{}`
+(`coincide-s0=yes`). A synthetic table selects
+`keep{1,2}|evict{0}|rematerialize{}` (`coincide-s0=no`),
+so ranking is not an alias of `s0`. Combined with
+`--schedule-policy`, query may select the measured winner
+while the scheduler `CapacityPlan` dump stays
+`selected=none`.
 
 ## Out of scope
 
 ```text
 eviction rewrite / HB A/B
-measured-capacity-v1
+measured-capacity rewrite license
 new Capability matrix
 new hardware campaign
 changing cost-v04 / default-3g / #69

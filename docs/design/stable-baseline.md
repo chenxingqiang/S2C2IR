@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B/C/D frozen; 6C-E selection is not a rewrite
+6C      Capacity-aware residency   ← design frozen; 6C-B/C/D/E frozen; 6C-F ranking is not a rewrite
 ```
 
 ```text
@@ -81,7 +81,9 @@ not alias analysis. 6C-C adds compiler-visible
 (consumer API; default `selected=none`). 6C-E lets that
 consumer apply `--capacity-policy=s0` (select
 first(\(F_{\mathrm{capacity}}\)); still not a rewrite).
-`measured-capacity-v1` and eviction rewrite stay closed.
+6C-F ranks enumerated \(F_{\mathrm{capacity}}\) under
+`measured-capacity-v1` (ArgMin; still not a rewrite).
+Eviction rewrite stays closed.
 
 When 6C is implemented, it is a new Storage problem class:
 
