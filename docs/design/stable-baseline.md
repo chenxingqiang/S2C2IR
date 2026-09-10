@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B–I frozen; 6C-J source-data is still no license
+6C      Capacity-aware residency   ← design frozen; 6C-B–I frozen; 6C-J source-data still no license; health check: architecture-healthcheck.md
 ```
 
 ```text
@@ -93,7 +93,11 @@ not issue a license). 6C-I classifies the structured
 license predicate on that restore (`necessary` vs
 `sufficient`; still `rewrite-license=no`). 6C-J classifies
 source-data validity (`source-data=yes` is still not
-sufficient). Eviction rewrite stays closed.
+sufficient). Eviction rewrite stays closed. Post-6C-I
+architecture diagnosis:
+[`architecture-healthcheck.md`](architecture-healthcheck.md).
+Do **not** open \(F_{\mathrm{storage\_schedule}}\) or a
+frontend from this freeze.
 
 When 6C is implemented, it is a new Storage problem class:
 

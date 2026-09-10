@@ -700,3 +700,12 @@ C||Storage flatten
 invented sibling sched.wait
 FileCheck of microseconds
 ```
+
+## After 6C-I
+
+Architecture health check (evaluator ≠ search engine;
+still no rewrite):
+[`architecture-healthcheck.md`](architecture-healthcheck.md).
+Does **not** open \(F_{\mathrm{storage\_schedule}}\), a
+frontend, or eviction rewrite. Sufficient proofs stay
+one conjunct per cut.
