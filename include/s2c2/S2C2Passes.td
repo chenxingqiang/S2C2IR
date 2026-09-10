@@ -509,7 +509,7 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     then prints `s2c2-capacity-plan-query` plus one
     `s2c2.capacity_plan.v1` JSON object. Does **not** apply a
     schedule, load Evidence DB, emit `s2c2-storage-capacity`, or
-    issue a rewrite license.     Default `selected` is `none`.
+    issue a rewrite license. Default `selected` is `none`.
     Optional `capacity-policy=s0` selects first(F_capacity)
     (evict incoming at t*). Optional
     `capacity-policy=measured-capacity-v1` ranks enumerated
@@ -519,9 +519,12 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     measured=yes and correctness=1. Duplicate scoped
     identity is `duplicate-measured-identity`. Equal times
     pick the earliest F_capacity inhabitant. ArgMin is
-    selection only; not a rewrite license. Truncated plans
-    cannot be selected. Do not FileCheck microseconds. 6C-B
-    diagnostics stay frozen.
+    selection only; not a rewrite license. Prints the 6C-G
+    capacity rewrite-license gate (`s2c2.capacity_license.v1`)
+    with result still `no`: selected is not a license; EVICT
+    requires a restore (`TRANSFER|REMATERIALIZE`). Truncated
+    plans cannot be selected. Do not FileCheck microseconds.
+    6C-B diagnostics stay frozen.
   }];
   let dependentDialects = [
     "mlir::s2c2::stor::StorageDialect",

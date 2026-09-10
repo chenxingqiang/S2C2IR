@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (6C-B–E frozen, 6C-F measured ranking).
+"""Phase 6C Capacity-aware Residency (6C-B–F frozen, 6C-G license gate).
 
 Host witness for F_capacity, CapacityPlan identity, query,
-s0 selection, and measured-capacity-v1 ArgMin. Ranking only;
-not a rewrite license. Duplicate scoped identity is rejected.
+s0 selection, measured-capacity-v1 ArgMin, and the capacity
+rewrite-license gate. Duplicate scoped identity is rejected.
 Equal times pick the earliest F_capacity inhabitant.
+The gate result is still no; not an eviction rewrite.
 Do not FileCheck microseconds.
 """
 
@@ -175,6 +176,61 @@ def print_measured_capacity_contract() -> int:
     print("note rewrite=no")
     print("cost=unchanged")
     return 0
+
+
+def print_license_contract() -> int:
+    print("capacity-license gate=query")
+    print("schema s2c2.capacity_license.v1")
+    print("rewrite-license no")
+    print("restore-legal TRANSFER|REMATERIALIZE")
+    print("restore unspecified")
+    print("rematerialize-empty yes")
+    print("note selected-ne-rewrite-license")
+    print("note evict-requires-restore")
+    print("note restore-unspecified")
+    print("note rematerialize-empty-this-stage")
+    print("note transfer-existing-realization")
+    print("note capability-license-ne-capacity-license")
+    print("note measured-ne-rewrite-license")
+    print("note six-c-f-measured-ranking-frozen")
+    print("note six-c-g-license-gate-this-cut")
+    print("note evidence-db-identity-frozen")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    return 0
+
+
+def _license_restore(selected: str) -> tuple[str, str]:
+    if selected == "none":
+        return "n/a", "n/a"
+    if "|evict{}|" in selected:
+        return "unused", "n/a"
+    return "unspecified", "no"
+
+
+def print_capacity_license(plan: dict[str, Any]) -> None:
+    restore, closed = _license_restore(str(plan.get("selected") or "none"))
+    print("capacity-license schema=s2c2.capacity_license.v1")
+    print(
+        f"capacity-license selected={plan['selected']} rewrite-license=no"
+    )
+    print(
+        f"capacity-license restore={restore} "
+        "restore-legal=TRANSFER|REMATERIALIZE "
+        f"rematerialize-empty=yes evict-closed={closed}"
+    )
+    print("capacity-license note selected-ne-rewrite-license")
+    print("capacity-license note evict-requires-restore")
+    print("capacity-license note restore-unspecified")
+    print("capacity-license note rematerialize-empty-this-stage")
+    print("capacity-license note transfer-existing-realization")
+    print("capacity-license note capability-license-ne-capacity-license")
+    print("capacity-license note measured-ne-rewrite-license")
+    print("capacity-license note six-c-g-license-gate-this-cut")
+    print("capacity-license rewrite=no")
 
 
 def capacity_candidate_identity(
@@ -682,6 +738,7 @@ def query_capacity_plan(
     else:
         print(f"{prefix} note measured-capacity-v1-not-opened")
         print(f"{prefix} note six-c-d-query-this-cut")
+    print_capacity_license(plan)
     print("cost=unchanged")
     return 0
 
@@ -708,6 +765,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--print-capacity-plan-query-contract", action="store_true")
     p.add_argument("--print-capacity-policy-contract", action="store_true")
     p.add_argument("--print-measured-capacity-contract", action="store_true")
+    p.add_argument("--print-capacity-license-contract", action="store_true")
     p.add_argument("--query-capacity-plan", type=Path)
     p.add_argument("--capacity-policy", default="")
     p.add_argument("--measured-capacity-table", type=Path)
@@ -724,6 +782,7 @@ def main(argv: list[str] | None = None) -> int:
             args.print_capacity_plan_query_contract,
             args.print_capacity_policy_contract,
             args.print_measured_capacity_contract,
+            args.print_capacity_license_contract,
             args.query_capacity_plan,
         )
     )
@@ -734,7 +793,8 @@ def main(argv: list[str] | None = None) -> int:
             "--print-capacity-plan-contract, --analyze-capacity-plan, "
             "--dump-capacity-plan, --print-capacity-plan-query-contract, "
             "--print-capacity-policy-contract, "
-            "--print-measured-capacity-contract, --query-capacity-plan",
+            "--print-measured-capacity-contract, "
+            "--print-capacity-license-contract, --query-capacity-plan",
             file=sys.stderr,
         )
         return 2
@@ -771,6 +831,8 @@ def main(argv: list[str] | None = None) -> int:
         return print_policy_contract()
     if args.print_measured_capacity_contract:
         return print_measured_capacity_contract()
+    if args.print_capacity_license_contract:
+        return print_license_contract()
     if args.query_capacity_plan:
         return query_capacity_plan(
             args.query_capacity_plan,

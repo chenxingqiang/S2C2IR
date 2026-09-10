@@ -109,4 +109,6 @@ Measured ranking (fixtures, not a campaign, not Evidence DB):
 the occupancy witness, not an Evidence DB field. Do not
 FileCheck microseconds. No `measurement_revision` on this
 v1 table.
+The capacity rewrite-license gate (`s2c2.capacity_license.v1`)
+is a printed query contract, not a dataset file.
 

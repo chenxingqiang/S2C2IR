@@ -967,7 +967,7 @@ Do not FileCheck microseconds.
 | SB-2 | same | Evidence DB still unique E; 6A `--schedule-policy=default-3g` is `rewrite=no` |
 | SB-3 | same | no `sched.wait`; no FileCheck of microseconds |
 
-## Capacity-aware residency (Phase 6C, design + diagnostics + candidate object + query + selection + measured ranking)
+## Capacity-aware residency (Phase 6C, design + diagnostics + candidate object + query + selection + measured ranking + license gate)
 
 **Not Cost v0.4.** Design:
 [`storage-capacity.md`](storage-capacity.md). Freezes
@@ -985,8 +985,11 @@ without running the schedule pass. 6C-E adds
 `--capacity-policy=s0` on that consumer
 (`rewrite-license=no`). 6C-F ranks enumerated
 \(F_{\mathrm{capacity}}\) under scoped `measured-capacity-v1`
-(\(P,W,c\); ArgMin; still `rewrite-license=no`). Do not FileCheck
-microseconds.
+(\(P,W,c\); ArgMin; duplicate identity rejected; ties →
+earliest \(F\); still `rewrite-license=no`). 6C-G
+freezes the capacity rewrite-license gate on the query
+consumer (`rewrite-license=no`; EVICT requires restore).
+Do not FileCheck microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -1023,6 +1026,11 @@ microseconds.
 | 6C-F-7 | same | same candidate + same profile + different workload cannot steal ArgMin |
 | 6C-F-8 | same | equal times pick earliest \(F_{\mathrm{capacity}}\) (`argmin-size=2`, selected=A); not JSONL order |
 | 6C-F-9 | same | duplicate `(profile, workload, candidate)` rejects `duplicate-measured-identity`; C++/Python same |
+| 6C-G-1 | same | `--print-capacity-license-contract`; gate=query; `rewrite-license=no`; restore-legal `TRANSFER\|REMATERIALIZE` |
+| 6C-G-2 | same | 4-tile s0/measured winner: `restore=unspecified` `evict-closed=no`; still `rewrite=no` |
+| 6C-G-3 | same | fit all-KEEP: `restore=unused` `evict-closed=n/a`; still `rewrite-license=no` |
+| 6C-G-4 | same | query `selected=none`: `restore=n/a`; diagnostic `--capacity` path does not print the gate |
+| 6C-G-5 | same | `CHECK-NOT: rewrite-license=yes`; no `applySchedule`; capability license ≠ capacity license |
 
 ## Complete SSD + MLP program wall-clock
 
