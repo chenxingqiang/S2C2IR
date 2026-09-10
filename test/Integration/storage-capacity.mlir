@@ -620,8 +620,8 @@
 // HSRC: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
 // HSRC: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=no replica-exists=no usable=no
 // HSRC: capacity-sourcedata object=2 replica=n/a witness=n/a scope=n/a replica-exists=no source-data=no usable=no reason=no-source-replica
-// HSRC: capacity-sourcedata note replica-exists-ne-data-validity
 // HSRC: capacity-sourcedata rewrite-license=no
+// HSRC: capacity-sourcedata note replica-exists-ne-data-validity
 // HSRC-NOT: rewrite-license=yes
 
 // HSRCFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0 rewrite-license=no
@@ -649,8 +649,8 @@
 // HSRCDATA: capacity-sourcedata object=2 replica=ssd witness=spec-unmutated-cover scope=occupancy-live replica-exists=yes source-data=yes usable=no reason=witnessed-unmutated-cover
 // HSRCDATA: capacity-sourcedata rewrite-license=no
 // HSRCDATA: capacity-sourcedata note source-data-ne-usable
-// HSRCDATA: capacity-sourcedata note source-data-ne-sufficient
 // HSRCDATA: capacity-sourcedata note no-validity-fsm
+// HSRCDATA: capacity-sourcedata note source-data-ne-sufficient
 // HSRCDATA-NOT: rewrite-license=yes
 // HSRCDATA-NOT: keep{0,1,2}
 
@@ -687,8 +687,8 @@
 // SRCDATA: s2c2-capacity-sourcedata object=2 replica=ssd witness=spec-unmutated-cover scope=occupancy-live replica-exists=yes source-data=yes usable=no reason=witnessed-unmutated-cover
 // SRCDATA: s2c2-capacity-sourcedata rewrite-license=no
 // SRCDATA: s2c2-capacity-sourcedata note source-data-ne-usable
-// SRCDATA: s2c2-capacity-sourcedata note source-data-ne-sufficient
 // SRCDATA: s2c2-capacity-sourcedata note no-validity-fsm
+// SRCDATA: s2c2-capacity-sourcedata note source-data-ne-sufficient
 // SRCDATA-NOT: rewrite-license=yes
 // SRCDATA-NOT: s2c2-opt: applySchedule
 // SRCDATA-NOT: keep{0,1,2}
