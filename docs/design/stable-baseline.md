@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B–G frozen; 6C-H restore is still no license
+6C      Capacity-aware residency   ← design frozen; 6C-B–H frozen; 6C-I predicate is still no license
 ```
 
 ```text
@@ -89,7 +89,10 @@ the earliest \(F_{\mathrm{capacity}}\) inhabitant.
 winner (`rewrite-license=no`; EVICT requires restore).
 6C-H attaches a TRANSFER restore record to each EVICT
 object (candidate semantics; closed restore still does
-not issue a license). Eviction rewrite stays closed.
+not issue a license). 6C-I classifies the structured
+license predicate on that restore (`necessary` vs
+`sufficient`; still `rewrite-license=no`). Eviction
+rewrite stays closed.
 
 When 6C is implemented, it is a new Storage problem class:
 

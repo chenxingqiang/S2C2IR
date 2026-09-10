@@ -526,8 +526,15 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     6C-H TRANSFER restore closure (`s2c2.capacity_restore.v1`)
     from candidate records, not the identity string. Closed
     restore still does not issue `rewrite-license=yes`.
-    Truncated plans cannot be selected. Do not FileCheck
-    microseconds. 6C-B diagnostics stay frozen.
+    Prints the 6C-I license predicate
+    (`s2c2.capacity_predicate.v1`): necessary conjuncts
+    (selected ∈ F_capacity, enumerated occupancy, EVICT
+    closure, TRANSFER restore kind, capacity proof) versus
+    sufficient proof still missing (source-data validity,
+    restore ordering, destination invalidation, rewrite
+    path). Result still `no`. Truncated plans cannot be
+    selected. Do not FileCheck microseconds. 6C-B
+    diagnostics stay frozen.
   }];
   let dependentDialects = [
     "mlir::s2c2::stor::StorageDialect",

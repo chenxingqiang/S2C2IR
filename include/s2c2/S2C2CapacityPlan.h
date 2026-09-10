@@ -4,7 +4,8 @@
 // feasibility. Diagnostic path: selected is none. Query consumer
 // may apply s0 or measured-capacity-v1; not a rewrite license.
 // 6C-G freezes the license gate (still no). 6C-H attaches a
-// TRANSFER restore record to each EVICT object.
+// TRANSFER restore record to each EVICT object. 6C-I classifies
+// the license predicate (necessary vs sufficient; still no).
 // 6C-B diagnostics stay frozen.
 //
 //===----------------------------------------------------------------------===//
@@ -72,6 +73,8 @@ struct CapacityCandidate {
 /// 6C-G freezes the rewrite-license gate (still no).
 /// 6C-H attaches TRANSFER restore records to EVICT objects
 /// (candidate semantics, not an identity-string parse).
+/// 6C-I classifies the license predicate on the query consumer:
+/// necessary conjuncts vs still-missing sufficient proof.
 /// Not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};

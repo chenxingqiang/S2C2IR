@@ -991,7 +991,9 @@ freezes the capacity rewrite-license gate on the query
 consumer (`rewrite-license=no`; EVICT requires restore).
 6C-H attaches TRANSFER restore records to EVICT objects
 (`s2c2.capacity_restore.v1`; closed restore still
-`rewrite-license=no`).
+`rewrite-license=no`). 6C-I classifies the structured
+license predicate (`s2c2.capacity_predicate.v1`;
+necessary ≠ sufficient; still `rewrite-license=no`).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1039,6 +1041,11 @@ Do not FileCheck microseconds.
 | 6C-H-3 | same | transfer-restore spec: `valid=yes closed=yes`; F unchanged; still `rewrite-license=no` |
 | 6C-H-4 | same | all-KEEP `restore=unused closed=n/a`; query `selected=none` `closed=n/a` |
 | 6C-H-5 | same | diagnostic `--capacity` does not print `s2c2-capacity-restore`; no `applySchedule` |
+| 6C-I-1 | same | `--print-capacity-predicate-contract`; necessary vs sufficient; `rewrite-license=no` |
+| 6C-I-2 | same | 4-tile s0 / occupancy IR: `necessary=no` (`evict-closed=no`); `sufficient=no` |
+| 6C-I-3 | same | transfer-restore spec: `necessary=yes sufficient=no`; 6C-G still `restore=unspecified`; still `rewrite-license=no` |
+| 6C-I-4 | same | all-KEEP `necessary=n/a`; query `selected=none` `necessary=no` |
+| 6C-I-5 | same | diagnostic `--capacity` does not print `s2c2-capacity-predicate`; no `applySchedule` |
 
 ## Complete SSD + MLP program wall-clock
 

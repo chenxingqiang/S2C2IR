@@ -50,6 +50,8 @@
 // (candidate semantics, not an identity-string parse). Closure
 // is proven only when every EVICT has a valid slower-space
 // source. Still not a rewrite license.
+// 6C-I classifies a structured license predicate: necessary
+// conjuncts versus still-missing sufficient proof. Still no.
 // Phase 6C-C materializes CapacityPlan as the compiler-visible
 // candidate object (selected=none on the diagnostic path).
 //
@@ -3874,6 +3876,66 @@ static void printCapacityRestore(const CapacityPlan &plan) {
   llvm::errs() << "s2c2-capacity-restore rewrite=no\n";
 }
 
+static const CapacityCandidate *
+selectedCapacityCandidate(const CapacityPlan &plan) {
+  if (plan.selected == "none")
+    return nullptr;
+  for (const CapacityCandidate &c : plan.candidates)
+    if (c.identity == plan.selected)
+      return &c;
+  return nullptr;
+}
+
+static StringRef evictClosedOf(const CapacityCandidate *sel) {
+  if (!sel || sel->evict.empty())
+    return "n/a";
+  bool allValid =
+      !sel->restores.empty() && sel->restores.size() == sel->evict.size();
+  for (const CapacityRestore &r : sel->restores)
+    allValid = allValid && r.valid;
+  return allValid ? "yes" : "no";
+}
+
+static void printCapacityPredicate(const CapacityPlan &plan) {
+  const CapacityCandidate *sel = selectedCapacityCandidate(plan);
+  bool inF = sel != nullptr;
+  bool enumerated = plan.enumerated && !plan.truncated;
+  StringRef closed = evictClosedOf(sel);
+  StringRef restoreKind = "n/a";
+  if (sel && sel->evict.empty())
+    restoreKind = "unused";
+  else if (sel)
+    restoreKind = "TRANSFER";
+  StringRef capacityProof = inF && enumerated ? "yes" : (inF ? "no" : "n/a");
+  StringRef necessary = "no";
+  if (sel && sel->evict.empty())
+    necessary = "n/a";
+  else if (inF && enumerated && closed == "yes" && restoreKind == "TRANSFER")
+    necessary = "yes";
+  llvm::errs() << "s2c2-capacity-predicate schema=s2c2.capacity_predicate.v1\n";
+  llvm::errs() << "s2c2-capacity-predicate selected=" << plan.selected
+               << " necessary=" << necessary << " sufficient=no"
+               << " rewrite-license=no\n";
+  llvm::errs() << "s2c2-capacity-predicate selected-in-f="
+               << (inF ? "yes" : "no")
+               << " enumerated=" << (enumerated ? "yes" : "no")
+               << " capacity-proof=" << capacityProof
+               << " evict-closed=" << closed
+               << " restore-kind=" << restoreKind << "\n";
+  llvm::errs() << "s2c2-capacity-predicate source-data=no restore-ordering=no"
+               << " dest-invalidation=no rewrite-path=no\n";
+  llvm::errs() << "s2c2-capacity-predicate note necessary-ne-sufficient\n";
+  llvm::errs() << "s2c2-capacity-predicate note closed-ne-rewrite-license\n";
+  llvm::errs() << "s2c2-capacity-predicate note source-declaration-ne-data-validity\n";
+  llvm::errs() << "s2c2-capacity-predicate note restore-source-ne-ordering\n";
+  llvm::errs() << "s2c2-capacity-predicate note restore-source-ne-invalidation\n";
+  llvm::errs() << "s2c2-capacity-predicate note six-c-g-license-gate-frozen\n";
+  llvm::errs() << "s2c2-capacity-predicate note six-c-h-restore-closure-frozen\n";
+  llvm::errs() << "s2c2-capacity-predicate note six-c-i-license-predicate-this-cut "
+                  "cost=unchanged\n";
+  llvm::errs() << "s2c2-capacity-predicate rewrite=no\n";
+}
+
 static void printCapacityPolicy(const CapacityPlan &plan) {
   if (plan.policy == "none")
     return;
@@ -3923,6 +3985,7 @@ static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
   printCapacityPolicy(plan);
   printCapacityLicense(plan);
   printCapacityRestore(plan);
+  printCapacityPredicate(plan);
   if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, plan)))
     return failure();
   return success();
