@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B–I frozen; 6C-J source-data still no license; health check: architecture-healthcheck.md
+6C      Capacity-aware residency   ← design frozen; 6C-B–J frozen; 6C-K restore-ordering still no license; health check: architecture-healthcheck.md
 ```
 
 ```text
@@ -94,7 +94,9 @@ license predicate on that restore (`necessary` vs
 `sufficient`; still `rewrite-license=no`). 6C-J classifies
 scoped source-data validity (`replica-exists` ≠
 `source-data-valid` ≠ `usable`; token = validity witness;
-`source-data=yes` is still not sufficient). Eviction rewrite stays closed. Post-6C-I
+FROZEN). 6C-K classifies restore ordering
+(`source-data-valid` ≠ restore-at-required-point;
+`restore-ordering=yes` is still not sufficient). Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Do **not** open \(F_{\mathrm{storage\_schedule}}\) or a

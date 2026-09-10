@@ -997,8 +997,10 @@ necessary ≠ sufficient; still `rewrite-license=no`).
 6C-J classifies scoped source-data validity
 (`s2c2.capacity_sourcedata.v1`; replica-exists ≠
 source-data-valid ≠ usable; token = validity witness;
-`source-data=yes` is still not sufficient; still
-`rewrite-license=no`).
+FROZEN). 6C-K classifies restore ordering
+(`s2c2.capacity_ordering.v1`; source-data-valid ≠
+restore-at-required-point; `restore-ordering=yes` is
+still not sufficient; still `rewrite-license=no`).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1056,6 +1058,12 @@ Do not FileCheck microseconds.
 | 6C-J-3 | same | transfer-restore spec: `closed=yes` `replica-exists=yes source-data=no usable=no reason=no-validity-witness`; still `sufficient=no` |
 | 6C-J-4 | same | source-data fixture: `replica=ssd witness=spec-unmutated-cover scope=occupancy-live source-data=yes usable=no reason=witnessed-unmutated-cover`; still `sufficient=no` `rewrite-license=no` |
 | 6C-J-5 | same | all-KEEP / `selected=none`: `source-data=n/a replica-exists=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-sourcedata` |
+| 6C-K-1 | same | `--print-capacity-ordering-contract`; source-data ≠ ordering; source-valid ≠ restore-at-point; `rewrite-license=no` |
+| 6C-K-2 | same | 4-tile s0 / occupancy IR: `restore-ordering=no usable=no reason=no-source-replica`; `sufficient=no` |
+| 6C-K-3 | same | transfer-restore spec: `closed=yes` `restore-ordering=no reason=no-ordering-witness`; still `sufficient=no` |
+| 6C-K-4 | same | source-data fixture: `source-data=yes restore-ordering=no usable=no reason=no-ordering-witness` (source-valid ≠ restore-at-point) |
+| 6C-K-5 | same | restore-order fixture: `before=5 witness=spec-before-consumer restore-ordering=yes usable=yes`; still `dest-invalidation=no` `sufficient=no` `rewrite-license=no` |
+| 6C-K-6 | same | all-KEEP / `selected=none`: `restore-ordering=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-ordering` |
 
 ## Complete SSD + MLP program wall-clock
 

@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (6C-B–I frozen, 6C-J source-data).
+"""Phase 6C Capacity-aware Residency (6C-B–J frozen, 6C-K ordering).
 
-Host witness for F_capacity, CapacityPlan identity, query,
-s0 selection, measured-capacity-v1 ArgMin, the capacity
-rewrite-license gate, EVICT→TRANSFER restore records, the
-structured license predicate, and scoped source-data
-validity. replica-exists ≠ source-data-valid ≠ usable.
-Token = validity witness; no valid/stale/dirty FSM.
-source-data=yes is still not sufficient. The gate is still
-no. Do not FileCheck microseconds.
+Host witness for F_capacity through scoped source-data validity
+and restore ordering. source-data-valid ≠ restore-at-required-point.
+usable = source-data ∧ restore-ordering. Still not sufficient.
+The gate is still no. Do not FileCheck microseconds.
 """
 
 from __future__ import annotations
@@ -31,11 +27,14 @@ SPEC_FIELDS = (
     "residencies",
     "note",
 )
-OPTIONAL_SPEC_FIELDS = ("restore_sources", "source_data")
+OPTIONAL_SPEC_FIELDS = ("restore_sources", "source_data", "restore_order")
 RESTORE_SRC_FIELDS = ("object", "space", "kind")
 SOURCE_DATA_FIELDS = ("object", "replica", "witness", "live", "scope")
+RESTORE_ORDER_FIELDS = ("object", "before", "witness", "scope")
 SOURCE_WITNESS = "spec-unmutated-cover"
 SOURCE_SCOPE = "occupancy-live"
+ORDER_WITNESS = "spec-before-consumer"
+ORDER_SCOPE = "occupancy-live"
 
 RES_FIELDS = (
     "id",
@@ -393,7 +392,8 @@ def print_capacity_predicate(plan: dict[str, Any]) -> None:
     )
     print(
         f"capacity-predicate source-data={_source_data_status(sel)} "
-        "restore-ordering=no dest-invalidation=no rewrite-path=no"
+        f"restore-ordering={_restore_ordering_status(sel)} "
+        "dest-invalidation=no rewrite-path=no"
     )
     print("capacity-predicate note necessary-ne-sufficient")
     print("capacity-predicate note closed-ne-rewrite-license")
@@ -458,12 +458,30 @@ def _replica_exists_status(sel: dict[str, Any] | None) -> str:
     return "no"
 
 
+def _restore_ordering_status(sel: dict[str, Any] | None) -> str:
+    if sel is None:
+        return "n/a"
+    evict = list(sel.get("evict") or [])
+    if not evict:
+        return "n/a"
+    restores = list(sel.get("restores") or [])
+    all_ord = bool(restores) and len(restores) == len(evict)
+    for r in restores:
+        all_ord = all_ord and bool(r.get("restore_ordering"))
+    return "yes" if all_ord else "no"
+
+
 def _usable_status(sel: dict[str, Any] | None) -> str:
     if sel is None:
         return "n/a"
-    if not list(sel.get("evict") or []):
+    evict = list(sel.get("evict") or [])
+    if not evict:
         return "n/a"
-    return "no"
+    restores = list(sel.get("restores") or [])
+    all_u = bool(restores) and len(restores) == len(evict)
+    for r in restores:
+        all_u = all_u and bool(r.get("usable"))
+    return "yes" if all_u else "no"
 
 
 def print_capacity_sourcedata(plan: dict[str, Any]) -> None:
@@ -513,6 +531,77 @@ def print_capacity_sourcedata(plan: dict[str, Any]) -> None:
     print("capacity-sourcedata note six-c-i-license-predicate-frozen")
     print("capacity-sourcedata note six-c-j-source-data-this-cut")
     print("capacity-sourcedata rewrite=no")
+
+
+def print_ordering_contract() -> int:
+    print("capacity-ordering gate=query")
+    print("schema s2c2.capacity_ordering.v1")
+    print("source-data-ne-ordering yes")
+    print("source-valid-ne-restore-at-point yes")
+    print("restore-ordering-ne-usable yes")
+    print("rewrite-license no")
+    print("note source-data-ne-ordering")
+    print("note source-valid-ne-restore-at-point")
+    print("note restore-ordering-ne-usable")
+    print("note restore-ordering-ne-sufficient")
+    print("note dest-invalidation-still-no")
+    print("note unknown-ne-rewrite")
+    print("note six-c-g-license-gate-frozen")
+    print("note six-c-h-restore-closure-frozen")
+    print("note six-c-i-license-predicate-frozen")
+    print("note six-c-j-source-data-frozen")
+    print("note six-c-k-restore-ordering-this-cut")
+    print("note evidence-db-identity-frozen")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    return 0
+
+
+def print_capacity_ordering(plan: dict[str, Any]) -> None:
+    selected = str(plan.get("selected") or "none")
+    sel = None
+    if selected != "none":
+        for c in plan.get("candidates") or []:
+            if c.get("identity") == selected:
+                sel = c
+                break
+    evict = list(sel.get("evict") or []) if sel else []
+    restores = list(sel.get("restores") or []) if sel else []
+    print("capacity-ordering schema=s2c2.capacity_ordering.v1")
+    print(
+        f"capacity-ordering selected={selected} "
+        f"restore-ordering={_restore_ordering_status(sel)} "
+        f"usable={_usable_status(sel)}"
+    )
+    if sel is not None and not evict:
+        print("capacity-ordering restore=unused")
+    if sel is not None and evict:
+        for r in restores:
+            print(
+                f"capacity-ordering object={r['object']} "
+                f"before={r.get('order_before', 'n/a')} "
+                f"witness={r.get('order_witness', 'n/a')} "
+                f"scope={r.get('order_scope', 'n/a')} "
+                f"restore-ordering={'yes' if r.get('restore_ordering') else 'no'} "
+                f"usable={'yes' if r.get('usable') else 'no'} "
+                f"reason={r.get('restore_ordering_reason')}"
+            )
+    print("capacity-ordering rewrite-license=no")
+    print("capacity-ordering note source-data-ne-ordering")
+    print("capacity-ordering note source-valid-ne-restore-at-point")
+    print("capacity-ordering note restore-ordering-ne-usable")
+    print("capacity-ordering note restore-ordering-ne-sufficient")
+    print("capacity-ordering note dest-invalidation-still-no")
+    print("capacity-ordering note unknown-ne-rewrite")
+    print("capacity-ordering note six-c-g-license-gate-frozen")
+    print("capacity-ordering note six-c-h-restore-closure-frozen")
+    print("capacity-ordering note six-c-i-license-predicate-frozen")
+    print("capacity-ordering note six-c-j-source-data-frozen")
+    print("capacity-ordering note six-c-k-restore-ordering-this-cut")
+    print("capacity-ordering rewrite=no")
 
 
 def capacity_candidate_identity(
@@ -640,6 +729,31 @@ def _load_spec(path: Path) -> dict[str, Any]:
             if oid in seen_data:
                 raise ValueError("duplicate source_data")
             seen_data.add(oid)
+    raw_order = spec.get("restore_order")
+    if raw_order is not None:
+        if not isinstance(raw_order, list):
+            raise ValueError("restore_order must be an array")
+        seen_order: set[str] = set()
+        for rec in raw_order:
+            if not isinstance(rec, dict):
+                raise ValueError("restore_order must be an object")
+            extra_o = sorted(set(rec) - set(RESTORE_ORDER_FIELDS))
+            if extra_o:
+                raise ValueError(f"restore_order extra keys {extra_o}")
+            obj_n = rec.get("object")
+            if not obj_n:
+                raise ValueError("restore_order object required")
+            oid = _tile_key(str(obj_n))
+            if oid not in occupancy:
+                raise ValueError("restore_order not in occupancy")
+            if rec.get("before") is None:
+                raise ValueError("restore_order before required")
+            int(rec["before"])
+            if not rec.get("witness") or not rec.get("scope"):
+                raise ValueError("restore_order witness and scope required")
+            if oid in seen_order:
+                raise ValueError("duplicate restore_order")
+            seen_order.add(oid)
     return spec
 
 
@@ -693,11 +807,25 @@ def _source_data_proofs(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _restore_order_proofs(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    raw = spec.get("restore_order") or []
+    out: dict[str, dict[str, Any]] = {}
+    for rec in raw:
+        oid = _tile_key(str(rec["object"]))
+        out[oid] = {
+            "before": int(rec["before"]),
+            "witness": str(rec["witness"]),
+            "scope": str(rec["scope"]),
+        }
+    return out
+
+
 def _attach_restores(
     evict: list[str],
     sources: dict[str, str],
     occ_live: dict[str, tuple[int, int]],
     proofs: dict[str, dict[str, Any]],
+    order_proofs: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     restores = []
     for e in evict:
@@ -706,8 +834,13 @@ def _attach_restores(
         witness = "n/a"
         scope = "n/a"
         source_data = False
+        restore_ordering = False
+        order_before = "n/a"
+        order_witness = "n/a"
+        order_scope = "n/a"
         if not replica_exists:
             source_data_reason = "no-source-replica"
+            restore_ordering_reason = "no-source-replica"
         else:
             proof = proofs.get(e)
             if proof is None:
@@ -732,6 +865,24 @@ def _attach_restores(
                     else:
                         source_data = True
                         source_data_reason = "witnessed-unmutated-cover"
+            order = order_proofs.get(e)
+            if order is None:
+                restore_ordering_reason = "no-ordering-witness"
+            else:
+                order_before = str(order["before"])
+                order_witness = order["witness"]
+                order_scope = order["scope"]
+                if order["witness"] != ORDER_WITNESS:
+                    restore_ordering_reason = "unknown-witness"
+                elif order["scope"] != ORDER_SCOPE:
+                    restore_ordering_reason = "unknown-scope"
+                else:
+                    occ = occ_live.get(e)
+                    if occ is None or order["before"] != occ[1]:
+                        restore_ordering_reason = "not-before-consumer"
+                    else:
+                        restore_ordering = True
+                        restore_ordering_reason = "witnessed-before-consumer"
         restores.append(
             {
                 "object": e,
@@ -746,7 +897,12 @@ def _attach_restores(
                 "scope": scope,
                 "source_data": source_data,
                 "source_data_reason": source_data_reason,
-                "usable": False,
+                "restore_ordering": restore_ordering,
+                "restore_ordering_reason": restore_ordering_reason,
+                "order_before": order_before,
+                "order_witness": order_witness,
+                "order_scope": order_scope,
+                "usable": source_data and restore_ordering,
             }
         )
     return restores
@@ -806,6 +962,7 @@ def _build_capacity_plan(spec: dict[str, Any]) -> dict[str, Any]:
     sources = _restore_sources(spec)
     occ_live = _occ_live(spec)
     proofs = _source_data_proofs(spec)
+    order_proofs = _restore_order_proofs(spec)
     plan_cands = []
     if not enum["truncated"]:
         seen = set()
@@ -832,7 +989,7 @@ def _build_capacity_plan(spec: dict[str, Any]) -> dict[str, Any]:
                     "evict": evict,
                     "rematerialize": rematerialize,
                     "restores": _attach_restores(
-                        evict, sources, occ_live, proofs
+                        evict, sources, occ_live, proofs, order_proofs
                     ),
                 }
             )
@@ -1181,6 +1338,7 @@ def query_capacity_plan(
     print_capacity_restore(plan)
     print_capacity_predicate(plan)
     print_capacity_sourcedata(plan)
+    print_capacity_ordering(plan)
     print("cost=unchanged")
     return 0
 
@@ -1211,6 +1369,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--print-capacity-restore-contract", action="store_true")
     p.add_argument("--print-capacity-predicate-contract", action="store_true")
     p.add_argument("--print-capacity-sourcedata-contract", action="store_true")
+    p.add_argument("--print-capacity-ordering-contract", action="store_true")
     p.add_argument("--query-capacity-plan", type=Path)
     p.add_argument("--capacity-policy", default="")
     p.add_argument("--measured-capacity-table", type=Path)
@@ -1231,6 +1390,7 @@ def main(argv: list[str] | None = None) -> int:
             args.print_capacity_restore_contract,
             args.print_capacity_predicate_contract,
             args.print_capacity_sourcedata_contract,
+            args.print_capacity_ordering_contract,
             args.query_capacity_plan,
         )
     )
@@ -1245,7 +1405,8 @@ def main(argv: list[str] | None = None) -> int:
             "--print-capacity-license-contract, "
             "--print-capacity-restore-contract, "
             "--print-capacity-predicate-contract, "
-            "--print-capacity-sourcedata-contract, --query-capacity-plan",
+            "--print-capacity-sourcedata-contract, "
+            "--print-capacity-ordering-contract, --query-capacity-plan",
             file=sys.stderr,
         )
         return 2
@@ -1290,6 +1451,8 @@ def main(argv: list[str] | None = None) -> int:
         return print_predicate_contract()
     if args.print_capacity_sourcedata_contract:
         return print_sourcedata_contract()
+    if args.print_capacity_ordering_contract:
+        return print_ordering_contract()
     if args.query_capacity_plan:
         return query_capacity_plan(
             args.query_capacity_plan,

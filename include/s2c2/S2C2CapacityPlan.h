@@ -49,7 +49,10 @@ inline std::string capacityCandidateIdentity(
 /// issue rewrite-license=yes. 6C-J classifies source-data
 /// validity as a scoped witness, not a valid/stale/dirty FSM:
 /// replica-exists ≠ source-data-valid ≠ restore-usable.
-/// Declaration is not data validity. Usable stays no (6C-K).
+/// Declaration is not data validity. 6C-K classifies restore
+/// ordering: source-data-valid ≠ restore-at-required-point.
+/// usable = source-data ∧ restore-ordering. Dest invalidation
+/// stays no.
 struct CapacityRestore {
   std::string object;
   std::string kind = "TRANSFER";
@@ -61,6 +64,11 @@ struct CapacityRestore {
   std::string scope = "n/a";
   bool sourceData = false;
   std::string sourceDataReason;
+  bool restoreOrdering = false;
+  std::string restoreOrderingReason;
+  std::string orderBefore = "n/a";
+  std::string orderWitness = "n/a";
+  std::string orderScope = "n/a";
   bool usable = false;
 };
 
@@ -87,6 +95,7 @@ struct CapacityCandidate {
 /// 6C-I classifies the license predicate on the query consumer:
 /// necessary conjuncts vs still-missing sufficient proof.
 /// 6C-J classifies source-data validity (still not sufficient).
+/// 6C-K classifies restore ordering (still not sufficient).
 /// Not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};
