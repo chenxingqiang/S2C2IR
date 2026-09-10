@@ -336,8 +336,7 @@
 // QUERY: s2c2-capacity-plan-query note measured-capacity-v1-not-opened
 // QUERY: s2c2-capacity-plan-query note six-c-d-query-this-cut
 // QUERY: s2c2-capacity-license selected=none rewrite-license=no
-// QUERY: s2c2-capacity-license restore=n/a
-// QUERY: s2c2-capacity-license evict-closed=n/a
+// QUERY: s2c2-capacity-license restore=n/a{{.*}}evict-closed=n/a
 // QUERY: s2c2-capacity-license note selected-ne-rewrite-license
 // QUERY: s2c2-capacity-license rewrite=no
 // QUERY-NOT: s2c2-storage-capacity
@@ -365,30 +364,26 @@
 
 // HLIC: capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
 // HLIC: capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
-// HLIC: capacity-license restore=unspecified
-// HLIC: capacity-license evict-closed=no
+// HLIC: capacity-license restore=unspecified{{.*}}evict-closed=no
 // HLIC: capacity-license rewrite=no
 // HLIC-NOT: rewrite-license=yes
 
-// HLICFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0
-// HLICFIT: capacity-license restore=unused
-// HLICFIT: capacity-license evict-closed=n/a
-// HLICFIT: rewrite-license=no
+// HLICFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0 rewrite-license=no
+// HLICFIT: capacity-license restore=unused{{.*}}evict-closed=n/a
+// HLICFIT: capacity-license rewrite=no
 // HLICFIT-NOT: rewrite-license=yes
 
 // LIC: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=s0 rewrite-license=no
 // LIC: s2c2-capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
-// LIC: s2c2-capacity-license restore=unspecified
-// LIC: s2c2-capacity-license evict-closed=no
+// LIC: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
 // LIC: s2c2-capacity-license note evict-requires-restore
 // LIC: s2c2-capacity-license rewrite=no
 // LIC-NOT: rewrite-license=yes
 // LIC-NOT: s2c2-opt: applySchedule
 
 // LICFIT: s2c2-capacity-plan-query selected=keep{0,1}|evict{}|rematerialize{} policy=s0
-// LICFIT: s2c2-capacity-license restore=unused
-// LICFIT: s2c2-capacity-license evict-closed=n/a
-// LICFIT: rewrite-license=no
+// LICFIT: s2c2-capacity-license restore=unused{{.*}}evict-closed=n/a
+// LICFIT: s2c2-capacity-license rewrite=no
 // LICFIT-NOT: rewrite-license=yes
 
 // LICMEAS: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1 rewrite-license=no
@@ -450,8 +445,7 @@
 // HSEL: capacity-policy name=s0 selected=keep{0,1}|evict{2}|rematerialize{}
 // HSEL: capacity-policy note selection-ne-rewrite-license
 // HSEL: capacity-license selected=keep{0,1}|evict{2}|rematerialize{} rewrite-license=no
-// HSEL: capacity-license restore=unspecified
-// HSEL: capacity-license evict-closed=no
+// HSEL: capacity-license restore=unspecified{{.*}}evict-closed=no
 // HSEL-NOT: selected=none policy=s0
 // HSEL-NOT: keep{0,1,2}
 
