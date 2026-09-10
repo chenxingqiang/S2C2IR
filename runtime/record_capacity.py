@@ -3,7 +3,9 @@
 
 Host witness for F_capacity, CapacityPlan identity, query,
 s0 selection, and measured-capacity-v1 ArgMin. Ranking only;
-not a rewrite license. Do not FileCheck microseconds.
+not a rewrite license. Duplicate scoped identity is rejected.
+Equal times pick the earliest F_capacity inhabitant.
+Do not FileCheck microseconds.
 """
 
 from __future__ import annotations
@@ -159,6 +161,8 @@ def print_measured_capacity_contract() -> int:
     print("note measured-ne-rewrite-license")
     print("note measured-does-not-expand-f")
     print("note measured-does-not-rank-truncated-F")
+    print("note duplicate-measured-identity")
+    print("note argmin-ties-earliest-F")
     print("note do-not-filecheck-microseconds")
     print("note not-hardware-campaign")
     print("note not-new-evidence-db")
@@ -504,6 +508,7 @@ def apply_capacity_policy(
 
 def _load_measured_capacity_table(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
@@ -521,6 +526,14 @@ def _load_measured_capacity_table(path: Path) -> list[dict[str, Any]]:
             raise ValueError("candidate_identity required")
         if not obj.get("profile") or not obj.get("workload_class"):
             raise ValueError("profile and workload_class required")
+        key = (
+            str(obj.get("profile") or ""),
+            str(obj.get("workload_class") or ""),
+            str(ident),
+        )
+        if key in seen:
+            raise ValueError("duplicate-measured-identity")
+        seen.add(key)
         rows.append(obj)
     return rows
 
@@ -543,6 +556,8 @@ def rank_measured_capacity(
         correctness = int(rec.get("correctness") or 0)
         if measured != "yes" or correctness != 1:
             continue
+        if ident in us:
+            raise ValueError("duplicate-measured-identity")
         us[ident] = int(rec["measured_time_us"])
     if len(us) < 2:
         raise ValueError("measured-needs-two-records")
@@ -650,6 +665,8 @@ def query_capacity_plan(
         print("capacity-measured note measured-scope-profile-workload-candidate")
         print("capacity-measured note measured-ne-cross-profile")
         print("capacity-measured note measured-ne-cross-workload")
+        print("capacity-measured note duplicate-measured-identity")
+        print("capacity-measured note argmin-ties-earliest-F")
         for c in plan["candidates"]:
             ev = "yes" if plan["_evidence"].get(c["identity"]) else "no"
             print(

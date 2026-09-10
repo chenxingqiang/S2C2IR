@@ -516,9 +516,11 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     F_capacity under scoped `s2c2.measured_capacity_cost.v1`
     records (`measured-capacity-table`). Matcher is
     profile + workload_class + candidate_identity, then
-    measured=yes and correctness=1. ArgMin is selection
-    only; not a rewrite license. Truncated plans cannot be
-    selected. Do not FileCheck microseconds. 6C-B
+    measured=yes and correctness=1. Duplicate scoped
+    identity is `duplicate-measured-identity`. Equal times
+    pick the earliest F_capacity inhabitant. ArgMin is
+    selection only; not a rewrite license. Truncated plans
+    cannot be selected. Do not FileCheck microseconds. 6C-B
     diagnostics stay frozen.
   }];
   let dependentDialects = [

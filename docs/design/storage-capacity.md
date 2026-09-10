@@ -384,14 +384,22 @@ measurement cannot expand F
 wrong profile / wrong workload → ignored
 truncated || !enumerated → failure
 one usable record → measured-needs-two-records
+count(profile, workload, candidate) > 1 → duplicate-measured-identity
+ties → earliest F_capacity order
 ```
 
 `--measured-capacity-table` injects the query pass, not
 the schedule pass. Extra identities not in
-\(F_{\mathrm{capacity}}\) are ignored. Do **not** FileCheck
-microseconds. The tables under
+\(F_{\mathrm{capacity}}\) are ignored. Duplicate scoped
+identity \((P,W,c)\) is rejected; last-write-wins is not
+a ranking rule. Equal times pick the earliest inhabitant
+of \(F_{\mathrm{capacity}}\), not JSONL order. Do **not**
+FileCheck microseconds. The tables under
 [`v3-dataset/`](v3-dataset/README.md) are fixtures, not a
 device campaign and not a new Evidence DB.
+`workload_class` on this v1 table is the occupancy witness
+(e.g. `ssd-capacity-4tile` from `--capacity-spec` / IR),
+not an Evidence DB schema field.
 
 On the 4-tile / capacity=2 witness, the fixture table
 selects `keep{0,1}|evict{2}|rematerialize{}`

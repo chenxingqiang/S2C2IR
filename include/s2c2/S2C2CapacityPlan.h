@@ -51,6 +51,8 @@ struct CapacityCandidate {
 /// Query via --query-capacity-plan (6C-D). Optional --capacity-policy=s0
 /// (6C-E) or measured-capacity-v1 (6C-F) selects from F_capacity;
 /// measured ranking matches profile + workload + candidate.
+/// Duplicate (profile, workload, candidate) is rejected.
+/// Equal measured times pick the earliest F_capacity inhabitant.
 /// Not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};
