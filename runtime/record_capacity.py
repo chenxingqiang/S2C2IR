@@ -147,11 +147,14 @@ def print_policy_contract() -> int:
 def print_measured_capacity_contract() -> int:
     print("measured-capacity-v1 ranking-only=yes")
     print("schema s2c2.measured_capacity_cost.v1")
-    print("match candidate_identity")
-    print("argmin measured-intersect-F")
+    print("match profile,workload_class,candidate_identity")
+    print("argmin scoped-measured-intersect-F")
     print("rewrite-license no")
     print("note measured-yes-and-correctness")
     print("note measured-needs-two-records")
+    print("note measured-scope-profile-workload-candidate")
+    print("note measured-ne-cross-profile")
+    print("note measured-ne-cross-workload")
     print("note measured-ne-legality")
     print("note measured-ne-rewrite-license")
     print("note measured-does-not-expand-f")
@@ -466,6 +469,8 @@ def apply_capacity_policy(
     plan: dict[str, Any],
     policy: str,
     table_path: Path | None = None,
+    profile: str = "",
+    workload: str = "",
 ) -> dict[str, Any]:
     name = (policy or "none").strip().lower()
     if name in ("", "none"):
@@ -485,7 +490,15 @@ def apply_capacity_policy(
                 "--capacity-policy=measured-capacity-v1 requires "
                 "--measured-capacity-table"
             )
-        return rank_measured_capacity(plan, table_path)
+        if not profile:
+            raise ValueError(
+                "--capacity-policy=measured-capacity-v1 requires --profile"
+            )
+        if not workload:
+            raise ValueError(
+                "--capacity-policy=measured-capacity-v1 requires workload_class"
+            )
+        return rank_measured_capacity(plan, table_path, profile, workload)
     raise ValueError(f"unknown --capacity-policy={policy}")
 
 
@@ -506,14 +519,23 @@ def _load_measured_capacity_table(path: Path) -> list[dict[str, Any]]:
         ident = obj.get("candidate_identity")
         if not ident:
             raise ValueError("candidate_identity required")
+        if not obj.get("profile") or not obj.get("workload_class"):
+            raise ValueError("profile and workload_class required")
         rows.append(obj)
     return rows
 
 
-def rank_measured_capacity(plan: dict[str, Any], table_path: Path) -> dict[str, Any]:
+def rank_measured_capacity(
+    plan: dict[str, Any],
+    table_path: Path,
+    profile: str,
+    workload: str,
+) -> dict[str, Any]:
     legal = {c["identity"] for c in plan["candidates"]}
     us: dict[str, int] = {}
     for rec in _load_measured_capacity_table(table_path):
+        if rec.get("profile") != profile or rec.get("workload_class") != workload:
+            continue
         ident = rec["candidate_identity"]
         if ident not in legal:
             continue
@@ -544,16 +566,25 @@ def rank_measured_capacity(plan: dict[str, Any], table_path: Path) -> dict[str, 
     out["_argmin_size"] = len(argmin)
     out["_coincide_s0"] = pick["identity"] == plan["candidates"][0]["identity"]
     out["_evidence"] = {c["identity"]: c["identity"] in us for c in plan["candidates"]}
+    out["_profile"] = profile
+    out["_workload"] = workload
     return out
 
 
 def query_capacity_plan(
-    path: Path, policy: str = "", table_path: Path | None = None
+    path: Path,
+    policy: str = "",
+    table_path: Path | None = None,
+    profile: str = "",
 ) -> int:
     try:
         spec = _load_spec(path)
         plan = apply_capacity_policy(
-            _build_capacity_plan(spec), policy, table_path
+            _build_capacity_plan(spec),
+            policy,
+            table_path,
+            profile,
+            str(spec.get("workload_class") or ""),
         )
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"record_capacity: {exc}", file=sys.stderr)
@@ -612,10 +643,13 @@ def query_capacity_plan(
             f"{plan['selected']} policy=measured-capacity-v1 "
             f"measured-count={plan['_measured_count']} "
             f"argmin-size={plan['_argmin_size']} coincide-s0={coincide} "
+            f"profile={plan['_profile']} workload={plan['_workload']} "
             "rewrite=no rewrite-license=no"
         )
         print("capacity-measured note measured-does-not-expand-f")
-        print("capacity-measured note do-not-filecheck-microseconds")
+        print("capacity-measured note measured-scope-profile-workload-candidate")
+        print("capacity-measured note measured-ne-cross-profile")
+        print("capacity-measured note measured-ne-cross-workload")
         for c in plan["candidates"]:
             ev = "yes" if plan["_evidence"].get(c["identity"]) else "no"
             print(
@@ -660,6 +694,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--query-capacity-plan", type=Path)
     p.add_argument("--capacity-policy", default="")
     p.add_argument("--measured-capacity-table", type=Path)
+    p.add_argument("--profile", default="")
     args = p.parse_args(argv)
     n = sum(
         bool(x)
@@ -699,6 +734,12 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if args.profile and not args.query_capacity_plan:
+        print(
+            "record_capacity: --profile requires --query-capacity-plan",
+            file=sys.stderr,
+        )
+        return 2
     if args.print_storage_capacity_contract:
         return print_contract()
     if args.analyze_storage_capacity:
@@ -718,6 +759,7 @@ def main(argv: list[str] | None = None) -> int:
             args.query_capacity_plan,
             args.capacity_policy,
             args.measured_capacity_table,
+            args.profile,
         )
     return dump_capacity_plan(args.dump_capacity_plan)
 

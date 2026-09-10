@@ -50,7 +50,8 @@ struct CapacityCandidate {
 /// not run. F_capacity ⊆ F_residency; illegal ids cannot expand F.
 /// Query via --query-capacity-plan (6C-D). Optional --capacity-policy=s0
 /// (6C-E) or measured-capacity-v1 (6C-F) selects from F_capacity;
-/// not a rewrite license.
+/// measured ranking matches profile + workload + candidate.
+/// Not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};
   std::string schema = std::string(kSchema);

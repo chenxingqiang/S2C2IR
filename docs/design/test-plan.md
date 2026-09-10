@@ -984,8 +984,8 @@ hardware campaign. 5A–6B stay frozen. Do not expand the
 without running the schedule pass. 6C-E adds
 `--capacity-policy=s0` on that consumer
 (`rewrite-license=no`). 6C-F ranks enumerated
-\(F_{\mathrm{capacity}}\) under `measured-capacity-v1`
-(ArgMin; still `rewrite-license=no`). Do not FileCheck
+\(F_{\mathrm{capacity}}\) under scoped `measured-capacity-v1`
+(\(P,W,c\); ArgMin; still `rewrite-license=no`). Do not FileCheck
 microseconds.
 
 | ID | File | Checks |
@@ -1019,6 +1019,8 @@ microseconds.
 | 6C-F-3 | same | synthetic table ArgMin ≠ s0 (`keep{1,2}\|evict{0}`); still `rewrite=no` |
 | 6C-F-4 | same | one usable record / truncated plan cannot rank; dump JSON policy=`measured-capacity-v1` |
 | 6C-F-5 | same | query+schedule: query selected from measured, 6C-C dump still `selected=none` |
+| 6C-F-6 | same | wrong-profile / wrong-workload records ignored (`measured-needs-two-records`) |
+| 6C-F-7 | same | same candidate + same profile + different workload cannot steal ArgMin |
 
 ## Complete SSD + MLP program wall-clock
 

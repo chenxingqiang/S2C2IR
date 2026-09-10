@@ -513,10 +513,11 @@ def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp">
     Optional `capacity-policy=s0` selects first(F_capacity)
     (evict incoming at t*). Optional
     `capacity-policy=measured-capacity-v1` ranks enumerated
-    F_capacity under candidate-local
-    `s2c2.measured_capacity_cost.v1` records
-    (`measured-capacity-table`). ArgMin is selection only;
-    not a rewrite license. Truncated plans cannot be
+    F_capacity under scoped `s2c2.measured_capacity_cost.v1`
+    records (`measured-capacity-table`). Matcher is
+    profile + workload_class + candidate_identity, then
+    measured=yes and correctness=1. ArgMin is selection
+    only; not a rewrite license. Truncated plans cannot be
     selected. Do not FileCheck microseconds. 6C-B
     diagnostics stay frozen.
   }];

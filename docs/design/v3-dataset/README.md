@@ -95,7 +95,12 @@ Measured ranking (fixtures, not a campaign, not Evidence DB):
 [`storage-capacity-measured-4tile-argmin.jsonl`](storage-capacity-measured-4tile-argmin.jsonl)
 (ArgMin ≠ s0),
 [`storage-capacity-measured-4tile-one.jsonl`](storage-capacity-measured-4tile-one.jsonl)
-(needs two usable records). Schema
+(needs two usable records),
+[`storage-capacity-measured-4tile-wrong-profile.jsonl`](storage-capacity-measured-4tile-wrong-profile.jsonl),
+[`storage-capacity-measured-4tile-wrong-workload.jsonl`](storage-capacity-measured-4tile-wrong-workload.jsonl),
+[`storage-capacity-measured-4tile-cross-workload.jsonl`](storage-capacity-measured-4tile-cross-workload.jsonl)
+(same candidate, different workload must not reuse). Matcher is
+`profile + workload_class + candidate_identity`. Schema
 `s2c2.measured_capacity_cost.v1`. Do not FileCheck
-microseconds.
+microseconds. No `measurement_revision` on this v1 table.
 

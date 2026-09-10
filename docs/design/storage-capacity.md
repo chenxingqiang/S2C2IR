@@ -73,6 +73,7 @@ This cut's consumer surface:
 
 ```bash
 s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
+  --profile=fixture \
   --capacity-policy=measured-capacity-v1 \
   --measured-capacity-table=docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl
 ```
@@ -352,21 +353,23 @@ policy still prints `selected=none`. Combining with
 ## Measured ranking (6C-F, this cut)
 
 Enumerated \(F_{\mathrm{capacity}}\) can now be ranked
-under candidate-local measured records. ArgMin is
+under scoped measured records (profile + workload +
+candidate). ArgMin is
 **selection only**. It does **not** issue a rewrite
 license and does **not** rewrite.
 
 ```bash
 s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
+  --profile=fixture \
   --capacity-policy=measured-capacity-v1 \
   --measured-capacity-table=docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl
 ```
 
 ```text
 schema           s2c2.measured_capacity_cost.v1
-match            candidate_identity
-need             ≥2 records with measured=yes and correctness=1
-ArgMin           measured ∩ F_capacity  (F order; ties pick earliest)
+match            profile + workload_class + candidate_identity
+need             ≥2 scoped records with measured=yes and correctness=1
+ArgMin           M ∩ F_capacity  (F order; ties pick earliest)
 coincide-s0      yes iff selected == first(F_capacity)
 prefix           s2c2-capacity-measured
 rewrite-license  no
@@ -374,8 +377,11 @@ rewrite          no
 ```
 
 ```text
-F_capacity → measured capacity cost → ArgMin
+F_capacity → scoped measured capacity cost → ArgMin
+M = { r | r.profile=P ∧ r.workload=W ∧ r.candidate ∈ F_capacity
+          ∧ r.measured=yes ∧ r.correctness=1 }
 measurement cannot expand F
+wrong profile / wrong workload → ignored
 truncated || !enumerated → failure
 one usable record → measured-needs-two-records
 ```

@@ -59,16 +59,24 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=none 2>&1 | FileCheck %s --check-prefix=QUERY
 // RUN: s2c2-opt %s --capacity-policy=s0 --capacity=2 --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=SELBOTH
 // RUN: python3 %S/../../runtime/record_capacity.py --print-measured-capacity-contract | FileCheck %s --check-prefix=MEASC
-// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl | FileCheck %s --check-prefix=HMEAS
-// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-argmin.jsonl | FileCheck %s --check-prefix=HMEASARG
-// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-one.jsonl 2>&1 | FileCheck %s --check-prefix=HMEASONE
-// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl 2>&1 | FileCheck %s --check-prefix=MEAS
-// RUN: s2c2-opt %s --capacity-policy=measured-capacity-v1 --capacity=2 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --dump-capacity-plan=%t.meas.json 2>&1 | FileCheck %s --check-prefix=MEAS
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --profile=fixture | FileCheck %s --check-prefix=HMEAS
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-argmin.jsonl --profile=fixture | FileCheck %s --check-prefix=HMEASARG
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-one.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=HMEASONE
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl 2>&1 | FileCheck %s --check-prefix=HMEASPROF
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-wrong-profile.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=HMEASWPROF
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-wrong-workload.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=HMEASWWL
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-cross-workload.jsonl --profile=fixture | FileCheck %s --check-prefix=HMEASCROSS
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEAS
+// RUN: s2c2-opt %s --capacity-policy=measured-capacity-v1 --capacity=2 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --profile=fixture --dump-capacity-plan=%t.meas.json 2>&1 | FileCheck %s --check-prefix=MEAS
 // RUN: FileCheck %s --check-prefix=MEASJSON --input-file=%t.meas.json
-// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-argmin.jsonl 2>&1 | FileCheck %s --check-prefix=MEASARG
-// RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-one.jsonl 2>&1 | FileCheck %s --check-prefix=MEASONE
-// RUN: not s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl 2>&1 | FileCheck %s --check-prefix=MEASTRUNC
-// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=MEASBOTH
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-argmin.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEASARG
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-one.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEASONE
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl 2>&1 | FileCheck %s --check-prefix=MEASPROF
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-3tile-tight.jsonl --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEASTRUNC
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-wrong-profile.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEASWPROF
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-wrong-workload.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEASWWL
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-cross-workload.jsonl --profile=fixture 2>&1 | FileCheck %s --check-prefix=MEASCROSS
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=measured-capacity-v1 --measured-capacity-table=%S/../../docs/design/v3-dataset/storage-capacity-measured-4tile-rtx4090.jsonl --profile=rtx4090 --schedule-policy=default-3g 2>&1 | FileCheck %s --check-prefix=MEASBOTH
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -422,9 +430,13 @@
 
 // MEASC: measured-capacity-v1 ranking-only=yes
 // MEASC: schema s2c2.measured_capacity_cost.v1
-// MEASC: argmin measured-intersect-F
+// MEASC: match profile,workload_class,candidate_identity
+// MEASC: argmin scoped-measured-intersect-F
 // MEASC: rewrite-license no
 // MEASC: note measured-needs-two-records
+// MEASC: note measured-scope-profile-workload-candidate
+// MEASC: note measured-ne-cross-profile
+// MEASC: note measured-ne-cross-workload
 // MEASC: note measured-does-not-expand-f
 // MEASC: note do-not-filecheck-microseconds
 // MEASC: note not-hardware-campaign
@@ -436,8 +448,9 @@
 // HMEAS: candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
 // HMEAS: candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
 // HMEAS: candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
-// HMEAS: capacity-measured ranked=keep{0,1}|evict{2}|rematerialize{}{{.*}}coincide-s0=yes
+// HMEAS: capacity-measured ranked=keep{0,1}|evict{2}|rematerialize{}{{.*}}coincide-s0=yes{{.*}}profile=fixture workload=ssd-capacity-4tile
 // HMEAS: capacity-measured note measured-does-not-expand-f
+// HMEAS: capacity-measured note measured-scope-profile-workload-candidate
 // HMEAS: capacity-measured-candidate identity=keep{0,1}|evict{2}|rematerialize{} evidence=yes
 // HMEAS-NOT: keep{9}
 // HMEAS-NOT: 12401
@@ -454,13 +467,30 @@
 
 // HMEASONE: measured-needs-two-records
 
+// HMEASPROF: requires --profile
+
+// HMEASWPROF: measured-needs-two-records
+// HMEASWPROF-NOT: 7000
+// HMEASWPROF-NOT: selected=keep
+
+// HMEASWWL: measured-needs-two-records
+// HMEASWWL-NOT: 8001
+// HMEASWWL-NOT: selected=keep
+
+// HMEASCROSS: selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1
+// HMEASCROSS: coincide-s0=yes
+// HMEASCROSS: note measured-ne-cross-workload
+// HMEASCROSS-NOT: 501
+// HMEASCROSS-NOT: 4000
+// HMEASCROSS-NOT: coincide-s0=no
+
 // MEAS: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1 rewrite-license=no
 // MEAS: s2c2-capacity-plan-query candidate #0 identity=keep{0,1}|evict{2}|rematerialize{}
 // MEAS: s2c2-capacity-plan-query candidate #1 identity=keep{1,2}|evict{0}|rematerialize{}
 // MEAS: s2c2-capacity-plan-query candidate #2 identity=keep{0,2}|evict{1}|rematerialize{}
 // MEAS: s2c2-capacity-plan-query note measured-capacity-v1-ranking-only
 // MEAS: s2c2-capacity-plan-query note six-c-f-measured-ranking-this-cut
-// MEAS: s2c2-capacity-measured ranked=keep{0,1}|evict{2}|rematerialize{}{{.*}}coincide-s0=yes{{.*}}rewrite=no rewrite-license=no
+// MEAS: s2c2-capacity-measured ranked=keep{0,1}|evict{2}|rematerialize{}{{.*}}coincide-s0=yes{{.*}}profile=fixture workload=ssd-capacity-4tile{{.*}}rewrite=no rewrite-license=no
 // MEAS: s2c2-capacity-measured-candidate identity=keep{0,1}|evict{2}|rematerialize{} evidence=yes
 // MEAS: s2c2-capacity-measured-candidate identity=keep{1,2}|evict{0}|rematerialize{} evidence=yes
 // MEAS: s2c2-capacity-measured-candidate identity=keep{0,2}|evict{1}|rematerialize{} evidence=yes
@@ -492,10 +522,29 @@
 // MEASONE: measured-needs-two-records
 // MEASONE-NOT: rewrite-license=yes
 
+// MEASPROF: requires --profile
+// MEASPROF-NOT: rewrite-license=yes
+
 // MEASTRUNC: truncated plan cannot be selected
 // MEASTRUNC-NOT: evidence-bounded-schedule
 
+// MEASWPROF: measured-needs-two-records
+// MEASWPROF-NOT: 7000
+// MEASWPROF-NOT: rewrite-license=yes
+
+// MEASWWL: measured-needs-two-records
+// MEASWWL-NOT: 8001
+// MEASWWL-NOT: rewrite-license=yes
+
+// MEASCROSS: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1
+// MEASCROSS: s2c2-capacity-measured {{.*}}coincide-s0=yes{{.*}}profile=fixture workload=ssd-capacity-4tile{{.*}}measured-ne-cross-workload
+// MEASCROSS-NOT: 501
+// MEASCROSS-NOT: 4000
+// MEASCROSS-NOT: coincide-s0=no
+// MEASCROSS-NOT: rewrite-license=yes
+
 // MEASBOTH: s2c2-capacity-plan-query selected=keep{0,1}|evict{2}|rematerialize{} policy=measured-capacity-v1
+// MEASBOTH: s2c2-capacity-measured {{.*}}profile=rtx4090 workload=ssd-capacity-4tile
 // MEASBOTH: s2c2-capacity-plan selected=none
 // MEASBOTH: s2c2-schedule-policy name=default-3g{{.*}}rewrite=no
 // MEASBOTH-NOT: rewrite-license=yes

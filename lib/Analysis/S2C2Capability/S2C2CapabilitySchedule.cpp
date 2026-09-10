@@ -3156,7 +3156,8 @@ static void enumerateCapacityF(ArrayRef<CapResidency> rs, int cap,
 
 static LogicalResult loadCapacitySpec(StringRef path,
                                       SmallVectorImpl<CapResidency> &out,
-                                      Space &space, int &cap) {
+                                      Space &space, int &cap,
+                                      std::string *workloadClass = nullptr) {
   std::string resolved = resolveExistingPath(path, {});
   auto fileOr = llvm::MemoryBuffer::getFile(resolved);
   if (!fileOr) {
@@ -3219,6 +3220,12 @@ static LogicalResult loadCapacitySpec(StringRef path,
       return failure();
     }
     space = *parsedSpace;
+    if (workloadClass) {
+      if (auto w = obj->getString("workload_class"))
+        *workloadClass = w->str();
+      else
+        workloadClass->clear();
+    }
     if (auto c = obj->getInteger("capacity_tiles"))
       cap = (int)*c;
     else {
@@ -3311,16 +3318,25 @@ static void discoverCapacityFromIR(ModuleOp module, Space space,
   });
 }
 
+// Occupancy IR without a capacity-spec has no declared workload.
+// Ranking uses the frozen 4-tile witness name so measured tables
+// scoped to ssd-capacity-4tile match this compiler IR; a spec
+// overrides. Not a new Evidence DB identity field.
+static constexpr llvm::StringLiteral kCapacityIrWorkload{"ssd-capacity-4tile"};
+
 static FailureOr<CapacityPlan>
 computeCapacityPlan(ModuleOp module, StringRef budgetStr, StringRef specPath,
                     SmallVectorImpl<CapCandidate> *candsOut, Space &space,
                     int &cap, int &peak, bool &conflict, bool &truncated,
-                    StringRef errPrefix = "s2c2-storage-capacity") {
+                    StringRef errPrefix = "s2c2-storage-capacity",
+                    std::string *workloadClass = nullptr) {
   SmallVector<CapResidency, 8> rs;
   space = Space::HBM;
   cap = 0;
+  if (workloadClass)
+    *workloadClass = std::string(kCapacityIrWorkload);
   if (!specPath.empty()) {
-    if (failed(loadCapacitySpec(specPath, rs, space, cap)))
+    if (failed(loadCapacitySpec(specPath, rs, space, cap, workloadClass)))
       return failure();
   }
   if (!budgetStr.empty()) {
@@ -3429,6 +3445,8 @@ static void printCapacityPlanQuery(const CapacityPlan &plan) {
 }
 
 struct MeasuredCapacityRecord {
+  std::string profile;
+  std::string workloadClass;
   std::string identity;
   int64_t timeUs = 0;
   int64_t correctness = 0;
@@ -3485,6 +3503,10 @@ loadMeasuredCapacityTable(StringRef path,
       return failure();
     }
     MeasuredCapacityRecord rec;
+    if (auto p = obj->getString("profile"))
+      rec.profile = p->str();
+    if (auto w = obj->getString("workload_class"))
+      rec.workloadClass = w->str();
     if (auto id = obj->getString("candidate_identity"))
       rec.identity = id->str();
     if (auto t = obj->getInteger("measured_time_us"))
@@ -3507,6 +3529,10 @@ loadMeasuredCapacityTable(StringRef path,
       llvm::errs() << "s2c2-capacity-policy: candidate_identity required\n";
       return failure();
     }
+    if (rec.profile.empty() || rec.workloadClass.empty()) {
+      llvm::errs() << "s2c2-capacity-policy: profile and workload_class required\n";
+      return failure();
+    }
     out.push_back(std::move(rec));
   }
   return success();
@@ -3517,18 +3543,23 @@ struct MeasuredCapacityTrace {
   unsigned measuredCount = 0;
   unsigned argminSize = 0;
   bool coincideS0 = false;
+  std::string profile;
+  std::string workloadClass;
   llvm::StringSet<> evidence;
 };
 
 static LogicalResult
 rankMeasuredCapacity(CapacityPlan &plan,
                      ArrayRef<MeasuredCapacityRecord> table,
+                     StringRef profile, StringRef workload,
                      MeasuredCapacityTrace &trace) {
   llvm::StringSet<> legal;
   for (const CapacityCandidate &c : plan.candidates)
     legal.insert(c.identity);
   llvm::StringMap<int64_t> us;
   for (const MeasuredCapacityRecord &r : table) {
+    if (r.profile != profile || r.workloadClass != workload)
+      continue;
     if (!legal.contains(r.identity))
       continue;
     if (r.measured != MeasuredStatus::Yes || r.correctness != 1)
@@ -3538,8 +3569,12 @@ rankMeasuredCapacity(CapacityPlan &plan,
   if (us.size() < 2) {
     llvm::errs() << "s2c2-capacity-measured ranked=not-measured "
                     "policy=measured-capacity-v1 "
-                    "note measured-needs-two-records "
+                    "profile=" << profile << " workload=" << workload
+                 << " note measured-needs-two-records "
                     "note measured-yes-and-correctness "
+                    "note measured-scope-profile-workload-candidate "
+                    "note measured-ne-cross-profile "
+                    "note measured-ne-cross-workload "
                     "note measured-ne-legality "
                     "note measured-ne-rewrite-license "
                     "note measured-does-not-expand-f "
@@ -3569,6 +3604,8 @@ rankMeasuredCapacity(CapacityPlan &plan,
   trace.measuredCount = us.size();
   trace.argminSize = argmin.size();
   trace.coincideS0 = plan.selected == plan.candidates.front().identity;
+  trace.profile = profile.str();
+  trace.workloadClass = workload.str();
   for (const CapacityCandidate &c : plan.candidates)
     if (us.count(c.identity))
       trace.evidence.insert(c.identity);
@@ -3583,8 +3620,13 @@ static void printMeasuredCapacity(const CapacityPlan &plan,
                << " policy=measured-capacity-v1 measured-count="
                << trace.measuredCount << " argmin-size=" << trace.argminSize
                << " coincide-s0=" << (trace.coincideS0 ? "yes" : "no")
+               << " profile=" << trace.profile
+               << " workload=" << trace.workloadClass
                << " rewrite=no rewrite-license=no"
                << " note measured-yes-and-correctness"
+               << " note measured-scope-profile-workload-candidate"
+               << " note measured-ne-cross-profile"
+               << " note measured-ne-cross-workload"
                << " note measured-ne-legality"
                << " note measured-ne-rewrite-license"
                << " note measured-does-not-expand-f"
@@ -3601,7 +3643,8 @@ static void printMeasuredCapacity(const CapacityPlan &plan,
 }
 
 static LogicalResult applyCapacityPolicy(CapacityPlan &plan, StringRef name,
-                                         StringRef tablePath,
+                                         StringRef tablePath, StringRef profile,
+                                         StringRef workload,
                                          MeasuredCapacityTrace &trace) {
   StringRef n = name.trim();
   if (n.empty() || n.equals_insensitive("none"))
@@ -3626,10 +3669,20 @@ static LogicalResult applyCapacityPolicy(CapacityPlan &plan, StringRef name,
                       "requires --measured-capacity-table\n";
       return failure();
     }
+    if (profile.empty()) {
+      llvm::errs() << "s2c2-capacity-policy: --capacity-policy=measured-capacity-v1 "
+                      "requires --profile\n";
+      return failure();
+    }
+    if (workload.empty()) {
+      llvm::errs() << "s2c2-capacity-policy: --capacity-policy=measured-capacity-v1 "
+                      "requires workload_class\n";
+      return failure();
+    }
     SmallVector<MeasuredCapacityRecord, 8> table;
     if (failed(loadMeasuredCapacityTable(tablePath, table)))
       return failure();
-    return rankMeasuredCapacity(plan, table, trace);
+    return rankMeasuredCapacity(plan, table, profile, workload, trace);
   }
   llvm::errs() << "s2c2-opt: unknown --capacity-policy=" << name << "\n";
   return failure();
@@ -3656,7 +3709,8 @@ static void printCapacityPolicy(const CapacityPlan &plan) {
 static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
                                        StringRef specPath, StringRef dumpPath,
                                        StringRef policyName,
-                                       StringRef tablePath) {
+                                       StringRef tablePath,
+                                       StringRef profile) {
   if (budgetStr.empty() && specPath.empty()) {
     llvm::errs() << "s2c2-capacity-plan-query: --query-capacity-plan requires "
                     "--capacity or --capacity-spec\n";
@@ -3667,14 +3721,16 @@ static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
   int peak = 0;
   bool conflict = false;
   bool truncated = false;
+  std::string workload;
   auto planOr = computeCapacityPlan(module, budgetStr, specPath, nullptr, space,
                                     cap, peak, conflict, truncated,
-                                    "s2c2-capacity-plan-query");
+                                    "s2c2-capacity-plan-query", &workload);
   if (failed(planOr))
     return failure();
   CapacityPlan plan = *planOr;
   MeasuredCapacityTrace measured;
-  if (failed(applyCapacityPolicy(plan, policyName, tablePath, measured)))
+  if (failed(applyCapacityPolicy(plan, policyName, tablePath, profile, workload,
+                                 measured)))
     return failure();
   printCapacityPlanQuery(plan);
   printMeasuredCapacity(plan, measured);
@@ -3938,7 +3994,8 @@ struct S2C2CapacityPlanQuery
   void runOnOperation() override {
     // Occupancy query only. Does not load Evidence DB or rewrite IR.
     // Default selected=none. capacity-policy=s0 selects first(F_capacity).
-    // measured-capacity-v1 ranks enumerated F; not a rewrite license.
+    // measured-capacity-v1 ranks enumerated F; matcher is
+    // profile + workload + candidate. Not a rewrite license.
     std::string cap = capacityBudget.empty() ? clCapacityBudget : capacityBudget;
     std::string spec = capacitySpec.empty() ? clCapacitySpec : capacitySpec;
     std::string dump =
@@ -3947,8 +4004,9 @@ struct S2C2CapacityPlanQuery
         capacityPolicy.empty() ? clCapacityPolicy : capacityPolicy;
     std::string table = measuredCapacityTable.empty() ? clMeasuredCapacityTable
                                                       : measuredCapacityTable;
+    std::string profile = clS2C2Profile;
     if (failed(queryCapacityPlan(getOperation(), cap, spec, dump, policy,
-                                 table)))
+                                 table, profile)))
       signalPassFailure();
   }
 };
