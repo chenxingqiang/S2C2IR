@@ -115,6 +115,9 @@ TRANSFER restore sources (optional, not occupancy, not a
 new \(F\) member):
 [`storage-capacity-4tile-transfer-restore.jsonl`](storage-capacity-4tile-transfer-restore.jsonl).
 Same 4-tile \(F_{\mathrm{capacity}}\); `closed=yes` still
-`rewrite-license=no`. Check with
-`python3 runtime/record_capacity.py --print-capacity-restore-contract`.
+`rewrite-license=no`. The license predicate
+(`s2c2.capacity_predicate.v1`) is a printed query
+contract: `necessary=yes` on this fixture, `sufficient=no`.
+Check with
+`python3 runtime/record_capacity.py --print-capacity-predicate-contract`.
 

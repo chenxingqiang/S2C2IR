@@ -96,6 +96,14 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=RESTFIT
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-transfer-restore.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=RESTYES
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOREST
+// RUN: python3 %S/../../runtime/record_capacity.py --print-capacity-predicate-contract | FileCheck %s --check-prefix=PREDC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HPRED
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HPREDFIT
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-transfer-restore.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HPREDYES
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=PRED
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=PREDFIT
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-transfer-restore.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=PREDYES
+// RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOPRED
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -106,7 +114,9 @@
 // selected is not a license; EVICT requires restore.
 // 6C-H attaches TRANSFER restore records to EVICT objects
 // (candidate semantics, not an identity-string parse).
-// Closed restore still does not issue rewrite-license=yes.
+// 6C-I classifies the structured license predicate
+// (necessary vs sufficient; still rewrite-license=no).
+// Closed restore is necessary, not sufficient.
 // 5A-6B stay frozen. Do not FileCheck microseconds.
 
 // CONTRACT: storage-capacity compiler-driven=yes
@@ -321,6 +331,7 @@
 // HQUERY: capacity-license restore=n/a
 // HQUERY: capacity-restore selected=none closed=n/a
 // HQUERY: capacity-restore rewrite-license=no
+// HQUERY: capacity-predicate selected=none necessary=no sufficient=no rewrite-license=no
 // HQUERY-NOT: keep{0,1,2}
 // HQUERY-NOT: selected={{[0-9]}}
 
@@ -356,6 +367,8 @@
 // QUERY: s2c2-capacity-license rewrite=no
 // QUERY: s2c2-capacity-restore selected=none closed=n/a
 // QUERY: s2c2-capacity-restore rewrite-license=no
+// QUERY: s2c2-capacity-predicate selected=none necessary=no sufficient=no rewrite-license=no
+// QUERY: s2c2-capacity-predicate selected-in-f=no{{.*}}capacity-proof=n/a{{.*}}evict-closed=n/a{{.*}}restore-kind=n/a
 // QUERY-NOT: s2c2-storage-capacity
 // QUERY-NOT: evidence-bounded-schedule
 // QUERY-NOT: hierarchy-global
@@ -423,6 +436,7 @@
 // NOLIC: s2c2-capacity-plan selected=none
 // NOLIC-NOT: s2c2-capacity-license
 // NOLIC-NOT: s2c2-capacity-restore
+// NOLIC-NOT: s2c2-capacity-predicate
 // NOLIC-NOT: rewrite-license=yes
 
 // RESTOREC: capacity-restore candidate-semantics=yes
@@ -492,7 +506,67 @@
 // NOREST: s2c2-capacity-plan selected=none
 // NOREST-NOT: s2c2-capacity-restore
 // NOREST-NOT: s2c2-capacity-license
+// NOREST-NOT: s2c2-capacity-predicate
 // NOREST-NOT: rewrite-license=yes
+
+// PREDC: capacity-predicate gate=query
+// PREDC: schema s2c2.capacity_predicate.v1
+// PREDC: necessary selected-in-f,enumerated,capacity-proof,evict-closed,restore-kind
+// PREDC: sufficient source-data,restore-ordering,dest-invalidation,rewrite-path
+// PREDC: rewrite-license no
+// PREDC: note necessary-ne-sufficient
+// PREDC: note closed-ne-rewrite-license
+// PREDC: note source-declaration-ne-data-validity
+// PREDC: note six-c-h-restore-closure-frozen
+// PREDC: note six-c-i-license-predicate-this-cut
+// PREDC-NOT: rewrite-license yes
+
+// HPRED: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=no
+// HPRED: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=no sufficient=no rewrite-license=no
+// HPRED: capacity-predicate selected-in-f=yes enumerated=yes capacity-proof=yes evict-closed=no restore-kind=TRANSFER
+// HPRED: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// HPRED-NOT: rewrite-license=yes
+
+// HPREDFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0 rewrite-license=no
+// HPREDFIT: capacity-predicate selected={{.*}} necessary=n/a sufficient=no rewrite-license=no
+// HPREDFIT: capacity-predicate selected-in-f=yes{{.*}}capacity-proof=yes{{.*}}evict-closed=n/a{{.*}}restore-kind=unused
+// HPREDFIT-NOT: rewrite-license=yes
+
+// HPREDYES: capacity-license restore=unspecified{{.*}}evict-closed=no
+// HPREDYES: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// HPREDYES: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HPREDYES: capacity-predicate selected-in-f=yes enumerated=yes capacity-proof=yes evict-closed=yes restore-kind=TRANSFER
+// HPREDYES: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// HPREDYES: capacity-predicate note necessary-ne-sufficient
+// HPREDYES-NOT: rewrite-license=yes
+// HPREDYES-NOT: keep{0,1,2}
+
+// PRED: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=no
+// PRED: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=no sufficient=no rewrite-license=no
+// PRED: s2c2-capacity-predicate selected-in-f=yes enumerated=yes capacity-proof=yes evict-closed=no restore-kind=TRANSFER
+// PRED: s2c2-capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// PRED-NOT: rewrite-license=yes
+// PRED-NOT: s2c2-opt: applySchedule
+
+// PREDFIT: s2c2-capacity-predicate selected={{.*}} necessary=n/a sufficient=no rewrite-license=no
+// PREDFIT: s2c2-capacity-predicate selected-in-f=yes{{.*}}capacity-proof=yes{{.*}}evict-closed=n/a{{.*}}restore-kind=unused
+// PREDFIT-NOT: rewrite-license=yes
+
+// PREDYES: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
+// PREDYES: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// PREDYES: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// PREDYES: s2c2-capacity-predicate selected-in-f=yes enumerated=yes capacity-proof=yes evict-closed=yes restore-kind=TRANSFER
+// PREDYES: s2c2-capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// PREDYES: s2c2-capacity-predicate note source-declaration-ne-data-validity
+// PREDYES-NOT: rewrite-license=yes
+// PREDYES-NOT: s2c2-opt: applySchedule
+// PREDYES-NOT: keep{0,1,2}
+
+// NOPRED: s2c2-capacity-plan selected=none
+// NOPRED-NOT: s2c2-capacity-predicate
+// NOPRED-NOT: s2c2-capacity-restore
+// NOPRED-NOT: s2c2-capacity-license
+// NOPRED-NOT: rewrite-license=yes
 
 // QUERYFIT: s2c2-capacity-plan-query feasible=yes
 // QUERYFIT: selected=none

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (6C-B–G frozen, 6C-H restore).
+"""Phase 6C Capacity-aware Residency (6C-B–H frozen, 6C-I predicate).
 
 Host witness for F_capacity, CapacityPlan identity, query,
 s0 selection, measured-capacity-v1 ArgMin, the capacity
-rewrite-license gate, and EVICT→TRANSFER restore records.
-Duplicate scoped identity is rejected.
-Equal times pick the earliest F_capacity inhabitant.
-The gate result is still no; restore closure is candidate
-semantics, not an eviction rewrite.
+rewrite-license gate, EVICT→TRANSFER restore records, and
+the structured license predicate. Duplicate scoped identity
+is rejected. Equal times pick the earliest F_capacity
+inhabitant. Necessary conjuncts are classified; sufficient
+proof is still missing. The gate result is still no.
 Do not FileCheck microseconds.
 """
 
@@ -297,6 +297,97 @@ def print_capacity_restore(plan: dict[str, Any]) -> None:
     print("capacity-restore note six-c-g-license-gate-frozen")
     print("capacity-restore note six-c-h-restore-closure-this-cut")
     print("capacity-restore rewrite=no")
+
+
+def print_predicate_contract() -> int:
+    print("capacity-predicate gate=query")
+    print("schema s2c2.capacity_predicate.v1")
+    print("necessary selected-in-f,enumerated,capacity-proof,evict-closed,restore-kind")
+    print("sufficient source-data,restore-ordering,dest-invalidation,rewrite-path")
+    print("rewrite-license no")
+    print("note necessary-ne-sufficient")
+    print("note closed-ne-rewrite-license")
+    print("note source-declaration-ne-data-validity")
+    print("note restore-source-ne-ordering")
+    print("note restore-source-ne-invalidation")
+    print("note six-c-g-license-gate-frozen")
+    print("note six-c-h-restore-closure-frozen")
+    print("note six-c-i-license-predicate-this-cut")
+    print("note evidence-db-identity-frozen")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    return 0
+
+
+def print_capacity_predicate(plan: dict[str, Any]) -> None:
+    selected = str(plan.get("selected") or "none")
+    sel = None
+    if selected != "none":
+        for c in plan.get("candidates") or []:
+            if c.get("identity") == selected:
+                sel = c
+                break
+    in_f = sel is not None
+    enumerated = bool(plan.get("enumerated")) and not bool(plan.get("truncated"))
+    evict = list(sel.get("evict") or []) if sel else []
+    restores = list(sel.get("restores") or []) if sel else []
+    if sel is None or not evict:
+        closed = "n/a"
+    else:
+        all_valid = bool(restores) and len(restores) == len(evict)
+        for r in restores:
+            all_valid = all_valid and bool(r.get("valid"))
+        closed = "yes" if all_valid else "no"
+    if sel is not None and not evict:
+        restore_kind = "unused"
+    elif sel is not None:
+        restore_kind = "TRANSFER"
+    else:
+        restore_kind = "n/a"
+    if in_f and enumerated:
+        capacity_proof = "yes"
+    elif in_f:
+        capacity_proof = "no"
+    else:
+        capacity_proof = "n/a"
+    if sel is not None and not evict:
+        necessary = "n/a"
+    elif (
+        in_f
+        and enumerated
+        and closed == "yes"
+        and restore_kind == "TRANSFER"
+    ):
+        necessary = "yes"
+    else:
+        necessary = "no"
+    print("capacity-predicate schema=s2c2.capacity_predicate.v1")
+    print(
+        f"capacity-predicate selected={selected} necessary={necessary} "
+        "sufficient=no rewrite-license=no"
+    )
+    print(
+        f"capacity-predicate selected-in-f={'yes' if in_f else 'no'} "
+        f"enumerated={'yes' if enumerated else 'no'} "
+        f"capacity-proof={capacity_proof} evict-closed={closed} "
+        f"restore-kind={restore_kind}"
+    )
+    print(
+        "capacity-predicate source-data=no restore-ordering=no "
+        "dest-invalidation=no rewrite-path=no"
+    )
+    print("capacity-predicate note necessary-ne-sufficient")
+    print("capacity-predicate note closed-ne-rewrite-license")
+    print("capacity-predicate note source-declaration-ne-data-validity")
+    print("capacity-predicate note restore-source-ne-ordering")
+    print("capacity-predicate note restore-source-ne-invalidation")
+    print("capacity-predicate note six-c-g-license-gate-frozen")
+    print("capacity-predicate note six-c-h-restore-closure-frozen")
+    print("capacity-predicate note six-c-i-license-predicate-this-cut")
+    print("capacity-predicate rewrite=no")
 
 
 def capacity_candidate_identity(
@@ -858,6 +949,7 @@ def query_capacity_plan(
         print(f"{prefix} note six-c-d-query-this-cut")
     print_capacity_license(plan)
     print_capacity_restore(plan)
+    print_capacity_predicate(plan)
     print("cost=unchanged")
     return 0
 
@@ -886,6 +978,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--print-measured-capacity-contract", action="store_true")
     p.add_argument("--print-capacity-license-contract", action="store_true")
     p.add_argument("--print-capacity-restore-contract", action="store_true")
+    p.add_argument("--print-capacity-predicate-contract", action="store_true")
     p.add_argument("--query-capacity-plan", type=Path)
     p.add_argument("--capacity-policy", default="")
     p.add_argument("--measured-capacity-table", type=Path)
@@ -904,6 +997,7 @@ def main(argv: list[str] | None = None) -> int:
             args.print_measured_capacity_contract,
             args.print_capacity_license_contract,
             args.print_capacity_restore_contract,
+            args.print_capacity_predicate_contract,
             args.query_capacity_plan,
         )
     )
@@ -916,7 +1010,8 @@ def main(argv: list[str] | None = None) -> int:
             "--print-capacity-policy-contract, "
             "--print-measured-capacity-contract, "
             "--print-capacity-license-contract, "
-            "--print-capacity-restore-contract, --query-capacity-plan",
+            "--print-capacity-restore-contract, "
+            "--print-capacity-predicate-contract, --query-capacity-plan",
             file=sys.stderr,
         )
         return 2
@@ -957,6 +1052,8 @@ def main(argv: list[str] | None = None) -> int:
         return print_license_contract()
     if args.print_capacity_restore_contract:
         return print_restore_contract()
+    if args.print_capacity_predicate_contract:
+        return print_predicate_contract()
     if args.query_capacity_plan:
         return query_capacity_plan(
             args.query_capacity_plan,
