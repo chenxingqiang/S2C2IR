@@ -144,4 +144,21 @@ Same \(F_{\mathrm{capacity}}\); `dest-invalidation=yes`
 (`destination=hbm`, `witness=spec-drop-stale`,
 `scope=occupancy-live`). Check with
 `python3 runtime/record_capacity.py --print-capacity-invalidation-contract`.
+This fixture is also the 6C-M **negative** lock:
+`usable=yes` `dest-invalidation=yes` still
+`sufficient=no` (6C-L ⇏ 6C-M). Sufficient composition
+is design-only this cut
+([`../storage-capacity-sufficient.md`](../storage-capacity-sufficient.md)):
+
+```text
+sufficient = usable ∧ dest-invalidation ∧ restore-target
+sufficient ≠ usable ∧ dest-invalidation
+sufficient=yes ≠ rewrite-license=yes ≠ rewrite-path=yes
+```
+
+The future positive fixture is specified in that note
+(`witness=spec-restore-target-legal`). It is **not** a
+loadable JSONL this cut (`restore_target` is an extra
+key). Check with
+`python3 runtime/record_capacity.py --print-capacity-sufficient-contract`.
 

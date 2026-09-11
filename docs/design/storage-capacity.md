@@ -1,4 +1,4 @@
-# Capacity-aware Residency (Phase 6C-L, dest invalidation)
+# Capacity-aware Residency (Phase 6C-L frozen; 6C-M sufficient design)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
 FROZEN (`selected=none` on the diagnostic path); 6C-D
@@ -15,7 +15,11 @@ FROZEN). 6C-K classifies restore ordering
 `usable` = source-data ∧ restore-ordering; FROZEN).
 6C-L classifies dest invalidation
 (`usable` ≠ dest-invalidation; still not sufficient,
-still `rewrite-license=no`). 5A–6B is the **stable
+still `rewrite-license=no`; FROZEN). 6C-M freezes the
+`sufficient` query/proof composition
+([`storage-capacity-sufficient.md`](storage-capacity-sufficient.md);
+still `sufficient=no`, still no restore-target
+classifier). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
@@ -32,8 +36,8 @@ Do not expand the 6C-B diagnostic surface. Do not
 FileCheck microseconds.
 
 ```text
-Goal     freeze dest invalidation as a sufficient prerequisite; still not sufficient, still no license
-Not      an eviction rewrite, a yes-license, rewrite path, or a device campaign
+Goal     freeze dest invalidation (6C-L) and the sufficient query/proof composition (6C-M); still no license
+Not      restore-target classification, a yes-license, rewrite path, or a device campaign
 Rewrite  still only from an existing capability license
 ```
 
@@ -89,7 +93,9 @@ source-data validity           ← FROZEN (6C-J; scoped witness)
    ↓
 restore ordering               ← FROZEN (6C-K; usable=source-data∧ordering; still no)
    ↓
-dest invalidation              ← this cut (6C-L; usable ≠ dest-invalidation; still no)
+dest invalidation              ← FROZEN (6C-L; usable ≠ dest-invalidation; still no)
+   ↓
+sufficient                     ← 6C-M design (query/proof; restore-target not classified)
    ↓
 rewrite path                   ← not this cut
    ↓
@@ -104,6 +110,7 @@ s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
 python3 runtime/record_capacity.py --print-capacity-sourcedata-contract
 python3 runtime/record_capacity.py --print-capacity-ordering-contract
 python3 runtime/record_capacity.py --print-capacity-invalidation-contract
+python3 runtime/record_capacity.py --print-capacity-sufficient-contract
 ```
 
 Frozen 6C-B diagnostics remain:
@@ -847,7 +854,7 @@ destination invalidation, IR alias analysis, or
 The ordering prefix prints only on the query consumer.
 Diagnostic `--capacity` does not print it.
 
-## Dest invalidation (6C-L, this cut)
+## Dest invalidation (6C-L, FROZEN)
 
 `usable=yes` is **not** a proof that the fast-space copy
 is dropped without stale reads. This cut classifies a
@@ -959,10 +966,12 @@ FileCheck of microseconds
 
 ## After 6C-L
 
+6C-M sufficient design (query/proof only; still
+`sufficient=no`; restore-target not classified):
+[`storage-capacity-sufficient.md`](storage-capacity-sufficient.md).
 Architecture health check (evaluator ≠ search engine;
 still no rewrite):
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Does **not** open \(F_{\mathrm{storage\_schedule}}\), a
-frontend, or eviction rewrite. Sufficient proofs stay
-one conjunct per cut. The next cut is rewrite-path proof,
-not a joint schedule family.
+frontend, rewrite-path, or eviction rewrite. Sufficient
+proofs stay one conjunct per cut.

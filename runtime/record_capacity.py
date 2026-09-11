@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (6C-B–K frozen, 6C-L invalidation).
+"""Phase 6C Capacity-aware Residency (6C-B–L frozen, 6C-M sufficient design).
 
-Host witness for F_capacity through dest invalidation.
-usable ≠ dest-invalidation. dest-invalidation ≠ sufficient.
-usable = source-data ∧ restore-ordering. Still not sufficient.
-The gate is still no. Do not FileCheck microseconds.
+Host witness for the sufficient query/proof contract.
+sufficient ≠ usable ∧ dest-invalidation. restore-target is
+defined, not classified. Still sufficient=no. The gate is
+still no. Do not FileCheck microseconds.
 """
 
 from __future__ import annotations
@@ -644,6 +644,37 @@ def print_invalidation_contract() -> int:
     print("note six-c-j-source-data-frozen")
     print("note six-c-k-restore-ordering-frozen")
     print("note six-c-l-dest-invalidation-this-cut")
+    print("note evidence-db-identity-frozen")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    return 0
+
+
+def print_sufficient_contract() -> int:
+    print("capacity-sufficient gate=query")
+    print("schema s2c2.capacity_sufficient.v1")
+    print("usable-eq-source-data-and-restore-ordering yes")
+    print("usable-ne-dest-invalidation yes")
+    print("dest-invalidation-ne-sufficient yes")
+    print("sufficient-eq-usable-and-dest-invalidation-and-restore-target yes")
+    print("sufficient-ne-rewrite-license yes")
+    print("sufficient-ne-rewrite-path yes")
+    print("rewrite-license no")
+    print("rewrite-path no")
+    print("note usable-ne-dest-invalidation")
+    print("note dest-invalidation-ne-sufficient")
+    print("note restore-target-ne-rewrite")
+    print("note unknown-ne-rewrite")
+    print("note six-c-j-source-data-frozen")
+    print("note six-c-k-restore-ordering-frozen")
+    print("note six-c-l-dest-invalidation-frozen")
+    print("note six-c-m-sufficient-design-this-cut")
+    print("note restore-target-not-classified-this-cut")
+    print("note sufficient-still-no")
+    print("note rewrite-path-still-no")
     print("note evidence-db-identity-frozen")
     print("note default-3g-frozen")
     print("note cost-v04-structural-frozen")
@@ -1539,6 +1570,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--print-capacity-sourcedata-contract", action="store_true")
     p.add_argument("--print-capacity-ordering-contract", action="store_true")
     p.add_argument("--print-capacity-invalidation-contract", action="store_true")
+    p.add_argument("--print-capacity-sufficient-contract", action="store_true")
     p.add_argument("--query-capacity-plan", type=Path)
     p.add_argument("--capacity-policy", default="")
     p.add_argument("--measured-capacity-table", type=Path)
@@ -1561,6 +1593,7 @@ def main(argv: list[str] | None = None) -> int:
             args.print_capacity_sourcedata_contract,
             args.print_capacity_ordering_contract,
             args.print_capacity_invalidation_contract,
+            args.print_capacity_sufficient_contract,
             args.query_capacity_plan,
         )
     )
@@ -1577,7 +1610,8 @@ def main(argv: list[str] | None = None) -> int:
             "--print-capacity-predicate-contract, "
             "--print-capacity-sourcedata-contract, "
             "--print-capacity-ordering-contract, "
-            "--print-capacity-invalidation-contract, --query-capacity-plan",
+            "--print-capacity-invalidation-contract, "
+            "--print-capacity-sufficient-contract, --query-capacity-plan",
             file=sys.stderr,
         )
         return 2
@@ -1626,6 +1660,8 @@ def main(argv: list[str] | None = None) -> int:
         return print_ordering_contract()
     if args.print_capacity_invalidation_contract:
         return print_invalidation_contract()
+    if args.print_capacity_sufficient_contract:
+        return print_sufficient_contract()
     if args.query_capacity_plan:
         return query_capacity_plan(
             args.query_capacity_plan,
