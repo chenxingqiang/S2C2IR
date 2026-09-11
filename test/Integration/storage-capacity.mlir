@@ -126,6 +126,20 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-source-data.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=ORDDATA
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-restore-order.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=ORDORD
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOORD
+// RUN: python3 %S/../../runtime/record_capacity.py --print-capacity-invalidation-contract | FileCheck %s --check-prefix=INVC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HINV
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HINVFIT
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-transfer-restore.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HINVYES
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-source-data.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HINVDATA
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-restore-order.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HINVORD
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HINVINV
+// RUN: s2c2-opt %s --query-capacity-plan --capacity=2 --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INV
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVFIT
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-transfer-restore.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVYES
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-source-data.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVDATA
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-restore-order.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVORD
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVINV
+// RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOINV
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -144,8 +158,10 @@
 // Token = validity witness; no valid/stale/dirty FSM.
 // source-data=yes is still not sufficient. 6C-K classifies
 // restore ordering: source-data-valid ≠ restore-at-required-point.
-// restore-ordering=yes is still dest-invalidation=no, still
-// sufficient=no, still rewrite-license=no.
+// restore-ordering=yes is still dest-invalidation=no on the
+// restore-order fixture. 6C-L classifies dest invalidation:
+// usable ≠ dest-invalidation ≠ sufficient ≠ rewrite-license.
+// dest-invalidation=yes is still rewrite-path=no.
 // 5A-6B stay frozen. Do not FileCheck microseconds.
 
 // CONTRACT: storage-capacity compiler-driven=yes
@@ -363,6 +379,7 @@
 // HQUERY: capacity-predicate selected=none necessary=no sufficient=no rewrite-license=no
 // HQUERY: capacity-sourcedata selected=none source-data=n/a replica-exists=n/a usable=n/a
 // HQUERY: capacity-ordering selected=none restore-ordering=n/a usable=n/a
+// HQUERY: capacity-invalidation selected=none dest-invalidation=n/a usable=n/a
 // HQUERY-NOT: keep{0,1,2}
 // HQUERY-NOT: selected={{[0-9]}}
 
@@ -402,6 +419,7 @@
 // QUERY: s2c2-capacity-predicate selected-in-f=no{{.*}}capacity-proof=n/a{{.*}}evict-closed=n/a{{.*}}restore-kind=n/a
 // QUERY: s2c2-capacity-sourcedata selected=none source-data=n/a replica-exists=n/a usable=n/a
 // QUERY: s2c2-capacity-ordering selected=none restore-ordering=n/a usable=n/a
+// QUERY: s2c2-capacity-invalidation selected=none dest-invalidation=n/a usable=n/a
 // QUERY-NOT: s2c2-storage-capacity
 // QUERY-NOT: evidence-bounded-schedule
 // QUERY-NOT: hierarchy-global
@@ -472,6 +490,7 @@
 // NOLIC-NOT: s2c2-capacity-predicate
 // NOLIC-NOT: s2c2-capacity-sourcedata
 // NOLIC-NOT: s2c2-capacity-ordering
+// NOLIC-NOT: s2c2-capacity-invalidation
 // NOLIC-NOT: rewrite-license=yes
 
 // RESTOREC: capacity-restore candidate-semantics=yes
@@ -544,6 +563,7 @@
 // NOREST-NOT: s2c2-capacity-predicate
 // NOREST-NOT: s2c2-capacity-sourcedata
 // NOREST-NOT: s2c2-capacity-ordering
+// NOREST-NOT: s2c2-capacity-invalidation
 // NOREST-NOT: rewrite-license=yes
 
 // PREDC: capacity-predicate gate=query
@@ -569,7 +589,7 @@
 // HPREDFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0 rewrite-license=no
 // HPREDFIT: capacity-predicate selected={{.*}} necessary=n/a sufficient=no rewrite-license=no
 // HPREDFIT: capacity-predicate selected-in-f=yes{{.*}}capacity-proof=yes{{.*}}evict-closed=n/a{{.*}}restore-kind=unused
-// HPREDFIT: capacity-predicate source-data=n/a restore-ordering=n/a dest-invalidation=no rewrite-path=no
+// HPREDFIT: capacity-predicate source-data=n/a restore-ordering=n/a dest-invalidation=n/a rewrite-path=no
 // HPREDFIT-NOT: rewrite-license=yes
 
 // HPREDYES: capacity-license restore=unspecified{{.*}}evict-closed=no
@@ -593,7 +613,7 @@
 
 // PREDFIT: s2c2-capacity-predicate selected={{.*}} necessary=n/a sufficient=no rewrite-license=no
 // PREDFIT: s2c2-capacity-predicate selected-in-f=yes{{.*}}capacity-proof=yes{{.*}}evict-closed=n/a{{.*}}restore-kind=unused
-// PREDFIT: s2c2-capacity-predicate source-data=n/a restore-ordering=n/a dest-invalidation=no rewrite-path=no
+// PREDFIT: s2c2-capacity-predicate source-data=n/a restore-ordering=n/a dest-invalidation=n/a rewrite-path=no
 // PREDFIT-NOT: rewrite-license=yes
 
 // PREDYES: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
@@ -613,6 +633,7 @@
 // NOPRED-NOT: s2c2-capacity-license
 // NOPRED-NOT: s2c2-capacity-sourcedata
 // NOPRED-NOT: s2c2-capacity-ordering
+// NOPRED-NOT: s2c2-capacity-invalidation
 // NOPRED-NOT: rewrite-license=yes
 
 // SRCC: capacity-sourcedata gate=query
@@ -715,6 +736,7 @@
 // NOSRC: s2c2-capacity-plan selected=none
 // NOSRC-NOT: s2c2-capacity-sourcedata
 // NOSRC-NOT: s2c2-capacity-ordering
+// NOSRC-NOT: s2c2-capacity-invalidation
 // NOSRC-NOT: s2c2-capacity-predicate
 // NOSRC-NOT: rewrite-license=yes
 
@@ -771,6 +793,8 @@
 // HORDORD: capacity-ordering rewrite-license=no
 // HORDORD: capacity-ordering note restore-ordering-ne-sufficient
 // HORDORD: capacity-ordering note dest-invalidation-still-no
+// HORDORD: capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=yes
+// HORDORD: capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=yes reason=no-invalidation-witness
 // HORDORD-NOT: rewrite-license=yes
 // HORDORD-NOT: keep{0,1,2}
 
@@ -818,14 +842,160 @@
 // ORDORD: s2c2-capacity-ordering rewrite-license=no
 // ORDORD: s2c2-capacity-ordering note restore-ordering-ne-sufficient
 // ORDORD: s2c2-capacity-ordering note dest-invalidation-still-no
+// ORDORD: s2c2-capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=yes
+// ORDORD: s2c2-capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=yes reason=no-invalidation-witness
 // ORDORD-NOT: rewrite-license=yes
 // ORDORD-NOT: s2c2-opt: applySchedule
 // ORDORD-NOT: keep{0,1,2}
 
 // NOORD: s2c2-capacity-plan selected=none
 // NOORD-NOT: s2c2-capacity-ordering
+// NOORD-NOT: s2c2-capacity-invalidation
 // NOORD-NOT: s2c2-capacity-sourcedata
 // NOORD-NOT: rewrite-license=yes
+
+// INVC: capacity-invalidation gate=query
+// INVC: schema s2c2.capacity_invalidation.v1
+// INVC: usable-ne-dest-invalidation yes
+// INVC: dest-invalidation-ne-sufficient yes
+// INVC: dest-invalidation-ne-rewrite-path yes
+// INVC: rewrite-license no
+// INVC: note usable-ne-dest-invalidation
+// INVC: note dest-invalidation-ne-sufficient
+// INVC: note dest-invalidation-ne-rewrite-path
+// INVC: note rewrite-path-still-no
+// INVC: note unknown-ne-rewrite
+// INVC: note six-c-j-source-data-frozen
+// INVC: note six-c-k-restore-ordering-frozen
+// INVC: note six-c-l-dest-invalidation-this-cut
+// INVC-NOT: rewrite-license yes
+
+// HINV: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=no
+// HINV: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// HINV: capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=no
+// HINV: capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=no reason=no-source-replica
+// HINV: capacity-invalidation rewrite-license=no
+// HINV-NOT: rewrite-license=yes
+
+// HINVFIT: selected=keep{0,1}|evict{}|rematerialize{} policy=s0 rewrite-license=no
+// HINVFIT: capacity-predicate source-data=n/a restore-ordering=n/a dest-invalidation=n/a
+// HINVFIT: capacity-invalidation selected={{.*}} dest-invalidation=n/a usable=n/a
+// HINVFIT: capacity-invalidation restore=unused
+// HINVFIT: capacity-invalidation rewrite-license=no
+// HINVFIT-NOT: rewrite-license=yes
+
+// HINVYES: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// HINVYES: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HINVYES: capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// HINVYES: capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=no
+// HINVYES: capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=no reason=no-invalidation-witness
+// HINVYES: capacity-invalidation note usable-ne-dest-invalidation
+// HINVYES-NOT: rewrite-license=yes
+// HINVYES-NOT: keep{0,1,2}
+
+// HINVDATA: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// HINVDATA: capacity-predicate source-data=yes restore-ordering=no dest-invalidation=no rewrite-path=no
+// HINVDATA: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=yes replica-exists=yes usable=no
+// HINVDATA: capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=no
+// HINVDATA: capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=no reason=no-invalidation-witness
+// HINVDATA-NOT: rewrite-license=yes
+// HINVDATA-NOT: keep{0,1,2}
+
+// HINVORD: capacity-license restore=unspecified{{.*}}evict-closed=no
+// HINVORD: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// HINVORD: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HINVORD: capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=no rewrite-path=no
+// HINVORD: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=yes replica-exists=yes usable=yes
+// HINVORD: capacity-ordering selected=keep{0,1}|evict{2}|rematerialize{} restore-ordering=yes usable=yes
+// HINVORD: capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=yes
+// HINVORD: capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=yes reason=no-invalidation-witness
+// HINVORD: capacity-invalidation note usable-ne-dest-invalidation
+// HINVORD: capacity-invalidation note dest-invalidation-ne-sufficient
+// HINVORD-NOT: rewrite-license=yes
+// HINVORD-NOT: keep{0,1,2}
+
+// HINVINV: capacity-license restore=unspecified{{.*}}evict-closed=no
+// HINVINV: capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// HINVINV: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HINVINV: capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=yes rewrite-path=no
+// HINVINV: capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=yes replica-exists=yes usable=yes
+// HINVINV: capacity-ordering selected=keep{0,1}|evict{2}|rematerialize{} restore-ordering=yes usable=yes
+// HINVINV: capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=yes usable=yes
+// HINVINV: capacity-invalidation object=2 destination=hbm witness=spec-drop-stale scope=occupancy-live dest-invalidation=yes usable=yes reason=witnessed-drop-stale
+// HINVINV: capacity-invalidation rewrite-license=no
+// HINVINV: capacity-invalidation note dest-invalidation-ne-sufficient
+// HINVINV: capacity-invalidation note dest-invalidation-ne-rewrite-path
+// HINVINV: capacity-invalidation note rewrite-path-still-no
+// HINVINV-NOT: rewrite-license=yes
+// HINVINV-NOT: keep{0,1,2}
+
+// INV: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=no
+// INV: s2c2-capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// INV: s2c2-capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=no
+// INV: s2c2-capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=no reason=no-source-replica
+// INV: s2c2-capacity-invalidation rewrite-license=no
+// INV-NOT: rewrite-license=yes
+// INV-NOT: s2c2-opt: applySchedule
+
+// INVFIT: s2c2-capacity-predicate source-data=n/a restore-ordering=n/a dest-invalidation=n/a
+// INVFIT: s2c2-capacity-invalidation selected={{.*}} dest-invalidation=n/a usable=n/a
+// INVFIT: s2c2-capacity-invalidation restore=unused
+// INVFIT: s2c2-capacity-invalidation rewrite-license=no
+// INVFIT-NOT: rewrite-license=yes
+
+// INVYES: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// INVYES: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// INVYES: s2c2-capacity-predicate source-data=no restore-ordering=no dest-invalidation=no rewrite-path=no
+// INVYES: s2c2-capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=no
+// INVYES: s2c2-capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=no reason=no-invalidation-witness
+// INVYES: s2c2-capacity-invalidation note usable-ne-dest-invalidation
+// INVYES-NOT: rewrite-license=yes
+// INVYES-NOT: s2c2-opt: applySchedule
+// INVYES-NOT: keep{0,1,2}
+
+// INVDATA: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// INVDATA: s2c2-capacity-predicate source-data=yes restore-ordering=no dest-invalidation=no rewrite-path=no
+// INVDATA: s2c2-capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=yes replica-exists=yes usable=no
+// INVDATA: s2c2-capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=no
+// INVDATA: s2c2-capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=no reason=no-invalidation-witness
+// INVDATA-NOT: rewrite-license=yes
+// INVDATA-NOT: s2c2-opt: applySchedule
+// INVDATA-NOT: keep{0,1,2}
+
+// INVORD: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
+// INVORD: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// INVORD: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// INVORD: s2c2-capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=no rewrite-path=no
+// INVORD: s2c2-capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=yes replica-exists=yes usable=yes
+// INVORD: s2c2-capacity-ordering selected=keep{0,1}|evict{2}|rematerialize{} restore-ordering=yes usable=yes
+// INVORD: s2c2-capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=no usable=yes
+// INVORD: s2c2-capacity-invalidation object=2 destination=n/a witness=n/a scope=n/a dest-invalidation=no usable=yes reason=no-invalidation-witness
+// INVORD: s2c2-capacity-invalidation note usable-ne-dest-invalidation
+// INVORD: s2c2-capacity-invalidation note dest-invalidation-ne-sufficient
+// INVORD-NOT: rewrite-license=yes
+// INVORD-NOT: s2c2-opt: applySchedule
+// INVORD-NOT: keep{0,1,2}
+
+// INVINV: s2c2-capacity-license restore=unspecified{{.*}}evict-closed=no
+// INVINV: s2c2-capacity-restore selected=keep{0,1}|evict{2}|rematerialize{} closed=yes
+// INVINV: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// INVINV: s2c2-capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=yes rewrite-path=no
+// INVINV: s2c2-capacity-sourcedata selected=keep{0,1}|evict{2}|rematerialize{} source-data=yes replica-exists=yes usable=yes
+// INVINV: s2c2-capacity-ordering selected=keep{0,1}|evict{2}|rematerialize{} restore-ordering=yes usable=yes
+// INVINV: s2c2-capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=yes usable=yes
+// INVINV: s2c2-capacity-invalidation object=2 destination=hbm witness=spec-drop-stale scope=occupancy-live dest-invalidation=yes usable=yes reason=witnessed-drop-stale
+// INVINV: s2c2-capacity-invalidation rewrite-license=no
+// INVINV: s2c2-capacity-invalidation note dest-invalidation-ne-sufficient
+// INVINV: s2c2-capacity-invalidation note dest-invalidation-ne-rewrite-path
+// INVINV: s2c2-capacity-invalidation note rewrite-path-still-no
+// INVINV-NOT: rewrite-license=yes
+// INVINV-NOT: s2c2-opt: applySchedule
+// INVINV-NOT: keep{0,1,2}
+
+// NOINV: s2c2-capacity-plan selected=none
+// NOINV-NOT: s2c2-capacity-invalidation
+// NOINV-NOT: s2c2-capacity-ordering
+// NOINV-NOT: rewrite-license=yes
 
 // QUERYFIT: s2c2-capacity-plan-query feasible=yes
 // QUERYFIT: selected=none
