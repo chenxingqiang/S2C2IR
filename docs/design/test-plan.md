@@ -1001,6 +1001,13 @@ FROZEN). 6C-K classifies restore ordering
 (`s2c2.capacity_ordering.v1`; source-data-valid ≠
 restore-at-required-point; `restore-ordering=yes` is
 still not sufficient; still `rewrite-license=no`).
+6C-L classifies dest invalidation
+(`s2c2.capacity_invalidation.v1`; usable ≠
+dest-invalidation; FROZEN). 6C-M freezes the sufficient
+query/proof composition
+([`storage-capacity-sufficient.md`](storage-capacity-sufficient.md);
+`sufficient` ≠ `usable ∧ dest-invalidation`;
+restore-target not classified; still `sufficient=no`).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1070,6 +1077,11 @@ Do not FileCheck microseconds.
 | 6C-L-4 | same | restore-order fixture: `usable=yes dest-invalidation=no reason=no-invalidation-witness` (usable ≠ dest-invalidation) |
 | 6C-L-5 | same | dest-invalidation fixture: `destination=hbm witness=spec-drop-stale dest-invalidation=yes usable=yes`; still `rewrite-path=no` `sufficient=no` `rewrite-license=no` |
 | 6C-L-6 | same | all-KEEP / `selected=none`: `dest-invalidation=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-invalidation` |
+| 6C-M-1 | same | `--print-capacity-sufficient-contract`; usable ≠ dest-invalidation ≠ sufficient; sufficient = usable ∧ dest-invalidation ∧ restore-target; `rewrite-license=no` `rewrite-path=no` |
+| 6C-M-2 | same | dest-invalidation fixture lock: `usable=yes dest-invalidation=yes sufficient=no rewrite-license=no rewrite-path=no` (6C-L ⇏ 6C-M) |
+| 6C-M-3 | same | restore-order fixture stays `usable=yes dest-invalidation=no sufficient=no` |
+| 6C-M-4 | same | no `restore_target` parser this cut; extra keys still rejected; diagnostic `--capacity` does not print a sufficient prefix |
+| 6C-M-5 | same | future positive fixture specified only; `sufficient=yes` still `rewrite-license=no` `rewrite-path=no` (not classified this cut) |
 
 ## Complete SSD + MLP program wall-clock
 

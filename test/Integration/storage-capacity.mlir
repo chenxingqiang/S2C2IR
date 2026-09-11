@@ -140,6 +140,14 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-restore-order.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVORD
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVINV
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOINV
+// RUN: python3 %S/../../runtime/record_capacity.py --print-capacity-sufficient-contract | FileCheck %s --check-prefix=SUFC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HSUFNEG
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-restore-order.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HSUFORD
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SUFNEG
+// RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOSUF
+// RUN: sed 's/}$/,"restore_target":[]}/' %S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl > %t.suftarget.jsonl
+// RUN: not python3 %S/../../runtime/record_capacity.py --query-capacity-plan %t.suftarget.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SUFEXTRA
+// RUN: not s2c2-opt %s --query-capacity-plan --capacity-spec=%t.suftarget.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=SUFEXTRA
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -162,6 +170,10 @@
 // restore-order fixture. 6C-L classifies dest invalidation:
 // usable ≠ dest-invalidation ≠ sufficient ≠ rewrite-license.
 // dest-invalidation=yes is still rewrite-path=no.
+// 6C-M freezes sufficient as query/proof only:
+// sufficient ≠ usable ∧ dest-invalidation. restore-target
+// is defined, not classified. dest-invalidation fixture
+// stays usable=yes dest-invalidation=yes sufficient=no.
 // 5A-6B stay frozen. Do not FileCheck microseconds.
 
 // CONTRACT: storage-capacity compiler-driven=yes
@@ -491,6 +503,7 @@
 // NOLIC-NOT: s2c2-capacity-sourcedata
 // NOLIC-NOT: s2c2-capacity-ordering
 // NOLIC-NOT: s2c2-capacity-invalidation
+// NOLIC-NOT: s2c2-capacity-sufficient
 // NOLIC-NOT: rewrite-license=yes
 
 // RESTOREC: capacity-restore candidate-semantics=yes
@@ -994,8 +1007,61 @@
 
 // NOINV: s2c2-capacity-plan selected=none
 // NOINV-NOT: s2c2-capacity-invalidation
+// NOINV-NOT: s2c2-capacity-sufficient
 // NOINV-NOT: s2c2-capacity-ordering
 // NOINV-NOT: rewrite-license=yes
+
+// SUFC: capacity-sufficient gate=query
+// SUFC: schema s2c2.capacity_sufficient.v1
+// SUFC: usable-eq-source-data-and-restore-ordering yes
+// SUFC: usable-ne-dest-invalidation yes
+// SUFC: dest-invalidation-ne-sufficient yes
+// SUFC: sufficient-eq-usable-and-dest-invalidation-and-restore-target yes
+// SUFC: sufficient-ne-rewrite-license yes
+// SUFC: sufficient-ne-rewrite-path yes
+// SUFC: rewrite-license no
+// SUFC: rewrite-path no
+// SUFC: note dest-invalidation-ne-sufficient
+// SUFC: note restore-target-ne-rewrite
+// SUFC: note six-c-l-dest-invalidation-frozen
+// SUFC: note six-c-m-sufficient-design-this-cut
+// SUFC: note restore-target-not-classified-this-cut
+// SUFC: note sufficient-still-no
+// SUFC: note rewrite-path-still-no
+// SUFC-NOT: rewrite-license yes
+// SUFC-NOT: sufficient=yes
+
+// HSUFNEG: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HSUFNEG: capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=yes rewrite-path=no
+// HSUFNEG: capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=yes usable=yes
+// HSUFNEG: capacity-invalidation object=2 destination=hbm witness=spec-drop-stale scope=occupancy-live dest-invalidation=yes usable=yes reason=witnessed-drop-stale
+// HSUFNEG-NOT: rewrite-license=yes
+// HSUFNEG-NOT: sufficient=yes
+// HSUFNEG-NOT: keep{0,1,2}
+
+// HSUFORD: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HSUFORD: capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=no rewrite-path=no
+// HSUFORD: capacity-ordering selected=keep{0,1}|evict{2}|rematerialize{} restore-ordering=yes usable=yes
+// HSUFORD-NOT: rewrite-license=yes
+// HSUFORD-NOT: sufficient=yes
+
+// SUFNEG: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// SUFNEG: s2c2-capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=yes rewrite-path=no
+// SUFNEG: s2c2-capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=yes usable=yes
+// SUFNEG: s2c2-capacity-invalidation object=2 destination=hbm witness=spec-drop-stale scope=occupancy-live dest-invalidation=yes usable=yes reason=witnessed-drop-stale
+// SUFNEG-NOT: rewrite-license=yes
+// SUFNEG-NOT: sufficient=yes
+// SUFNEG-NOT: s2c2-opt: applySchedule
+// SUFNEG-NOT: s2c2-capacity-sufficient
+// SUFNEG-NOT: keep{0,1,2}
+
+// NOSUF: s2c2-capacity-plan selected=none
+// NOSUF-NOT: s2c2-capacity-sufficient
+// NOSUF-NOT: rewrite-license=yes
+
+// SUFEXTRA: extra keys
+// SUFEXTRA-NOT: sufficient=yes
+// SUFEXTRA-NOT: rewrite-license=yes
 
 // QUERYFIT: s2c2-capacity-plan-query feasible=yes
 // QUERYFIT: selected=none
