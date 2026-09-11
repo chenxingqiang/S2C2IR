@@ -57,6 +57,8 @@
 // validity witness; no valid/stale/dirty FSM. Still no.
 // 6C-K classifies restore ordering (source-data-valid ≠
 // restore-at-required-point). Still no.
+// 6C-L classifies dest invalidation (usable ≠ drop without
+// stale reads). Still no.
 // Phase 6C-C materializes CapacityPlan as the compiler-visible
 // candidate object (selected=none on the diagnostic path).
 //
@@ -2959,16 +2961,26 @@ struct CapRestoreOrderProof {
   int before = 0;
 };
 
+struct CapDestInvalidationProof {
+  std::string destination;
+  std::string witness;
+  std::string scope;
+};
+
 static constexpr llvm::StringLiteral kSourceWitness{"spec-unmutated-cover"};
 static constexpr llvm::StringLiteral kSourceScope{"occupancy-live"};
 static constexpr llvm::StringLiteral kOrderWitness{"spec-before-consumer"};
 static constexpr llvm::StringLiteral kOrderScope{"occupancy-live"};
+static constexpr llvm::StringLiteral kDestWitness{"spec-drop-stale"};
+static constexpr llvm::StringLiteral kDestScope{"occupancy-live"};
 
 static void attachCapacityRestores(
     CapacityCandidate &cc, const llvm::StringMap<std::string> &restoreSources,
     ArrayRef<CapResidency> rs,
     const llvm::StringMap<CapSourceDataProof> &sourceData,
-    const llvm::StringMap<CapRestoreOrderProof> &restoreOrder) {
+    const llvm::StringMap<CapRestoreOrderProof> &restoreOrder,
+    const llvm::StringMap<CapDestInvalidationProof> &destInv,
+    StringRef occSpace) {
   llvm::StringMap<std::pair<int, int>> occLive;
   for (const CapResidency &r : rs)
     occLive[r.object] = {r.start, r.end};
@@ -2990,9 +3002,14 @@ static void attachCapacityRestores(
     rec.orderBefore = "n/a";
     rec.orderWitness = "n/a";
     rec.orderScope = "n/a";
+    rec.destInvalidation = false;
+    rec.destSpace = "n/a";
+    rec.destWitness = "n/a";
+    rec.destScope = "n/a";
     if (!rec.replicaExists) {
       rec.sourceDataReason = "no-source-replica";
       rec.restoreOrderingReason = "no-source-replica";
+      rec.destInvalidationReason = "no-source-replica";
     } else {
       rec.replica = srcIt->second;
       auto it = sourceData.find(e);
@@ -3041,6 +3058,24 @@ static void attachCapacityRestores(
           }
         }
       }
+      auto dit = destInv.find(e);
+      if (dit == destInv.end()) {
+        rec.destInvalidationReason = "no-invalidation-witness";
+      } else {
+        rec.destSpace = dit->second.destination;
+        rec.destWitness = dit->second.witness;
+        rec.destScope = dit->second.scope;
+        if (dit->second.destination != occSpace) {
+          rec.destInvalidationReason = "destination-scope-mismatch";
+        } else if (dit->second.witness != kDestWitness) {
+          rec.destInvalidationReason = "unknown-witness";
+        } else if (dit->second.scope != kDestScope) {
+          rec.destInvalidationReason = "unknown-scope";
+        } else {
+          rec.destInvalidation = true;
+          rec.destInvalidationReason = "witnessed-drop-stale";
+        }
+      }
     }
     rec.usable = rec.sourceData && rec.restoreOrdering;
     cc.restores.push_back(std::move(rec));
@@ -3052,7 +3087,8 @@ buildCapacityPlan(ArrayRef<CapResidency> rs, Space space, int cap, int peak,
                   bool truncated, ArrayRef<CapCandidate> cands,
                   const llvm::StringMap<std::string> &restoreSources,
                   const llvm::StringMap<CapSourceDataProof> &sourceData,
-                  const llvm::StringMap<CapRestoreOrderProof> &restoreOrder) {
+                  const llvm::StringMap<CapRestoreOrderProof> &restoreOrder,
+                  const llvm::StringMap<CapDestInvalidationProof> &destInv) {
   CapacityPlan plan;
   plan.space = spaceName(space).str();
   plan.capacity = cap;
@@ -3106,7 +3142,8 @@ buildCapacityPlan(ArrayRef<CapResidency> rs, Space space, int cap, int peak,
       llvm::errs() << "s2c2-capacity-plan: duplicate identity\n";
       return failure();
     }
-    attachCapacityRestores(cc, restoreSources, rs, sourceData, restoreOrder);
+    attachCapacityRestores(cc, restoreSources, rs, sourceData, restoreOrder,
+                           destInv, plan.space);
     plan.candidates.push_back(std::move(cc));
   }
   plan.feasible = !plan.candidates.empty();
@@ -3214,6 +3251,11 @@ static llvm::json::Object capacityPlanToJson(const CapacityPlan &plan) {
       rec["order_before"] = r.orderBefore;
       rec["order_witness"] = r.orderWitness;
       rec["order_scope"] = r.orderScope;
+      rec["dest_invalidation"] = r.destInvalidation;
+      rec["dest_invalidation_reason"] = r.destInvalidationReason;
+      rec["dest_space"] = r.destSpace;
+      rec["dest_witness"] = r.destWitness;
+      rec["dest_scope"] = r.destScope;
       restores.push_back(std::move(rec));
     }
     obj["restores"] = std::move(restores);
@@ -3313,6 +3355,8 @@ static LogicalResult loadCapacitySpec(StringRef path,
                                       llvm::StringMap<CapSourceDataProof> *sourceData =
                                           nullptr,
                                       llvm::StringMap<CapRestoreOrderProof> *restoreOrder =
+                                          nullptr,
+                                      llvm::StringMap<CapDestInvalidationProof> *destInv =
                                           nullptr) {
   std::string resolved = resolveExistingPath(path, {});
   auto fileOr = llvm::MemoryBuffer::getFile(resolved);
@@ -3332,6 +3376,7 @@ static LogicalResult loadCapacitySpec(StringRef path,
   specOk.insert("restore_sources");
   specOk.insert("source_data");
   specOk.insert("restore_order");
+  specOk.insert("dest_invalidation");
   specOk.insert("note");
   llvm::StringSet<> resOk;
   resOk.insert("id");
@@ -3625,6 +3670,69 @@ static LogicalResult loadCapacitySpec(StringRef path,
         }
       }
     }
+    if (obj->get("dest_invalidation")) {
+      auto *drops = obj->getArray("dest_invalidation");
+      if (!drops) {
+        llvm::errs()
+            << "s2c2-storage-capacity: dest_invalidation must be an array\n";
+        return failure();
+      }
+      llvm::StringSet<> destOk;
+      destOk.insert("object");
+      destOk.insert("destination");
+      destOk.insert("witness");
+      destOk.insert("scope");
+      llvm::StringSet<> seenDest;
+      for (const llvm::json::Value &item : *drops) {
+        auto *rec = item.getAsObject();
+        if (!rec)
+          return failure();
+        for (const auto &kv : *rec) {
+          if (!destOk.contains(kv.getFirst())) {
+            llvm::errs()
+                << "s2c2-storage-capacity: dest_invalidation extra keys\n";
+            return failure();
+          }
+        }
+        auto objN = rec->getString("object");
+        if (!objN) {
+          llvm::errs()
+              << "s2c2-storage-capacity: dest_invalidation object required\n";
+          return failure();
+        }
+        std::string id = normalizeCapacityObject(*objN);
+        if (!occupancyIds.contains(id)) {
+          llvm::errs()
+              << "s2c2-storage-capacity: dest_invalidation not in occupancy\n";
+          return failure();
+        }
+        auto dest = rec->getString("destination");
+        auto witness = rec->getString("witness");
+        auto scope = rec->getString("scope");
+        if (!dest || !witness || !scope) {
+          llvm::errs() << "s2c2-storage-capacity: dest_invalidation "
+                          "destination, witness, scope required\n";
+          return failure();
+        }
+        if (*dest != "hbm" && *dest != "ssd" && *dest != "host") {
+          llvm::errs() << "s2c2-storage-capacity: dest_invalidation "
+                          "destination must be hbm, ssd, or host\n";
+          return failure();
+        }
+        if (!seenDest.insert(id).second) {
+          llvm::errs()
+              << "s2c2-storage-capacity: duplicate dest_invalidation\n";
+          return failure();
+        }
+        if (destInv) {
+          CapDestInvalidationProof proof;
+          proof.destination = dest->str();
+          proof.witness = witness->str();
+          proof.scope = scope->str();
+          (*destInv)[id] = proof;
+        }
+      }
+    }
   }
   if (rows != 1) {
     llvm::errs() << "s2c2-storage-capacity: capacity spec must be one row\n";
@@ -3688,11 +3796,13 @@ computeCapacityPlan(ModuleOp module, StringRef budgetStr, StringRef specPath,
   llvm::StringMap<std::string> restoreSources;
   llvm::StringMap<CapSourceDataProof> sourceData;
   llvm::StringMap<CapRestoreOrderProof> restoreOrder;
+  llvm::StringMap<CapDestInvalidationProof> destInv;
   if (workloadClass)
     *workloadClass = std::string(kCapacityIrWorkload);
   if (!specPath.empty()) {
     if (failed(loadCapacitySpec(specPath, rs, space, cap, workloadClass,
-                                &restoreSources, &sourceData, &restoreOrder)))
+                                &restoreSources, &sourceData, &restoreOrder,
+                                &destInv)))
       return failure();
   }
   if (!budgetStr.empty()) {
@@ -3716,7 +3826,8 @@ computeCapacityPlan(ModuleOp module, StringRef budgetStr, StringRef specPath,
   SmallVector<CapCandidate, 8> cands;
   enumerateCapacityF(rs, cap, conflict, peak, truncated, cands);
   auto planOr = buildCapacityPlan(rs, space, cap, peak, truncated, cands,
-                                  restoreSources, sourceData, restoreOrder);
+                                  restoreSources, sourceData, restoreOrder,
+                                  destInv);
   if (failed(planOr))
     return failure();
   if (candsOut)
@@ -4196,9 +4307,20 @@ static void printCapacityPredicate(const CapacityPlan &plan) {
       allOrd = allOrd && r.restoreOrdering;
     restoreOrderingStatus = allOrd ? "yes" : "no";
   }
+  StringRef destInvStatus = "no";
+  if (!sel || sel->evict.empty())
+    destInvStatus = "n/a";
+  else {
+    bool allDest = !sel->restores.empty() &&
+                   sel->restores.size() == sel->evict.size();
+    for (const CapacityRestore &r : sel->restores)
+      allDest = allDest && r.destInvalidation;
+    destInvStatus = allDest ? "yes" : "no";
+  }
   llvm::errs() << "s2c2-capacity-predicate source-data=" << sourceDataStatus
                << " restore-ordering=" << restoreOrderingStatus
-               << " dest-invalidation=no rewrite-path=no\n";
+               << " dest-invalidation=" << destInvStatus
+               << " rewrite-path=no\n";
   llvm::errs() << "s2c2-capacity-predicate note necessary-ne-sufficient\n";
   llvm::errs() << "s2c2-capacity-predicate note closed-ne-rewrite-license\n";
   llvm::errs() << "s2c2-capacity-predicate note source-declaration-ne-data-validity\n";
@@ -4255,6 +4377,16 @@ static StringRef usableOf(const CapacityCandidate *sel) {
   for (const CapacityRestore &r : sel->restores)
     allU = allU && r.usable;
   return allU ? "yes" : "no";
+}
+
+static StringRef destInvalidationOf(const CapacityCandidate *sel) {
+  if (!sel || sel->evict.empty())
+    return "n/a";
+  bool allDest =
+      !sel->restores.empty() && sel->restores.size() == sel->evict.size();
+  for (const CapacityRestore &r : sel->restores)
+    allDest = allDest && r.destInvalidation;
+  return allDest ? "yes" : "no";
 }
 
 static void printCapacitySourceData(const CapacityPlan &plan) {
@@ -4333,6 +4465,42 @@ static void printCapacityOrdering(const CapacityPlan &plan) {
   llvm::errs() << "s2c2-capacity-ordering rewrite=no\n";
 }
 
+static void printCapacityInvalidation(const CapacityPlan &plan) {
+  const CapacityCandidate *sel = selectedCapacityCandidate(plan);
+  llvm::errs() << "s2c2-capacity-invalidation schema=s2c2.capacity_invalidation.v1\n";
+  llvm::errs() << "s2c2-capacity-invalidation selected=" << plan.selected
+               << " dest-invalidation=" << destInvalidationOf(sel)
+               << " usable=" << usableOf(sel) << "\n";
+  if (sel && sel->evict.empty())
+    llvm::errs() << "s2c2-capacity-invalidation restore=unused\n";
+  if (sel && !sel->evict.empty()) {
+    for (const CapacityRestore &r : sel->restores) {
+      llvm::errs() << "s2c2-capacity-invalidation object=" << r.object
+                   << " destination=" << r.destSpace
+                   << " witness=" << r.destWitness
+                   << " scope=" << r.destScope
+                   << " dest-invalidation="
+                   << (r.destInvalidation ? "yes" : "no")
+                   << " usable=" << (r.usable ? "yes" : "no")
+                   << " reason=" << r.destInvalidationReason << "\n";
+    }
+  }
+  llvm::errs() << "s2c2-capacity-invalidation rewrite-license=no\n";
+  llvm::errs() << "s2c2-capacity-invalidation note usable-ne-dest-invalidation\n";
+  llvm::errs() << "s2c2-capacity-invalidation note dest-invalidation-ne-sufficient\n";
+  llvm::errs() << "s2c2-capacity-invalidation note dest-invalidation-ne-rewrite-path\n";
+  llvm::errs() << "s2c2-capacity-invalidation note rewrite-path-still-no\n";
+  llvm::errs() << "s2c2-capacity-invalidation note unknown-ne-rewrite\n";
+  llvm::errs() << "s2c2-capacity-invalidation note six-c-g-license-gate-frozen\n";
+  llvm::errs() << "s2c2-capacity-invalidation note six-c-h-restore-closure-frozen\n";
+  llvm::errs() << "s2c2-capacity-invalidation note six-c-i-license-predicate-frozen\n";
+  llvm::errs() << "s2c2-capacity-invalidation note six-c-j-source-data-frozen\n";
+  llvm::errs() << "s2c2-capacity-invalidation note six-c-k-restore-ordering-frozen\n";
+  llvm::errs() << "s2c2-capacity-invalidation note six-c-l-dest-invalidation-this-cut "
+                  "cost=unchanged\n";
+  llvm::errs() << "s2c2-capacity-invalidation rewrite=no\n";
+}
+
 static void printCapacityPolicy(const CapacityPlan &plan) {
   if (plan.policy == "none")
     return;
@@ -4385,6 +4553,7 @@ static LogicalResult queryCapacityPlan(ModuleOp module, StringRef budgetStr,
   printCapacityPredicate(plan);
   printCapacitySourceData(plan);
   printCapacityOrdering(plan);
+  printCapacityInvalidation(plan);
   if (!dumpPath.empty() && failed(dumpCapacityPlanJson(dumpPath, plan)))
     return failure();
   return success();

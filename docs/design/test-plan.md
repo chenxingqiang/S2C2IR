@@ -1064,6 +1064,12 @@ Do not FileCheck microseconds.
 | 6C-K-4 | same | source-data fixture: `source-data=yes restore-ordering=no usable=no reason=no-ordering-witness` (source-valid ≠ restore-at-point) |
 | 6C-K-5 | same | restore-order fixture: `before=5 witness=spec-before-consumer restore-ordering=yes usable=yes`; still `dest-invalidation=no` `sufficient=no` `rewrite-license=no` |
 | 6C-K-6 | same | all-KEEP / `selected=none`: `restore-ordering=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-ordering` |
+| 6C-L-1 | same | `--print-capacity-invalidation-contract`; usable ≠ dest-invalidation; dest-invalidation ≠ sufficient ≠ rewrite-path; `rewrite-license=no` |
+| 6C-L-2 | same | 4-tile s0 / occupancy IR: `dest-invalidation=no usable=no reason=no-source-replica`; `sufficient=no` |
+| 6C-L-3 | same | transfer-restore / source-data: `dest-invalidation=no reason=no-invalidation-witness`; still `sufficient=no` |
+| 6C-L-4 | same | restore-order fixture: `usable=yes dest-invalidation=no reason=no-invalidation-witness` (usable ≠ dest-invalidation) |
+| 6C-L-5 | same | dest-invalidation fixture: `destination=hbm witness=spec-drop-stale dest-invalidation=yes usable=yes`; still `rewrite-path=no` `sufficient=no` `rewrite-license=no` |
+| 6C-L-6 | same | all-KEEP / `selected=none`: `dest-invalidation=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-invalidation` |
 
 ## Complete SSD + MLP program wall-clock
 

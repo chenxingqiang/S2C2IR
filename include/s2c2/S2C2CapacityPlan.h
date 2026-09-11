@@ -7,6 +7,8 @@
 // TRANSFER restore record to each EVICT object. 6C-I classifies
 // the license predicate (necessary vs sufficient; still no).
 // 6C-J classifies source-data validity (still not sufficient).
+// 6C-K classifies restore ordering (still not sufficient).
+// 6C-L classifies dest invalidation (still not sufficient).
 // 6C-B diagnostics stay frozen.
 //
 //===----------------------------------------------------------------------===//
@@ -51,8 +53,9 @@ inline std::string capacityCandidateIdentity(
 /// replica-exists ≠ source-data-valid ≠ restore-usable.
 /// Declaration is not data validity. 6C-K classifies restore
 /// ordering: source-data-valid ≠ restore-at-required-point.
-/// usable = source-data ∧ restore-ordering. Dest invalidation
-/// stays no.
+/// usable = source-data ∧ restore-ordering. 6C-L classifies
+/// dest invalidation: usable ≠ fast-space drop without stale
+/// reads. rewrite-path stays no.
 struct CapacityRestore {
   std::string object;
   std::string kind = "TRANSFER";
@@ -70,6 +73,11 @@ struct CapacityRestore {
   std::string orderWitness = "n/a";
   std::string orderScope = "n/a";
   bool usable = false;
+  bool destInvalidation = false;
+  std::string destInvalidationReason;
+  std::string destSpace = "n/a";
+  std::string destWitness = "n/a";
+  std::string destScope = "n/a";
 };
 
 struct CapacityCandidate {
@@ -96,6 +104,7 @@ struct CapacityCandidate {
 /// necessary conjuncts vs still-missing sufficient proof.
 /// 6C-J classifies source-data validity (still not sufficient).
 /// 6C-K classifies restore ordering (still not sufficient).
+/// 6C-L classifies dest invalidation (still not sufficient).
 /// Not a rewrite license.
 struct CapacityPlan {
   static constexpr llvm::StringLiteral kSchema{"s2c2.capacity_plan.v1"};

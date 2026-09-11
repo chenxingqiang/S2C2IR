@@ -135,4 +135,13 @@ Same \(F_{\mathrm{capacity}}\); `restore-ordering=yes`
 `rewrite-license=no`. Required point is occupancy live end.
 Check with
 `python3 runtime/record_capacity.py --print-capacity-ordering-contract`.
+Dest-invalidation proofs (optional, not occupancy, not a
+new \(F\) member):
+[`storage-capacity-4tile-dest-invalidation.jsonl`](storage-capacity-4tile-dest-invalidation.jsonl).
+Same \(F_{\mathrm{capacity}}\); `dest-invalidation=yes`
+`usable=yes` still `rewrite-path=no` `sufficient=no`
+`rewrite-license=no`. Destination equals occupancy space
+(`destination=hbm`, `witness=spec-drop-stale`,
+`scope=occupancy-live`). Check with
+`python3 runtime/record_capacity.py --print-capacity-invalidation-contract`.
 

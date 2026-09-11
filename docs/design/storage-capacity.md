@@ -1,4 +1,4 @@
-# Capacity-aware Residency (Phase 6C-K, restore ordering)
+# Capacity-aware Residency (Phase 6C-L, dest invalidation)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
 FROZEN (`selected=none` on the diagnostic path); 6C-D
@@ -12,7 +12,10 @@ records FROZEN; 6C-I license predicate FROZEN
 token = validity witness; no valid/stale/dirty FSM;
 FROZEN). 6C-K classifies restore ordering
 (`source-data-valid` ≠ restore-at-required-point;
-still not sufficient, still `rewrite-license=no`). 5A–6B is the **stable
+`usable` = source-data ∧ restore-ordering; FROZEN).
+6C-L classifies dest invalidation
+(`usable` ≠ dest-invalidation; still not sufficient,
+still `rewrite-license=no`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
 ([PR #107](https://github.com/chenxingqiang/S2C2IR/pull/107))
@@ -29,8 +32,8 @@ Do not expand the 6C-B diagnostic surface. Do not
 FileCheck microseconds.
 
 ```text
-Goal     freeze restore ordering as a sufficient prerequisite; still not sufficient, still no license
-Not      an eviction rewrite, a yes-license, dest invalidation, or a device campaign
+Goal     freeze dest invalidation as a sufficient prerequisite; still not sufficient, still no license
+Not      an eviction rewrite, a yes-license, rewrite path, or a device campaign
 Rewrite  still only from an existing capability license
 ```
 
@@ -84,9 +87,9 @@ license predicate              ← 6C-I frozen (necessary ≠ sufficient; still 
    ↓
 source-data validity           ← FROZEN (6C-J; scoped witness)
    ↓
-restore ordering               ← this cut (6C-K; usable=source-data∧ordering; still no)
+restore ordering               ← FROZEN (6C-K; usable=source-data∧ordering; still no)
    ↓
-dest invalidation              ← 6C-L, not this cut
+dest invalidation              ← this cut (6C-L; usable ≠ dest-invalidation; still no)
    ↓
 rewrite path                   ← not this cut
    ↓
@@ -100,6 +103,7 @@ s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
   --capacity-policy=s0
 python3 runtime/record_capacity.py --print-capacity-sourcedata-contract
 python3 runtime/record_capacity.py --print-capacity-ordering-contract
+python3 runtime/record_capacity.py --print-capacity-invalidation-contract
 ```
 
 Frozen 6C-B diagnostics remain:
@@ -600,7 +604,8 @@ restore-kind=TRANSFER
 
 Still **not** sufficient until every conjunct is proven.
 6C-J classifies `source-data`; 6C-K classifies
-`restore-ordering`; the other two stay `no`:
+`restore-ordering`; 6C-L classifies `dest-invalidation`;
+`rewrite-path` stays `no`:
 
 ```text
 source-data          scoped replica has a validity witness covering occupancy
@@ -622,8 +627,8 @@ Occupancy `capacity-proof` is membership in enumerated
 alias analysis. Source declaration (`has-source-replica`)
 is **not** data-validity, restore ordering, or destination
 invalidation. 6C-J classifies data-validity; 6C-K
-classifies restore ordering; destination invalidation
-and the rewrite path remain open.
+classifies restore ordering; 6C-L classifies destination
+invalidation; the rewrite path remains open.
 
 The predicate prints only on the query consumer. Diagnostic
 `--capacity` does not print it. No `--capacity-license=yes`,
@@ -750,7 +755,7 @@ destination invalidation, IR alias analysis, or
 The sourcedata prefix prints only on the query consumer.
 Diagnostic `--capacity` does not print it.
 
-## Restore ordering (6C-K, this cut)
+## Restore ordering (6C-K, FROZEN)
 
 Source-data validity is **not** a proof that TRANSFER can
 happen at the required point relative to uses. This cut
@@ -842,13 +847,104 @@ destination invalidation, IR alias analysis, or
 The ordering prefix prints only on the query consumer.
 Diagnostic `--capacity` does not print it.
 
+## Dest invalidation (6C-L, this cut)
+
+`usable=yes` is **not** a proof that the fast-space copy
+is dropped without stale reads. This cut classifies a
+scoped dest-invalidation witness as a query-only record
+on each EVICT restore. It does **not** issue
+`rewrite-license=yes`. `CapacityPlan.rewriteLicense` stays
+`false`. 6C-G / 6C-H / 6C-J / 6C-K prints stay frozen.
+`usable` stays `source-data ∧ restore-ordering`; dest
+invalidation is **not** folded into `usable`.
+
+```text
+usable
+        ≠
+fast-space copy dropped without stale reads
+```
+
+No execution FSM and no IR rewrite. The proof reports what
+the occupancy spec can show. Unknown witness, unknown
+scope, or a destination that is not the occupancy space
+classifies as no; unknown → no rewrite.
+
+```text
+prefix           s2c2-capacity-invalidation
+schema           s2c2.capacity_invalidation.v1
+sufficient       no
+rewrite-path     no
+rewrite-license  no
+rewrite          no
+```
+
+Optional occupancy-spec field `dest_invalidation` (not
+occupancy, not a new \(F\) member):
+
+```text
+object       occupancy id (tileN normalizes to N)
+destination  hbm|ssd|host at parse; accepted this stage: occupancy space
+witness      token; accepted this stage: spec-drop-stale
+scope        token; accepted this stage: occupancy-live
+```
+
+Extra keys are rejected. Other witness/scope values parse
+and classify as `unknown-witness` / `unknown-scope`.
+`destination` ≠ occupancy/capacity space classifies as
+`destination-scope-mismatch`.
+
+Per-EVICT classification, independent of `usable`:
+
+```text
+!restore source              dest-invalidation=no usable=…
+                             destination/witness/scope = n/a
+                             reason=no-source-replica
+restore, no dest_invalidation dest-invalidation=no
+                             destination=n/a witness=n/a scope=n/a
+                             reason=no-invalidation-witness
+destination ≠ occupancy space   reason=destination-scope-mismatch
+witness ≠ spec-drop-stale       reason=unknown-witness
+scope ≠ occupancy-live          reason=unknown-scope
+else                         dest-invalidation=yes
+                             reason=witnessed-drop-stale
+usable = source-data ∧ restore-ordering
+```
+
+Occupancy IR has no restore sources and no proofs.
+Transfer-restore, source-data, and restore-order fixtures
+have no `dest_invalidation`, so `dest-invalidation=no`.
+The restore-order fixture keeps `usable=yes` with
+`dest-invalidation=no` (`usable` ≠ dest-invalidation).
+Fixture
+[`v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl`](v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl)
+adds `spec-drop-stale` witnesses with `destination=hbm`
+for tiles 0, 1, and 2; \(F_{\mathrm{capacity}}\) is
+unchanged.
+
+```text
+selected=none / all-KEEP              dest-invalidation=n/a usable=n/a
+EVICT, no source replica              dest-invalidation=no  usable=no
+EVICT, replica exists, no dest proof  dest-invalidation=no
+usable=yes ∧ dest-invalidation=no     ≠  sufficient=yes
+dest-invalidation=yes                 ≠  sufficient=yes
+sufficient=no                         ≠  rewrite-license=yes
+```
+
+`sufficient` stays **no** until the rewrite path is also
+yes. This cut does **not** claim a rewrite path, IR alias
+analysis, `replace`/`erase`, or
+\(F_{\mathrm{storage\_schedule}}\).
+
+The invalidation prefix prints only on the query consumer.
+Diagnostic `--capacity` does not print it.
+
 ## Out of scope
 
 ```text
 eviction rewrite / HB A/B
 opening rewrite-license=yes
 valid/stale/dirty FSM
-opening 6C-L dest invalidation
+opening rewrite-path
 F_storage_schedule
 rematerialize rewrite
 new Capability matrix
@@ -861,11 +957,12 @@ invented sibling sched.wait
 FileCheck of microseconds
 ```
 
-## After 6C-I
+## After 6C-L
 
 Architecture health check (evaluator ≠ search engine;
 still no rewrite):
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Does **not** open \(F_{\mathrm{storage\_schedule}}\), a
 frontend, or eviction rewrite. Sufficient proofs stay
-one conjunct per cut.
+one conjunct per cut. The next cut is rewrite-path proof,
+not a joint schedule family.

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Phase 6C Capacity-aware Residency (6C-B–J frozen, 6C-K ordering).
+"""Phase 6C Capacity-aware Residency (6C-B–K frozen, 6C-L invalidation).
 
-Host witness for F_capacity through scoped source-data validity
-and restore ordering. source-data-valid ≠ restore-at-required-point.
+Host witness for F_capacity through dest invalidation.
+usable ≠ dest-invalidation. dest-invalidation ≠ sufficient.
 usable = source-data ∧ restore-ordering. Still not sufficient.
 The gate is still no. Do not FileCheck microseconds.
 """
@@ -27,14 +27,22 @@ SPEC_FIELDS = (
     "residencies",
     "note",
 )
-OPTIONAL_SPEC_FIELDS = ("restore_sources", "source_data", "restore_order")
+OPTIONAL_SPEC_FIELDS = (
+    "restore_sources",
+    "source_data",
+    "restore_order",
+    "dest_invalidation",
+)
 RESTORE_SRC_FIELDS = ("object", "space", "kind")
 SOURCE_DATA_FIELDS = ("object", "replica", "witness", "live", "scope")
 RESTORE_ORDER_FIELDS = ("object", "before", "witness", "scope")
+DEST_INV_FIELDS = ("object", "destination", "witness", "scope")
 SOURCE_WITNESS = "spec-unmutated-cover"
 SOURCE_SCOPE = "occupancy-live"
 ORDER_WITNESS = "spec-before-consumer"
 ORDER_SCOPE = "occupancy-live"
+DEST_WITNESS = "spec-drop-stale"
+DEST_SCOPE = "occupancy-live"
 
 RES_FIELDS = (
     "id",
@@ -393,7 +401,8 @@ def print_capacity_predicate(plan: dict[str, Any]) -> None:
     print(
         f"capacity-predicate source-data={_source_data_status(sel)} "
         f"restore-ordering={_restore_ordering_status(sel)} "
-        "dest-invalidation=no rewrite-path=no"
+        f"dest-invalidation={_dest_invalidation_status(sel)} "
+        "rewrite-path=no"
     )
     print("capacity-predicate note necessary-ne-sufficient")
     print("capacity-predicate note closed-ne-rewrite-license")
@@ -482,6 +491,19 @@ def _usable_status(sel: dict[str, Any] | None) -> str:
     for r in restores:
         all_u = all_u and bool(r.get("usable"))
     return "yes" if all_u else "no"
+
+
+def _dest_invalidation_status(sel: dict[str, Any] | None) -> str:
+    if sel is None:
+        return "n/a"
+    evict = list(sel.get("evict") or [])
+    if not evict:
+        return "n/a"
+    restores = list(sel.get("restores") or [])
+    all_d = bool(restores) and len(restores) == len(evict)
+    for r in restores:
+        all_d = all_d and bool(r.get("dest_invalidation"))
+    return "yes" if all_d else "no"
 
 
 def print_capacity_sourcedata(plan: dict[str, Any]) -> None:
@@ -602,6 +624,77 @@ def print_capacity_ordering(plan: dict[str, Any]) -> None:
     print("capacity-ordering note six-c-j-source-data-frozen")
     print("capacity-ordering note six-c-k-restore-ordering-this-cut")
     print("capacity-ordering rewrite=no")
+
+
+def print_invalidation_contract() -> int:
+    print("capacity-invalidation gate=query")
+    print("schema s2c2.capacity_invalidation.v1")
+    print("usable-ne-dest-invalidation yes")
+    print("dest-invalidation-ne-sufficient yes")
+    print("dest-invalidation-ne-rewrite-path yes")
+    print("rewrite-license no")
+    print("note usable-ne-dest-invalidation")
+    print("note dest-invalidation-ne-sufficient")
+    print("note dest-invalidation-ne-rewrite-path")
+    print("note rewrite-path-still-no")
+    print("note unknown-ne-rewrite")
+    print("note six-c-g-license-gate-frozen")
+    print("note six-c-h-restore-closure-frozen")
+    print("note six-c-i-license-predicate-frozen")
+    print("note six-c-j-source-data-frozen")
+    print("note six-c-k-restore-ordering-frozen")
+    print("note six-c-l-dest-invalidation-this-cut")
+    print("note evidence-db-identity-frozen")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    return 0
+
+
+def print_capacity_invalidation(plan: dict[str, Any]) -> None:
+    selected = str(plan.get("selected") or "none")
+    sel = None
+    if selected != "none":
+        for c in plan.get("candidates") or []:
+            if c.get("identity") == selected:
+                sel = c
+                break
+    evict = list(sel.get("evict") or []) if sel else []
+    restores = list(sel.get("restores") or []) if sel else []
+    print("capacity-invalidation schema=s2c2.capacity_invalidation.v1")
+    print(
+        f"capacity-invalidation selected={selected} "
+        f"dest-invalidation={_dest_invalidation_status(sel)} "
+        f"usable={_usable_status(sel)}"
+    )
+    if sel is not None and not evict:
+        print("capacity-invalidation restore=unused")
+    if sel is not None and evict:
+        for r in restores:
+            print(
+                f"capacity-invalidation object={r['object']} "
+                f"destination={r.get('dest_space', 'n/a')} "
+                f"witness={r.get('dest_witness', 'n/a')} "
+                f"scope={r.get('dest_scope', 'n/a')} "
+                f"dest-invalidation={'yes' if r.get('dest_invalidation') else 'no'} "
+                f"usable={'yes' if r.get('usable') else 'no'} "
+                f"reason={r.get('dest_invalidation_reason')}"
+            )
+    print("capacity-invalidation rewrite-license=no")
+    print("capacity-invalidation note usable-ne-dest-invalidation")
+    print("capacity-invalidation note dest-invalidation-ne-sufficient")
+    print("capacity-invalidation note dest-invalidation-ne-rewrite-path")
+    print("capacity-invalidation note rewrite-path-still-no")
+    print("capacity-invalidation note unknown-ne-rewrite")
+    print("capacity-invalidation note six-c-g-license-gate-frozen")
+    print("capacity-invalidation note six-c-h-restore-closure-frozen")
+    print("capacity-invalidation note six-c-i-license-predicate-frozen")
+    print("capacity-invalidation note six-c-j-source-data-frozen")
+    print("capacity-invalidation note six-c-k-restore-ordering-frozen")
+    print("capacity-invalidation note six-c-l-dest-invalidation-this-cut")
+    print("capacity-invalidation rewrite=no")
 
 
 def capacity_candidate_identity(
@@ -754,6 +847,31 @@ def _load_spec(path: Path) -> dict[str, Any]:
             if oid in seen_order:
                 raise ValueError("duplicate restore_order")
             seen_order.add(oid)
+    raw_dest = spec.get("dest_invalidation")
+    if raw_dest is not None:
+        if not isinstance(raw_dest, list):
+            raise ValueError("dest_invalidation must be an array")
+        seen_dest: set[str] = set()
+        for rec in raw_dest:
+            if not isinstance(rec, dict):
+                raise ValueError("dest_invalidation must be an object")
+            extra_d = sorted(set(rec) - set(DEST_INV_FIELDS))
+            if extra_d:
+                raise ValueError(f"dest_invalidation extra keys {extra_d}")
+            obj_n = rec.get("object")
+            if not obj_n:
+                raise ValueError("dest_invalidation object required")
+            oid = _tile_key(str(obj_n))
+            if oid not in occupancy:
+                raise ValueError("dest_invalidation not in occupancy")
+            dest = rec.get("destination")
+            if dest not in ("hbm", "ssd", "host"):
+                raise ValueError("dest_invalidation destination must be hbm|ssd|host")
+            if not rec.get("witness") or not rec.get("scope"):
+                raise ValueError("dest_invalidation witness and scope required")
+            if oid in seen_dest:
+                raise ValueError("duplicate dest_invalidation")
+            seen_dest.add(oid)
     return spec
 
 
@@ -820,12 +938,27 @@ def _restore_order_proofs(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return out
 
 
+def _dest_inv_proofs(spec: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    raw = spec.get("dest_invalidation") or []
+    out: dict[str, dict[str, Any]] = {}
+    for rec in raw:
+        oid = _tile_key(str(rec["object"]))
+        out[oid] = {
+            "destination": str(rec["destination"]),
+            "witness": str(rec["witness"]),
+            "scope": str(rec["scope"]),
+        }
+    return out
+
+
 def _attach_restores(
     evict: list[str],
     sources: dict[str, str],
     occ_live: dict[str, tuple[int, int]],
     proofs: dict[str, dict[str, Any]],
     order_proofs: dict[str, dict[str, Any]],
+    dest_proofs: dict[str, dict[str, Any]],
+    occ_space: str,
 ) -> list[dict[str, Any]]:
     restores = []
     for e in evict:
@@ -835,12 +968,17 @@ def _attach_restores(
         scope = "n/a"
         source_data = False
         restore_ordering = False
+        dest_invalidation = False
         order_before = "n/a"
         order_witness = "n/a"
         order_scope = "n/a"
+        dest_space = "n/a"
+        dest_witness = "n/a"
+        dest_scope = "n/a"
         if not replica_exists:
             source_data_reason = "no-source-replica"
             restore_ordering_reason = "no-source-replica"
+            dest_invalidation_reason = "no-source-replica"
         else:
             proof = proofs.get(e)
             if proof is None:
@@ -883,6 +1021,22 @@ def _attach_restores(
                     else:
                         restore_ordering = True
                         restore_ordering_reason = "witnessed-before-consumer"
+            dest = dest_proofs.get(e)
+            if dest is None:
+                dest_invalidation_reason = "no-invalidation-witness"
+            else:
+                dest_space = dest["destination"]
+                dest_witness = dest["witness"]
+                dest_scope = dest["scope"]
+                if dest["destination"] != occ_space:
+                    dest_invalidation_reason = "destination-scope-mismatch"
+                elif dest["witness"] != DEST_WITNESS:
+                    dest_invalidation_reason = "unknown-witness"
+                elif dest["scope"] != DEST_SCOPE:
+                    dest_invalidation_reason = "unknown-scope"
+                else:
+                    dest_invalidation = True
+                    dest_invalidation_reason = "witnessed-drop-stale"
         restores.append(
             {
                 "object": e,
@@ -902,6 +1056,11 @@ def _attach_restores(
                 "order_before": order_before,
                 "order_witness": order_witness,
                 "order_scope": order_scope,
+                "dest_invalidation": dest_invalidation,
+                "dest_invalidation_reason": dest_invalidation_reason,
+                "dest_space": dest_space,
+                "dest_witness": dest_witness,
+                "dest_scope": dest_scope,
                 "usable": source_data and restore_ordering,
             }
         )
@@ -963,6 +1122,8 @@ def _build_capacity_plan(spec: dict[str, Any]) -> dict[str, Any]:
     occ_live = _occ_live(spec)
     proofs = _source_data_proofs(spec)
     order_proofs = _restore_order_proofs(spec)
+    dest_proofs = _dest_inv_proofs(spec)
+    occ_space = str(spec["space"])
     plan_cands = []
     if not enum["truncated"]:
         seen = set()
@@ -989,7 +1150,13 @@ def _build_capacity_plan(spec: dict[str, Any]) -> dict[str, Any]:
                     "evict": evict,
                     "rematerialize": rematerialize,
                     "restores": _attach_restores(
-                        evict, sources, occ_live, proofs, order_proofs
+                        evict,
+                        sources,
+                        occ_live,
+                        proofs,
+                        order_proofs,
+                        dest_proofs,
+                        occ_space,
                     ),
                 }
             )
@@ -1339,6 +1506,7 @@ def query_capacity_plan(
     print_capacity_predicate(plan)
     print_capacity_sourcedata(plan)
     print_capacity_ordering(plan)
+    print_capacity_invalidation(plan)
     print("cost=unchanged")
     return 0
 
@@ -1370,6 +1538,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--print-capacity-predicate-contract", action="store_true")
     p.add_argument("--print-capacity-sourcedata-contract", action="store_true")
     p.add_argument("--print-capacity-ordering-contract", action="store_true")
+    p.add_argument("--print-capacity-invalidation-contract", action="store_true")
     p.add_argument("--query-capacity-plan", type=Path)
     p.add_argument("--capacity-policy", default="")
     p.add_argument("--measured-capacity-table", type=Path)
@@ -1391,6 +1560,7 @@ def main(argv: list[str] | None = None) -> int:
             args.print_capacity_predicate_contract,
             args.print_capacity_sourcedata_contract,
             args.print_capacity_ordering_contract,
+            args.print_capacity_invalidation_contract,
             args.query_capacity_plan,
         )
     )
@@ -1406,7 +1576,8 @@ def main(argv: list[str] | None = None) -> int:
             "--print-capacity-restore-contract, "
             "--print-capacity-predicate-contract, "
             "--print-capacity-sourcedata-contract, "
-            "--print-capacity-ordering-contract, --query-capacity-plan",
+            "--print-capacity-ordering-contract, "
+            "--print-capacity-invalidation-contract, --query-capacity-plan",
             file=sys.stderr,
         )
         return 2
@@ -1453,6 +1624,8 @@ def main(argv: list[str] | None = None) -> int:
         return print_sourcedata_contract()
     if args.print_capacity_ordering_contract:
         return print_ordering_contract()
+    if args.print_capacity_invalidation_contract:
+        return print_invalidation_contract()
     if args.query_capacity_plan:
         return query_capacity_plan(
             args.query_capacity_plan,
