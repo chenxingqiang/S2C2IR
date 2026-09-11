@@ -146,6 +146,455 @@ static void printSsdMlpWallclock() {
   std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
 }
 
+static void printStorageLoop() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-loop=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-loop source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop "
+               "note scf-for-software-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop "
+               "note loop-carried-lifetime\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop note no-invented-wait\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop "
+               "runtime-witness=storage-loop-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-loop cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop semantics=unchanged\n");
+}
+
+static void printStorageLoopWallclock() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-loop-wallclock=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock "
+               "program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock "
+               "note scf-for-software-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock "
+               "note not-arbitrary-runtime-n\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock t-base=t-seq\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock t-opt=t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock "
+               "note evi-eq-par\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock "
+               "evi=keep-C||Storage\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock n-tile=4194304\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock tiles=3\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock trip=2\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock k_ref=32\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock "
+               "note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock "
+               "note logical-ssd-ne-disk\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-wallclock "
+               "semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter v3=not-claimed\n");
+}
+
+static void printStorageNtile() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-ntile=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-ntile source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile "
+               "note compute-then-prefetch-next\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile "
+               "note proven-live-residency\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile note no-invented-wait\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile "
+               "runtime-witness=storage-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-ntile cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile semantics=unchanged\n");
+}
+
+static void printStorageHierarchy() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-hierarchy=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy "
+               "note ssd-host-hbm-compute\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy "
+               "note inferred-overlap-ne-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy "
+               "note keep-residency-ne-rematerialize\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy "
+               "runtime-witness=storage-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-hierarchy cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy semantics=unchanged\n");
+}
+
+static void printStorageSchedule() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-schedule=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-schedule source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule "
+               "note legal-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule "
+               "note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-schedule cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-schedule semantics=unchanged\n");
+}
+
+static void printStorageJoint() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-joint=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-joint source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint "
+               "note joint-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint "
+               "note cost-ranking-is-policy-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-joint cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-joint semantics=unchanged\n");
+}
+
+static void printStorageGlobal() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-global=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-global source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global "
+               "note global-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global note chain-def-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global "
+               "note truncated-ne-complete-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global "
+               "note historical-tuple-or-fail\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global "
+               "note cost-ranking-is-policy-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-global cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-global semantics=unchanged\n");
+}
+
+static void printStorageCost() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-cost=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-cost source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note cost-ranks-enumerated-F-only\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note cost-ne-legality\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note cost-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost policy=cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note truncated-ne-ranked\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note not-s2c2-argmin\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note not-score3\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost note chain-def-frozen\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-cost cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-cost semantics=unchanged\n");
+}
+
+static void printStorageMeasured() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-measured=1\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note measured-yes-and-correctness\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note measured-ne-legality\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured "
+               "note runtime-validation-pending\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-measured semantics=unchanged\n");
+}
+
+static void printStorageHierarchyMeasured() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-hierarchy-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note keep-residency-ne-rewrite\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note not-pipeline-s0-s1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note measured-last-wins-duplicate-policy\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-hierarchy-measured "
+               "semantics=unchanged\n");
+}
+
+static void printStorageLoopMeasured() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-loop-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note prefetch-keep-joint\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note joint-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note not-ntile-4\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note not-3j-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-loop-measured "
+               "semantics=unchanged\n");
+}
+
+static void printStorageNtileMeasured() {
+  std::fprintf(stderr, "s2c2-ascend-adapter storage-ntile-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note two-independent-prefetch-sites\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note contention-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note not-pipeline-s0-s1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter storage-ntile-measured "
+               "semantics=unchanged\n");
+}
+
+static void printWorkloadSchedule() {
+  std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule=1\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "note not-handwritten-optimized-ir\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "runtime-witness=ssd-mlp-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "note compiler-chosen-t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule "
+               "note storage-data-movement-overlap\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-ascend-adapter workload-schedule cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-ascend-adapter workload-schedule semantics=unchanged\n");
+}
+
 static void printCCRewrite() {
   std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite=1\n");
   std::fprintf(stderr, "s2c2-ascend-adapter cc-rewrite pair=C||C\n");
@@ -299,7 +748,14 @@ static void usage() {
   std::fprintf(stderr,
                "s2c2-ascend-adapter --dry-run [--pairs] [--workload] "
                "[--cap-schema] [--mem] [--cc-phase] [--cc-size] "
-               "[--cc-rewrite] [--ssd-mlp-wallclock] "
+               "[--cc-rewrite] [--ssd-mlp-wallclock] [--storage-hierarchy] "
+               "[--storage-schedule] [--storage-joint] [--storage-global] "
+               "[--storage-cost] [--storage-measured] "
+               "[--storage-hierarchy-measured] "
+               "[--storage-ntile] [--storage-ntile-measured] "
+               "[--storage-loop] "
+               "[--storage-loop-wallclock] [--storage-loop-measured] "
+               "[--workload-schedule] "
                "[--classify=ta:tb:tpar] "
                "[--emit-record=<pair>] [--accept-hardware=<id>]\n"
                "Host protocol only. Timed AscendCL: runtime/ascend/\n");
@@ -315,6 +771,19 @@ int main(int argc, char **argv) {
   bool ccSize = false;
   bool ccRewrite = false;
   bool ssdMlp = false;
+  bool storageHier = false;
+  bool storageSched = false;
+  bool storageJoint = false;
+  bool storageGlobal = false;
+  bool storageCost = false;
+  bool storageMeasured = false;
+  bool storageHierMeas = false;
+  bool storageNtile = false;
+  bool storageNtileMeas = false;
+  bool storageLoop = false;
+  bool storageLoopWc = false;
+  bool storageLoopMeas = false;
+  bool workloadSched = false;
   const char *classify = nullptr;
   const char *emit = nullptr;
   const char *acceptHw = nullptr;
@@ -338,6 +807,32 @@ int main(int argc, char **argv) {
       ccRewrite = true;
     } else if (a == "--ssd-mlp-wallclock") {
       ssdMlp = true;
+    } else if (a == "--storage-hierarchy") {
+      storageHier = true;
+    } else if (a == "--storage-schedule") {
+      storageSched = true;
+    } else if (a == "--storage-joint") {
+      storageJoint = true;
+    } else if (a == "--storage-global") {
+      storageGlobal = true;
+    } else if (a == "--storage-cost") {
+      storageCost = true;
+    } else if (a == "--storage-measured") {
+      storageMeasured = true;
+    } else if (a == "--storage-hierarchy-measured") {
+      storageHierMeas = true;
+    } else if (a == "--storage-ntile") {
+      storageNtile = true;
+    } else if (a == "--storage-ntile-measured") {
+      storageNtileMeas = true;
+    } else if (a == "--storage-loop") {
+      storageLoop = true;
+    } else if (a == "--storage-loop-wallclock") {
+      storageLoopWc = true;
+    } else if (a == "--storage-loop-measured") {
+      storageLoopMeas = true;
+    } else if (a == "--workload-schedule") {
+      workloadSched = true;
     } else if (a.rfind("--classify=", 0) == 0) {
       classify = argv[i] + 11;
     } else if (a.rfind("--emit-record=", 0) == 0) {
@@ -363,13 +858,27 @@ int main(int argc, char **argv) {
   std::fprintf(stderr, "s2c2-ascend-adapter dry-run=1\n");
   int modes = (int)pairs + (int)workload + (int)capSchema + (int)mem +
               (int)ccPhase + (int)ccSize + (int)ccRewrite + (int)ssdMlp +
+              (int)storageHier + (int)storageSched + (int)storageJoint +
+              (int)storageGlobal + (int)storageCost + (int)storageMeasured +
+              (int)storageHierMeas + (int)storageNtile +
+              (int)storageNtileMeas + (int)storageLoop +
+              (int)storageLoopWc + (int)storageLoopMeas +
+              (int)workloadSched +
               (int)(classify != nullptr) + (int)(emit != nullptr) +
               (int)(acceptHw != nullptr);
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-ascend-adapter: --cap-schema/--pairs/--workload/--mem/"
                  "--cc-phase/--cc-size/--cc-rewrite/--ssd-mlp-wallclock/"
-                 "--classify/--emit-record/--accept-hardware cannot combine\n");
+                 "--storage-hierarchy/--storage-schedule/--storage-joint/"
+                 "--storage-global/--storage-cost/--storage-measured/"
+                 "--storage-hierarchy-measured/--storage-ntile/"
+                 "--storage-ntile-measured/"
+                 "--storage-loop/"
+                 "--storage-loop-wallclock/"
+                 "--storage-loop-measured/--workload-schedule/"
+                 "--classify/--emit-record/"
+                 "--accept-hardware cannot combine\n");
     return 1;
   }
 
@@ -419,6 +928,58 @@ int main(int argc, char **argv) {
   }
   if (ssdMlp) {
     printSsdMlpWallclock();
+    return 0;
+  }
+  if (storageHier) {
+    printStorageHierarchy();
+    return 0;
+  }
+  if (storageSched) {
+    printStorageSchedule();
+    return 0;
+  }
+  if (storageJoint) {
+    printStorageJoint();
+    return 0;
+  }
+  if (storageGlobal) {
+    printStorageGlobal();
+    return 0;
+  }
+  if (storageCost) {
+    printStorageCost();
+    return 0;
+  }
+  if (storageMeasured) {
+    printStorageMeasured();
+    return 0;
+  }
+  if (storageHierMeas) {
+    printStorageHierarchyMeasured();
+    return 0;
+  }
+  if (storageNtile) {
+    printStorageNtile();
+    return 0;
+  }
+  if (storageNtileMeas) {
+    printStorageNtileMeasured();
+    return 0;
+  }
+  if (storageLoop) {
+    printStorageLoop();
+    return 0;
+  }
+  if (storageLoopMeas) {
+    printStorageLoopMeasured();
+    return 0;
+  }
+  if (storageLoopWc) {
+    printStorageLoopWallclock();
+    return 0;
+  }
+  if (workloadSched) {
+    printWorkloadSchedule();
     return 0;
   }
   if (capSchema) {

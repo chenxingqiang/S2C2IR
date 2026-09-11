@@ -248,9 +248,79 @@ not Cost v0.4 and does not overwrite `#69`.
 Phase 3D: `s2c2-opt --profile=… --s2c2-evidence-bounded-schedule`.
 Design: [`evidence-bounded-schedule.md`](design/evidence-bounded-schedule.md).
 Named profiles (`rtx4090` / `910B` / `unknown`) plus a generic
-concurrent→serial rewrite. Cost v0.4 stays later.
+concurrent→serial rewrite.
 
-Cost v0.4 and a second hardware (ROCm first) stay later.
+Phase 3E: one semantic workload, compiler candidate discovery
+and KEEP / FLATTEN / PRESERVE.
+Design: [`evidence-bounded-workload.md`](design/evidence-bounded-workload.md).
+
+Phase 3F: two-tile SSD prefetch || compute, then sequential HtoD,
+then licensed C||C. Still storage-aware, not a generic scheduler.
+Design: [`storage-aware-pipeline.md`](design/storage-aware-pipeline.md).
+
+Phase 3G: storage hierarchy scheduling
+(SSD ↔ Host/DRAM ↔ HBM ↔ Compute) — when to materialize,
+prefetch, keep residency, or overlap a movement.
+Design: [`storage-hierarchy.md`](design/storage-hierarchy.md).
+
+Phase 3H: N-tile contract + N=3 unrolled realization, plus
+proven-safe residency reuse. Not a generic `scf.for` pipeline.
+Design: [`storage-ntile.md`](design/storage-ntile.md).
+
+Phase 3I: `scf.for` storage pipeline + loop-carried residency.
+SSA iter_args are the double buffer. Not in-place transfer
+overwrite and not a generic runtime-N scheduler.
+Design: [`storage-loop.md`](design/storage-loop.md).
+
+Phase 3J: program-level wall-clock of the 3I `scf.for`
+realization (`T_evi / T_seq`) on 4090 / 910B. Static trip.
+Not Cost v0.4 and not a new Capability rule.
+Design: [`storage-loop-wallclock.md`](design/storage-loop-wallclock.md).
+
+Phase 4A: legal storage action set \(F(\text{site})\), then
+select the default-3G inhabitant. Cost does not rank or license.
+Design: [`storage-schedule.md`](design/storage-schedule.md).
+`default-3g` is frozen: it only reproduces the historical 3G
+choice.
+
+Phase 4B: joint legal set \(F(\text{chain})\) over consecutive
+sites of one storage object. `default-3g` selects the historical
+3G tuple. Cost still does not rank. **Chain definition is frozen.**
+Design: [`storage-joint.md`](design/storage-joint.md).
+
+Phase 4C: global \(F(\text{program})\) as the product of
+\(F(\text{chain})\) in program order. `default-3g` selects the
+historical tuple. Cost still does not decide legality.
+Design: [`storage-global.md`](design/storage-global.md).
+
+Phase 4D: rank a fully enumerated \(F(\text{program})\) under
+`policy=cost-v04`. **FROZEN** at the coincide witness (`#92`).
+Do not add structural ticks. On current enumerated Storage
+fixtures the ArgMin coincides with `default-3g` (`diverge=no`);
+that is a structural-tick fact, not a wall-clock result. A later
+divergence needs a **new measured-cost policy**. Frozen
+`--s2c2-cost` / `--s2c2-argmin` stay untouched. No new Capability
+measurements.
+Design: [`storage-cost.md`](design/storage-cost.md).
+
+Phase 5A: **FROZEN**. Rank enumerated \(F(\text{program})\)
+under `policy=measured-storage-v1` from candidate-local
+records. Plumbing is open. The two-tile pipeline coincides
+with `default-3g` on 4090 and 910B (`diverge=no`). That is
+not `cost-v04 ≡ measured-storage-v1`. Do not re-measure that
+S0/S1 pair to manufacture divergence. `#69` untouched.
+Design: [`storage-measured.md`](design/storage-measured.md).
+
+Phase 5B: natural \(|F|>2\) Storage workload, then measure
+inhabitants. Design first
+([`storage-measured-5b.md`](design/storage-measured-5b.md)).
+Do not open a device campaign until that design is approved.
+Recommended fixture: `@ssd_hierarchy_lifetime` (product=8).
+Rewrite of a measured winner stays gated on a real
+`S_measured ≠ S_default-3g`.
+
+Cost v0.4 Search (`--s2c2-argmin` / `--s2c2-walk`) stays frozen.
+A second hardware (ROCm first) stays later in Phase 4.
 D2D/P2P is not the next CUDA arm.
 
 ```text

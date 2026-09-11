@@ -657,6 +657,420 @@ Named compiler profiles on `s2c2-opt`. Same IR, three profiles.
 | 3D-4 | same | top-level `--profile=` and compiler-profile JSON; `#69` evidence override keeps C\|\|C |
 | 3D-5 | same | `--check-s2c2-execution` after rewrite; no sibling `sched.wait` |
 
+## Evidence-bounded workload (Phase 3E)
+
+**Not Cost v0.4.** Design:
+[`evidence-bounded-workload.md`](evidence-bounded-workload.md).
+One semantic SSD→Host→HtoD∥Compute tile workload. Compiler
+discovers candidates and KEEP / FLATTEN / PRESERVE. `#69` untouched. Does
+not FileCheck microseconds. Runtime witness is the existing
+SSD+MLP wall-clock, not a hand-written optimized IR.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3E-1 | `test/Integration/evidence-bounded-workload.mlir` | `--profile=rtx4090` KEEP C\|\|HtoD, FLATTEN 16MiB/128MiB C\|\|C |
+| 3E-2 | same | `--profile=910B` KEEP C\|\|HtoD, PRESERVE 16MiB C\|\|C, FLATTEN 128MiB C\|\|C |
+| 3E-3 | same | `--profile=unknown` PRESERVE all three candidates |
+| 3E-4 | same | `dump-schedule` JSON + `--analyze-workload-schedule`; `--s2c2-lower` |
+| 3E-5 | same | adapter `--workload-schedule` source=s2c2-opt; existing wall-clock `measured=yes` |
+
+## Storage-aware pipeline (Phase 3F)
+
+**Not Cost v0.4.** Design:
+[`storage-aware-pipeline.md`](storage-aware-pipeline.md).
+Two-tile SSD prefetch || compute, sequential HtoD, then C||C.
+Compiler discovers `C||Storage` KEEP vs licensed C||C FLATTEN vs
+PRESERVE. Not a generic heterogeneous scheduler. `#69` untouched.
+Does not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3F-1 | `test/Integration/storage-aware-pipeline.mlir` | `--profile=rtx4090` KEEP C\|\|Storage, FLATTEN 16MiB/128MiB C\|\|C |
+| 3F-2 | same | `--profile=910B` KEEP C\|\|Storage, PRESERVE 16MiB C\|\|C, FLATTEN 128MiB |
+| 3F-3 | same | `--profile=unknown` PRESERVE all three; `--s2c2-lower`; adapters + wall-clock |
+| 3F-4 | same | 4090 `storage-pipeline-4090.log` `measured=yes`; `--storage-pipeline` dry-run |
+
+## Storage hierarchy scheduling (Phase 3G)
+
+**Not Cost v0.4.** Design:
+[`storage-hierarchy.md`](storage-hierarchy.md).
+Compiler decides MATERIALIZE / PREFETCH / TRANSFER /
+KEEP_RESIDENCY / PRESERVE on SSD↔Host↔HBM. Inferred overlap
+authorizes PREFETCH only. `#69` untouched. Does not FileCheck
+microseconds. Runtime witness is the existing 4090 storage-pipeline
+log, not a new grid.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3G-1 | `test/Integration/storage-hierarchy.mlir` | `--profile=rtx4090` PREFETCH C\|\|Storage, KEEP_RESIDENCY rematerialize |
+| 3G-2 | same | `--profile=910B` same hierarchy counts as 4090 |
+| 3G-3 | same | `--profile=unknown` PRESERVE prefetch; KEEP_RESIDENCY still reported |
+| 3G-4 | same | `dump-schedule` JSON + adapters; existing `storage-pipeline-4090.log` |
+
+## N-tile contract + three-tile realization (Phase 3H)
+
+**Not Cost v0.4.** Design:
+[`storage-ntile.md`](storage-ntile.md).
+N-tile contract, N=3 unrolled realization. Compute || prefetch,
+sequential HtoD, proven-safe KEEP_RESIDENCY reuse. Not a generic
+loop pipeline. `#69` untouched. Does not FileCheck microseconds.
+Runtime witness is the inherited 3F log, not a new 3H wall-clock.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3H-1 | `test/Integration/storage-ntile.mlir` | `--profile=rtx4090` two PREFETCH, reuse-applied=2, two concurrent |
+| 3H-2 | same | `--profile=unknown` PRESERVE prefetch; reuse still applied |
+| 3H-3 | same | `--s2c2-lower`; adapters; existing `storage-pipeline-4090.log` |
+
+## scf.for storage pipeline (Phase 3I)
+
+**Not Cost v0.4.** Design:
+[`storage-loop.md`](storage-loop.md).
+`scf.for` software-pipeline realization with SSA iter_args as
+the double buffer. Loop-invariant KEEP_RESIDENCY reuse.
+Loop program wall-clock is Phase 3J. `#69` untouched. Does not
+FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3I-1 | `test/Integration/storage-loop.mlir` | `--profile=rtx4090` one PREFETCH, reuse-applied=3, one concurrent, `scf.for` trip=2 |
+| 3I-2 | same | `--profile=unknown` PRESERVE prefetch; reuse still applied |
+| 3I-3 | same | `--s2c2-lower` keeps `scf.for`; adapters; 3J is the loop wall-clock |
+
+## scf.for loop-pipeline wall-clock (Phase 3J)
+
+**Not Cost v0.4.** Design:
+[`storage-loop-wallclock.md`](storage-loop-wallclock.md).
+Program measurement (`T_evi/T_seq`) of the 3I `scf.for`
+realization. Static trip=2. Not an arbitrary runtime-N
+scheduler. `#69` untouched. Do not FileCheck microseconds.
+Do not compare 4090 μs to 910B μs.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 3J-1 | `test/Integration/storage-loop-wallclock.mlir` | `--print-storage-loop-wallclock-contract`; `not-arbitrary-runtime-n` |
+| 3J-2 | same | analyzer on yes-fixture / no-fixture / device-absent fixture |
+| 3J-3 | same | adapters `--storage-loop-wallclock`; exclusive vs `--storage-loop` |
+| 3J-4 | same | 3I IR KEEP prefetch on 4090 / 910B; PRESERVE on unknown; `--s2c2-lower` keeps `scf.for` |
+
+## Storage candidate scheduling (Phase 4A)
+
+**Not Cost v0.4.** Design:
+[`storage-schedule.md`](storage-schedule.md). Legal action set
+\(F(\text{site})\), then `policy=default-3g` select. Cost does
+not rank or license. `#69` untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4A-1 | `test/Integration/storage-schedule.mlir` | `--print-storage-schedule-contract`; `selection-ne-cost` |
+| 4A-2 | same | 4090 overlap `legal=PREFETCH,PRESERVE selected=PREFETCH`; rematerialize `KEEP_RESIDENCY,TRANSFER`; `multi-candidate=3` |
+| 4A-3 | same | `--profile=unknown` overlap `legal=PRESERVE`; `multi-candidate=2` |
+| 4A-4 | same | adapters `--storage-schedule`; exclusive vs `--storage-hierarchy` |
+
+## Storage joint candidate scheduling (Phase 4B)
+
+**Not Cost v0.4.** Design:
+[`storage-joint.md`](storage-joint.md). Legal joint set
+\(F(\text{chain})\) over consecutive sites of one object, then
+`policy=default-3g` selects the historical 3G tuple. `default-3g`
+is frozen. Cost does not rank or license. `#69` untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4B-1 | `test/Integration/storage-joint.mlir` | `--print-storage-joint-contract`; `default-3g-frozen` |
+| 4B-2 | same | 4090 contiguous obj1 run `sites=4,5,6,7 legal=8` selected `PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY`; not `sites=0,2,3` |
+| 4B-3 | same | `--profile=unknown` that run `legal=4` selected uses `PRESERVE`; no `PREFETCH` |
+| 4B-4 | same | adapters `--storage-joint`; exclusive vs `--storage-schedule` |
+| 4B-5 | same | `A B A` interleave: chains `sites=0`, `sites=1`, `sites=2`; not `sites=0,2` |
+
+## Storage global schedule (Phase 4C)
+
+**Not Cost v0.4.** Design:
+[`storage-global.md`](storage-global.md). Legal global set
+\(F(\text{program}) \subseteq \prod F(\text{chain})\) when the
+product is fully enumerated (`product ≤ 64`). A larger product
+is `legal=not-enumerated`, not a truncated `legal=64`.
+`policy=default-3g` selects the historical tuple or fails.
+Chain definition is frozen. Cost does not rank or license. `#69`
+untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4C-1 | `test/Integration/storage-global.mlir` | `--print-storage-global-contract`; `chain-def-frozen`; `truncated-ne-complete-F`; `historical-tuple-or-fail` |
+| 4C-2 | same | 4090 `product=8 enumerated=yes truncated=no legal=8` selected ends `PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY` |
+| 4C-3 | same | `--profile=unknown` `product=4 enumerated=yes truncated=no legal=4` selected uses `PRESERVE`; no `PREFETCH` |
+| 4C-4 | same | adapters `--storage-global`; exclusive vs `--storage-joint` |
+| 4C-5 | same | seven rematerialize chains: `product=128 enumerated=no truncated=yes legal=not-enumerated`; not `legal=64`; no candidates |
+
+## Storage cost ranking (Phase 4D)
+
+**FROZEN** at `#92`. Design:
+[`storage-cost.md`](storage-cost.md). Rank enumerated
+\(F(\text{program})\) under `policy=cost-v04`. Do not add
+structural ticks. Does not invent members, does not retarget
+`default-3g`, and does not rank a truncated product. Frozen
+`--s2c2-cost` / `--s2c2-argmin` / Score_3 untouched. `#69`
+untouched.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 4D-1 | `test/Integration/storage-cost.mlir` | `--print-storage-cost-contract`; `cost-ne-legality`; `truncated-ne-ranked`; `default-3g-frozen`; `cost-v04-structural-frozen` |
+| 4D-2 | same | 4090 `ranked` ends `PREFETCH\|TRANSFER\|KEEP_RESIDENCY\|KEEP_RESIDENCY` `score=0` `ranked-eq-default-3g=yes` |
+| 4D-3 | same | `--profile=unknown` ranked uses `PRESERVE`; no `PREFETCH` |
+| 4D-4 | same | adapters `--storage-cost`; exclusive vs `--storage-global` |
+| 4D-5 | same | seven rematerialize chains: `ranked=not-enumerated`; no cost candidates |
+| 4D-6 | `test/Integration/storage-cost-coincide.mlir` | enumerated Storage fixtures `diverge=no`; truncated `diverge=n/a`; `runtime-correlation-not-applicable` |
+
+## Measured storage cost (Phase 5A)
+
+**Not Cost v0.4.** Design:
+[`storage-measured.md`](storage-measured.md). Rank enumerated
+\(F(\text{program})\) under `policy=measured-storage-v1`
+from candidate-local records. Does not invent members, does
+not retarget `default-3g`, does not rank a truncated product,
+and does not apply the measured winner as a rewrite. Frozen
+`cost-v04` / `--s2c2-argmin` / Score_3 untouched. `#69`
+untouched. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5A-1 | `test/Integration/storage-measured.mlir` | `--print-storage-measured-contract`; `measured-ne-legality`; `measured-ne-rewrite-license`; `cost-v04-structural-frozen` |
+| 5A-2 | same | pipeline + checked-in `measured=no` fixture: `ranked=not-measured` |
+| 5A-3 | same | pipeline + synthetic `measured=yes` table: PRESERVE inhabitant; `diverge=yes`; `cost-v04` still `diverge=no` |
+| 5A-3b | same | no table / unmatched hierarchy: `ranked=not-measured` |
+| 5A-4 | same | adapters `--storage-measured`; exclusive vs `--storage-cost` |
+| 5A-5 | same | seven rematerialize chains: `ranked=not-enumerated`; no measured candidates |
+| 5A-7 | `test/Integration/storage-measured-4090.mlir` | 4090 device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture `measured=no` still `not-measured`; no FileCheck of microseconds |
+| 5A-8 | `test/Integration/storage-measured-910b.mlir` | 910B device-log table: `measured=yes`; ranked is PREFETCH / `diverge=no`; fixture and 4090 table stay `not-measured` under `profile=910B`; no FileCheck of microseconds; do not compare 4090 μs to 910B μs |
+
+Phases 5A–5D are **FROZEN** together
+([`storage-measured-campaign.md`](storage-measured-campaign.md)).
+Do not add ticks or re-campaign any frozen set. Do not hunt
+for `diverge=yes` by retuning workload. Phase 5E is **not
+opened**.
+
+## Measured storage, |F| > 2 (Phase 5B)
+
+**Not Cost v0.4.** Same `policy=measured-storage-v1`. Natural
+\(|F|>2\); do not manufacture `diverge=yes`. One campaign row
+per `(profile, workload, signature)`.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5B-1 | `test/Integration/storage-measured-5b.mlir` | `@ssd_hierarchy_lifetime` product=8 enumerated; `default-3g` is PREFETCH+KEEP+KEEP |
+| 5B-2 | same | emit 8 legal signatures; extras / duplicates / `<3` rows rejected |
+| 5B-3 | same | synth ArgMin follows the table; `cost-v04` still `diverge=no` |
+| 5B-4 | same | fixture `measured=no` and cross-profile tables stay `not-measured` |
+| 5B-5 | same | no FileCheck of microseconds; adapters `--storage-hierarchy-measured`; `#69` untouched |
+| 5B-6 | `test/Integration/storage-measured-5b-4090.mlir` | 4090 hierarchy table: 8 measured rows; ArgMin is PREFETCH+KEEP+KEEP / `diverge=no`; fixture and 910B profile stay `not-measured` |
+| 5B-7 | `test/Integration/storage-measured-5b-910b.mlir` | 910B hierarchy table: 8 measured rows; ArgMin is PREFETCH+KEEP+KEEP / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
+
+## Measured storage, structurally different F (Phase 5C)
+
+**Not Cost v0.4.** Same `policy=measured-storage-v1`. First
+target `@ssd_ntile_pipeline` (two independent PREFETCH
+sites). Do not re-measure the frozen hierarchy 8-set. Do
+not manufacture `diverge=yes`. Do not pre-claim contention.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5C-1 | `test/Integration/storage-measured-5c.mlir` | `@ssd_ntile_pipeline` product=4 enumerated; `default-3g` is PREFETCH+PREFETCH |
+| 5C-2 | same | emit 4/4 legal signatures; extras / duplicates / short campaigns rejected |
+| 5C-3 | same | synth ArgMin follows the table; `cost-v04` still `diverge=no` |
+| 5C-4 | same | 5B hierarchy table and cross-profile stay `not-measured` |
+| 5C-5 | same | no FileCheck of microseconds; adapters `--storage-ntile-measured`; `#69` untouched |
+| 5C-6 | `test/Integration/storage-measured-5c-4090.mlir` | 4090 n-tile table: 4/4 measured; ArgMin is PREFETCH+PREFETCH / `diverge=no`; hierarchy table and 910B profile stay `not-measured` |
+| 5C-7 | `test/Integration/storage-measured-5c-910b.mlir` | 910B n-tile table: 4/4 measured; ArgMin is PREFETCH+PREFETCH / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
+
+## Measured storage, last existing F (Phase 5D)
+
+**Not Cost v0.4.** Same `policy=measured-storage-v1`. First
+target `@ssd_loop_pipeline` (PREFETCH/PRESERVE ×
+loop-invariant KEEP/TRANSFER). Do not re-measure frozen
+5A/5B/5C sets. Do not manufacture `diverge=yes`. Do not
+pre-claim the joint trade-off. Both devices measured 4/4;
+ArgMin is default-3g S0 (`diverge=no`). Freeze the evidence.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5D-1 | `test/Integration/storage-measured-5d.mlir` | `@ssd_loop_pipeline` product=4 enumerated; `default-3g` is PREFETCH+KEEP |
+| 5D-2 | same | four compiler signatures; `cost-v04` scores 2/3/3/4 still `diverge=no` |
+| 5D-3 | same | 5B hierarchy and 5C n-tile tables stay `not-measured` |
+| 5D-4 | same | no FileCheck of microseconds; `#69` untouched; no `sched.wait` |
+| 5D-5 | `test/Integration/storage-measured-5d.mlir` | emit 4/4; extras / duplicates / short campaigns rejected; adapters `--storage-loop-measured` |
+| 5D-6 | `test/Integration/storage-measured-5d-4090.mlir` | 4090 loop table: 4/4 measured; ArgMin is PREFETCH+KEEP / `diverge=no`; n-tile table and 910B profile stay `not-measured` |
+| 5D-7 | `test/Integration/storage-measured-5d-910b.mlir` | 910B loop table: 4/4 measured; ArgMin is PREFETCH+KEEP / `diverge=no`; fixture, 4090 table, and 4090 profile stay `not-measured` |
+
+## Measured storage campaign freeze (5A–5D)
+
+**Not Cost v0.4.** Design:
+[`storage-measured-campaign.md`](storage-measured-campaign.md).
+Locks the completed campaign: every existing enumerated
+Storage \(F\) ranked under `measured-storage-v1` on both
+devices, ArgMin always `default-3g`, `diverge=no`. 5E is
+not opened. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 5X-1 | `test/Integration/storage-measured-campaign.mlir` | campaign freeze contract; `five-e-not-opened`; `do-not-hunt-diverge` |
+| 5X-2 | same | 5A/5B/5C/5D 4090 and 910B tables still `diverge=no` and ranked-eq-default-3g |
+| 5X-3 | same | no FileCheck of microseconds; `#69` untouched; no password / host |
+
+## Production path (Phase 6A)
+
+**Not Cost v0.4.** Design:
+[`storage-production-6a.md`](storage-production-6a.md). Unified
+`--schedule-policy` + `--explain`. Policy selects; it does not
+create legality or a rewrite license. 5A–5D stay frozen. 5E
+is not opened. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 6A-1 | `test/Integration/storage-production-6a.mlir` | `--print-schedule-policy-contract`; selection ≠ legality ≠ rewrite |
+| 6A-2 | same | top-level `--profile` + `--schedule-policy` implies the evidence-bounded pass |
+| 6A-3 | same | `cost-v04` and `measured-storage-v1` select without retargeting `default-3g` |
+| 6A-4 | same | `--explain`; wrong profile / `measured=no` / truncated → fallback; extras cannot expand F |
+| 6A-5 | same | unknown profile preserves; unknown policy fails; no `sched.wait` |
+
+## Evidence DB / Contract (Phase 6B)
+
+**Not Cost v0.4.** Design: [`evidence-db.md`](evidence-db.md).
+Turns frozen `measured-storage-v1` campaign tables into a
+versioned Evidence Contract. Identity
+\(E=(profile, workload, candidate, measurement\_revision)\).
+Only `measurement_status=measured` and `correctness=1`
+project to v1 `measured=yes`. The compiler still consumes
+the v1 projection; matching keys are unchanged. 5A–5D stay
+frozen. 5E is not opened. Capacity-aware residency is **6C**,
+not this cut. Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 6B-1 | `test/Integration/evidence-db.mlir` | `--print-evidence-db-contract`; statuses; not-capacity-aware |
+| 6B-2 | same | frozen-campaign ingest round-trips `evidence-db.jsonl`; unique E |
+| 6B-3 | same | fixture / inferred / pending / invalid are not ranking-eligible and do not export `measured=yes` |
+| 6B-4 | same | v1 export of 5A 4090 still ranks under `--schedule-policy=measured-storage-v1`; extras cannot expand F |
+| 6B-5 | same | duplicate E and extra keys fail `--check-evidence-db`; ledger ingest is skipped; no `sched.wait` |
+| 6B-6 | same | export without `--measurement-revision` fails; query without revision is a historical view; same-E ingest is idempotent or identity-collision |
+
+## Stable baseline (5A–6B)
+
+**Not Cost v0.4.** Design: [`stable-baseline.md`](stable-baseline.md).
+Freezes 5A–5D + 6A + 6B as the production stack. 5E and 6C
+are not opened. Do not retune 5A–5D. Do not change `#69`,
+`cost-v04`, `default-3g`, or the Evidence DB contract.
+Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| SB-1 | `test/Integration/stable-baseline.mlir` | `--print-stable-baseline-contract`; stack 5A–6B; `six-c-not-opened` |
+| SB-2 | same | Evidence DB still unique E; 6A `--schedule-policy=default-3g` is `rewrite=no` |
+| SB-3 | same | no `sched.wait`; no FileCheck of microseconds |
+
+## Capacity-aware residency (Phase 6C, design + diagnostics + candidate object + query + selection + measured ranking + license gate)
+
+**Not Cost v0.4.** Design:
+[`storage-capacity.md`](storage-capacity.md). Freezes
+\(F_{\mathrm{capacity}}\) and occupancy candidate generation.
+KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing restore
+realization. 6C-B diagnostics are **FROZEN**: the same
+candidates from `s2c2-opt --capacity` / `--capacity-spec`.
+IR auto-discovery is tile-count occupancy (`size=1`), not
+a byte allocator and not alias analysis. No rewrite, no
+hardware campaign. 5A–6B stay frozen. Do not expand the
+6C-B diagnostic surface. 6C-C adds compiler-visible
+`CapacityPlan` (`selected=none`, `rewrite-license=no`).
+6C-D exposes that object as `--query-capacity-plan`
+without running the schedule pass. 6C-E adds
+`--capacity-policy=s0` on that consumer
+(`rewrite-license=no`). 6C-F ranks enumerated
+\(F_{\mathrm{capacity}}\) under scoped `measured-capacity-v1`
+(\(P,W,c\); ArgMin; duplicate identity rejected; ties →
+earliest \(F\); still `rewrite-license=no`). 6C-G
+freezes the capacity rewrite-license gate on the query
+consumer (`rewrite-license=no`; EVICT requires restore).
+6C-H attaches TRANSFER restore records to EVICT objects
+(`s2c2.capacity_restore.v1`; closed restore still
+`rewrite-license=no`). 6C-I classifies the structured
+license predicate (`s2c2.capacity_predicate.v1`;
+necessary ≠ sufficient; still `rewrite-license=no`).
+6C-J classifies scoped source-data validity
+(`s2c2.capacity_sourcedata.v1`; replica-exists ≠
+source-data-valid ≠ usable; token = validity witness;
+FROZEN). 6C-K classifies restore ordering
+(`s2c2.capacity_ordering.v1`; source-data-valid ≠
+restore-at-required-point; `restore-ordering=yes` is
+still not sufficient; still `rewrite-license=no`).
+Do not FileCheck microseconds.
+
+| ID | File | Checks |
+| -- | ---- | ------ |
+| 6C-1 | `test/Integration/storage-capacity.mlir` | `--print-storage-capacity-contract`; \(F_{\mathrm{capacity}} \neq F(\mathrm{program})\); `rewrite=no` |
+| 6C-2 | same | 4-tile `capacity=2` `peak-live=3`: keep 0,1 / evict 0 / evict 1; incoming is S0 |
+| 6C-3 | same | fitting live set is all KEEP; one-evict-not-enough is truncated; extra keys rejected |
+| 6C-4 | same | Evidence DB identity unchanged; baseline still `six-c-not-opened` for rewrite |
+| 6C-B-1 | same | `s2c2-opt --capacity=2` on 4-tile IR: `capacity-conflict=yes` `legal=3` `rewrite=no` |
+| 6C-B-2 | same | `--capacity-spec` 4-tile / fit / truncated match the host witness; extras rejected |
+| 6C-B-3 | same | `--capacity` absent prints nothing; invalid `--capacity` fails; no constrained-space residencies fails |
+| 6C-B-4 | same | spec overrides IR discovery; no `sched.wait`; `compiler-ne-rewrite` |
+| 6C-B-5 | same | freeze notes: tile-count occupancy; IR discovery ≠ alias analysis; diagnostics frozen |
+| 6C-C-1 | same | `--print-capacity-plan-contract`; `selected=none`; `rewrite-license=no` |
+| 6C-C-2 | same | 4-tile identities `keep{0,1}\|evict{2}\|rematerialize{}` and permutations; not greedy evict-#2 |
+| 6C-C-3 | same | `s2c2-opt --capacity=2` prints `s2c2-capacity-plan`; `--dump-capacity-plan` JSON `s2c2.capacity_plan.v1` |
+| 6C-C-4 | same | fit all-KEEP identity; truncated has no candidates; dump without `--capacity` fails |
+| 6C-C-5 | same | \(F_{\mathrm{capacity}} \subseteq F_{\mathrm{residency}}\); no `sched.wait`; Evidence DB unchanged |
+| 6C-D-1 | same | `--print-capacity-plan-query-contract`; consumer API; `selected=none`; `rewrite-license=no` |
+| 6C-D-2 | same | host `--query-capacity-plan` 4-tile identities; fit all-KEEP; truncated has no candidates |
+| 6C-D-3 | same | `s2c2-opt --query-capacity-plan --capacity=2`: JSON `s2c2.capacity_plan.v1`; no `s2c2-storage-capacity`; no schedule |
+| 6C-D-4 | same | pass form `--s2c2-capacity-plan-query`; dump JSON; query without `--capacity` fails |
+| 6C-D-5 | same | `--query-capacity-plan` + `--schedule-policy` still `selected=none`; query does not rewrite |
+| 6C-E-1 | same | `--print-capacity-policy-contract`; `s0=first(F_capacity)`; `rewrite-license=no` |
+| 6C-E-2 | same | host/compiler `--capacity-policy=s0` selects `keep{0,1}\|evict{2}\|rematerialize{}`; other identities remain |
+| 6C-E-3 | same | fit all-KEEP selected; truncated cannot be selected; unknown rejected; measured-capacity-v1 needs a table |
+| 6C-E-4 | same | `--capacity-policy=s0` injects query not schedule; dump JSON `selected` is the identity |
+| 6C-E-5 | same | query+schedule: query selected=s0, 6C-C dump still `selected=none`; no rewrite license |
+| 6C-F-1 | same | `--print-measured-capacity-contract`; ranking-only; `rewrite-license=no`; no microseconds |
+| 6C-F-2 | same | 4-tile table ArgMin coincides with s0; extra identity does not expand F |
+| 6C-F-3 | same | synthetic table ArgMin ≠ s0 (`keep{1,2}\|evict{0}`); still `rewrite=no` |
+| 6C-F-4 | same | one usable record / truncated plan cannot rank; dump JSON policy=`measured-capacity-v1` |
+| 6C-F-5 | same | query+schedule: query selected from measured, 6C-C dump still `selected=none` |
+| 6C-F-6 | same | wrong-profile / wrong-workload records ignored (`measured-needs-two-records`) |
+| 6C-F-7 | same | same candidate + same profile + different workload cannot steal ArgMin |
+| 6C-F-8 | same | equal times pick earliest \(F_{\mathrm{capacity}}\) (`argmin-size=2`, selected=A); not JSONL order |
+| 6C-F-9 | same | duplicate `(profile, workload, candidate)` rejects `duplicate-measured-identity`; C++/Python same |
+| 6C-G-1 | same | `--print-capacity-license-contract`; gate=query; `rewrite-license=no`; restore-legal `TRANSFER\|REMATERIALIZE` |
+| 6C-G-2 | same | 4-tile s0/measured winner: `restore=unspecified` `evict-closed=no`; still `rewrite=no` |
+| 6C-G-3 | same | fit all-KEEP: `restore=unused` `evict-closed=n/a`; still `rewrite-license=no` |
+| 6C-G-4 | same | query `selected=none`: `restore=n/a`; diagnostic `--capacity` path does not print the gate |
+| 6C-G-5 | same | `CHECK-NOT: rewrite-license=yes`; no `applySchedule`; capability license ≠ capacity license |
+| 6C-H-1 | same | `--print-capacity-restore-contract`; candidate semantics; kind=`TRANSFER`; `rewrite-license=no` |
+| 6C-H-2 | same | 4-tile s0 / occupancy IR: `kind=TRANSFER valid=no reason=no-source-replica closed=no` |
+| 6C-H-3 | same | transfer-restore spec: `valid=yes closed=yes`; F unchanged; still `rewrite-license=no` |
+| 6C-H-4 | same | all-KEEP `restore=unused closed=n/a`; query `selected=none` `closed=n/a` |
+| 6C-H-5 | same | diagnostic `--capacity` does not print `s2c2-capacity-restore`; no `applySchedule` |
+| 6C-I-1 | same | `--print-capacity-predicate-contract`; necessary vs sufficient; `rewrite-license=no` |
+| 6C-I-2 | same | 4-tile s0 / occupancy IR: `necessary=no` (`evict-closed=no`); `sufficient=no` |
+| 6C-I-3 | same | transfer-restore spec: `necessary=yes sufficient=no`; 6C-G still `restore=unspecified`; still `rewrite-license=no` |
+| 6C-I-4 | same | all-KEEP `necessary=n/a`; query `selected=none` `necessary=no` |
+| 6C-I-5 | same | diagnostic `--capacity` does not print `s2c2-capacity-predicate`; no `applySchedule` |
+| 6C-J-1 | same | `--print-capacity-sourcedata-contract`; replica-exists ≠ data-validity; token = validity witness; no validity FSM; `rewrite-license=no` |
+| 6C-J-2 | same | 4-tile s0 / occupancy IR: `replica-exists=no source-data=no usable=no reason=no-source-replica`; `sufficient=no` |
+| 6C-J-3 | same | transfer-restore spec: `closed=yes` `replica-exists=yes source-data=no usable=no reason=no-validity-witness`; still `sufficient=no` |
+| 6C-J-4 | same | source-data fixture: `replica=ssd witness=spec-unmutated-cover scope=occupancy-live source-data=yes usable=no reason=witnessed-unmutated-cover`; still `sufficient=no` `rewrite-license=no` |
+| 6C-J-5 | same | all-KEEP / `selected=none`: `source-data=n/a replica-exists=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-sourcedata` |
+| 6C-K-1 | same | `--print-capacity-ordering-contract`; source-data ≠ ordering; source-valid ≠ restore-at-point; `rewrite-license=no` |
+| 6C-K-2 | same | 4-tile s0 / occupancy IR: `restore-ordering=no usable=no reason=no-source-replica`; `sufficient=no` |
+| 6C-K-3 | same | transfer-restore spec: `closed=yes` `restore-ordering=no reason=no-ordering-witness`; still `sufficient=no` |
+| 6C-K-4 | same | source-data fixture: `source-data=yes restore-ordering=no usable=no reason=no-ordering-witness` (source-valid ≠ restore-at-point) |
+| 6C-K-5 | same | restore-order fixture: `before=5 witness=spec-before-consumer restore-ordering=yes usable=yes`; still `dest-invalidation=no` `sufficient=no` `rewrite-license=no` |
+| 6C-K-6 | same | all-KEEP / `selected=none`: `restore-ordering=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-ordering` |
+| 6C-L-1 | same | `--print-capacity-invalidation-contract`; usable ≠ dest-invalidation; dest-invalidation ≠ sufficient ≠ rewrite-path; `rewrite-license=no` |
+| 6C-L-2 | same | 4-tile s0 / occupancy IR: `dest-invalidation=no usable=no reason=no-source-replica`; `sufficient=no` |
+| 6C-L-3 | same | transfer-restore / source-data: `dest-invalidation=no reason=no-invalidation-witness`; still `sufficient=no` |
+| 6C-L-4 | same | restore-order fixture: `usable=yes dest-invalidation=no reason=no-invalidation-witness` (usable ≠ dest-invalidation) |
+| 6C-L-5 | same | dest-invalidation fixture: `destination=hbm witness=spec-drop-stale dest-invalidation=yes usable=yes`; still `rewrite-path=no` `sufficient=no` `rewrite-license=no` |
+| 6C-L-6 | same | all-KEEP / `selected=none`: `dest-invalidation=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-invalidation` |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
@@ -685,7 +1099,7 @@ wall-clock is `measured`. Do not FileCheck microseconds.
 | ID | File | Checks |
 | -- | ---- | ------ |
 | HL-1 | `test/Pilot/s2c2-hw-ledger.mlir` | `--print-hw-ledger-contract`; keep-original-path |
-| HL-2 | same | `--check-hw-ledger` 20 measured + 0 device-absent; `#69` underdetermined |
+| HL-2 | same | `--check-hw-ledger` counts + `#69` underdetermined; 3J rows allowed `device-absent` |
 | HL-3 | same | missing path fixture fails; no password / Cost v0.4 |
 
 ## Ascend 910B Capability Adapter (Phase 3B / PR-R1-Ascend)

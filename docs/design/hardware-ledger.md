@@ -13,6 +13,7 @@ checked together later.
 
 ```text
 Ledger              ≠  Capability Schema v1
+Ledger              ≠  Evidence DB (s2c2.evidence.v1)
 Ledger status       ≠  a rewrite license
 device-absent       ≠  measured=no invented ratio
 npu-demo inferred   ≠  this ledger
@@ -57,7 +58,27 @@ Each row is an index record, not a Capability cell.
 `ssd-mlp-wallclock.log` is the 910B program wall-clock at
 **that same path** (`status=measured`).
 `ssd-mlp-wallclock-4090.log` is the 4090 counterpart and does
-not overwrite the 910B file. Do not FileCheck μs.
+not overwrite the 910B file.
+`storage-pipeline-4090.log` is the 4090 two-tile SSD prefetch
+|| compute program wall-clock.
+`storage-loop-wallclock-4090.log` is the 4090 3I `scf.for`
+loop-program wall-clock (`measured=yes`).
+`storage-loop-wallclock.log` is the 910B counterpart
+(`measured=yes`) and does not overwrite the 4090 file.
+`storage-measured-4090.log` is the 4090 per-candidate
+`measured-storage-v1` fill. `storage-measured-910b.log`
+is the 910B counterpart and does not overwrite the 4090
+table. `storage-measured-hierarchy-4090.log` and
+`storage-measured-hierarchy-910b.log` are the 8-inhabitant
+`@ssd_hierarchy_lifetime` fills and do not overwrite the
+pipeline S0/S1 tables. `storage-measured-ntile-4090.log`
+and `storage-measured-ntile-910b.log` are the 4-inhabitant
+`@ssd_ntile_pipeline` fills and do not overwrite the
+hierarchy 8-set. `storage-measured-loop-4090.log` and
+`storage-measured-loop-910b.log` are the 4-inhabitant
+`@ssd_loop_pipeline` fills and do not overwrite the n-tile
+4-set or the 3J loop wall-clock logs. Do not FileCheck μs.
+Do not compare 4090 μs to 910B μs.
 
 ## Batch check
 
@@ -86,6 +107,26 @@ runtime/ascend/sweep_ssd_mlp_wallclock.sh ./s2c2-ascend-run \
   docs/design/v3-dataset/ssd-mlp-wallclock
 runtime/cuda/sweep_ssd_mlp_wallclock.sh ./s2c2-cuda-run \
   docs/design/v3-dataset/ssd-mlp-wallclock-4090
+runtime/cuda/sweep_storage_pipeline.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/storage-pipeline-4090
+runtime/cuda/sweep_storage_loop_wallclock.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/storage-loop-wallclock-4090
+runtime/ascend/sweep_storage_loop_wallclock.sh ./s2c2-ascend-run \
+  docs/design/v3-dataset/storage-loop-wallclock
+runtime/ascend/sweep_storage_measured.sh ./s2c2-ascend-run \
+  docs/design/v3-dataset/storage-measured-910b
+runtime/cuda/sweep_storage_hierarchy_measured.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/storage-measured-hierarchy-4090
+runtime/ascend/sweep_storage_hierarchy_measured.sh ./s2c2-ascend-run \
+  docs/design/v3-dataset/storage-measured-hierarchy-910b
+runtime/cuda/sweep_storage_ntile_measured.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/storage-measured-ntile-4090
+runtime/ascend/sweep_storage_ntile_measured.sh ./s2c2-ascend-run \
+  docs/design/v3-dataset/storage-measured-ntile-910b
+runtime/cuda/sweep_storage_loop_measured.sh ./s2c2-cuda-run \
+  docs/design/v3-dataset/storage-measured-loop-4090
+runtime/ascend/sweep_storage_loop_measured.sh ./s2c2-ascend-run \
+  docs/design/v3-dataset/storage-measured-loop-910b
 python3 runtime/record_hw_ledger.py --check-hw-ledger
 ```
 

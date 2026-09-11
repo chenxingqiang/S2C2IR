@@ -1,0 +1,104 @@
+# Evidence-Bounded Workload Scheduling (Phase 3E)
+
+**Status:** compiler-driven workload realization. Not Cost v0.4.
+Does **not** densify Capability matrices, overwrite `#69`, invent
+`910B C||C = parallel`, add a new rewrite kind, or FileCheck
+microseconds.
+
+Phase 3D entry:
+[`evidence-bounded-schedule.md`](evidence-bounded-schedule.md).
+
+```text
+s2c2-opt workload.mlir --profile=rtx4090 --s2c2-evidence-bounded-schedule
+```
+
+The IR describes **semantic concurrent** only. The compiler
+discovers candidates and chooses KEEP / FLATTEN / PRESERVE:
+
+```text
+Storage/Communication can overlap     → KEEP
+Compute/Compute licensed contention   → FLATTEN
+No evidence                           → PRESERVE
+```
+
+## Workload
+
+One function, parent IR order:
+
+```text
+SSD  →  Host                 sequential (stor.transfer)
+Host →  HBM  ||  Compute     candidate #0  C||HtoD
+Compute A || Compute B       candidate #1  C||C 16MiB
+Compute A || Compute B       candidate #2  C||C 128MiB
+```
+
+Same MLIR, three named profiles:
+
+| Candidate | rtx4090 | 910B | unknown |
+| --------- | ------- | ---- | ------- |
+| #0 C\|\|HtoD | KEEP | KEEP | PRESERVE |
+| #1 C\|\|C 16MiB | FLATTEN | PRESERVE | PRESERVE |
+| #2 C\|\|C 128MiB | FLATTEN | FLATTEN | PRESERVE |
+
+`910B` is the overlay projection, not `#69`. No evidence ⇒ PRESERVE.
+`910B` C||HtoD KEEP is inferred overlap, not a new measurement.
+
+## Candidate discovery
+
+Every 2-task `sched.concurrent` (and `sched.overlap`) is a
+candidate. The pass prints a machine line and a human report:
+
+```text
+workload-candidate #0 pair=C||HtoD ... decision=KEEP reason=storage-communication-overlap
+candidate #0 : C || HtoD
+    decision : KEEP
+    reason   : storage communication overlap
+
+candidate #1 : C || C
+    decision : FLATTEN
+    reason   : licensed compute contention
+
+workload-schedule candidates=3 keep=1 flatten=2 preserve=0
+HB verification : --check-s2c2-execution
+lowering        : --s2c2-lower
+```
+
+Optional JSON dump (`dump-schedule=`), schema
+`s2c2.workload_schedule.v1`. The rewrite inhabitant is still
+licensed concurrent→serial. Pair kind is evidence, not a new pass.
+
+`--check-s2c2-execution` after rewrite. `--s2c2-lower` still
+produces a sequential realization.
+
+## Runtime witness
+
+The compiler produces the optimized IR. Runtime does **not** take
+a second, hand-written optimized program.
+
+```text
+workload.mlir
+    ↓  s2c2-opt --profile=… --s2c2-evidence-bounded-schedule
+optimized IR + workload-candidate decisions
+    ↓  --check-s2c2-execution
+    ↓  --s2c2-lower
+    ↓  adapter --workload-schedule   (dry-run: source=s2c2-opt)
+    ↓  existing SSD+MLP wall-clock   (T_evi of this realization family)
+```
+
+Host protocol: `--dry-run --workload-schedule`.
+Timed witness remains the checked-in SSD+MLP wall-clock logs
+(`measured=yes`). This increment does not add grid points and
+does not FileCheck microseconds.
+
+## Out of scope
+
+```text
+Phase 3F two-tile SSD prefetch || compute
+  ([storage-aware-pipeline.md](storage-aware-pipeline.md))
+Phase 3G storage hierarchy scheduling
+  ([storage-hierarchy.md](storage-hierarchy.md))
+Phase 4 Cost-based heterogeneous scheduling / Cost v0.4
+new rewrite kinds (C||HtoD flatten, pipeline, …)
+new 4090 / 910B Capability measurements
+overwriting #69
+```

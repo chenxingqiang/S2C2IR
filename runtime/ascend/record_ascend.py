@@ -1036,6 +1036,131 @@ def print_e2e_contract() -> int:
     return 0
 
 
+_WORKLOAD_CAND_RE = re.compile(
+    r"workload-candidate #(\d+) pair=(\S+) payload=(\S+) relation=(\S+) "
+    r"decision=(KEEP|FLATTEN|PRESERVE) reason=(\S+)"
+)
+_WORKLOAD_SUM_RE = re.compile(
+    r"workload-schedule candidates=(\d+) keep=(\d+) flatten=(\d+)"
+    r"(?: preserve=(\d+))?"
+)
+
+
+def print_workload_schedule_contract() -> int:
+    print("workload-schedule compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant semantic-ne-perf-serial")
+    print("invariant capability-ne-rewrite")
+    print("invariant scoped-ne-global")
+    print("invariant underdetermined-preserve")
+    print("invariant rewrite-preserves-hb")
+    print("note not-handwritten-optimized-ir")
+    print("note runtime-witness=ssd-mlp-wallclock")
+    print("note compiler-chosen-t-evi")
+    print("note not-new-capability-grid")
+    print("note storage-data-movement-overlap")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def _print_workload_schedule_summary(
+    candidates: int,
+    keep: int,
+    flatten: int,
+    preserve: int,
+    decisions: list[dict[str, Any]],
+) -> int:
+    print("workload-schedule compiler-driven=yes")
+    print(f"workload-schedule candidates={candidates}")
+    print(f"workload-schedule keep={keep}")
+    print(f"workload-schedule flatten={flatten}")
+    print(f"workload-schedule preserve={preserve}")
+    for d in decisions:
+        print(
+            f"workload-schedule candidate=#{d['id']} pair={d['pair']} "
+            f"decision={d['decision']}"
+        )
+    print("note not-handwritten-optimized-ir")
+    print("note runtime-witness=ssd-mlp-wallclock")
+    print("note compiler-chosen-t-evi")
+    print("note not-new-capability-grid")
+    print("note storage-data-movement-overlap")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_workload_schedule(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        decs = obj.get("decisions") or []
+        decisions = [
+            {
+                "id": d.get("id", i),
+                "pair": d.get("pair", "unknown"),
+                "decision": d.get("decision", "KEEP"),
+            }
+            for i, d in enumerate(decs)
+        ]
+        return _print_workload_schedule_summary(
+            int(obj.get("candidates", len(decisions))),
+            int(obj.get("keep", sum(1 for d in decisions if d["decision"] == "KEEP"))),
+            int(
+                obj.get(
+                    "flatten",
+                    sum(1 for d in decisions if d["decision"] == "FLATTEN"),
+                )
+            ),
+            int(
+                obj.get(
+                    "preserve",
+                    sum(1 for d in decisions if d["decision"] == "PRESERVE"),
+                )
+            ),
+            decisions,
+        )
+    decisions: list[dict[str, Any]] = []
+    for line in text.splitlines():
+        m = _WORKLOAD_CAND_RE.search(line)
+        if m:
+            decisions.append(
+                {
+                    "id": int(m.group(1)),
+                    "pair": m.group(2),
+                    "decision": m.group(5),
+                }
+            )
+    summary = _WORKLOAD_SUM_RE.search(text)
+    if summary:
+        candidates = int(summary.group(1))
+        keep = int(summary.group(2))
+        flatten = int(summary.group(3))
+        preserve = (
+            int(summary.group(4))
+            if summary.group(4) is not None
+            else sum(1 for d in decisions if d["decision"] == "PRESERVE")
+        )
+    else:
+        candidates = len(decisions)
+        keep = sum(1 for d in decisions if d["decision"] == "KEEP")
+        flatten = sum(1 for d in decisions if d["decision"] == "FLATTEN")
+        preserve = sum(1 for d in decisions if d["decision"] == "PRESERVE")
+    if candidates == 0 and not decisions:
+        print("record_ascend: no workload-schedule candidates", file=sys.stderr)
+        return 4
+    return _print_workload_schedule_summary(
+        candidates, keep, flatten, preserve, decisions
+    )
+
+
 def print_ssd_mlp_wallclock_contract() -> int:
     print("ssd-mlp-wallclock program-measurement=yes")
     print("no-evidence => no-destructive-optimization")
@@ -1081,6 +1206,1109 @@ def analyze_ssd_mlp_wallclock(log: Path) -> int:
     print("note 32M-outlier-not-cost")
     print("note catalog-untouched")
     print("note logical-ssd-ne-disk")
+    print("note not-cost-v04")
+    if re.search(r"device-absent", text):
+        print("note device-absent")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_loop_contract() -> int:
+    print("storage-loop compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note scf-for-software-pipeline")
+    print("note ssa-iter-args-double-buffer")
+    print("note loop-carried-lifetime")
+    print("note not-in-place-transfer-overwrite")
+    print("note compute-then-prefetch-next")
+    print("note proven-live-residency")
+    print("note not-c-storage-flatten")
+    print("note no-invented-wait")
+    print("note runtime-witness=storage-loop-wallclock")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_loop_wallclock_contract() -> int:
+    print("storage-loop-wallclock program-measurement=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant underdetermined-preserve")
+    print("note scf-for-software-pipeline")
+    print("note not-arbitrary-runtime-n")
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note evi-eq-par")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_STORAGE_LOOP_TIMING_RE = re.compile(
+    r"storage-loop-wallclock timing seq=([0-9.]+) evi=([0-9.]+) "
+    r"par=([0-9.]+) opt_over_base=([0-9.]+)"
+)
+
+
+def analyze_storage_loop_wallclock(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    measured = bool(re.search(r"storage-loop-wallclock measured=yes\b", text))
+    timing = _STORAGE_LOOP_TIMING_RE.search(text)
+    defined = measured and timing is not None
+    print("storage-loop-wallclock program-measurement=yes")
+    print("storage-loop-wallclock note scf-for-software-pipeline")
+    print(f"storage-loop-wallclock measured={'yes' if measured else 'no'}")
+    print(
+        "storage-loop-wallclock t-opt-over-base-defined="
+        f"{'yes' if defined else 'no'}"
+    )
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note evi-eq-par")
+    print("note not-arbitrary-runtime-n")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    if re.search(r"device-absent", text):
+        print("note device-absent")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_schedule_contract() -> int:
+    print("storage-schedule compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note legal-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note policy=default-3g")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_CAND_RE = re.compile(
+    r"hierarchy-candidates #(\d+) legal=(\S+) selected=(\S+) policy=(\S+)"
+)
+_HIER_SCHED_MULTI_RE = re.compile(
+    r"hierarchy-schedule .* multi-candidate=(\d+) selected-in-legal=(yes|no)"
+)
+
+
+def analyze_storage_schedule(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    multi = 0
+    in_legal = "no"
+    sites = 0
+    policy = "default-3g"
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        sites = int(obj.get("hierarchy_sites", len(obj.get("hierarchy") or [])))
+        multi = int(obj.get("hierarchy_multi_candidate", 0))
+        in_legal = str(obj.get("hierarchy_selected_in_legal", "no"))
+        policy = str(obj.get("hierarchy_policy", "default-3g"))
+    else:
+        found = _HIER_CAND_RE.findall(text)
+        sites = len(found)
+        in_legal = "yes" if found else "no"
+        for _sid, legal, selected, pol in found:
+            policy = pol
+            acts = legal.split(",")
+            if len(acts) > 1:
+                multi += 1
+            if selected not in acts:
+                in_legal = "no"
+        m = _HIER_SCHED_MULTI_RE.search(text)
+        if m:
+            multi = int(m.group(1))
+            in_legal = m.group(2)
+    print("storage-schedule compiler-driven=yes")
+    print(f"storage-schedule sites={sites}")
+    print(f"storage-schedule multi-candidate={multi}")
+    print(f"storage-schedule selected-in-legal={in_legal}")
+    print(f"storage-schedule policy={policy}")
+    print("note legal-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_joint_contract() -> int:
+    print("storage-joint compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note joint-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note policy=default-3g")
+    print("note default-3g-frozen")
+    print("note cost-ranking-is-policy-cost-v04")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_JOINT_RE = re.compile(
+    r"hierarchy-joint #(\d+) object=(\d+) sites=(\S+) legal=(\d+) "
+    r"selected=(\S+) policy=(\S+)"
+)
+_HIER_JOINT_SUM_RE = re.compile(
+    r"hierarchy-joint-schedule chains=(\d+) legal=(\d+) "
+    r"selected-in-legal=(yes|no)"
+)
+
+
+def analyze_storage_joint(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    chains = 0
+    legal = 0
+    in_legal = "no"
+    policy = "default-3g"
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        chains = int(obj.get("hierarchy_joint_chains", 0))
+        legal = int(obj.get("hierarchy_joint_legal", 0))
+        in_legal = str(obj.get("hierarchy_joint_selected_in_legal", "no"))
+        policy = str(obj.get("hierarchy_joint_policy", "default-3g"))
+    else:
+        found = _HIER_JOINT_RE.findall(text)
+        chains = len(found)
+        in_legal = "yes" if found else "no"
+        product = 1
+        for _cid, _obj, _sites, nlegal, selected, pol in found:
+            policy = pol
+            n = int(nlegal)
+            product *= max(1, n)
+            acts = selected.split("|")
+            if not acts:
+                in_legal = "no"
+        legal = product
+        m = _HIER_JOINT_SUM_RE.search(text)
+        if m:
+            chains = int(m.group(1))
+            legal = int(m.group(2))
+            in_legal = m.group(3)
+    print("storage-joint compiler-driven=yes")
+    print(f"storage-joint chains={chains}")
+    print(f"storage-joint legal={legal}")
+    print(f"storage-joint selected-in-legal={in_legal}")
+    print(f"storage-joint policy={policy}")
+    print("note joint-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note cost-ranking-is-policy-cost-v04")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_global_contract() -> int:
+    print("storage-global compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note global-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note policy=default-3g")
+    print("note default-3g-frozen")
+    print("note chain-def-frozen")
+    print("note cost-ranking-is-policy-cost-v04")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("note truncated-ne-complete-F")
+    print("note historical-tuple-or-fail")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_GLOB_RE = re.compile(
+    r"hierarchy-global selected=(\S+) product=(\S+) "
+    r"enumerated=(yes|no) truncated=(yes|no) legal=(\S+) policy=(\S+)"
+)
+_HIER_GLOB_SUM_RE = re.compile(
+    r"hierarchy-global-schedule chains=(\d+) product=(\S+) "
+    r"enumerated=(yes|no) truncated=(yes|no) legal=(\S+) "
+    r"selected-in-legal=(yes|no)"
+)
+_HIER_GLOB_ERR_RE = re.compile(r"hierarchy-global-error (\S+)")
+
+
+def _global_legal_label(value) -> str:
+    if value == "not-enumerated":
+        return "not-enumerated"
+    if isinstance(value, str) and value == "overflow":
+        return value
+    return str(int(value))
+
+
+def analyze_storage_global(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    chains = 0
+    product = "0"
+    enumerated = "no"
+    truncated = "no"
+    legal = "0"
+    in_legal = "no"
+    policy = "default-3g"
+    error = ""
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        chains = int(obj.get("hierarchy_global_chains", 0))
+        product = str(obj.get("hierarchy_global_product", "0"))
+        enumerated = str(obj.get("hierarchy_global_enumerated", "no"))
+        truncated = str(obj.get("hierarchy_global_truncated", "no"))
+        legal = _global_legal_label(obj.get("hierarchy_global_legal", 0))
+        in_legal = str(obj.get("hierarchy_global_selected_in_legal", "no"))
+        policy = str(obj.get("hierarchy_global_policy", "default-3g"))
+        error = str(obj.get("hierarchy_global_error", "") or "")
+    else:
+        m = _HIER_GLOB_SUM_RE.search(text)
+        g = _HIER_GLOB_RE.search(text)
+        if m:
+            chains = int(m.group(1))
+            product = m.group(2)
+            enumerated = m.group(3)
+            truncated = m.group(4)
+            legal = m.group(5)
+            in_legal = m.group(6)
+        if g:
+            product = g.group(2)
+            enumerated = g.group(3)
+            truncated = g.group(4)
+            legal = g.group(5)
+            policy = g.group(6)
+        err = _HIER_GLOB_ERR_RE.search(text)
+        if err:
+            error = err.group(1)
+    print("storage-global compiler-driven=yes")
+    print(f"storage-global chains={chains}")
+    print(f"storage-global product={product}")
+    print(f"storage-global enumerated={enumerated}")
+    print(f"storage-global truncated={truncated}")
+    print(f"storage-global legal={legal}")
+    print(f"storage-global selected-in-legal={in_legal}")
+    print(f"storage-global policy={policy}")
+    if error:
+        print(f"storage-global-error {error}")
+    print("note global-candidates-then-select")
+    print("note selection-ne-cost")
+    print("note selection-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note chain-def-frozen")
+    print("note truncated-ne-complete-F")
+    print("note historical-tuple-or-fail")
+    print("note cost-ranking-is-policy-cost-v04")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_cost_contract() -> int:
+    print("storage-cost compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note cost-ranks-enumerated-F-only")
+    print("note cost-ne-legality")
+    print("note cost-ne-rewrite-license")
+    print("note policy=cost-v04")
+    print("note default-3g-frozen")
+    print("note truncated-ne-ranked")
+    print("note not-s2c2-argmin")
+    print("note not-score3")
+    print("note chain-def-frozen")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note structural-ticks-not-wallclock")
+    print("note runtime-correlation-not-applicable")
+    print("note cost-v04-structural-frozen")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_COST_RE = re.compile(
+    r"hierarchy-global-cost ranked=(\S+) score=(\S+) policy=(\S+)"
+)
+_HIER_COST_SUM_RE = re.compile(
+    r"hierarchy-global-cost-schedule enumerated=(yes|no) truncated=(yes|no) "
+    r"ranked-in-legal=(\S+) ranked-eq-default-3g=(\S+) argmin-size=(\S+)"
+)
+_HIER_COST_COIN_RE = re.compile(
+    r"hierarchy-global-cost-coincide diverge=(\S+)"
+)
+
+
+def analyze_storage_cost(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    ranked = "not-enumerated"
+    score = "n/a"
+    enumerated = "no"
+    truncated = "yes"
+    in_legal = "n/a"
+    eq_default = "n/a"
+    argmin = "n/a"
+    policy = "cost-v04"
+    diverge = "n/a"
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        ranked = str(obj.get("hierarchy_global_cost_ranked", "not-enumerated"))
+        score = str(obj.get("hierarchy_global_cost_score", "n/a"))
+        in_legal = str(obj.get("hierarchy_global_cost_ranked_in_legal", "n/a"))
+        eq_default = str(
+            obj.get("hierarchy_global_cost_ranked_eq_default_3g", "n/a")
+        )
+        argmin = str(obj.get("hierarchy_global_cost_argmin_size", "n/a"))
+        policy = str(obj.get("hierarchy_global_cost_policy", "cost-v04"))
+        enumerated = str(obj.get("hierarchy_global_enumerated", "no"))
+        truncated = str(obj.get("hierarchy_global_truncated", "yes"))
+        diverge = str(obj.get("hierarchy_global_cost_diverge", "n/a"))
+    else:
+        m = _HIER_COST_SUM_RE.search(text)
+        g = _HIER_COST_RE.search(text)
+        c = _HIER_COST_COIN_RE.search(text)
+        if g:
+            ranked = g.group(1)
+            score = g.group(2)
+            policy = g.group(3)
+        if m:
+            enumerated = m.group(1)
+            truncated = m.group(2)
+            in_legal = m.group(3)
+            eq_default = m.group(4)
+            argmin = m.group(5)
+        if c:
+            diverge = c.group(1)
+    print("storage-cost compiler-driven=yes")
+    print(f"storage-cost ranked={ranked}")
+    print(f"storage-cost score={score}")
+    print(f"storage-cost enumerated={enumerated}")
+    print(f"storage-cost truncated={truncated}")
+    print(f"storage-cost ranked-in-legal={in_legal}")
+    print(f"storage-cost ranked-eq-default-3g={eq_default}")
+    print(f"storage-cost argmin-size={argmin}")
+    print(f"storage-cost diverge={diverge}")
+    print(f"storage-cost policy={policy}")
+    print("note cost-ranks-enumerated-F-only")
+    print("note cost-ne-legality")
+    print("note cost-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note truncated-ne-ranked")
+    print("note not-s2c2-argmin")
+    print("note not-score3")
+    print("note chain-def-frozen")
+    print("note not-c-storage-flatten")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note structural-ticks-not-wallclock")
+    print("note runtime-correlation-not-applicable")
+    print("note cost-v04-structural-frozen")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_measured_contract() -> int:
+    print("storage-measured compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note measured-ranks-enumerated-F-only")
+    print("note measured-yes-and-correctness")
+    print("note measured-needs-two-records")
+    print("note measured-ne-legality")
+    print("note measured-ne-rewrite-license")
+    print("note policy=measured-storage-v1")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note truncated-ne-ranked")
+    print("note not-s2c2-argmin")
+    print("note not-score3")
+    print("note not-new-capability-grid")
+    print("note do-not-filecheck-microseconds")
+    print("note runtime-validation-pending")
+    print("note one-row-per-signature")
+    print("note measurement-cannot-expand-F")
+    print("note measured-last-wins-duplicate-policy")
+    print("note hierarchy-measured-this-cut")
+    print("note ntile-measured-this-cut")
+    print("note two-independent-prefetch-sites")
+    print("note contention-not-preclaimed")
+    print("note loop-measured-this-cut")
+    print("note prefetch-keep-joint")
+    print("note joint-not-preclaimed")
+    print("note pipeline-s0-s1-frozen")
+    print("note diverge-yes-not-goal")
+    print("note campaign-5a-5d-frozen")
+    print("note five-e-not-opened")
+    print("note do-not-hunt-diverge")
+    print("note do-not-retune-workload")
+    print("note do-not-invent-s4")
+    print("note schedule-policy-selection-only")
+    print("note explain-ne-rewrite")
+    print("note production-path-6a")
+    print("note evidence-db-v1")
+    print("note not-capacity-aware")
+    print("note stable-baseline")
+    print("note six-c-not-opened")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def print_schedule_policy_contract() -> int:
+    print("schedule-policy compiler-driven=yes")
+    print("policy default-3g|cost-v04|measured-storage-v1")
+    print("note selection-ne-legality")
+    print("note selection-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note five-e-not-opened")
+    print("note campaign-5a-5d-frozen")
+    print("note measured-ne-rewrite-license")
+    print("note explain-ne-rewrite")
+    print("note compiler-ne-campaign-log")
+    print("note do-not-filecheck-microseconds")
+    print("note production-path-6a")
+    print("note evidence-db-v1")
+    print("note not-capacity-aware")
+    print("note stable-baseline")
+    print("note six-c-not-opened")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_MEAS_RE = re.compile(
+    r"hierarchy-global-measured ranked=(\S+) policy=(\S+)"
+)
+_HIER_MEAS_SUM_RE = re.compile(
+    r"hierarchy-global-measured-schedule enumerated=(yes|no) truncated=(yes|no) "
+    r"ranked-in-legal=(\S+) ranked-eq-default-3g=(\S+) measured-count=(\S+) "
+    r"argmin-size=(\S+)"
+)
+_HIER_MEAS_DIV_RE = re.compile(
+    r"hierarchy-global-measured-diverge diverge=(\S+)"
+)
+
+
+def analyze_storage_measured(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    ranked = "not-measured"
+    enumerated = "no"
+    truncated = "yes"
+    in_legal = "n/a"
+    eq_default = "n/a"
+    measured_count = "n/a"
+    argmin = "n/a"
+    policy = "measured-storage-v1"
+    diverge = "n/a"
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        ranked = str(obj.get("hierarchy_global_measured_ranked", "not-measured"))
+        in_legal = str(
+            obj.get("hierarchy_global_measured_ranked_in_legal", "n/a")
+        )
+        eq_default = str(
+            obj.get("hierarchy_global_measured_ranked_eq_default_3g", "n/a")
+        )
+        measured_count = str(obj.get("hierarchy_global_measured_count", "n/a"))
+        argmin = str(obj.get("hierarchy_global_measured_argmin_size", "n/a"))
+        policy = str(
+            obj.get("hierarchy_global_measured_policy", "measured-storage-v1")
+        )
+        enumerated = str(obj.get("hierarchy_global_enumerated", "no"))
+        truncated = str(obj.get("hierarchy_global_truncated", "yes"))
+        diverge = str(obj.get("hierarchy_global_measured_diverge", "n/a"))
+    else:
+        m = _HIER_MEAS_SUM_RE.search(text)
+        g = _HIER_MEAS_RE.search(text)
+        d = _HIER_MEAS_DIV_RE.search(text)
+        if g:
+            ranked = g.group(1)
+            policy = g.group(2)
+        if m:
+            enumerated = m.group(1)
+            truncated = m.group(2)
+            in_legal = m.group(3)
+            eq_default = m.group(4)
+            measured_count = m.group(5)
+            argmin = m.group(6)
+        if d:
+            diverge = d.group(1)
+    print("storage-measured compiler-driven=yes")
+    print(f"storage-measured ranked={ranked}")
+    print(f"storage-measured enumerated={enumerated}")
+    print(f"storage-measured truncated={truncated}")
+    print(f"storage-measured ranked-in-legal={in_legal}")
+    print(f"storage-measured ranked-eq-default-3g={eq_default}")
+    print(f"storage-measured measured-count={measured_count}")
+    print(f"storage-measured argmin-size={argmin}")
+    print(f"storage-measured diverge={diverge}")
+    print(f"storage-measured policy={policy}")
+    print("note measured-yes-and-correctness")
+    print("note measured-ne-legality")
+    print("note measured-ne-rewrite-license")
+    print("note default-3g-frozen")
+    print("note cost-v04-structural-frozen")
+    print("note do-not-filecheck-microseconds")
+    print("note runtime-validation-pending")
+    print("note one-row-per-signature")
+    print("note measurement-cannot-expand-F")
+    print("note measured-last-wins-duplicate-policy")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+_PIPE_MEAS_RE = re.compile(r"storage-pipeline measured=yes")
+_PIPE_OK_RE = re.compile(r"storage-pipeline correctness=1")
+_PIPE_TIME_RE = re.compile(
+    r"storage-pipeline timing seq=([0-9.]+) evi=([0-9.]+)"
+)
+_SIG_S0 = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER"
+)
+_SIG_S1 = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER"
+)
+
+
+def infer_measured_profile(text: str) -> str:
+    """Candidate-local profile from the pipeline log. Not a hardware law."""
+    if "s2c2-ascend-run" in text or "ascend910b:ascend" in text:
+        return "910B"
+    return "rtx4090"
+
+
+def emit_storage_measured_from_pipeline(path: Path) -> int:
+    """Map a two-tile storage-pipeline log onto F(program) signatures.
+
+    evi → S0 PREFETCH (default-3g). seq → S1 PRESERVE.
+    par is not an F(program) inhabitant. Do not FileCheck microseconds.
+    Does not store host/password/IP. Do not compare 4090 μs to 910B μs.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if not _PIPE_MEAS_RE.search(text) or not _PIPE_OK_RE.search(text):
+        print("record_ascend: pipeline log is not measured+correct", file=sys.stderr)
+        return 4
+    m = _PIPE_TIME_RE.search(text)
+    if not m:
+        print("record_ascend: no storage-pipeline timing line", file=sys.stderr)
+        return 4
+    t_seq = int(round(float(m.group(1))))
+    t_evi = int(round(float(m.group(2))))
+    profile = infer_measured_profile(text)
+    vendor = "910B" if profile == "910B" else "4090"
+    common = {
+        "schema": "s2c2.measured_storage_cost.v1",
+        "profile": profile,
+        "workload_class": "storage-aware-pipeline",
+        "repetitions": 5,
+        "correctness": 1,
+        "source": "device-log",
+        "measured": "yes",
+    }
+    s0 = dict(common)
+    s0["candidate_signature"] = _SIG_S0
+    s0["measured_time_us"] = t_evi
+    s0["note"] = (
+        f"S0 default-3g PREFETCH from {vendor} storage-pipeline evi. "
+        "Not a Capability cell. Do not FileCheck microseconds."
+    )
+    s1 = dict(common)
+    s1["candidate_signature"] = _SIG_S1
+    s1["measured_time_us"] = t_seq
+    s1["note"] = (
+        f"S1 PRESERVE from {vendor} storage-pipeline seq. "
+        "Not an F inhabitant for par. Do not FileCheck microseconds."
+    )
+    print(json.dumps(s0, ensure_ascii=True, separators=(",", ":")))
+    print(json.dumps(s1, ensure_ascii=True, separators=(",", ":")))
+    print(f"storage-measured emit=device-log profile={profile}")
+    print("storage-measured note measured-yes-and-correctness")
+    print("storage-measured note do-not-filecheck-microseconds")
+    print("storage-measured note not-new-capability-grid")
+    print("storage-measured note do-not-compare-4090-to-910B")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_MEAS_LINE_RE = re.compile(
+    r"storage-hierarchy-measured signature=(\S+) timing=([0-9.]+) "
+    r"correctness=1"
+)
+_HIER_MEAS_YES_RE = re.compile(r"storage-hierarchy-measured measured=yes")
+_HIER_PREFIX = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//"
+)
+_HIER_TAILS = (
+    "PREFETCH|TRANSFER|KEEP_RESIDENCY|KEEP_RESIDENCY",
+    "PREFETCH|TRANSFER|KEEP_RESIDENCY|TRANSFER",
+    "PREFETCH|TRANSFER|TRANSFER|KEEP_RESIDENCY",
+    "PREFETCH|TRANSFER|TRANSFER|TRANSFER",
+    "PRESERVE|TRANSFER|KEEP_RESIDENCY|KEEP_RESIDENCY",
+    "PRESERVE|TRANSFER|KEEP_RESIDENCY|TRANSFER",
+    "PRESERVE|TRANSFER|TRANSFER|KEEP_RESIDENCY",
+    "PRESERVE|TRANSFER|TRANSFER|TRANSFER",
+)
+_HIER_LEGAL = { _HIER_PREFIX + t for t in _HIER_TAILS }
+
+
+def emit_storage_measured_from_hierarchy(path: Path) -> int:
+    """One campaign row per F inhabitant. Refuse duplicate signatures.
+
+    Measurement cannot expand F. Do not FileCheck microseconds.
+    Do not compare 4090 μs to 910B μs. Do not store host/password/IP.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if not _HIER_MEAS_YES_RE.search(text):
+        print("record_ascend: hierarchy log is not measured", file=sys.stderr)
+        return 4
+    profile = infer_measured_profile(text)
+    vendor = "910B" if profile == "910B" else "4090"
+    rows: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for m in _HIER_MEAS_LINE_RE.finditer(text):
+        sig = m.group(1)
+        if sig not in _HIER_LEGAL:
+            print(f"record_ascend: signature not in F: {sig}", file=sys.stderr)
+            return 4
+        if sig in seen:
+            print(
+                f"record_ascend: duplicate signature in campaign: {sig}",
+                file=sys.stderr,
+            )
+            return 4
+        seen.add(sig)
+        rec = {
+            "schema": "s2c2.measured_storage_cost.v1",
+            "profile": profile,
+            "workload_class": "ssd-hierarchy-lifetime",
+            "repetitions": 5,
+            "correctness": 1,
+            "source": "device-log",
+            "measured": "yes",
+            "candidate_signature": sig,
+            "measured_time_us": int(round(float(m.group(2)))),
+            "note": (
+                f"{vendor} hierarchy arm. One row per signature. "
+                "Not a Capability cell. Do not FileCheck microseconds."
+            ),
+        }
+        rows.append(rec)
+    if len(rows) < 3:
+        print(
+            f"record_ascend: need ≥3 measured inhabitants, got {len(rows)}",
+            file=sys.stderr,
+        )
+        return 4
+    for rec in rows:
+        print(json.dumps(rec, ensure_ascii=True, separators=(",", ":")))
+    print(f"storage-measured emit=device-log profile={profile}")
+    print(f"storage-measured hierarchy-count={len(rows)}")
+    print("storage-measured note one-row-per-signature")
+    print("storage-measured note measurement-cannot-expand-F")
+    print("storage-measured note measured-yes-and-correctness")
+    print("storage-measured note do-not-filecheck-microseconds")
+    print("storage-measured note do-not-compare-4090-to-910B")
+    print("storage-measured note not-pipeline-s0-s1")
+    print("storage-measured note measured-ne-rewrite-license")
+    print("cost=unchanged")
+    return 0
+
+
+_NTILE_MEAS_LINE_RE = re.compile(
+    r"storage-ntile-measured signature=(\S+) timing=([0-9.]+) "
+    r"correctness=1"
+)
+_NTILE_MEAS_YES_RE = re.compile(r"storage-ntile-measured measured=yes")
+_NTILE_PREFIX = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//"
+)
+_NTILE_TAILS = (
+    "PREFETCH|TRANSFER//PREFETCH|TRANSFER//TRANSFER|TRANSFER",
+    "PREFETCH|TRANSFER//PRESERVE|TRANSFER//TRANSFER|TRANSFER",
+    "PRESERVE|TRANSFER//PREFETCH|TRANSFER//TRANSFER|TRANSFER",
+    "PRESERVE|TRANSFER//PRESERVE|TRANSFER//TRANSFER|TRANSFER",
+)
+_NTILE_LEGAL = {_NTILE_PREFIX + t for t in _NTILE_TAILS}
+
+
+def emit_storage_measured_from_ntile(path: Path) -> int:
+    """One campaign row per n-tile F inhabitant. Refuse extras/dups.
+
+    Measure all 4 legal signatures. Measurement cannot expand F.
+    Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if not _NTILE_MEAS_YES_RE.search(text):
+        print("record_ascend: ntile log is not measured", file=sys.stderr)
+        return 4
+    profile = infer_measured_profile(text)
+    vendor = "910B" if profile == "910B" else "4090"
+    rows: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for m in _NTILE_MEAS_LINE_RE.finditer(text):
+        sig = m.group(1)
+        if sig not in _NTILE_LEGAL:
+            print(f"record_ascend: signature not in F: {sig}", file=sys.stderr)
+            return 4
+        if sig in seen:
+            print(
+                f"record_ascend: duplicate signature in campaign: {sig}",
+                file=sys.stderr,
+            )
+            return 4
+        seen.add(sig)
+        rec = {
+            "schema": "s2c2.measured_storage_cost.v1",
+            "profile": profile,
+            "workload_class": "ssd-ntile-pipeline",
+            "repetitions": 5,
+            "correctness": 1,
+            "source": "device-log",
+            "measured": "yes",
+            "candidate_signature": sig,
+            "measured_time_us": int(round(float(m.group(2)))),
+            "note": (
+                f"{vendor} ntile arm. One row per signature. "
+                "Not a Capability cell. Do not FileCheck microseconds."
+            ),
+        }
+        rows.append(rec)
+    if len(rows) != 4:
+        print(
+            f"record_ascend: need 4/4 measured inhabitants, got {len(rows)}",
+            file=sys.stderr,
+        )
+        return 4
+    for rec in rows:
+        print(json.dumps(rec, ensure_ascii=True, separators=(",", ":")))
+    print(f"storage-measured emit=device-log profile={profile}")
+    print(f"storage-measured ntile-count={len(rows)}")
+    print("storage-measured note one-row-per-signature")
+    print("storage-measured note measurement-cannot-expand-F")
+    print("storage-measured note two-independent-prefetch-sites")
+    print("storage-measured note contention-not-preclaimed")
+    print("storage-measured note measured-yes-and-correctness")
+    print("storage-measured note do-not-filecheck-microseconds")
+    print("storage-measured note do-not-compare-4090-to-910B")
+    print("storage-measured note not-hierarchy-8")
+    print("storage-measured note not-pipeline-s0-s1")
+    print("storage-measured note measured-ne-rewrite-license")
+    print("cost=unchanged")
+    return 0
+
+
+_LOOP_MEAS_LINE_RE = re.compile(
+    r"storage-loop-measured signature=(\S+) timing=([0-9.]+) "
+    r"correctness=1"
+)
+_LOOP_MEAS_YES_RE = re.compile(r"storage-loop-measured measured=yes")
+_LOOP_PREFIX = (
+    "MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//"
+)
+_LOOP_TAILS = (
+    "PREFETCH//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE",
+    "PREFETCH//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE",
+    "PRESERVE//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE",
+    "PRESERVE//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE",
+)
+_LOOP_LEGAL = {_LOOP_PREFIX + t for t in _LOOP_TAILS}
+
+
+def emit_storage_measured_from_loop(path: Path) -> int:
+    """One campaign row per loop F inhabitant. Refuse extras/dups.
+
+    Measure all 4 legal signatures. joinGlobal(S) is the full
+    compiler signature, not a MATERIALIZE token count.
+    Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if not _LOOP_MEAS_YES_RE.search(text):
+        print("record_ascend: loop log is not measured", file=sys.stderr)
+        return 4
+    profile = infer_measured_profile(text)
+    vendor = "910B" if profile == "910B" else "4090"
+    rows: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for m in _LOOP_MEAS_LINE_RE.finditer(text):
+        sig = m.group(1)
+        if sig not in _LOOP_LEGAL:
+            print(f"record_ascend: signature not in F: {sig}", file=sys.stderr)
+            return 4
+        if sig in seen:
+            print(
+                f"record_ascend: duplicate signature in campaign: {sig}",
+                file=sys.stderr,
+            )
+            return 4
+        seen.add(sig)
+        rec = {
+            "schema": "s2c2.measured_storage_cost.v1",
+            "profile": profile,
+            "workload_class": "ssd-loop-pipeline",
+            "repetitions": 5,
+            "correctness": 1,
+            "source": "device-log",
+            "measured": "yes",
+            "candidate_signature": sig,
+            "measured_time_us": int(round(float(m.group(2)))),
+            "note": (
+                f"{vendor} loop arm. One row per signature. "
+                "Not a Capability cell. Do not FileCheck microseconds."
+            ),
+        }
+        rows.append(rec)
+    if len(rows) != 4:
+        print(
+            f"record_ascend: need 4/4 measured inhabitants, got {len(rows)}",
+            file=sys.stderr,
+        )
+        return 4
+    for rec in rows:
+        print(json.dumps(rec, ensure_ascii=True, separators=(",", ":")))
+    print(f"storage-measured emit=device-log profile={profile}")
+    print(f"storage-measured loop-count={len(rows)}")
+    print("storage-measured note one-row-per-signature")
+    print("storage-measured note measurement-cannot-expand-F")
+    print("storage-measured note prefetch-keep-joint")
+    print("storage-measured note joint-not-preclaimed")
+    print("storage-measured note measured-yes-and-correctness")
+    print("storage-measured note do-not-filecheck-microseconds")
+    print("storage-measured note do-not-compare-4090-to-910B")
+    print("storage-measured note not-ntile-4")
+    print("storage-measured note not-hierarchy-8")
+    print("storage-measured note not-pipeline-s0-s1")
+    print("storage-measured note not-3j-wallclock")
+    print("storage-measured note measured-ne-rewrite-license")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_ntile_contract() -> int:
+    print("storage-ntile compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note compute-then-prefetch-next")
+    print("note proven-live-residency")
+    print("note not-c-storage-flatten")
+    print("note no-invented-wait")
+    print("note runtime-witness=storage-pipeline")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+def print_storage_hierarchy_contract() -> int:
+    print("storage-hierarchy compiler-driven=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("inferred-overlap => prefetch-keep-only")
+    print("invariant underdetermined-preserve")
+    print("note ssd-host-hbm-compute")
+    print("note keep-residency-ne-rematerialize")
+    print("note inferred-overlap-ne-flatten")
+    print("note runtime-witness=storage-pipeline")
+    print("note catalog-untouched")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_HIER_SITE_RE = re.compile(
+    r"hierarchy-site #(\d+) op=(\S+) src=(\S+) dst=(\S+) pair=(\S+) "
+    r"action=(\S+) when=(\S+) reason=(\S+)"
+)
+_HIER_SUM_RE = re.compile(
+    r"hierarchy-schedule sites=(\d+) materialize=(\d+) prefetch=(\d+) "
+    r"transfer=(\d+) keep-residency=(\d+) preserve=(\d+)"
+)
+_HIER_REUSE_RE = re.compile(r"hierarchy-reuse applied=(\d+) skipped=(\d+)")
+
+
+def _print_storage_hierarchy_summary(
+    sites: int,
+    materialize: int,
+    prefetch: int,
+    transfer: int,
+    keep: int,
+    preserve: int,
+    reuse_applied: int | None = None,
+    reuse_skipped: int | None = None,
+) -> int:
+    print("storage-hierarchy compiler-driven=yes")
+    print(f"storage-hierarchy sites={sites}")
+    print(f"storage-hierarchy materialize={materialize}")
+    print(f"storage-hierarchy prefetch={prefetch}")
+    print(f"storage-hierarchy transfer={transfer}")
+    print(f"storage-hierarchy keep-residency={keep}")
+    print(f"storage-hierarchy preserve={preserve}")
+    if reuse_applied is not None:
+        print(f"storage-hierarchy reuse-applied={reuse_applied}")
+        print(f"storage-hierarchy reuse-skipped={reuse_skipped or 0}")
+    print("note ssd-host-hbm-compute")
+    print("note keep-residency-ne-rematerialize")
+    print("note inferred-overlap-ne-flatten")
+    print("note proven-live-residency")
+    print("note runtime-witness=storage-pipeline")
+    print("note catalog-untouched")
+    print("note not-cost-v04")
+    print("r3-gate=scoped-evidence")
+    print("cost=unchanged")
+    return 0
+
+
+def analyze_storage_hierarchy(path: Path) -> int:
+    text = path.read_text(encoding="utf-8", errors="replace").lstrip()
+    if text.startswith("{"):
+        obj = json.loads(text.splitlines()[0])
+        if obj.get("schema") != "s2c2.workload_schedule.v1":
+            print("record_ascend: not a workload_schedule dump", file=sys.stderr)
+            return 4
+        return _print_storage_hierarchy_summary(
+            int(obj.get("hierarchy_sites", len(obj.get("hierarchy") or []))),
+            int(obj.get("hierarchy_materialize", 0)),
+            int(obj.get("hierarchy_prefetch", 0)),
+            int(obj.get("hierarchy_transfer", 0)),
+            int(obj.get("hierarchy_keep_residency", 0)),
+            int(obj.get("hierarchy_preserve", 0)),
+            int(obj.get("hierarchy_reuse_applied", 0)),
+            int(obj.get("hierarchy_reuse_skipped", 0)),
+        )
+    summary = _HIER_SUM_RE.search(text)
+    reuse = _HIER_REUSE_RE.search(text)
+    if summary:
+        return _print_storage_hierarchy_summary(
+            int(summary.group(1)),
+            int(summary.group(2)),
+            int(summary.group(3)),
+            int(summary.group(4)),
+            int(summary.group(5)),
+            int(summary.group(6)),
+            int(reuse.group(1)) if reuse else None,
+            int(reuse.group(2)) if reuse else None,
+        )
+    found = _HIER_SITE_RE.findall(text)
+    materialize = sum(1 for s in found if s[5] == "MATERIALIZE")
+    prefetch = sum(1 for s in found if s[5] == "PREFETCH")
+    transfer = sum(1 for s in found if s[5] == "TRANSFER")
+    keep = sum(1 for s in found if s[5] == "KEEP_RESIDENCY")
+    preserve = sum(1 for s in found if s[5] == "PRESERVE")
+    return _print_storage_hierarchy_summary(
+        len(found), materialize, prefetch, transfer, keep, preserve
+    )
+
+
+def print_storage_pipeline_contract() -> int:
+    print("storage-pipeline program-measurement=yes")
+    print("no-evidence => no-destructive-optimization")
+    print("invariant underdetermined-preserve")
+    print("note storage-prefetch||compute")
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
+    print("note not-cost-v04")
+    print("semantics=unchanged")
+    print("v3=not-claimed")
+    print("cost=unchanged")
+    return 0
+
+
+_STORAGE_PIPE_TIMING_RE = re.compile(
+    r"storage-pipeline timing seq=([0-9.]+) evi=([0-9.]+) "
+    r"par=([0-9.]+) opt_over_base=([0-9.]+)"
+)
+
+
+def analyze_storage_pipeline(log: Path) -> int:
+    text = log.read_text(encoding="utf-8", errors="replace")
+    measured = bool(re.search(r"storage-pipeline measured=yes\b", text))
+    timing = _STORAGE_PIPE_TIMING_RE.search(text)
+    defined = measured and timing is not None
+    print("storage-pipeline program-measurement=yes")
+    print("storage-pipeline note storage-prefetch||compute")
+    print(f"storage-pipeline measured={'yes' if measured else 'no'}")
+    print(
+        "storage-pipeline t-opt-over-base-defined="
+        f"{'yes' if defined else 'no'}"
+    )
+    print("note t-base-is-t-seq")
+    print("note t-opt-is-t-evi")
+    print("note catalog-untouched")
+    print("note logical-ssd-ne-disk")
+    print("note not-new-capability-grid")
     print("note not-cost-v04")
     if re.search(r"device-absent", text):
         print("note device-absent")
@@ -1161,6 +2389,31 @@ def main() -> int:
     p.add_argument("--analyze-e2e-gain", type=Path)
     p.add_argument("--print-ssd-mlp-wallclock-contract", action="store_true")
     p.add_argument("--analyze-ssd-mlp-wallclock", type=Path)
+    p.add_argument("--print-storage-pipeline-contract", action="store_true")
+    p.add_argument("--analyze-storage-pipeline", type=Path)
+    p.add_argument("--print-storage-hierarchy-contract", action="store_true")
+    p.add_argument("--analyze-storage-hierarchy", type=Path)
+    p.add_argument("--print-storage-schedule-contract", action="store_true")
+    p.add_argument("--analyze-storage-schedule", type=Path)
+    p.add_argument("--print-storage-joint-contract", action="store_true")
+    p.add_argument("--analyze-storage-joint", type=Path)
+    p.add_argument("--print-storage-global-contract", action="store_true")
+    p.add_argument("--analyze-storage-global", type=Path)
+    p.add_argument("--print-storage-cost-contract", action="store_true")
+    p.add_argument("--analyze-storage-cost", type=Path)
+    p.add_argument("--print-storage-measured-contract", action="store_true")
+    p.add_argument("--print-schedule-policy-contract", action="store_true")
+    p.add_argument("--analyze-storage-measured", type=Path)
+    p.add_argument("--emit-storage-measured-from-pipeline", type=Path)
+    p.add_argument("--emit-storage-measured-from-hierarchy", type=Path)
+    p.add_argument("--emit-storage-measured-from-ntile", type=Path)
+    p.add_argument("--emit-storage-measured-from-loop", type=Path)
+    p.add_argument("--print-storage-ntile-contract", action="store_true")
+    p.add_argument("--print-storage-loop-contract", action="store_true")
+    p.add_argument("--print-storage-loop-wallclock-contract", action="store_true")
+    p.add_argument("--analyze-storage-loop-wallclock", type=Path)
+    p.add_argument("--print-workload-schedule-contract", action="store_true")
+    p.add_argument("--analyze-workload-schedule", type=Path)
     p.add_argument("--hardware", default="ascend910b")
     args = p.parse_args()
     n = sum(
@@ -1188,6 +2441,31 @@ def main() -> int:
             args.analyze_e2e_gain,
             args.print_ssd_mlp_wallclock_contract,
             args.analyze_ssd_mlp_wallclock,
+            args.print_storage_pipeline_contract,
+            args.analyze_storage_pipeline,
+            args.print_storage_hierarchy_contract,
+            args.analyze_storage_hierarchy,
+            args.print_storage_schedule_contract,
+            args.analyze_storage_schedule,
+            args.print_storage_joint_contract,
+            args.analyze_storage_joint,
+            args.print_storage_global_contract,
+            args.analyze_storage_global,
+            args.print_storage_cost_contract,
+            args.analyze_storage_cost,
+            args.print_storage_measured_contract,
+            args.print_schedule_policy_contract,
+            args.analyze_storage_measured,
+            args.emit_storage_measured_from_pipeline,
+            args.emit_storage_measured_from_hierarchy,
+            args.emit_storage_measured_from_ntile,
+            args.emit_storage_measured_from_loop,
+            args.print_storage_ntile_contract,
+            args.print_storage_loop_contract,
+            args.print_storage_loop_wallclock_contract,
+            args.analyze_storage_loop_wallclock,
+            args.print_workload_schedule_contract,
+            args.analyze_workload_schedule,
         )
     )
     if n != 1:
@@ -1202,7 +2480,31 @@ def main() -> int:
             "--print-cc-rewrite-schema, --analyze-cc-rewrite, "
             "--print-r3-contract, --print-e2e-contract, --analyze-e2e-gain, "
             "--print-ssd-mlp-wallclock-contract, "
-            "--analyze-ssd-mlp-wallclock",
+            "--analyze-ssd-mlp-wallclock, "
+            "--print-storage-pipeline-contract, "
+            "--analyze-storage-pipeline, "
+            "--print-storage-hierarchy-contract, "
+            "--analyze-storage-hierarchy, "
+            "--print-storage-schedule-contract, "
+            "--analyze-storage-schedule, "
+            "--print-storage-joint-contract, "
+            "--analyze-storage-joint, "
+            "--print-storage-global-contract, "
+            "--analyze-storage-global, "
+            "--print-storage-cost-contract, "
+            "--analyze-storage-cost, "
+            "--print-storage-measured-contract, "
+            "--print-schedule-policy-contract, "
+            "--analyze-storage-measured, "
+            "--emit-storage-measured-from-pipeline, "
+            "--emit-storage-measured-from-hierarchy, "
+            "--emit-storage-measured-from-ntile, "
+            "--print-storage-ntile-contract, "
+            "--print-storage-loop-contract, "
+            "--print-storage-loop-wallclock-contract, "
+            "--analyze-storage-loop-wallclock, "
+            "--print-workload-schedule-contract, "
+            "--analyze-workload-schedule",
             file=sys.stderr,
         )
         return 2
@@ -1271,6 +2573,64 @@ def main() -> int:
         return print_ssd_mlp_wallclock_contract()
     if args.analyze_ssd_mlp_wallclock:
         return analyze_ssd_mlp_wallclock(args.analyze_ssd_mlp_wallclock)
+    if args.print_storage_pipeline_contract:
+        return print_storage_pipeline_contract()
+    if args.analyze_storage_pipeline:
+        return analyze_storage_pipeline(args.analyze_storage_pipeline)
+    if args.print_storage_hierarchy_contract:
+        return print_storage_hierarchy_contract()
+    if args.analyze_storage_hierarchy:
+        return analyze_storage_hierarchy(args.analyze_storage_hierarchy)
+    if args.print_storage_schedule_contract:
+        return print_storage_schedule_contract()
+    if args.analyze_storage_schedule:
+        return analyze_storage_schedule(args.analyze_storage_schedule)
+    if args.print_storage_joint_contract:
+        return print_storage_joint_contract()
+    if args.analyze_storage_joint:
+        return analyze_storage_joint(args.analyze_storage_joint)
+    if args.print_storage_global_contract:
+        return print_storage_global_contract()
+    if args.analyze_storage_global:
+        return analyze_storage_global(args.analyze_storage_global)
+    if args.print_storage_cost_contract:
+        return print_storage_cost_contract()
+    if args.analyze_storage_cost:
+        return analyze_storage_cost(args.analyze_storage_cost)
+    if args.print_storage_measured_contract:
+        return print_storage_measured_contract()
+    if args.print_schedule_policy_contract:
+        return print_schedule_policy_contract()
+    if args.analyze_storage_measured:
+        return analyze_storage_measured(args.analyze_storage_measured)
+    if args.emit_storage_measured_from_pipeline:
+        return emit_storage_measured_from_pipeline(
+            args.emit_storage_measured_from_pipeline
+        )
+    if args.emit_storage_measured_from_hierarchy:
+        return emit_storage_measured_from_hierarchy(
+            args.emit_storage_measured_from_hierarchy
+        )
+    if args.emit_storage_measured_from_ntile:
+        return emit_storage_measured_from_ntile(
+            args.emit_storage_measured_from_ntile
+        )
+    if args.emit_storage_measured_from_loop:
+        return emit_storage_measured_from_loop(
+            args.emit_storage_measured_from_loop
+        )
+    if args.print_storage_ntile_contract:
+        return print_storage_ntile_contract()
+    if args.print_storage_loop_contract:
+        return print_storage_loop_contract()
+    if args.print_storage_loop_wallclock_contract:
+        return print_storage_loop_wallclock_contract()
+    if args.analyze_storage_loop_wallclock:
+        return analyze_storage_loop_wallclock(args.analyze_storage_loop_wallclock)
+    if args.print_workload_schedule_contract:
+        return print_workload_schedule_contract()
+    if args.analyze_workload_schedule:
+        return analyze_workload_schedule(args.analyze_workload_schedule)
     return accept_hardware(args.accept_hardware)
 
 

@@ -16,5 +16,7 @@ add_mlir_conversion_library(S2C2StorToMemref
   MLIRIR
   MLIRMemRefDialect
   MLIRPass
+  MLIRSCFDialect
+  MLIRSCFTransforms
   MLIRTransforms
 )

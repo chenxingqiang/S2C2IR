@@ -1,0 +1,21 @@
+sweep_storage_loop_wallclock n-tile=4194304 tiles=3 trip=2 k_ref=32
+s2c2-cuda-run hardware_id=rtx4090:cuda sched=gpu-async map=default device=gpu sync=named-nonblocking
+s2c2-cuda-run workload compute=elemwise
+s2c2-cuda-run workload transfer=storage_to_host|host_to_device
+s2c2-cuda-run note workload-semantic-ne-kernel-backend
+s2c2-cuda-run timing=host-wall-clock
+s2c2-cuda-run storage-loop-wallclock=1
+s2c2-cuda-run storage-loop-wallclock program-measurement=yes
+s2c2-cuda-run storage-loop-wallclock note scf-for-software-pipeline
+s2c2-cuda-run storage-loop-wallclock note not-arbitrary-runtime-n
+s2c2-cuda-run storage-loop-wallclock note compute-then-prefetch-next
+s2c2-cuda-run storage-loop-wallclock n-tile=4194304 tiles=3 trip=2 k_ref=32
+s2c2-cuda-run storage-loop-wallclock measured=yes
+s2c2-cuda-run storage-loop-wallclock timing seq=9415.2 evi=8266.9 par=8291.1 opt_over_base=0.878
+s2c2-cuda-run storage-loop-wallclock correctness=1
+s2c2-cuda-run storage-loop-wallclock evi=keep-C||Storage
+s2c2-cuda-run storage-loop-wallclock note evi-eq-par
+s2c2-cuda-run storage-loop-wallclock note catalog-untouched
+s2c2-cuda-run storage-loop-wallclock note logical-ssd-ne-disk
+s2c2-cuda-run storage-loop-wallclock note not-cost-v04
+s2c2-cuda-run storage-loop-wallclock cost=unchanged semantics=unchanged v3=not-claimed

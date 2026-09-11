@@ -1,0 +1,15 @@
+# Device-absent scf.for loop-pipeline wall-clock fixture. Not Cost.
+# Host has no 4090 / 910B. measured=no; ratio undefined.
+# Not an arbitrary runtime-N scheduler.
+s2c2-ascend-run storage-loop-wallclock=1
+s2c2-ascend-run storage-loop-wallclock program-measurement=yes
+s2c2-ascend-run storage-loop-wallclock note scf-for-software-pipeline
+s2c2-ascend-run storage-loop-wallclock note not-arbitrary-runtime-n
+s2c2-ascend-run storage-loop-wallclock note t-base-is-t-seq
+s2c2-ascend-run storage-loop-wallclock note t-opt-is-t-evi
+s2c2-ascend-run storage-loop-wallclock measured=no
+s2c2-ascend-run storage-loop-wallclock note device-absent
+s2c2-ascend-run storage-loop-wallclock note catalog-untouched
+s2c2-ascend-run storage-loop-wallclock note logical-ssd-ne-disk
+s2c2-ascend-run storage-loop-wallclock note not-cost-v04
+s2c2-ascend-run storage-loop-wallclock cost=unchanged semantics=unchanged v3=not-claimed

@@ -139,6 +139,15 @@ def run_analyzer(rec: dict[str, Any], artifact: Path) -> None:
     if analyze == "ssd-mlp-wallclock":
         flag = "--analyze-ssd-mlp-wallclock"
         script = _ASCEND
+    elif analyze == "storage-pipeline":
+        flag = "--analyze-storage-pipeline"
+        script = _ASCEND
+    elif analyze == "storage-loop-wallclock":
+        flag = "--analyze-storage-loop-wallclock"
+        script = _ASCEND
+    elif analyze == "storage-measured":
+        flag = "--analyze-storage-measured"
+        script = _ASCEND
     elif tool == "cuda":
         flag = CUDA_ANALYZE.get(analyze)
         script = _CUDA

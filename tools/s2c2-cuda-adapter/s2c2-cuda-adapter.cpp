@@ -182,6 +182,486 @@ static void printSsdMlpWallclock() {
   std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
 }
 
+static void printStoragePipeline() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-pipeline=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline "
+               "note storage-prefetch||compute\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline t-base=t-seq\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-pipeline t-opt=t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline "
+               "evi=keep-C||Storage,serialize-licensed-C||C\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline note logical-ssd-ne-disk\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-pipeline cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-pipeline semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+}
+
+static void printStorageLoop() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note scf-for-software-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note ssa-iter-args-double-buffer\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note loop-carried-lifetime\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note not-in-place-transfer-overwrite\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop note no-invented-wait\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop "
+               "runtime-witness=storage-loop-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop semantics=unchanged\n");
+}
+
+static void printStorageLoopWallclock() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop-wallclock=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock "
+               "program-measurement=yes\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock "
+               "note scf-for-software-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock "
+               "note not-arbitrary-runtime-n\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock t-base=t-seq\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock t-opt=t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock "
+               "note evi-eq-par\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock "
+               "evi=keep-C||Storage\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock n-tile=4194304\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock tiles=3\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock trip=2\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock k_ref=32\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock "
+               "note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock "
+               "note logical-ssd-ne-disk\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock note not-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-wallclock "
+               "semantics=unchanged\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter v3=not-claimed\n");
+}
+
+static void printStorageNtile() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile "
+               "note compute-then-prefetch-next\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile "
+               "note proven-live-residency\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile note no-invented-wait\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile "
+               "runtime-witness=storage-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile semantics=unchanged\n");
+}
+
+static void printStorageHierarchy() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-hierarchy=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy "
+               "note ssd-host-hbm-compute\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy "
+               "note inferred-overlap-ne-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy "
+               "note keep-residency-ne-rematerialize\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy "
+               "runtime-witness=storage-pipeline\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-hierarchy cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy semantics=unchanged\n");
+}
+
+static void printStorageSchedule() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-schedule=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-schedule source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-schedule "
+               "note legal-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-schedule "
+               "note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-schedule "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-schedule policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-schedule "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-schedule note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-schedule note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-schedule cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-schedule semantics=unchanged\n");
+}
+
+static void printStorageJoint() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-joint=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-joint source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint "
+               "note joint-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint "
+               "note cost-ranking-is-policy-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-joint cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-joint semantics=unchanged\n");
+}
+
+static void printStorageGlobal() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-global=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-global source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note global-candidates-then-select\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note selection-ne-cost\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note selection-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global policy=default-3g\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note chain-def-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note truncated-ne-complete-F\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note historical-tuple-or-fail\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note cost-ranking-is-policy-cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-global cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-global semantics=unchanged\n");
+}
+
+static void printStorageCost() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-cost=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-cost source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note cost-ranks-enumerated-F-only\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note cost-ne-legality\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note cost-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost policy=cost-v04\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note truncated-ne-ranked\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note not-s2c2-argmin\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note not-score3\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost "
+               "note not-c-storage-flatten\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note catalog-untouched\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost note chain-def-frozen\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-cost cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-cost semantics=unchanged\n");
+}
+
+static void printStorageMeasured() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-measured=1\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note measured-yes-and-correctness\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note measured-ne-legality\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured note default-3g-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured "
+               "note runtime-validation-pending\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-measured semantics=unchanged\n");
+}
+
+static void printStorageHierarchyMeasured() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-hierarchy-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note keep-residency-ne-rewrite\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note not-pipeline-s0-s1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note measured-last-wins-duplicate-policy\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-hierarchy-measured "
+               "semantics=unchanged\n");
+}
+
+static void printStorageLoopMeasured() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-loop-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note prefetch-keep-joint\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note joint-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note not-ntile-4\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note not-3j-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-loop-measured "
+               "semantics=unchanged\n");
+}
+
+static void printStorageNtileMeasured() {
+  std::fprintf(stderr, "s2c2-cuda-adapter storage-ntile-measured=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "policy=measured-storage-v1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note one-arm-per-signature\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note measurement-cannot-expand-F\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note two-independent-prefetch-sites\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note contention-not-preclaimed\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note not-hierarchy-8\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note not-pipeline-s0-s1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note measured-ne-rewrite-license\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note diverge-yes-not-goal\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note cost-v04-structural-frozen\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "note do-not-filecheck-microseconds\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter storage-ntile-measured "
+               "semantics=unchanged\n");
+}
+
+static void printWorkloadSchedule() {
+  std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule=1\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule source=s2c2-opt\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note not-handwritten-optimized-ir\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "runtime-witness=ssd-mlp-wallclock\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note compiler-chosen-t-evi\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note not-new-capability-grid\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule "
+               "note storage-data-movement-overlap\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule note not-cost-v04\n");
+  std::fprintf(stderr, "s2c2-cuda-adapter workload-schedule cost=unchanged\n");
+  std::fprintf(stderr,
+               "s2c2-cuda-adapter workload-schedule semantics=unchanged\n");
+}
+
 static void printCudaValCc() {
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc=p0\n");
   std::fprintf(stderr, "s2c2-cuda-adapter cuda-val-cc map C_light=kxSiLU\n");
@@ -326,6 +806,20 @@ int main(int argc, char **argv) {
   bool cudaValAsync = false;
   bool capSchema = false;
   bool ssdMlp = false;
+  bool storagePipe = false;
+  bool storageHier = false;
+  bool storageSched = false;
+  bool storageJoint = false;
+  bool storageGlobal = false;
+  bool storageCost = false;
+  bool storageMeasured = false;
+  bool storageHierMeas = false;
+  bool storageNtile = false;
+  bool storageNtileMeas = false;
+  bool storageLoop = false;
+  bool storageLoopWc = false;
+  bool storageLoopMeas = false;
+  bool workloadSched = false;
   const char *func = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -353,6 +847,34 @@ int main(int argc, char **argv) {
       capSchema = true;
     } else if (a == "--ssd-mlp-wallclock") {
       ssdMlp = true;
+    } else if (a == "--storage-pipeline") {
+      storagePipe = true;
+    } else if (a == "--storage-hierarchy") {
+      storageHier = true;
+    } else if (a == "--storage-schedule") {
+      storageSched = true;
+    } else if (a == "--storage-joint") {
+      storageJoint = true;
+    } else if (a == "--storage-global") {
+      storageGlobal = true;
+    } else if (a == "--storage-cost") {
+      storageCost = true;
+    } else if (a == "--storage-measured") {
+      storageMeasured = true;
+    } else if (a == "--storage-hierarchy-measured") {
+      storageHierMeas = true;
+    } else if (a == "--storage-ntile") {
+      storageNtile = true;
+    } else if (a == "--storage-ntile-measured") {
+      storageNtileMeas = true;
+    } else if (a == "--storage-loop") {
+      storageLoop = true;
+    } else if (a == "--storage-loop-wallclock") {
+      storageLoopWc = true;
+    } else if (a == "--storage-loop-measured") {
+      storageLoopMeas = true;
+    } else if (a == "--workload-schedule") {
+      workloadSched = true;
     } else if (a.rfind("--func=", 0) == 0) {
       func = argv[i] + 7;
     } else if (a == "--help" || a == "-h") {
@@ -360,7 +882,16 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-adapter --dry-run [--func=<id|name>] "
                    "[--matched] [--cap] [--phase] [--pipe] [--pipe-tiles] "
                    "[--cuda-val] [--cuda-val-mem] [--cuda-val-cc] "
-                   "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock]\n"
+                   "[--cuda-val-async] [--cap-schema] [--ssd-mlp-wallclock] "
+                   "[--storage-pipeline] [--storage-hierarchy] "
+                   "[--storage-schedule] [--storage-joint] [--storage-global] "
+                   "[--storage-cost] [--storage-measured] "
+                   "[--storage-hierarchy-measured] "
+                   "[--storage-ntile] [--storage-ntile-measured] "
+                   "[--storage-loop] "
+                   "[--storage-loop-wallclock] "
+                   "[--storage-loop-measured] "
+                   "[--workload-schedule]\n"
                    "Host protocol only. Timed CUDA: runtime/cuda/\n");
       return 0;
     } else {
@@ -380,12 +911,26 @@ int main(int argc, char **argv) {
   int modes = (int)matched + (int)cap + (int)phase + (int)pipe +
               (int)pipeTiles + (int)cudaVal + (int)cudaValMem +
               (int)cudaValCc + (int)cudaValAsync + (int)capSchema +
-              (int)ssdMlp;
+              (int)ssdMlp + (int)storagePipe + (int)storageHier +
+              (int)storageSched + (int)storageJoint + (int)storageGlobal +
+              (int)storageCost + (int)storageMeasured + (int)storageHierMeas +
+              (int)storageNtile + (int)storageNtileMeas +
+              (int)storageLoop + (int)storageLoopWc +
+              (int)storageLoopMeas +
+              (int)workloadSched;
   if (modes > 1) {
     std::fprintf(stderr,
                  "s2c2-cuda-adapter: --cap-schema/--cuda-val-async/--cuda-val-cc/"
                  "--cuda-val-mem/--cuda-val/--pipe-tiles/--pipe/--phase/--cap/"
-                 "--matched/--ssd-mlp-wallclock cannot combine\n");
+                 "--matched/--ssd-mlp-wallclock/--storage-pipeline/"
+                 "--storage-hierarchy/--storage-schedule/--storage-joint/"
+                 "--storage-global/--storage-cost/--storage-measured/"
+                 "--storage-hierarchy-measured/--storage-ntile/"
+                 "--storage-ntile-measured/"
+                 "--storage-loop/"
+                 "--storage-loop-wallclock/"
+                 "--storage-loop-measured/--workload-schedule "
+                 "cannot combine\n");
     return 1;
   }
   if (matched) {
@@ -440,6 +985,76 @@ int main(int argc, char **argv) {
   }
   if (ssdMlp) {
     printSsdMlpWallclock();
+    printMaps();
+    return 0;
+  }
+  if (storagePipe) {
+    printStoragePipeline();
+    printMaps();
+    return 0;
+  }
+  if (storageHier) {
+    printStorageHierarchy();
+    printMaps();
+    return 0;
+  }
+  if (storageSched) {
+    printStorageSchedule();
+    printMaps();
+    return 0;
+  }
+  if (storageJoint) {
+    printStorageJoint();
+    printMaps();
+    return 0;
+  }
+  if (storageGlobal) {
+    printStorageGlobal();
+    printMaps();
+    return 0;
+  }
+  if (storageCost) {
+    printStorageCost();
+    printMaps();
+    return 0;
+  }
+  if (storageMeasured) {
+    printStorageMeasured();
+    printMaps();
+    return 0;
+  }
+  if (storageHierMeas) {
+    printStorageHierarchyMeasured();
+    printMaps();
+    return 0;
+  }
+  if (storageNtile) {
+    printStorageNtile();
+    printMaps();
+    return 0;
+  }
+  if (storageNtileMeas) {
+    printStorageNtileMeasured();
+    printMaps();
+    return 0;
+  }
+  if (storageLoopMeas) {
+    printStorageLoopMeasured();
+    printMaps();
+    return 0;
+  }
+  if (storageLoop) {
+    printStorageLoop();
+    printMaps();
+    return 0;
+  }
+  if (storageLoopWc) {
+    printStorageLoopWallclock();
+    printMaps();
+    return 0;
+  }
+  if (workloadSched) {
+    printWorkloadSchedule();
     printMaps();
     return 0;
   }

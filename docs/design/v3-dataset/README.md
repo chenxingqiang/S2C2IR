@@ -61,11 +61,87 @@ Topology only; do not FileCheck microseconds.
 
 Complete SSD+MLP program wall-clock logs:
 `ssd-mlp-wallclock.log` (910B) and `ssd-mlp-wallclock-4090.log`
-(4090). Both `measured=yes`. Not Cost v0.4. `#69` untouched.
-Do not FileCheck microseconds. Do not compare 4090 μs to 910B μs.
+(4090). Both `measured=yes`. Two-tile SSD prefetch || compute:
+`storage-pipeline-4090.log` (4090, `measured=yes`). 3I loop
+program wall-clock: `storage-loop-wallclock-4090.log` (4090)
+and `storage-loop-wallclock.log` (910B). Both `measured=yes`.
+Not Cost v0.4.
+`#69` untouched. Do not FileCheck microseconds. Do not compare
+4090 μs to 910B μs.
 
 Batch index of every retained hardware artifact:
 [`hardware-ledger.jsonl`](hardware-ledger.jsonl). Check together
 with `python3 runtime/record_hw_ledger.py --check-hw-ledger`.
 Do not move campaign files. Do not FileCheck microseconds.
+
+Compiler-facing Evidence DB (Phase 6B):
+[`evidence-db.jsonl`](evidence-db.jsonl), schema
+`s2c2.evidence.v1`. Normalized from the frozen
+`storage-measured-v1*.jsonl` tables. Not the hardware
+ledger. Check with
+`python3 runtime/record_evidence.py --check-evidence-db`.
+Do not FileCheck microseconds.
+
+Phase 6C capacity design witness (not measured, not the
+ledger): [`storage-capacity-4tile.jsonl`](storage-capacity-4tile.jsonl)
+and [`storage-capacity-2tile-fit.jsonl`](storage-capacity-2tile-fit.jsonl),
+[`storage-capacity-3tile-tight.jsonl`](storage-capacity-3tile-tight.jsonl).
+Check with `python3 runtime/record_capacity.py --analyze-storage-capacity`.
+Consumer query: `python3 runtime/record_capacity.py --query-capacity-plan`.
+Selection: `--query-capacity-plan ... --capacity-policy=s0`.
+Measured ranking (fixtures, not a campaign, not Evidence DB):
+[`storage-capacity-measured-4tile.jsonl`](storage-capacity-measured-4tile.jsonl)
+(ArgMin coincides with s0),
+[`storage-capacity-measured-4tile-argmin.jsonl`](storage-capacity-measured-4tile-argmin.jsonl)
+(ArgMin ≠ s0),
+[`storage-capacity-measured-4tile-one.jsonl`](storage-capacity-measured-4tile-one.jsonl)
+(needs two usable records),
+[`storage-capacity-measured-4tile-wrong-profile.jsonl`](storage-capacity-measured-4tile-wrong-profile.jsonl),
+[`storage-capacity-measured-4tile-wrong-workload.jsonl`](storage-capacity-measured-4tile-wrong-workload.jsonl),
+[`storage-capacity-measured-4tile-cross-workload.jsonl`](storage-capacity-measured-4tile-cross-workload.jsonl)
+(same candidate, different workload must not reuse),
+[`storage-capacity-measured-4tile-tie.jsonl`](storage-capacity-measured-4tile-tie.jsonl)
+(equal times pick earliest \(F\)),
+[`storage-capacity-measured-4tile-dup.jsonl`](storage-capacity-measured-4tile-dup.jsonl)
+(duplicate scoped identity is rejected). Matcher is
+`profile + workload_class + candidate_identity`. Schema
+`s2c2.measured_capacity_cost.v1`. `workload_class` here is
+the occupancy witness, not an Evidence DB field. Do not
+FileCheck microseconds. No `measurement_revision` on this
+v1 table.
+The capacity rewrite-license gate (`s2c2.capacity_license.v1`)
+is a printed query contract, not a dataset file.
+TRANSFER restore sources (optional, not occupancy, not a
+new \(F\) member):
+[`storage-capacity-4tile-transfer-restore.jsonl`](storage-capacity-4tile-transfer-restore.jsonl).
+Same 4-tile \(F_{\mathrm{capacity}}\); `closed=yes` still
+`rewrite-license=no`. The license predicate
+(`s2c2.capacity_predicate.v1`) is a printed query
+contract: `necessary=yes` on this fixture, `sufficient=no`.
+Source-data proofs (optional, not occupancy, not a new
+\(F\) member):
+[`storage-capacity-4tile-source-data.jsonl`](storage-capacity-4tile-source-data.jsonl).
+Same \(F_{\mathrm{capacity}}\); `source-data=yes` still
+`usable=no` `sufficient=no` `rewrite-license=no`. Replica
+scope is explicit (`replica=ssd`,
+`witness=spec-unmutated-cover`, `scope=occupancy-live`).
+Check with
+`python3 runtime/record_capacity.py --print-capacity-sourcedata-contract`.
+Restore-order proofs (optional, not occupancy, not a new
+\(F\) member):
+[`storage-capacity-4tile-restore-order.jsonl`](storage-capacity-4tile-restore-order.jsonl).
+Same \(F_{\mathrm{capacity}}\); `restore-ordering=yes`
+`usable=yes` still `dest-invalidation=no` `sufficient=no`
+`rewrite-license=no`. Required point is occupancy live end.
+Check with
+`python3 runtime/record_capacity.py --print-capacity-ordering-contract`.
+Dest-invalidation proofs (optional, not occupancy, not a
+new \(F\) member):
+[`storage-capacity-4tile-dest-invalidation.jsonl`](storage-capacity-4tile-dest-invalidation.jsonl).
+Same \(F_{\mathrm{capacity}}\); `dest-invalidation=yes`
+`usable=yes` still `rewrite-path=no` `sufficient=no`
+`rewrite-license=no`. Destination equals occupancy space
+(`destination=hbm`, `witness=spec-drop-stale`,
+`scope=occupancy-live`). Check with
+`python3 runtime/record_capacity.py --print-capacity-invalidation-contract`.
 
