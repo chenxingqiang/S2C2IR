@@ -1,4 +1,4 @@
-# Capacity-aware Residency (Phase 6C-J, source-data validity)
+# Capacity-aware Residency (Phase 6C-K, restore ordering)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
 FROZEN (`selected=none` on the diagnostic path); 6C-D
@@ -10,6 +10,8 @@ records FROZEN; 6C-I license predicate FROZEN
 6C-J classifies scoped source-data validity
 (`replica-exists` ≠ `source-data-valid` ≠ `usable`;
 token = validity witness; no valid/stale/dirty FSM;
+FROZEN). 6C-K classifies restore ordering
+(`source-data-valid` ≠ restore-at-required-point;
 still not sufficient, still `rewrite-license=no`). 5A–6B is the **stable
 baseline** ([`stable-baseline.md`](stable-baseline.md)).
 Phase 6C design
@@ -27,8 +29,8 @@ Do not expand the 6C-B diagnostic surface. Do not
 FileCheck microseconds.
 
 ```text
-Goal     freeze scoped source-data validity as a sufficient prerequisite; still not sufficient, still no license
-Not      an eviction rewrite, a yes-license, a validity FSM, restore ordering, or a device campaign
+Goal     freeze restore ordering as a sufficient prerequisite; still not sufficient, still no license
+Not      an eviction rewrite, a yes-license, dest invalidation, or a device campaign
 Rewrite  still only from an existing capability license
 ```
 
@@ -80,11 +82,11 @@ EVICT → TRANSFER restore       ← 6C-H frozen (candidate semantics)
    ↓
 license predicate              ← 6C-I frozen (necessary ≠ sufficient; still no)
    ↓
-source-data validity           ← this cut (scoped witness; usable=no; still no)
+source-data validity           ← FROZEN (6C-J; scoped witness)
    ↓
-restore ordering               ← 6C-K, not this cut
+restore ordering               ← this cut (6C-K; usable=source-data∧ordering; still no)
    ↓
-dest invalidation              ← not this cut
+dest invalidation              ← 6C-L, not this cut
    ↓
 rewrite path                   ← not this cut
    ↓
@@ -97,6 +99,7 @@ This cut's consumer surface:
 s2c2-opt workload.mlir --query-capacity-plan --capacity=2 \
   --capacity-policy=s0
 python3 runtime/record_capacity.py --print-capacity-sourcedata-contract
+python3 runtime/record_capacity.py --print-capacity-ordering-contract
 ```
 
 Frozen 6C-B diagnostics remain:
@@ -271,9 +274,9 @@ EVICT → TRANSFER restore        ← FROZEN (6C-H)
    ↓
 license predicate               ← FROZEN (6C-I; still no)
    ↓
-source-data validity            ← this cut (6C-J; scoped witness; usable=no)
+source-data validity            ← FROZEN (6C-J)
    ↓
-restore ordering                ← 6C-K, not this cut
+restore ordering                ← this cut (6C-K; still not sufficient)
    ↓
 dest invalidation / rewrite path
    ↓
@@ -596,7 +599,8 @@ restore-kind=TRANSFER
 ```
 
 Still **not** sufficient until every conjunct is proven.
-6C-J classifies `source-data`; the other three stay `no`:
+6C-J classifies `source-data`; 6C-K classifies
+`restore-ordering`; the other two stay `no`:
 
 ```text
 source-data          scoped replica has a validity witness covering occupancy
@@ -617,15 +621,16 @@ Occupancy `capacity-proof` is membership in enumerated
 \(F_{\mathrm{capacity}}\), not a byte allocator and not
 alias analysis. Source declaration (`has-source-replica`)
 is **not** data-validity, restore ordering, or destination
-invalidation. 6C-J classifies data-validity; ordering,
-invalidation, and the rewrite path remain open.
+invalidation. 6C-J classifies data-validity; 6C-K
+classifies restore ordering; destination invalidation
+and the rewrite path remain open.
 
 The predicate prints only on the query consumer. Diagnostic
 `--capacity` does not print it. No `--capacity-license=yes`,
 no `--dump-capacity-license`, no `applySchedule()`, no
 `replace`/`erase` of IR.
 
-## Source-data validity (6C-J, this cut)
+## Source-data validity (6C-J, FROZEN)
 
 A declared restore source is **not** a proof that that
 replica currently holds a semantically usable value.
@@ -745,13 +750,105 @@ destination invalidation, IR alias analysis, or
 The sourcedata prefix prints only on the query consumer.
 Diagnostic `--capacity` does not print it.
 
+## Restore ordering (6C-K, this cut)
+
+Source-data validity is **not** a proof that TRANSFER can
+happen at the required point relative to uses. This cut
+classifies a scoped ordering witness as a query-only
+record on each EVICT restore. It does **not** issue
+`rewrite-license=yes`. `CapacityPlan.rewriteLicense` stays
+`false`. 6C-G / 6C-H / 6C-J prints stay frozen except that
+`usable` becomes yes when **both** source-data and
+restore-ordering are proven.
+
+```text
+source-data-valid
+        ≠
+restore can happen at the required point
+```
+
+No execution FSM and no IR rewrite. The proof reports what
+the occupancy spec can show. Unknown witness or unknown
+scope classifies as no; unknown → no rewrite.
+
+The required point this stage is occupancy live end
+(`occ.end`): TRANSFER must complete before the exclusive
+end of the HBM live interval (the occupancy-visible
+consumer bound).
+
+```text
+prefix           s2c2-capacity-ordering
+schema           s2c2.capacity_ordering.v1
+sufficient       no
+dest-invalidation no
+rewrite-license  no
+rewrite          no
+```
+
+Optional occupancy-spec field `restore_order` (not occupancy,
+not a new \(F\) member):
+
+```text
+object    occupancy id (tileN normalizes to N)
+before    occupancy time; accepted this stage: occ.end
+witness   token; accepted this stage: spec-before-consumer
+scope     token; accepted this stage: occupancy-live
+```
+
+Extra keys are rejected. Other witness/scope values parse
+and classify as `unknown-witness` / `unknown-scope`.
+
+Per-EVICT classification, after 6C-J source-data:
+
+```text
+!restore source              restore-ordering=no usable=no
+                             before/witness/scope = n/a
+                             reason=no-source-replica
+restore, no restore_order    restore-ordering=no usable=no
+                             before=n/a witness=n/a scope=n/a
+                             reason=no-ordering-witness
+witness ≠ spec-before-consumer  reason=unknown-witness
+scope ≠ occupancy-live          reason=unknown-scope
+before ≠ occ.end                reason=not-before-consumer
+else                         restore-ordering=yes
+                             reason=witnessed-before-consumer
+usable = source-data ∧ restore-ordering
+```
+
+Occupancy IR has no restore sources and no proofs.
+Transfer-restore and source-data fixtures have no
+`restore_order`, so `restore-ordering=no`.
+Fixture
+[`v3-dataset/storage-capacity-4tile-restore-order.jsonl`](v3-dataset/storage-capacity-4tile-restore-order.jsonl)
+adds `spec-before-consumer` witnesses with `before=occ.end`
+for tiles 0, 1, and 2; \(F_{\mathrm{capacity}}\) is
+unchanged.
+
+```text
+selected=none / all-KEEP              restore-ordering=n/a usable=n/a
+EVICT, no source replica              restore-ordering=no  usable=no
+EVICT, replica exists, no order proof restore-ordering=no  usable=no
+source-data=yes ∧ ordering=no         usable=no
+source-data=yes ∧ ordering=yes        usable=yes
+usable=yes ∧ dest-invalidation=no     ≠  sufficient=yes
+sufficient=no                         ≠  rewrite-license=yes
+```
+
+`sufficient` stays **no** until dest-invalidation and the
+rewrite path are also yes. This cut does **not** claim
+destination invalidation, IR alias analysis, or
+`replace`/`erase`.
+
+The ordering prefix prints only on the query consumer.
+Diagnostic `--capacity` does not print it.
+
 ## Out of scope
 
 ```text
 eviction rewrite / HB A/B
 opening rewrite-license=yes
 valid/stale/dirty FSM
-opening 6C-K restore ordering
+opening 6C-L dest invalidation
 F_storage_schedule
 rematerialize rewrite
 new Capability matrix
