@@ -140,6 +140,10 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-restore-order.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVORD
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVINV
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOINV
+// RUN: python3 %S/../../runtime/record_decision.py --print-evidence-decision-contract | FileCheck %s --check-prefix=DECC
+// RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HDECNEG
+// RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=DECNEG
+// RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NODEC
 
 // Phase 6C-B diagnostics: F_capacity candidate generation.
 // KEEP / EVICT / REMATERIALIZE. TRANSFER is an existing
@@ -162,6 +166,8 @@
 // restore-order fixture. 6C-L classifies dest invalidation:
 // usable ≠ dest-invalidation ≠ sufficient ≠ rewrite-license.
 // dest-invalidation=yes is still rewrite-path=no.
+// Stage A freezes Evidence → Decision records. Kinds are
+// not a giant sufficient AND. 6C-M is parked.
 // 5A-6B stay frozen. Do not FileCheck microseconds.
 
 // CONTRACT: storage-capacity compiler-driven=yes
@@ -996,6 +1002,47 @@
 // NOINV-NOT: s2c2-capacity-invalidation
 // NOINV-NOT: s2c2-capacity-ordering
 // NOINV-NOT: rewrite-license=yes
+
+// DECC: evidence-decision gate=query
+// DECC: schema s2c2.evidence_kind.v1
+// DECC: decision-schema s2c2.decision.v1
+// DECC: hb-source-is-semantic-truth yes
+// DECC: realization-ne-hb-change yes
+// DECC: unknown-ne-rewrite yes
+// DECC: evidence-ne-authorization yes
+// DECC: query-ne-rewrite yes
+// DECC: dest-invalidation-ne-sufficient yes
+// DECC: sufficient-ne-rewrite-license yes
+// DECC: evidence-kind-ne-6b-identity yes
+// DECC: decision-ne-sufficient-and yes
+// DECC: capability-schedule-ne-god-object yes
+// DECC: rewrite-license no
+// DECC: rewrite-path no
+// DECC: note six-c-l-dest-invalidation-frozen
+// DECC: note six-c-m-sufficient-parked
+// DECC: note sufficient-not-composed
+// DECC-NOT: rewrite-license=yes
+// DECC-NOT: sufficient=yes
+
+// HDECNEG: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// HDECNEG: capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=yes rewrite-path=no
+// HDECNEG: capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=yes usable=yes
+// HDECNEG-NOT: rewrite-license=yes
+// HDECNEG-NOT: sufficient=yes
+// HDECNEG-NOT: keep{0,1,2}
+
+// DECNEG: s2c2-capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
+// DECNEG: s2c2-capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=yes rewrite-path=no
+// DECNEG: s2c2-capacity-invalidation selected=keep{0,1}|evict{2}|rematerialize{} dest-invalidation=yes usable=yes
+// DECNEG-NOT: rewrite-license=yes
+// DECNEG-NOT: sufficient=yes
+// DECNEG-NOT: s2c2-opt: applySchedule
+// DECNEG-NOT: keep{0,1,2}
+
+// NODEC: s2c2-capacity-plan selected=none
+// NODEC-NOT: evidence-decision
+// NODEC-NOT: s2c2-capacity-sufficient
+// NODEC-NOT: rewrite-license=yes
 
 // QUERYFIT: s2c2-capacity-plan-query feasible=yes
 // QUERYFIT: selected=none
