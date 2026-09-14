@@ -141,6 +141,7 @@
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=INVINV
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOINV
 // RUN: python3 %S/../../runtime/record_decision.py --print-evidence-decision-contract | FileCheck %s --check-prefix=DECC
+// RUN: python3 %S/../../runtime/record_decision.py --print-evidence-reason-vocab | FileCheck %s --check-prefix=VOCAB --implicit-check-not=sufficient-not-composed --implicit-check-not='token authorization'
 // RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HDECNEG
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=DECNEG
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NODEC
@@ -1049,8 +1050,40 @@
 
 // NODEC: s2c2-capacity-plan selected=none
 // NODEC-NOT: evidence-decision
+// NODEC-NOT: evidence-reason-vocab
 // NODEC-NOT: s2c2-capacity-sufficient
 // NODEC-NOT: rewrite-license=yes
+
+// VOCAB: evidence-reason-vocab gate=query
+// VOCAB: schema s2c2.evidence_kind.v1
+// VOCAB: decision-schema s2c2.decision.v1
+// VOCAB: reason-namespace evidence
+// VOCAB: reason-namespace predicate
+// VOCAB: reason-namespace decision
+// VOCAB: authorization-tokens none
+// VOCAB: decision-subject usable
+// VOCAB: ad-hoc-reason-forbidden yes
+// VOCAB: occupancy-printer-reasons-unchanged yes
+// VOCAB: evidence-field reason
+// VOCAB: decision-field subject
+// VOCAB: token evidence.unknown-witness
+// VOCAB: token evidence.scope-mismatch
+// VOCAB: token predicate.missing-input
+// VOCAB: token predicate.source-data-present
+// VOCAB: token predicate.restore-ordering-present
+// VOCAB: token decision.subject-required
+// VOCAB: map unknown-witness=evidence.unknown-witness
+// VOCAB: map unknown-scope=evidence.scope-mismatch
+// VOCAB: rewrite-license no
+// VOCAB: rewrite-path no
+// VOCAB: note six-c-m-sufficient-parked
+// VOCAB: note authorization-namespace-closed
+// VOCAB: note sufficient-decision-not-emitted
+// VOCAB-NOT: rewrite-license=yes
+// VOCAB-NOT: sufficient=yes
+// VOCAB-NOT: sufficient-not-composed
+// VOCAB-NOT: token authorization
+// VOCAB-NOT: decision-subject sufficient
 
 // QUERYFIT: s2c2-capacity-plan-query feasible=yes
 // QUERYFIT: selected=none

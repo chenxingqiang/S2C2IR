@@ -1006,7 +1006,9 @@ still not sufficient; still `rewrite-license=no`).
 FROZEN). Stage A freezes Evidence → Decision
 ([`evidence-decision.md`](evidence-decision.md));
 Decision has a named `subject`; 6C-M sufficient boolean
-is parked. Do not FileCheck microseconds.
+is parked. Reason vocabulary / evidence schema:
+[`evidence-reason-vocab.md`](evidence-reason-vocab.md).
+Do not FileCheck microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -1078,6 +1080,8 @@ is parked. Do not FileCheck microseconds.
 | EA-1 | `test/Integration/storage-capacity.mlir` | `--print-evidence-decision-contract`; Decision has `subject`; Evidence ≠ 6B identity; Decision ≠ sufficient AND; no `Decision.subject=sufficient`; `rewrite-license=no` |
 | EA-2 | same | dest-invalidation fixture: `Decision.subject=usable result=yes`; dest-invalidation remains a kind; `sufficiency-evaluation=n/a`; still `sufficient=no` on the existing 6C-I printer |
 | EA-3 | same | diagnostic `--capacity` does not print `evidence-decision`; no `applySchedule` |
+| EV-1 | same | `--print-evidence-reason-vocab`; closed `evidence.*` / `predicate.*` / `decision.*`; `authorization-tokens=none`; occupancy printer map; `rewrite-license=no` |
+| EV-2 | same | no `sufficient-not-composed`; no `token authorization`; diagnostic `--capacity` does not print `evidence-reason-vocab` |
 
 ## Complete SSD + MLP program wall-clock
 
