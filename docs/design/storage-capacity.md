@@ -1,4 +1,4 @@
-# Capacity-aware Residency (Phase 6C-L, dest invalidation)
+# Capacity-aware Residency (Phase 6C-L frozen; Stage A evidence/decision)
 
 **Status:** 6C-B diagnostics FROZEN; 6C-C `CapacityPlan`
 FROZEN (`selected=none` on the diagnostic path); 6C-D
@@ -959,10 +959,12 @@ FileCheck of microseconds
 
 ## After 6C-L
 
+Stage A Evidence algebra / Decision records (query/proof;
+Decision has a named `subject`; no giant `sufficient` AND;
+no implicit `sufficient=false`; 6C-M parked):
+[`evidence-decision.md`](evidence-decision.md).
 Architecture health check (evaluator ≠ search engine;
 still no rewrite):
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Does **not** open \(F_{\mathrm{storage\_schedule}}\), a
-frontend, or eviction rewrite. Sufficient proofs stay
-one conjunct per cut. The next cut is rewrite-path proof,
-not a joint schedule family.
+frontend, rewrite-path, or eviction rewrite.

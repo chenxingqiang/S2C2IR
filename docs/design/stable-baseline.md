@@ -16,7 +16,7 @@ Do not retune 5A–5D, do not change `#69`, `cost-v04`,
    ↓
 ──────── STABLE BASELINE ────────
    ↓
-6C      Capacity-aware residency   ← design frozen; 6C-B–K frozen; 6C-L dest-invalidation still no license; health check: architecture-healthcheck.md
+6C      Capacity-aware residency   ← 6C-B–L frozen; Stage A evidence/decision design; health check: architecture-healthcheck.md
 ```
 
 ```text
@@ -98,7 +98,11 @@ FROZEN). 6C-K classifies restore ordering
 (`source-data-valid` ≠ restore-at-required-point;
 `usable` = source-data ∧ restore-ordering; FROZEN).
 6C-L classifies dest invalidation (`usable` ≠
-dest-invalidation; still not sufficient). Eviction rewrite stays closed. Post-6C-I
+dest-invalidation; still not sufficient). Stage A freezes
+Evidence → Decision records
+([`evidence-decision.md`](evidence-decision.md));
+Decision has a named `subject` (this freeze: `usable`);
+6C-M sufficient boolean is parked. Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Do **not** open \(F_{\mathrm{storage\_schedule}}\) or a
