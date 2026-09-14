@@ -1014,15 +1014,23 @@
 // DECC: dest-invalidation-ne-sufficient yes
 // DECC: sufficient-ne-rewrite-license yes
 // DECC: evidence-kind-ne-6b-identity yes
+// DECC: decision-has-subject yes
+// DECC: decision-subject usable
+// DECC: decision-result yes
+// DECC: usable-decision-ne-sufficient-decision yes
+// DECC: sufficiency-evaluation n/a
 // DECC: decision-ne-sufficient-and yes
 // DECC: capability-schedule-ne-god-object yes
 // DECC: rewrite-license no
 // DECC: rewrite-path no
 // DECC: note six-c-l-dest-invalidation-frozen
 // DECC: note six-c-m-sufficient-parked
-// DECC: note sufficient-not-composed
+// DECC: note dest-invalidation-is-kind-not-decision
+// DECC: note sufficient-decision-not-emitted
 // DECC-NOT: rewrite-license=yes
 // DECC-NOT: sufficient=yes
+// DECC-NOT: sufficient-not-composed
+// DECC-NOT: decision-subject sufficient
 
 // HDECNEG: capacity-predicate selected=keep{0,1}|evict{2}|rematerialize{} necessary=yes sufficient=no rewrite-license=no
 // HDECNEG: capacity-predicate source-data=yes restore-ordering=yes dest-invalidation=yes rewrite-path=no

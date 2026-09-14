@@ -145,7 +145,9 @@ Same \(F_{\mathrm{capacity}}\); `dest-invalidation=yes`
 `scope=occupancy-live`). Check with
 `python3 runtime/record_capacity.py --print-capacity-invalidation-contract`.
 This fixture is also the Stage A Decision lock:
-`usable=yes` `dest-invalidation=yes` still `sufficient=no`.
-Occupancy kinds are not a 6B Evidence DB row. Check with
+`Decision.subject=usable` `result=yes`; dest-invalidation
+remains an independent kind; no
+`Decision.subject=sufficient`. Occupancy kinds are not a
+6B Evidence DB row. Check with
 `python3 runtime/record_decision.py --print-evidence-decision-contract`.
 

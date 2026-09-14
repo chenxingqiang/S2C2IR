@@ -1004,8 +1004,9 @@ still not sufficient; still `rewrite-license=no`).
 6C-L classifies dest invalidation
 (`s2c2.capacity_invalidation.v1`; usable ≠ dest-invalidation;
 FROZEN). Stage A freezes Evidence → Decision
-([`evidence-decision.md`](evidence-decision.md)); 6C-M
-sufficient boolean is parked. Do not FileCheck microseconds.
+([`evidence-decision.md`](evidence-decision.md));
+Decision has a named `subject`; 6C-M sufficient boolean
+is parked. Do not FileCheck microseconds.
 
 | ID | File | Checks |
 | -- | ---- | ------ |
@@ -1074,8 +1075,8 @@ sufficient boolean is parked. Do not FileCheck microseconds.
 | 6C-L-4 | same | restore-order fixture: `usable=yes dest-invalidation=no reason=no-invalidation-witness` (usable ≠ dest-invalidation) |
 | 6C-L-5 | same | dest-invalidation fixture: `destination=hbm witness=spec-drop-stale dest-invalidation=yes usable=yes`; still `rewrite-path=no` `sufficient=no` `rewrite-license=no` |
 | 6C-L-6 | same | all-KEEP / `selected=none`: `dest-invalidation=n/a usable=n/a`; diagnostic `--capacity` does not print `s2c2-capacity-invalidation` |
-| EA-1 | `test/Integration/storage-capacity.mlir` | `--print-evidence-decision-contract`; Evidence ≠ 6B identity; Decision ≠ sufficient AND; `rewrite-license=no` |
-| EA-2 | same | dest-invalidation fixture: `usable=yes dest-invalidation=yes sufficient=no` (kinds do not compose into license) |
+| EA-1 | `test/Integration/storage-capacity.mlir` | `--print-evidence-decision-contract`; Decision has `subject`; Evidence ≠ 6B identity; Decision ≠ sufficient AND; no `Decision.subject=sufficient`; `rewrite-license=no` |
+| EA-2 | same | dest-invalidation fixture: `Decision.subject=usable result=yes`; dest-invalidation remains a kind; `sufficiency-evaluation=n/a`; still `sufficient=no` on the existing 6C-I printer |
 | EA-3 | same | diagnostic `--capacity` does not print `evidence-decision`; no `applySchedule` |
 
 ## Complete SSD + MLP program wall-clock

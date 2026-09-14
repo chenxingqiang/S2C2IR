@@ -960,7 +960,8 @@ FileCheck of microseconds
 ## After 6C-L
 
 Stage A Evidence algebra / Decision records (query/proof;
-no giant `sufficient` AND; 6C-M parked):
+Decision has a named `subject`; no giant `sufficient` AND;
+no implicit `sufficient=false`; 6C-M parked):
 [`evidence-decision.md`](evidence-decision.md).
 Architecture health check (evaluator ≠ search engine;
 still no rewrite):

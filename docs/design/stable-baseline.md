@@ -100,8 +100,9 @@ FROZEN). 6C-K classifies restore ordering
 6C-L classifies dest invalidation (`usable` ≠
 dest-invalidation; still not sufficient). Stage A freezes
 Evidence → Decision records
-([`evidence-decision.md`](evidence-decision.md)); 6C-M
-sufficient boolean is parked. Eviction rewrite stays closed. Post-6C-I
+([`evidence-decision.md`](evidence-decision.md));
+Decision has a named `subject` (this freeze: `usable`);
+6C-M sufficient boolean is parked. Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Do **not** open \(F_{\mathrm{storage\_schedule}}\) or a

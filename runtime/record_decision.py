@@ -2,7 +2,8 @@
 """Stage A Evidence Algebra / Decision Model contract.
 
 Occupancy kinds are not 6B Evidence DB identity E.
-Decision is result + typed reasons, not a giant sufficient AND.
+Decision is subject + result + typed reasons, not a giant
+sufficient AND, and not an implicit sufficient=false.
 Query only. rewrite-license=no. Do not FileCheck microseconds.
 """
 
@@ -28,6 +29,11 @@ def print_evidence_decision_contract() -> int:
     print("evidence-kind-ne-6b-identity yes")
     print("usable-eq-source-data-and-restore-ordering yes")
     print("usable-ne-dest-invalidation yes")
+    print("decision-has-subject yes")
+    print("decision-subject usable")
+    print("decision-result yes")
+    print("usable-decision-ne-sufficient-decision yes")
+    print("sufficiency-evaluation n/a")
     print("decision-ne-sufficient-and yes")
     print("capability-schedule-ne-god-object yes")
     print("rewrite-license no")
@@ -36,7 +42,8 @@ def print_evidence_decision_contract() -> int:
     print("note six-c-k-restore-ordering-frozen")
     print("note six-c-l-dest-invalidation-frozen")
     print("note six-c-m-sufficient-parked")
-    print("note sufficient-not-composed")
+    print("note dest-invalidation-is-kind-not-decision")
+    print("note sufficient-decision-not-emitted")
     print("note live-bytes-not-opened")
     print("note alias-not-opened")
     print("note lifetime-not-opened")

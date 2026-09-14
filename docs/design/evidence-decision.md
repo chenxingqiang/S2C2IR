@@ -102,7 +102,8 @@ Rewrite          CLOSED
                                ▼
                     ┌─────────────────────┐
                     │      Decision       │
-                    │ result + reasons    │
+                    │ subject + result    │
+                    │ + reasons           │
                     └──────────┬──────────┘
                                ▼
                     ┌─────────────────────┐
@@ -177,23 +178,30 @@ A **predicate** is a named view over kinds:
 usable(selected) = source-data ∧ restore-ordering
 ```
 
-A **decision** is the compiler-facing record:
+A **decision** is the compiler-facing record for **one
+named predicate**. `result` without `subject` is not a
+Decision: callers cannot tell which question was answered.
 
 ```text
 Decision
+  subject    named predicate being decided
   result     yes | no | n/a
   reasons[]  typed tokens from kinds / predicates
 ```
 
 ```text
-result=no
-reasons=no-invalidation-witness
+Decision
+  subject=usable
+  result=yes
+  reasons=source-data-present, restore-ordering-present
 ```
 
-is the required shape. Not:
+is the required shape this cut. Not a subject-less
+`result=no`, and not:
 
 ```text
 sufficient = A ∧ B ∧ C ∧ D ∧ …  → false
+Decision.subject=sufficient  result=no
 ```
 
 This cut does **not** print a new per-EVICT decision
@@ -204,28 +212,62 @@ the algebra.
 Forced:
 
 ```text
-Decision.result=yes  ≠  rewrite-license=yes
-Decision.result=yes  ≠  rewrite-path=yes
-query                ≠  rewrite
+Decision.subject          required
+Decision.subject=usable   ≠  Decision.subject=sufficient
+this cut emits            Decision.subject=usable only
+this cut does not emit    Decision.subject=sufficient
+Decision.result=yes       ≠  rewrite-license=yes
+Decision.result=yes       ≠  rewrite-path=yes
+query                     ≠  rewrite
 ```
 
-On the dest-invalidation fixture the implied decision is:
+On the dest-invalidation fixture the implied records are:
 
 ```text
-kinds
+kinds  (independent evidence; not Decision conjuncts)
   source-data=yes
   restore-ordering=yes
   dest-invalidation=yes
+
 predicates
   usable=yes
-Decision.result=no
-Decision.reasons=sufficient-not-composed
+
+Decision
+  subject=usable
+  result=yes
+  reasons=source-data-present, restore-ordering-present
+
+not emitted this cut
+  Decision.subject=sufficient
+  Decision.result=no + reasons=sufficient-not-composed
+  sufficiency-evaluation=n/a   (6C-M parked; not a Decision)
+
 rewrite-license=no
 rewrite-path=no
 ```
 
-`sufficient-not-composed` means dest-invalidation is not a
-license and not a composed sufficiency proof.
+`dest-invalidation=yes` stays an evidence record. It does
+not become a sufficiency Decision. Parked 6C-M must not be
+smuggled in as `result=no` on an unnamed subject.
+
+### Reason tokens (examples this cut)
+
+`reasons[]` are typed tokens, not free-form strings. This
+cut freezes the Decision *shape* and a few examples. A
+closed vocabulary / namespace is the **next** cut, not this
+one:
+
+```text
+evidence.*         unknown-witness, scope-mismatch, …
+predicate.*        missing-input, …
+decision.*         subject-required, …
+authorization.*    (CLOSED this cut)
+```
+
+Do not let each implementation invent ad-hoc reason
+strings. Do not treat `sufficient-not-composed` as a
+Decision reason this cut: that token answers a sufficient
+question that is not being asked.
 
 ## God object
 
@@ -257,6 +299,8 @@ evidence from authorization.
 
 ```text
 sufficient=yes print
+Decision.subject=sufficient
+Decision.result=no + reasons=sufficient-not-composed
 restore-target / live-bytes / alias / lifetime classifiers
 rewrite-license=yes
 rewrite-path / replace / erase
@@ -268,6 +312,7 @@ changing architecture-healthcheck.md scores
 new Capability matrix
 frontend / extra vendors
 FileCheck of microseconds
+closed reason-token vocabulary (next cut)
 ```
 
 ## Host contract
@@ -276,5 +321,7 @@ FileCheck of microseconds
 python3 runtime/record_decision.py --print-evidence-decision-contract
 ```
 
-Query-only. `rewrite-license=no`. `rewrite-path=no`.
-Diagnostic `--capacity` does not print this prefix.
+Query-only. `Decision.subject=usable`.
+`sufficiency-evaluation=n/a`. `rewrite-license=no`.
+`rewrite-path=no`. Diagnostic `--capacity` does not print
+this prefix.
