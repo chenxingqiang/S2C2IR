@@ -314,3 +314,6 @@ does not print these prefixes.
 Raw-record re-validation in derive (schema / identity /
 closed enums / canonical; not sufficient):
 [`capability-applicability-schema.md`](capability-applicability-schema.md).
+Independent occupancy usable + capability applicable report
+(two Decisions; not a conjunction; not sufficient):
+[`occupancy-capability-report.md`](occupancy-capability-report.md).

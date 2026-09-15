@@ -1014,6 +1014,9 @@ Capability / Applicability (evidence-backed; not sufficient):
 [`capability-applicability.md`](capability-applicability.md).
 Raw-record re-validation of that schema in derive:
 [`capability-applicability-schema.md`](capability-applicability-schema.md).
+Independent occupancy usable + capability applicable report
+(two Decisions; not a conjunction; not sufficient):
+[`occupancy-capability-report.md`](occupancy-capability-report.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1094,6 +1097,8 @@ Do not FileCheck microseconds.
 | CAPA-1 | `test/Integration/capability-applicability.mlir` | `--print-capability-applicability-contract`; `Decision.subject=applicable`; applicable ≠ usable ≠ sufficient; `unknown-provenance missing-evidence`; closed cpu/cuda/rocm/sycl/ascend/npu/cim; `rewrite-license=no` |
 | CAPA-2 | same | matrix: missing-evidence / unknown-provenance (`applicability=yes` still `capability.missing-evidence`) / unknown-target / unknown-kind=`sufficient` / usable-ne-applicable / ignore-other-device / duplicate-identity / identity-kind-mismatch / ascend-dma-present |
 | CAPA-3 | same | raw-record re-validation: invalid-schema / invalid-canonical=`authorization.rewrite` (Decision reasons stay `decision.unknown-reason`) / invalid-applicability / invalid-provenance=`invented` → `capability.missing-evidence`; still `Decision.subject=applicable`; no sufficient |
+| OCR-1 | `test/Integration/occupancy-capability-report.mlir` | `--print-occupancy-capability-report-contract`; report ≠ Decision; usable identity ≠ applicable identity; `conjunction-ne-sufficient`; `generic-schema-validator=n/a`; `rewrite-license=no` |
+| OCR-2 | same | matrix: both-yes ≠ sufficient; usable-yes-applicable-no; usable-no-applicable-yes; dest-inv ≠ sufficient; `occupancy_usable=no` field ≠ usable Decision |
 
 ## Complete SSD + MLP program wall-clock
 
