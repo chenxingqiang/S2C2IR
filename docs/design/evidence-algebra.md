@@ -120,6 +120,11 @@ EvidenceRecord.identity = (selected, kind, object)
 same identity are the same occupancy proof; they are not
 a 6B measured row.
 
+In any derivation scope `(selected, object)` there is at
+most one record per `kind`. A second record with the same
+`(selected, kind, object)` is `decision.duplicate-identity`,
+not an overwrite.
+
 ## Canonical vs display vs family
 
 `reason.display` is the frozen 6C-J/K/L `reason=` string.
@@ -167,18 +172,34 @@ revision.
 
 ## Deterministic usable Decision
 
-Inputs: the EvidenceRecords for one `selected` (any
-`dest-invalidation` record is ignored).
+Derivation is scoped to one occupancy proof domain:
 
 ```text
-usable(selected) = source-data ∧ restore-ordering
+derive_usable_decision(records, selected, object)
+usable(selected, object) = source-data ∧ restore-ordering
 Decision.subject = usable
+```
+
+Only records with `identity.selected` and `identity.object`
+equal to the derivation arguments are consumed.
+`dest-invalidation` records in that scope are ignored for
+the predicate, but still counted toward uniqueness.
+
+```text
+0 or 1 record per (selected, kind, object) in scope
+duplicate identity → result=no
+                     reasons=decision.duplicate-identity
+                     (safe no; not last-writer-wins)
 ```
 
 Derivation (total, deterministic):
 
 ```text
-missing source-data or restore-ordering record
+duplicate (selected, kind, object) in scope
+  → result=no
+    reasons=decision.duplicate-identity
+
+missing source-data or restore-ordering record in scope
   → result=no
     reasons=predicate.missing-input
 
@@ -197,17 +218,25 @@ otherwise
             (stable kind order: source-data, restore-ordering)
 ```
 
+Records for another `selected` or `object` do not fill a
+missing usable kind. Last writer of `dict[kind]` is not a
+Decision.
+
 Forced:
 
 ```text
-dest-invalidation record     does not enter this Decision
-Decision.reasons[]           canonical or predicate.* only
-Decision.reasons[]           never evidence.scope-mismatch
-Decision.reasons[]           never reason.display
-Decision.subject=sufficient  NOT emitted
-sufficiency-evaluation       n/a
-rewrite-license              no
-rewrite-path                 no
+derive scope                  (selected, object)
+identity cardinality          0 or 1 per (selected, kind, object)
+duplicate identity            safe no (decision.duplicate-identity)
+last-writer-wins              forbidden
+dest-invalidation record      does not enter this Decision
+Decision.reasons[]            canonical / predicate.* / decision.duplicate-identity
+Decision.reasons[]            never evidence.scope-mismatch
+Decision.reasons[]            never reason.display
+Decision.subject=sufficient   NOT emitted
+sufficiency-evaluation        n/a
+rewrite-license               no
+rewrite-path                  no
 ```
 
 Reasons on `result=no` are never empty. Kind order in
@@ -233,6 +262,9 @@ Host-locked cases (query-only). Display strings stay the
 | missing-ordering | source-data only | `predicate.missing-input` |
 | unknown-witness | source-data unknown witness | `evidence.unknown-witness` |
 | both-n/a | both kinds n/a | `result=n/a`; empty reasons |
+| ignore-other-selected | S0 source-data yes + S1 usable yes | S0 still `predicate.missing-input` |
+| ignore-other-object | object=2 source-data yes + object=3 usable yes | object=2 still `predicate.missing-input` |
+| duplicate-identity | two source-data same identity | `decision.duplicate-identity`; not last-writer-wins |
 
 Pairwise: the three scope canonicals are distinct. A
 replica mismatch must not derive `evidence.unknown-scope`

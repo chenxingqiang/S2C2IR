@@ -1075,6 +1075,7 @@
 // VOCAB: token predicate.source-data-present
 // VOCAB: token predicate.restore-ordering-present
 // VOCAB: token decision.subject-required
+// VOCAB: token decision.duplicate-identity
 // VOCAB: map unknown-witness=evidence.unknown-witness
 // VOCAB: map unknown-scope=evidence.scope-mismatch
 // VOCAB: rewrite-license no
@@ -1095,6 +1096,9 @@
 // ALG: family-ne-canonical yes
 // ALG: scope-mismatch-is-family yes
 // ALG: decision-subject usable
+// ALG: derive-scope selected-object
+// ALG: identity-cardinality 0-or-1
+// ALG: duplicate-identity safe-no
 // ALG: derive-ignores dest-invalidation
 // ALG: record-field identity
 // ALG: record-field reason.canonical
@@ -1111,6 +1115,7 @@
 // ALG: rewrite-path no
 // ALG: note six-c-m-sufficient-parked
 // ALG: note family-not-decision-reason
+// ALG: note last-writer-wins-forbidden
 // ALG-NOT: rewrite-license=yes
 // ALG-NOT: sufficient=yes
 // ALG-NOT: sufficient-not-composed
@@ -1118,6 +1123,9 @@
 
 // ALGM: evidence-algebra-matrix gate=query
 // ALGM: derive-subject usable
+// ALGM: derive-scope selected-object
+// ALGM: identity-cardinality 0-or-1
+// ALGM: duplicate-identity safe-no
 // ALGM: derive-ignores dest-invalidation
 // ALGM: algebra-case dest-inv-yes-usable-yes
 // ALGM: algebra-decision subject=usable result=yes reasons=predicate.source-data-present,predicate.restore-ordering-present
@@ -1136,7 +1144,14 @@
 // ALGM: algebra-decision subject=usable result=no reasons=evidence.unknown-witness,evidence.no-ordering-witness
 // ALGM: algebra-case both-n/a
 // ALGM: algebra-decision subject=usable result=n/a reasons=none
+// ALGM: algebra-case ignore-other-selected
+// ALGM: algebra-decision subject=usable result=no reasons=predicate.missing-input
+// ALGM: algebra-case ignore-other-object
+// ALGM: algebra-decision subject=usable result=no reasons=predicate.missing-input
+// ALGM: algebra-case duplicate-identity
+// ALGM: algebra-decision subject=usable result=no reasons=decision.duplicate-identity
 // ALGM: rewrite-license no
+// ALGM: note last-writer-wins-forbidden
 // ALGM-NOT: rewrite-license=yes
 // ALGM-NOT: sufficient=yes
 // ALGM-NOT: sufficient-not-composed

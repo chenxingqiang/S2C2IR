@@ -135,6 +135,7 @@ predicate reason on `usable` and not a sufficient Decision.
 | `decision.subject-required` | `result` without `subject` is not a Decision |
 | `decision.unknown-subject` | `subject` not in the closed subject set |
 | `decision.unknown-reason` | `reasons[]` contains a token outside this vocabulary |
+| `decision.duplicate-identity` | more than one EvidenceRecord for the same `(selected, kind, object)` |
 
 Not in the vocabulary (forbidden this cut):
 

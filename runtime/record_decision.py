@@ -83,6 +83,7 @@ DECISION_REASON_TOKENS = (
     "decision.subject-required",
     "decision.unknown-subject",
     "decision.unknown-reason",
+    "decision.duplicate-identity",
 )
 
 OCCUPANCY_PRINTER_MAP = (
@@ -181,6 +182,7 @@ def print_evidence_reason_vocab() -> int:
 
 
 SELECTED_S0 = "keep{0,1}|evict{2}|rematerialize{}"
+SELECTED_S1 = "keep{1,2}|evict{0}|rematerialize{}"
 USABLE_KINDS = ("source-data", "restore-ordering")
 
 CANONICAL_FROM_DISPLAY = {
@@ -250,9 +252,36 @@ def evidence_record(
     }
 
 
-def derive_usable_decision(records: list[dict]) -> dict:
-    """Deterministic Decision.subject=usable. Ignores dest-invalidation."""
-    by_kind = {r["kind"]: r for r in records if r["kind"] in USABLE_KINDS}
+def derive_usable_decision(
+    records: list[dict],
+    selected: str,
+    obj: str,
+) -> dict:
+    """Decision.subject=usable for one (selected, object) scope.
+
+    Consumes 0 or 1 record per (selected, kind, object). Duplicate
+    identity is safe no, not last-writer-wins. dest-invalidation is
+    ignored for the predicate, but still counted for uniqueness.
+    """
+    scoped = [
+        r
+        for r in records
+        if r["identity"]["selected"] == selected and r["identity"]["object"] == obj
+    ]
+    by_kind: dict[str, dict] = {}
+    for rec in scoped:
+        kind = rec["kind"]
+        ident = (rec["identity"]["selected"], kind, rec["identity"]["object"])
+        if ident[0] != selected or ident[2] != obj or ident[1] != kind:
+            raise RuntimeError("identity fields disagree with record")
+        if kind in by_kind:
+            return {
+                "schema": "s2c2.decision.v1",
+                "subject": "usable",
+                "result": "no",
+                "reasons": ["decision.duplicate-identity"],
+            }
+        by_kind[kind] = rec
     sd = by_kind.get("source-data")
     ro = by_kind.get("restore-ordering")
     if sd is None or ro is None:
@@ -392,14 +421,84 @@ def _algebra_cases() -> list[tuple[str, list[dict]]]:
     # n/a records still need a display token; no-source-replica is the
     # frozen 6C unused-path string. applicability=n/a so derivation
     # does not consume that canonical.
+    s1_src_yes = evidence_record(
+        kind="source-data",
+        obj="2",
+        applicability="yes",
+        display="witnessed-unmutated-cover",
+        witness="spec-unmutated-cover",
+        scope="occupancy-live",
+        provenance="spec",
+        selected=SELECTED_S1,
+    )
+    s1_ord_yes = evidence_record(
+        kind="restore-ordering",
+        obj="2",
+        applicability="yes",
+        display="witnessed-before-consumer",
+        witness="spec-before-consumer",
+        scope="occupancy-live",
+        provenance="spec",
+        selected=SELECTED_S1,
+    )
+    obj3_src_yes = evidence_record(
+        kind="source-data",
+        obj="3",
+        applicability="yes",
+        display="witnessed-unmutated-cover",
+        witness="spec-unmutated-cover",
+        scope="occupancy-live",
+        provenance="spec",
+    )
+    obj3_ord_yes = evidence_record(
+        kind="restore-ordering",
+        obj="3",
+        applicability="yes",
+        display="witnessed-before-consumer",
+        witness="spec-before-consumer",
+        scope="occupancy-live",
+        provenance="spec",
+    )
+    dup_src_no = evidence_record(
+        kind="source-data",
+        obj="2",
+        applicability="no",
+        display="unknown-scope",
+        witness="spec-unmutated-cover",
+        scope="unknown",
+        provenance="occupancy-query",
+    )
     return [
-        ("dest-inv-yes-usable-yes", [yes_src, yes_ord, yes_inv]),
-        ("source-unknown-scope", [unknown_scope_src, no_ord]),
-        ("replica-scope-mismatch", [replica_src, no_ord]),
-        ("dest-scope-mismatch-usable-yes", [yes_src, yes_ord, dest_mismatch]),
-        ("missing-ordering", [yes_src]),
-        ("unknown-witness", [unknown_witness_src, no_ord]),
-        ("both-n/a", [na_src, na_ord]),
+        ("dest-inv-yes-usable-yes", [yes_src, yes_ord, yes_inv], SELECTED_S0, "2"),
+        ("source-unknown-scope", [unknown_scope_src, no_ord], SELECTED_S0, "2"),
+        ("replica-scope-mismatch", [replica_src, no_ord], SELECTED_S0, "2"),
+        (
+            "dest-scope-mismatch-usable-yes",
+            [yes_src, yes_ord, dest_mismatch],
+            SELECTED_S0,
+            "2",
+        ),
+        ("missing-ordering", [yes_src], SELECTED_S0, "2"),
+        ("unknown-witness", [unknown_witness_src, no_ord], SELECTED_S0, "2"),
+        ("both-n/a", [na_src, na_ord], "n/a", "n/a"),
+        (
+            "ignore-other-selected",
+            [yes_src, s1_src_yes, s1_ord_yes],
+            SELECTED_S0,
+            "2",
+        ),
+        (
+            "ignore-other-object",
+            [yes_src, obj3_src_yes, obj3_ord_yes],
+            SELECTED_S0,
+            "2",
+        ),
+        (
+            "duplicate-identity",
+            [dup_src_no, yes_src, yes_ord],
+            SELECTED_S0,
+            "2",
+        ),
     ]
 
 
@@ -416,8 +515,8 @@ def _validate_algebra() -> None:
         if not canonical.startswith("evidence."):
             raise RuntimeError(canonical)
     seen = []
-    for name, records in _algebra_cases():
-        decision = derive_usable_decision(records)
+    for name, records, selected, obj in _algebra_cases():
+        decision = derive_usable_decision(records, selected, obj)
         if decision["subject"] != "usable":
             raise RuntimeError(name)
         if SCOPE_FAMILY in decision["reasons"]:
@@ -431,6 +530,8 @@ def _validate_algebra() -> None:
             r["reason"]["canonical"]
             for r in records
             if r["kind"] == "dest-invalidation"
+            and r["identity"]["selected"] == selected
+            and r["identity"]["object"] == obj
         }
         if dest_canons & set(decision["reasons"]):
             raise RuntimeError(f"dest-invalidation in usable reasons: {name}")
@@ -467,6 +568,9 @@ def _validate_algebra() -> None:
             ("evidence.unknown-witness", "evidence.no-ordering-witness"),
         ),
         "both-n/a": ("n/a", ()),
+        "ignore-other-selected": ("no", ("predicate.missing-input",)),
+        "ignore-other-object": ("no", ("predicate.missing-input",)),
+        "duplicate-identity": ("no", ("decision.duplicate-identity",)),
     }
     got = {name: (result, reasons) for name, result, reasons in seen}
     if got != expect:
@@ -484,6 +588,9 @@ def print_evidence_algebra_contract() -> int:
     print("family-ne-canonical yes")
     print("scope-mismatch-is-family yes")
     print("decision-subject usable")
+    print("derive-scope selected-object")
+    print("identity-cardinality 0-or-1")
+    print("duplicate-identity safe-no")
     print("derive-ignores dest-invalidation")
     print("usable-decision-ne-sufficient-decision yes")
     print("sufficiency-evaluation n/a")
@@ -526,6 +633,7 @@ def print_evidence_algebra_contract() -> int:
     print("note sufficient-decision-not-emitted")
     print("note occupancy-printer-reasons-unchanged")
     print("note family-not-decision-reason")
+    print("note last-writer-wins-forbidden")
     print("note live-bytes-not-opened")
     print("note alias-not-opened")
     print("note lifetime-not-opened")
@@ -550,16 +658,23 @@ def print_evidence_algebra_matrix() -> int:
     _validate_algebra()
     print("evidence-algebra-matrix gate=query")
     print("derive-subject usable")
+    print("derive-scope selected-object")
+    print("identity-cardinality 0-or-1")
+    print("duplicate-identity safe-no")
     print("derive-ignores dest-invalidation")
     print("canonical-ne-display yes")
     print("scope-mismatch-is-family yes")
-    for name, records in _algebra_cases():
-        decision = derive_usable_decision(records)
+    for name, records, selected, obj in _algebra_cases():
+        decision = derive_usable_decision(records, selected, obj)
         print(f"algebra-case {name}")
+        print(f"algebra-scope selected={selected} object={obj}")
         for rec in records:
             reason = rec["reason"]
+            ident = rec["identity"]
             print(
                 "algebra-record "
+                f"selected={ident['selected']} "
+                f"object={ident['object']} "
                 f"kind={rec['kind']} "
                 f"applicability={rec['applicability']} "
                 f"canonical={reason['canonical']} "
@@ -578,6 +693,7 @@ def print_evidence_algebra_matrix() -> int:
     print("rewrite-path no")
     print("note sufficient-decision-not-emitted")
     print("note family-not-decision-reason")
+    print("note last-writer-wins-forbidden")
     print("note occupancy-printer-reasons-unchanged")
     print("cost=unchanged")
     return 0
