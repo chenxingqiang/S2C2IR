@@ -93,6 +93,9 @@ def derive_applicable_decision(
     rec = seen.get((target, device, kind))
     if rec is None:
         return _applicable_no("capability.missing-evidence")
+    # catalog | occupancy-query may classify; unknown is not evidence.
+    if rec.get("provenance") == "unknown":
+        return _applicable_no("capability.missing-evidence")
     if rec["applicability"] == "n/a":
         return {
             "schema": "s2c2.decision.v1",
@@ -181,9 +184,26 @@ def _cases() -> list[tuple[str, list[dict], str, str, str]]:
         provenance="occupancy-query",
         occupancy_usable="n/a",
     )
+    unknown_prov = capability_record(
+        target="cuda",
+        device=DEVICE_4090,
+        kind="concurrent-pair",
+        applicability="yes",
+        canonical="capability.present",
+        display="unknown-provenance-not-evidence",
+        provenance="unknown",
+        occupancy_usable="yes",
+    )
     return [
         ("cuda-pair-present", [cuda_yes], "cuda", DEVICE_4090, "concurrent-pair"),
         ("missing-evidence", [], "cuda", DEVICE_4090, "concurrent-pair"),
+        (
+            "unknown-provenance",
+            [unknown_prov],
+            "cuda",
+            DEVICE_4090,
+            "concurrent-pair",
+        ),
         ("unknown-target", [cuda_yes], "invented", DEVICE_4090, "concurrent-pair"),
         ("unknown-kind", [cuda_yes], "cuda", DEVICE_4090, "sufficient"),
         ("usable-ne-applicable", [cuda_no], "cuda", DEVICE_4090, "concurrent-pair"),
@@ -208,6 +228,7 @@ def _validate() -> None:
     expect = {
         "cuda-pair-present": ("yes", ("capability.present",)),
         "missing-evidence": ("no", ("capability.missing-evidence",)),
+        "unknown-provenance": ("no", ("capability.missing-evidence",)),
         "unknown-target": ("no", ("capability.unknown-target",)),
         "unknown-kind": ("no", ("capability.unknown-kind",)),
         "usable-ne-applicable": ("no", ("capability.not-applicable",)),
@@ -250,6 +271,7 @@ def print_contract() -> int:
     print("duplicate-identity safe-no")
     print("identity-kind-agrees yes")
     print("identity-mismatch safe-no")
+    print("unknown-provenance missing-evidence")
     print("sufficiency-evaluation n/a")
     print("rewrite-license no")
     print("rewrite-path no")
@@ -301,6 +323,7 @@ def print_matrix() -> int:
     print("identity-cardinality 0-or-1")
     print("duplicate-identity safe-no")
     print("identity-mismatch safe-no")
+    print("unknown-provenance missing-evidence")
     print("applicable-ne-usable yes")
     print("applicable-ne-sufficient yes")
     for name, records, target, device, kind in _cases():
@@ -316,6 +339,7 @@ def print_matrix() -> int:
                 f"kind={ident['kind']} "
                 f"payload-kind={rec['kind']} "
                 f"applicability={rec['applicability']} "
+                f"provenance={rec['provenance']} "
                 f"occupancy_usable={rec['occupancy_usable']} "
                 f"canonical={rec['reason']['canonical']}"
             )

@@ -21,6 +21,7 @@ func.func @dummy() {
 // CAPA: duplicate-identity safe-no
 // CAPA: identity-kind-agrees yes
 // CAPA: identity-mismatch safe-no
+// CAPA: unknown-provenance missing-evidence
 // CAPA: sufficiency-evaluation n/a
 // CAPA: rewrite-license no
 // CAPA: rewrite-path no
@@ -48,9 +49,13 @@ func.func @dummy() {
 // CAPM: capability-applicability-matrix gate=query
 // CAPM: derive-subject applicable
 // CAPM: derive-scope target-device-kind
+// CAPM: unknown-provenance missing-evidence
 // CAPM: capa-case cuda-pair-present
 // CAPM: capa-decision subject=applicable result=yes reasons=capability.present
 // CAPM: capa-case missing-evidence
+// CAPM: capa-decision subject=applicable result=no reasons=capability.missing-evidence
+// CAPM: capa-case unknown-provenance
+// CAPM: applicability=yes provenance=unknown
 // CAPM: capa-decision subject=applicable result=no reasons=capability.missing-evidence
 // CAPM: capa-case unknown-target
 // CAPM: capa-decision subject=applicable result=no reasons=capability.unknown-target

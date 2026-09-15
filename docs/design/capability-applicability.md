@@ -136,7 +136,7 @@ occupancy reservations. They are not capability kinds here.
 | Token | Meaning |
 | ----- | ------- |
 | `capability.present` | evidence-backed existence on this identity |
-| `capability.missing-evidence` | no record in scope |
+| `capability.missing-evidence` | no record in scope, or `provenance=unknown` |
 | `capability.not-applicable` | record says no |
 | `capability.unknown-target` | target not in the closed set |
 | `capability.unknown-kind` | kind not in the closed set |
@@ -170,7 +170,19 @@ applicable=yes        ≠  rewrite-license=yes
 `occupancy_usable` may cite a frozen occupancy Decision. It
 is evidence input. It does not become `Decision.subject`.
 
-Unknown provenance → `applicability=no`.
+Unknown provenance is not catalog evidence and not an
+occupancy query. Derive treats it as missing evidence
+**before** reading `applicability`:
+
+```text
+provenance=unknown
+  → Decision.subject=applicable
+    result=no
+    reasons=capability.missing-evidence
+```
+
+even when the record claims `applicability=yes`.
+Do not expand the capability token set for this case.
 
 ## Deterministic applicable Decision
 
@@ -201,6 +213,10 @@ duplicate identity
 identity/payload mismatch
   → result=no
     reasons=decision.identity-mismatch
+
+provenance=unknown
+  → result=no
+    reasons=capability.missing-evidence
 
 applicability=n/a
   → result=n/a
@@ -239,8 +255,9 @@ stay as they are. Do **not** fold this algebra into
 
 | Case | Query / records | Applicable Decision |
 | ---- | --------------- | ------------------- |
-| cuda-pair-present | cuda / sm89:rtx4090 / concurrent-pair yes | `result=yes` `capability.present` |
+| cuda-pair-present | cuda / sm89:rtx4090 / concurrent-pair yes, provenance=catalog | `result=yes` `capability.present` |
 | missing-evidence | cuda identity, empty bag | `capability.missing-evidence` |
+| unknown-provenance | same identity, applicability=yes, provenance=unknown | `result=no` `capability.missing-evidence` |
 | unknown-target | target=`invented` | `capability.unknown-target` |
 | unknown-kind | kind=`sufficient` | `capability.unknown-kind` |
 | usable-ne-applicable | occupancy_usable=yes, applicability=no | `result=no`; not usable Decision |
