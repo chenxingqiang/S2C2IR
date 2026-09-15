@@ -327,3 +327,5 @@ prefixes.
 
 Capability / Applicability (evidence-backed; not sufficient):
 [`capability-applicability.md`](capability-applicability.md).
+Raw-record re-validation of that schema in derive:
+[`capability-applicability-schema.md`](capability-applicability-schema.md).

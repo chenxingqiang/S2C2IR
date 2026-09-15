@@ -14,6 +14,9 @@ import sys
 
 TARGETS = ("cpu", "cuda", "rocm", "sycl", "ascend", "npu", "cim")
 KINDS = ("concurrent-pair", "named-nonblocking", "staged-dma")
+APPLICABILITY_VALUES = ("yes", "no", "n/a")
+PROVENANCE_VALUES = ("catalog", "occupancy-query", "unknown")
+OCCUPANCY_USABLE_VALUES = ("yes", "no", "n/a")
 CAPABILITY_REASON_TOKENS = (
     "capability.present",
     "capability.missing-evidence",
@@ -24,6 +27,7 @@ CAPABILITY_REASON_TOKENS = (
 DEVICE_4090 = "sm89:rtx4090"
 DEVICE_910B = "ascend910b"
 DEVICE_HOST = "host"
+SCHEMA = "s2c2.capability_applicability.v1"
 
 
 def _applicable_no(reason: str) -> dict:
@@ -46,10 +50,20 @@ def capability_record(
     provenance: str,
     occupancy_usable: str = "n/a",
 ) -> dict:
+    if target not in TARGETS:
+        raise RuntimeError(target)
+    if kind not in KINDS:
+        raise RuntimeError(kind)
+    if applicability not in APPLICABILITY_VALUES:
+        raise RuntimeError(applicability)
+    if provenance not in PROVENANCE_VALUES:
+        raise RuntimeError(provenance)
+    if occupancy_usable not in OCCUPANCY_USABLE_VALUES:
+        raise RuntimeError(occupancy_usable)
     if canonical not in CAPABILITY_REASON_TOKENS:
         raise RuntimeError(canonical)
     return {
-        "schema": "s2c2.capability_applicability.v1",
+        "schema": SCHEMA,
         "identity": {"target": target, "device": device, "kind": kind},
         "target": target,
         "device": device,
@@ -59,6 +73,53 @@ def capability_record(
         "occupancy_usable": occupancy_usable,
         "reason": {"canonical": canonical, "display": display},
     }
+
+
+def _scope_pair(rec: object) -> tuple[str, str] | None:
+    if not isinstance(rec, dict):
+        return None
+    ident = rec.get("identity")
+    if not isinstance(ident, dict):
+        return None
+    t, d = ident.get("target"), ident.get("device")
+    if not isinstance(t, str) or not isinstance(d, str):
+        return None
+    return t, d
+
+
+def raw_record_error(rec: object) -> str | None:
+    """Typed reason if rec is not a well-formed applicability record.
+
+    Constructor-built records already pass. Derive re-checks raw
+    bags so a mutated payload cannot skip the closed schema.
+    Does not invent capability tokens.
+    """
+    if not isinstance(rec, dict):
+        return "decision.unknown-reason"
+    if rec.get("schema") != SCHEMA:
+        return "decision.unknown-reason"
+    ident = rec.get("identity")
+    if not isinstance(ident, dict):
+        return "decision.identity-mismatch"
+    for key in ("target", "device", "kind"):
+        if key not in ident or key not in rec:
+            return "decision.identity-mismatch"
+        if ident[key] != rec[key]:
+            return "decision.identity-mismatch"
+    if rec["target"] not in TARGETS:
+        return "capability.unknown-target"
+    if rec["kind"] not in KINDS:
+        return "capability.unknown-kind"
+    if rec.get("applicability") not in APPLICABILITY_VALUES:
+        return "decision.unknown-reason"
+    if rec.get("occupancy_usable") not in OCCUPANCY_USABLE_VALUES:
+        return "decision.unknown-reason"
+    if rec.get("provenance") not in PROVENANCE_VALUES:
+        return "capability.missing-evidence"
+    reason = rec.get("reason")
+    if not isinstance(reason, dict) or reason.get("canonical") not in CAPABILITY_REASON_TOKENS:
+        return "decision.unknown-reason"
+    return None
 
 
 def derive_applicable_decision(
@@ -72,20 +133,18 @@ def derive_applicable_decision(
         return _applicable_no("capability.unknown-target")
     if kind not in KINDS:
         return _applicable_no("capability.unknown-kind")
-    scoped = [
-        r
-        for r in records
-        if r["identity"]["target"] == target and r["identity"]["device"] == device
-    ]
+    scoped: list[dict] = []
+    for rec in records:
+        pair = _scope_pair(rec)
+        if pair != (target, device):
+            continue
+        err = raw_record_error(rec)
+        if err is not None:
+            return _applicable_no(err)
+        scoped.append(rec)
     seen: dict[tuple[str, str, str], dict] = {}
     for rec in scoped:
         ident = rec["identity"]
-        if (
-            ident["target"] != rec["target"]
-            or ident["device"] != rec["device"]
-            or ident["kind"] != rec["kind"]
-        ):
-            return _applicable_no("decision.identity-mismatch")
         key = (ident["target"], ident["device"], ident["kind"])
         if key in seen:
             return _applicable_no("decision.duplicate-identity")
@@ -194,6 +253,25 @@ def _cases() -> list[tuple[str, list[dict], str, str, str]]:
         provenance="unknown",
         occupancy_usable="yes",
     )
+    invalid_schema = {
+        **cuda_yes,
+        "schema": "s2c2.evidence_record.v1",
+    }
+    invalid_canonical = {
+        **cuda_yes,
+        "reason": {
+            **cuda_yes["reason"],
+            "canonical": "authorization.rewrite",
+        },
+    }
+    invalid_applicability = {
+        **cuda_yes,
+        "applicability": "maybe",
+    }
+    invalid_provenance = {
+        **cuda_yes,
+        "provenance": "invented",
+    }
     return [
         ("cuda-pair-present", [cuda_yes], "cuda", DEVICE_4090, "concurrent-pair"),
         ("missing-evidence", [], "cuda", DEVICE_4090, "concurrent-pair"),
@@ -219,6 +297,28 @@ def _cases() -> list[tuple[str, list[dict], str, str, str]]:
         ),
         ("ascend-dma-present", [ascend_yes], "ascend", DEVICE_910B, "staged-dma"),
         ("cpu-pair-not-applicable", [cpu_no], "cpu", DEVICE_HOST, "concurrent-pair"),
+        ("invalid-schema", [invalid_schema], "cuda", DEVICE_4090, "concurrent-pair"),
+        (
+            "invalid-canonical",
+            [invalid_canonical],
+            "cuda",
+            DEVICE_4090,
+            "concurrent-pair",
+        ),
+        (
+            "invalid-applicability",
+            [invalid_applicability],
+            "cuda",
+            DEVICE_4090,
+            "concurrent-pair",
+        ),
+        (
+            "invalid-provenance",
+            [invalid_provenance],
+            "cuda",
+            DEVICE_4090,
+            "concurrent-pair",
+        ),
     ]
 
 
@@ -238,13 +338,17 @@ def _validate() -> None:
         "identity-kind-mismatch": ("no", ("decision.identity-mismatch",)),
         "ascend-dma-present": ("yes", ("capability.present",)),
         "cpu-pair-not-applicable": ("no", ("capability.not-applicable",)),
+        "invalid-schema": ("no", ("decision.unknown-reason",)),
+        "invalid-canonical": ("no", ("decision.unknown-reason",)),
+        "invalid-applicability": ("no", ("decision.unknown-reason",)),
+        "invalid-provenance": ("no", ("capability.missing-evidence",)),
     }
     got = {}
     for name, records, target, device, kind in _cases():
         d = derive_applicable_decision(records, target, device, kind)
         if d["subject"] != "applicable":
             raise RuntimeError(name)
-        if "sufficient" in d["reasons"] or d["subject"] == "sufficient":
+        if "authorization." in ",".join(d["reasons"]):
             raise RuntimeError(name)
         if d["subject"] == "usable":
             raise RuntimeError(name)
@@ -272,6 +376,12 @@ def print_contract() -> int:
     print("identity-kind-agrees yes")
     print("identity-mismatch safe-no")
     print("unknown-provenance missing-evidence")
+    print("raw-record-revalidated yes")
+    print("invalid-schema unknown-reason")
+    print("invalid-canonical unknown-reason")
+    print("invalid-applicability unknown-reason")
+    print("invalid-provenance missing-evidence")
+    print("authorization-canonical-ne-decision-reason yes")
     print("sufficiency-evaluation n/a")
     print("rewrite-license no")
     print("rewrite-path no")
@@ -324,6 +434,12 @@ def print_matrix() -> int:
     print("duplicate-identity safe-no")
     print("identity-mismatch safe-no")
     print("unknown-provenance missing-evidence")
+    print("raw-record-revalidated yes")
+    print("invalid-schema unknown-reason")
+    print("invalid-canonical unknown-reason")
+    print("invalid-applicability unknown-reason")
+    print("invalid-provenance missing-evidence")
+    print("authorization-canonical-ne-decision-reason yes")
     print("applicable-ne-usable yes")
     print("applicable-ne-sufficient yes")
     for name, records, target, device, kind in _cases():
@@ -331,17 +447,19 @@ def print_matrix() -> int:
         print(f"capa-case {name}")
         print(f"capa-scope target={target} device={device} kind={kind}")
         for rec in records:
-            ident = rec["identity"]
+            ident = rec.get("identity") if isinstance(rec.get("identity"), dict) else {}
+            reason = rec.get("reason") if isinstance(rec.get("reason"), dict) else {}
             print(
                 "capa-record "
-                f"target={ident['target']} "
-                f"device={ident['device']} "
-                f"kind={ident['kind']} "
-                f"payload-kind={rec['kind']} "
-                f"applicability={rec['applicability']} "
-                f"provenance={rec['provenance']} "
-                f"occupancy_usable={rec['occupancy_usable']} "
-                f"canonical={rec['reason']['canonical']}"
+                f"schema={rec.get('schema')} "
+                f"target={ident.get('target')} "
+                f"device={ident.get('device')} "
+                f"kind={ident.get('kind')} "
+                f"payload-kind={rec.get('kind')} "
+                f"applicability={rec.get('applicability')} "
+                f"provenance={rec.get('provenance')} "
+                f"occupancy_usable={rec.get('occupancy_usable')} "
+                f"canonical={reason.get('canonical')}"
             )
         reasons = ",".join(d["reasons"]) if d["reasons"] else "none"
         print(
