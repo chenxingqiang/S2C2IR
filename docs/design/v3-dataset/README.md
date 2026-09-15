@@ -150,4 +150,7 @@ remains an independent kind; no
 `Decision.subject=sufficient`. Occupancy kinds are not a
 6B Evidence DB row. Check with
 `python3 runtime/record_decision.py --print-evidence-decision-contract`.
+Closed reason namespaces (`evidence.*` / `predicate.*` /
+`decision.*`; `authorization.*` empty) are locked by
+`python3 runtime/record_decision.py --print-evidence-reason-vocab`.
 

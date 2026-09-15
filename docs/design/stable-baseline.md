@@ -102,7 +102,10 @@ dest-invalidation; still not sufficient). Stage A freezes
 Evidence → Decision records
 ([`evidence-decision.md`](evidence-decision.md));
 Decision has a named `subject` (this freeze: `usable`);
-6C-M sufficient boolean is parked. Eviction rewrite stays closed. Post-6C-I
+6C-M sufficient boolean is parked. Reason vocabulary /
+evidence schema closure:
+[`evidence-reason-vocab.md`](evidence-reason-vocab.md).
+Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Do **not** open \(F_{\mathrm{storage\_schedule}}\) or a

@@ -253,21 +253,10 @@ smuggled in as `result=no` on an unnamed subject.
 ### Reason tokens (examples this cut)
 
 `reasons[]` are typed tokens, not free-form strings. This
-cut freezes the Decision *shape* and a few examples. A
-closed vocabulary / namespace is the **next** cut, not this
-one:
-
-```text
-evidence.*         unknown-witness, scope-mismatch, …
-predicate.*        missing-input, …
-decision.*         subject-required, …
-authorization.*    (CLOSED this cut)
-```
-
-Do not let each implementation invent ad-hoc reason
-strings. Do not treat `sufficient-not-composed` as a
-Decision reason this cut: that token answers a sufficient
-question that is not being asked.
+cut froze the Decision *shape* and a few examples. Closed
+namespaces (`evidence.*` / `predicate.*` / `decision.*` /
+`authorization.*`) are the next freeze:
+[`evidence-reason-vocab.md`](evidence-reason-vocab.md).
 
 ## God object
 
@@ -312,7 +301,7 @@ changing architecture-healthcheck.md scores
 new Capability matrix
 frontend / extra vendors
 FileCheck of microseconds
-closed reason-token vocabulary (next cut)
+closed reason-token vocabulary → evidence-reason-vocab.md
 ```
 
 ## Host contract
