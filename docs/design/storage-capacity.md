@@ -965,6 +965,8 @@ no implicit `sufficient=false`; 6C-M parked):
 [`evidence-decision.md`](evidence-decision.md).
 Reason vocabulary / evidence schema closure:
 [`evidence-reason-vocab.md`](evidence-reason-vocab.md).
+Machine-readable EvidenceRecord (canonical ≠ display):
+[`evidence-algebra.md`](evidence-algebra.md).
 Architecture health check (evaluator ≠ search engine;
 still no rewrite):
 [`architecture-healthcheck.md`](architecture-healthcheck.md).

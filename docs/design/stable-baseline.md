@@ -105,6 +105,8 @@ Decision has a named `subject` (this freeze: `usable`);
 6C-M sufficient boolean is parked. Reason vocabulary /
 evidence schema closure:
 [`evidence-reason-vocab.md`](evidence-reason-vocab.md).
+Machine-readable EvidenceRecord (canonical ≠ display):
+[`evidence-algebra.md`](evidence-algebra.md).
 Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).

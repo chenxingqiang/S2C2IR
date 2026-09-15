@@ -3,14 +3,15 @@
 
 Occupancy kinds are not 6B Evidence DB identity E.
 Decision is subject + result + typed reasons.
-Reason tokens are closed namespaces (evidence / predicate /
-decision); authorization.* is empty. Query only.
-rewrite-license=no. Do not FileCheck microseconds.
+Reason tokens are closed namespaces; authorization.* is empty.
+EvidenceRecord adds identity, provenance, and canonical≠display.
+Query only. rewrite-license=no. Do not FileCheck microseconds.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 
@@ -179,16 +180,429 @@ def print_evidence_reason_vocab() -> int:
     return 0
 
 
+SELECTED_S0 = "keep{0,1}|evict{2}|rematerialize{}"
+USABLE_KINDS = ("source-data", "restore-ordering")
+
+CANONICAL_FROM_DISPLAY = {
+    "unknown-witness": "evidence.unknown-witness",
+    "unknown-scope": "evidence.unknown-scope",
+    "replica-scope-mismatch": "evidence.replica-scope-mismatch",
+    "destination-scope-mismatch": "evidence.destination-scope-mismatch",
+    "no-source-replica": "evidence.no-source-replica",
+    "no-validity-witness": "evidence.no-validity-witness",
+    "no-ordering-witness": "evidence.no-ordering-witness",
+    "no-invalidation-witness": "evidence.no-invalidation-witness",
+    "interval-does-not-cover": "evidence.interval-does-not-cover",
+    "not-before-consumer": "evidence.not-before-consumer",
+    "witnessed-unmutated-cover": "evidence.witnessed-unmutated-cover",
+    "witnessed-before-consumer": "evidence.witnessed-before-consumer",
+    "witnessed-drop-stale": "evidence.witnessed-drop-stale",
+}
+
+SCOPE_FAMILY = "evidence.scope-mismatch"
+SCOPE_DISPLAYS = (
+    "unknown-scope",
+    "replica-scope-mismatch",
+    "destination-scope-mismatch",
+)
+
+
+def _family_for_display(display: str) -> str:
+    if display in SCOPE_DISPLAYS:
+        return SCOPE_FAMILY
+    return "n/a"
+
+
+def evidence_record(
+    *,
+    kind: str,
+    obj: str,
+    applicability: str,
+    display: str,
+    witness: str,
+    scope: str,
+    provenance: str,
+    selected: str = SELECTED_S0,
+) -> dict:
+    canonical = CANONICAL_FROM_DISPLAY[display]
+    if canonical == SCOPE_FAMILY:
+        raise RuntimeError("scope-mismatch is family, not canonical")
+    if canonical == display:
+        raise RuntimeError("canonical must differ from display")
+    return {
+        "schema": "s2c2.evidence_record.v1",
+        "identity": {
+            "selected": selected,
+            "kind": kind,
+            "object": obj,
+        },
+        "kind": kind,
+        "object": obj,
+        "witness": witness,
+        "scope": scope,
+        "applicability": applicability,
+        "provenance": provenance,
+        "reason": {
+            "canonical": canonical,
+            "display": display,
+            "family": _family_for_display(display),
+        },
+    }
+
+
+def derive_usable_decision(records: list[dict]) -> dict:
+    """Deterministic Decision.subject=usable. Ignores dest-invalidation."""
+    by_kind = {r["kind"]: r for r in records if r["kind"] in USABLE_KINDS}
+    sd = by_kind.get("source-data")
+    ro = by_kind.get("restore-ordering")
+    if sd is None or ro is None:
+        return {
+            "schema": "s2c2.decision.v1",
+            "subject": "usable",
+            "result": "no",
+            "reasons": ["predicate.missing-input"],
+        }
+    if sd["applicability"] == "n/a" and ro["applicability"] == "n/a":
+        return {
+            "schema": "s2c2.decision.v1",
+            "subject": "usable",
+            "result": "n/a",
+            "reasons": [],
+        }
+    if sd["applicability"] == "yes" and ro["applicability"] == "yes":
+        return {
+            "schema": "s2c2.decision.v1",
+            "subject": "usable",
+            "result": "yes",
+            "reasons": [
+                "predicate.source-data-present",
+                "predicate.restore-ordering-present",
+            ],
+        }
+    reasons: list[str] = []
+    for rec in (sd, ro):
+        if rec["applicability"] != "yes":
+            canonical = rec["reason"]["canonical"]
+            if canonical == SCOPE_FAMILY:
+                raise RuntimeError("family token in Decision.reasons")
+            reasons.append(canonical)
+    if not reasons:
+        reasons = ["predicate.missing-input"]
+    return {
+        "schema": "s2c2.decision.v1",
+        "subject": "usable",
+        "result": "no",
+        "reasons": reasons,
+    }
+
+
+def _algebra_cases() -> list[tuple[str, list[dict]]]:
+    yes_src = evidence_record(
+        kind="source-data",
+        obj="2",
+        applicability="yes",
+        display="witnessed-unmutated-cover",
+        witness="spec-unmutated-cover",
+        scope="occupancy-live",
+        provenance="spec",
+    )
+    yes_ord = evidence_record(
+        kind="restore-ordering",
+        obj="2",
+        applicability="yes",
+        display="witnessed-before-consumer",
+        witness="spec-before-consumer",
+        scope="occupancy-live",
+        provenance="spec",
+    )
+    yes_inv = evidence_record(
+        kind="dest-invalidation",
+        obj="2",
+        applicability="yes",
+        display="witnessed-drop-stale",
+        witness="spec-drop-stale",
+        scope="occupancy-live",
+        provenance="spec",
+    )
+    unknown_scope_src = evidence_record(
+        kind="source-data",
+        obj="2",
+        applicability="no",
+        display="unknown-scope",
+        witness="spec-unmutated-cover",
+        scope="unknown",
+        provenance="occupancy-query",
+    )
+    replica_src = evidence_record(
+        kind="source-data",
+        obj="2",
+        applicability="no",
+        display="replica-scope-mismatch",
+        witness="spec-unmutated-cover",
+        scope="occupancy-live",
+        provenance="occupancy-query",
+    )
+    dest_mismatch = evidence_record(
+        kind="dest-invalidation",
+        obj="2",
+        applicability="no",
+        display="destination-scope-mismatch",
+        witness="spec-drop-stale",
+        scope="occupancy-live",
+        provenance="occupancy-query",
+    )
+    unknown_witness_src = evidence_record(
+        kind="source-data",
+        obj="2",
+        applicability="no",
+        display="unknown-witness",
+        witness="unknown",
+        scope="occupancy-live",
+        provenance="unknown",
+    )
+    no_ord = evidence_record(
+        kind="restore-ordering",
+        obj="2",
+        applicability="no",
+        display="no-ordering-witness",
+        witness="n/a",
+        scope="n/a",
+        provenance="occupancy-query",
+    )
+    na_src = evidence_record(
+        kind="source-data",
+        obj="n/a",
+        applicability="n/a",
+        display="no-source-replica",
+        witness="n/a",
+        scope="n/a",
+        provenance="occupancy-query",
+        selected="n/a",
+    )
+    na_ord = evidence_record(
+        kind="restore-ordering",
+        obj="n/a",
+        applicability="n/a",
+        display="no-source-replica",
+        witness="n/a",
+        scope="n/a",
+        provenance="occupancy-query",
+        selected="n/a",
+    )
+    # n/a records still need a display token; no-source-replica is the
+    # frozen 6C unused-path string. applicability=n/a so derivation
+    # does not consume that canonical.
+    return [
+        ("dest-inv-yes-usable-yes", [yes_src, yes_ord, yes_inv]),
+        ("source-unknown-scope", [unknown_scope_src, no_ord]),
+        ("replica-scope-mismatch", [replica_src, no_ord]),
+        ("dest-scope-mismatch-usable-yes", [yes_src, yes_ord, dest_mismatch]),
+        ("missing-ordering", [yes_src]),
+        ("unknown-witness", [unknown_witness_src, no_ord]),
+        ("both-n/a", [na_src, na_ord]),
+    ]
+
+
+def _validate_algebra() -> None:
+    _validate_reason_vocab()
+    canons = set(CANONICAL_FROM_DISPLAY.values())
+    if SCOPE_FAMILY in canons:
+        raise RuntimeError("scope-mismatch must not be canonical")
+    if len(canons) != len(CANONICAL_FROM_DISPLAY):
+        raise RuntimeError("display→canonical must be injective")
+    for display, canonical in CANONICAL_FROM_DISPLAY.items():
+        if canonical == display:
+            raise RuntimeError(display)
+        if not canonical.startswith("evidence."):
+            raise RuntimeError(canonical)
+    seen = []
+    for name, records in _algebra_cases():
+        decision = derive_usable_decision(records)
+        if decision["subject"] != "usable":
+            raise RuntimeError(name)
+        if SCOPE_FAMILY in decision["reasons"]:
+            raise RuntimeError(f"family in reasons: {name}")
+        for rec in records:
+            if rec["reason"]["canonical"] == rec["reason"]["display"]:
+                raise RuntimeError(name)
+            if rec["reason"]["canonical"] == SCOPE_FAMILY:
+                raise RuntimeError(name)
+        dest_canons = {
+            r["reason"]["canonical"]
+            for r in records
+            if r["kind"] == "dest-invalidation"
+        }
+        if dest_canons & set(decision["reasons"]):
+            raise RuntimeError(f"dest-invalidation in usable reasons: {name}")
+        seen.append((name, decision["result"], tuple(decision["reasons"])))
+    expect = {
+        "dest-inv-yes-usable-yes": (
+            "yes",
+            (
+                "predicate.source-data-present",
+                "predicate.restore-ordering-present",
+            ),
+        ),
+        "source-unknown-scope": (
+            "no",
+            ("evidence.unknown-scope", "evidence.no-ordering-witness"),
+        ),
+        "replica-scope-mismatch": (
+            "no",
+            (
+                "evidence.replica-scope-mismatch",
+                "evidence.no-ordering-witness",
+            ),
+        ),
+        "dest-scope-mismatch-usable-yes": (
+            "yes",
+            (
+                "predicate.source-data-present",
+                "predicate.restore-ordering-present",
+            ),
+        ),
+        "missing-ordering": ("no", ("predicate.missing-input",)),
+        "unknown-witness": (
+            "no",
+            ("evidence.unknown-witness", "evidence.no-ordering-witness"),
+        ),
+        "both-n/a": ("n/a", ()),
+    }
+    got = {name: (result, reasons) for name, result, reasons in seen}
+    if got != expect:
+        raise RuntimeError(f"algebra matrix drift: {got}")
+
+
+def print_evidence_algebra_contract() -> int:
+    _validate_algebra()
+    print("evidence-algebra gate=query")
+    print("schema s2c2.evidence_record.v1")
+    print("kind-schema s2c2.evidence_kind.v1")
+    print("decision-schema s2c2.decision.v1")
+    print("er-identity-ne-6b-identity yes")
+    print("canonical-ne-display yes")
+    print("family-ne-canonical yes")
+    print("scope-mismatch-is-family yes")
+    print("decision-subject usable")
+    print("derive-ignores dest-invalidation")
+    print("usable-decision-ne-sufficient-decision yes")
+    print("sufficiency-evaluation n/a")
+    print("occupancy-printer-reasons-unchanged yes")
+    print("capability-schedule-ne-god-object yes")
+    print("ad-hoc-reason-forbidden yes")
+    for name in (
+        "identity",
+        "kind",
+        "object",
+        "witness",
+        "scope",
+        "applicability",
+        "provenance",
+        "reason.canonical",
+        "reason.display",
+        "reason.family",
+    ):
+        print(f"record-field {name}")
+    for name in ("selected", "kind", "object"):
+        print(f"identity-field {name}")
+    for name in ("spec", "occupancy-query", "unknown"):
+        print(f"provenance {name}")
+    print("canonical evidence.unknown-scope")
+    print("canonical evidence.replica-scope-mismatch")
+    print("canonical evidence.destination-scope-mismatch")
+    print("map-canonical unknown-scope=evidence.unknown-scope")
+    print("map-canonical replica-scope-mismatch=evidence.replica-scope-mismatch")
+    print("map-canonical destination-scope-mismatch=evidence.destination-scope-mismatch")
+    print("map-family unknown-scope=evidence.scope-mismatch")
+    print("map-family replica-scope-mismatch=evidence.scope-mismatch")
+    print("map-family destination-scope-mismatch=evidence.scope-mismatch")
+    print("rewrite-license no")
+    print("rewrite-path no")
+    print("note six-c-j-source-data-frozen")
+    print("note six-c-k-restore-ordering-frozen")
+    print("note six-c-l-dest-invalidation-frozen")
+    print("note six-c-m-sufficient-parked")
+    print("note authorization-namespace-closed")
+    print("note sufficient-decision-not-emitted")
+    print("note occupancy-printer-reasons-unchanged")
+    print("note family-not-decision-reason")
+    print("note live-bytes-not-opened")
+    print("note alias-not-opened")
+    print("note lifetime-not-opened")
+    print("note restore-target-not-classified")
+    print("note evidence-db-identity-frozen")
+    print("note rewrite=no")
+    print("cost=unchanged")
+    example = evidence_record(
+        kind="source-data",
+        obj="2",
+        applicability="yes",
+        display="witnessed-unmutated-cover",
+        witness="spec-unmutated-cover",
+        scope="occupancy-live",
+        provenance="spec",
+    )
+    print("example " + json.dumps(example, separators=(",", ":"), sort_keys=True))
+    return 0
+
+
+def print_evidence_algebra_matrix() -> int:
+    _validate_algebra()
+    print("evidence-algebra-matrix gate=query")
+    print("derive-subject usable")
+    print("derive-ignores dest-invalidation")
+    print("canonical-ne-display yes")
+    print("scope-mismatch-is-family yes")
+    for name, records in _algebra_cases():
+        decision = derive_usable_decision(records)
+        print(f"algebra-case {name}")
+        for rec in records:
+            reason = rec["reason"]
+            print(
+                "algebra-record "
+                f"kind={rec['kind']} "
+                f"applicability={rec['applicability']} "
+                f"canonical={reason['canonical']} "
+                f"display={reason['display']} "
+                f"family={reason['family']} "
+                f"provenance={rec['provenance']}"
+            )
+        reasons = ",".join(decision["reasons"]) if decision["reasons"] else "none"
+        print(
+            "algebra-decision "
+            f"subject={decision['subject']} "
+            f"result={decision['result']} "
+            f"reasons={reasons}"
+        )
+    print("rewrite-license no")
+    print("rewrite-path no")
+    print("note sufficient-decision-not-emitted")
+    print("note family-not-decision-reason")
+    print("note occupancy-printer-reasons-unchanged")
+    print("cost=unchanged")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="S2C2 Evidence / Decision (Stage A)")
     p.add_argument("--print-evidence-decision-contract", action="store_true")
     p.add_argument("--print-evidence-reason-vocab", action="store_true")
+    p.add_argument("--print-evidence-algebra-contract", action="store_true")
+    p.add_argument("--print-evidence-algebra-matrix", action="store_true")
     args = p.parse_args(argv)
-    if args.print_evidence_decision_contract and args.print_evidence_reason_vocab:
+    flags = (
+        args.print_evidence_decision_contract,
+        args.print_evidence_reason_vocab,
+        args.print_evidence_algebra_contract,
+        args.print_evidence_algebra_matrix,
+    )
+    if sum(bool(x) for x in flags) != 1:
         print(
             "record_decision: choose one of "
             "--print-evidence-decision-contract "
-            "--print-evidence-reason-vocab",
+            "--print-evidence-reason-vocab "
+            "--print-evidence-algebra-contract "
+            "--print-evidence-algebra-matrix",
             file=sys.stderr,
         )
         return 2
@@ -196,12 +610,9 @@ def main(argv: list[str] | None = None) -> int:
         return print_evidence_decision_contract()
     if args.print_evidence_reason_vocab:
         return print_evidence_reason_vocab()
-    print(
-        "record_decision: choose --print-evidence-decision-contract "
-        "or --print-evidence-reason-vocab",
-        file=sys.stderr,
-    )
-    return 2
+    if args.print_evidence_algebra_contract:
+        return print_evidence_algebra_contract()
+    return print_evidence_algebra_matrix()
 
 
 if __name__ == "__main__":

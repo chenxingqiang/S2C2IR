@@ -216,3 +216,7 @@ Query-only. `Decision.subject=usable`.
 `authorization-tokens=none`. `rewrite-license=no`.
 `rewrite-path=no`. Diagnostic `--capacity` does not print
 this prefix.
+
+Machine-readable EvidenceRecord, canonical ≠ display, and
+usable Decision derivation:
+[`evidence-algebra.md`](evidence-algebra.md).

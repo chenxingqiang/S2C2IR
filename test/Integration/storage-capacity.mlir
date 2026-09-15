@@ -142,6 +142,8 @@
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NOINV
 // RUN: python3 %S/../../runtime/record_decision.py --print-evidence-decision-contract | FileCheck %s --check-prefix=DECC
 // RUN: python3 %S/../../runtime/record_decision.py --print-evidence-reason-vocab | FileCheck %s --check-prefix=VOCAB --implicit-check-not=sufficient-not-composed --implicit-check-not='token authorization'
+// RUN: python3 %S/../../runtime/record_decision.py --print-evidence-algebra-contract | FileCheck %s --check-prefix=ALG --implicit-check-not=sufficient-not-composed --implicit-check-not='decision-subject sufficient'
+// RUN: python3 %S/../../runtime/record_decision.py --print-evidence-algebra-matrix | FileCheck %s --check-prefix=ALGM --implicit-check-not='algebra-decision reasons=evidence.scope-mismatch' --implicit-check-not='canonical=evidence.scope-mismatch'
 // RUN: python3 %S/../../runtime/record_capacity.py --query-capacity-plan %S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 | FileCheck %s --check-prefix=HDECNEG
 // RUN: s2c2-opt %s --query-capacity-plan --capacity-spec=%S/../../docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl --capacity-policy=s0 2>&1 | FileCheck %s --check-prefix=DECNEG
 // RUN: s2c2-opt %s --capacity=2 2>&1 | FileCheck %s --check-prefix=NODEC
@@ -1051,6 +1053,7 @@
 // NODEC: s2c2-capacity-plan selected=none
 // NODEC-NOT: evidence-decision
 // NODEC-NOT: evidence-reason-vocab
+// NODEC-NOT: evidence-algebra
 // NODEC-NOT: s2c2-capacity-sufficient
 // NODEC-NOT: rewrite-license=yes
 
@@ -1084,6 +1087,60 @@
 // VOCAB-NOT: sufficient-not-composed
 // VOCAB-NOT: token authorization
 // VOCAB-NOT: decision-subject sufficient
+
+// ALG: evidence-algebra gate=query
+// ALG: schema s2c2.evidence_record.v1
+// ALG: er-identity-ne-6b-identity yes
+// ALG: canonical-ne-display yes
+// ALG: family-ne-canonical yes
+// ALG: scope-mismatch-is-family yes
+// ALG: decision-subject usable
+// ALG: derive-ignores dest-invalidation
+// ALG: record-field identity
+// ALG: record-field reason.canonical
+// ALG: record-field reason.display
+// ALG: provenance spec
+// ALG: canonical evidence.unknown-scope
+// ALG: canonical evidence.replica-scope-mismatch
+// ALG: canonical evidence.destination-scope-mismatch
+// ALG: map-canonical unknown-scope=evidence.unknown-scope
+// ALG: map-canonical replica-scope-mismatch=evidence.replica-scope-mismatch
+// ALG: map-canonical destination-scope-mismatch=evidence.destination-scope-mismatch
+// ALG: map-family unknown-scope=evidence.scope-mismatch
+// ALG: rewrite-license no
+// ALG: rewrite-path no
+// ALG: note six-c-m-sufficient-parked
+// ALG: note family-not-decision-reason
+// ALG-NOT: rewrite-license=yes
+// ALG-NOT: sufficient=yes
+// ALG-NOT: sufficient-not-composed
+// ALG-NOT: decision-subject sufficient
+
+// ALGM: evidence-algebra-matrix gate=query
+// ALGM: derive-subject usable
+// ALGM: derive-ignores dest-invalidation
+// ALGM: algebra-case dest-inv-yes-usable-yes
+// ALGM: algebra-decision subject=usable result=yes reasons=predicate.source-data-present,predicate.restore-ordering-present
+// ALGM: algebra-case source-unknown-scope
+// ALGM: algebra-record kind=source-data applicability=no canonical=evidence.unknown-scope display=unknown-scope family=evidence.scope-mismatch
+// ALGM: algebra-decision subject=usable result=no reasons=evidence.unknown-scope,evidence.no-ordering-witness
+// ALGM: algebra-case replica-scope-mismatch
+// ALGM: algebra-record kind=source-data applicability=no canonical=evidence.replica-scope-mismatch display=replica-scope-mismatch family=evidence.scope-mismatch
+// ALGM: algebra-decision subject=usable result=no reasons=evidence.replica-scope-mismatch,evidence.no-ordering-witness
+// ALGM: algebra-case dest-scope-mismatch-usable-yes
+// ALGM: algebra-record kind=dest-invalidation applicability=no canonical=evidence.destination-scope-mismatch display=destination-scope-mismatch family=evidence.scope-mismatch
+// ALGM: algebra-decision subject=usable result=yes reasons=predicate.source-data-present,predicate.restore-ordering-present
+// ALGM: algebra-case missing-ordering
+// ALGM: algebra-decision subject=usable result=no reasons=predicate.missing-input
+// ALGM: algebra-case unknown-witness
+// ALGM: algebra-decision subject=usable result=no reasons=evidence.unknown-witness,evidence.no-ordering-witness
+// ALGM: algebra-case both-n/a
+// ALGM: algebra-decision subject=usable result=n/a reasons=none
+// ALGM: rewrite-license no
+// ALGM-NOT: rewrite-license=yes
+// ALGM-NOT: sufficient=yes
+// ALGM-NOT: sufficient-not-composed
+// ALGM-NOT: decision-subject sufficient
 
 // QUERYFIT: s2c2-capacity-plan-query feasible=yes
 // QUERYFIT: selected=none
