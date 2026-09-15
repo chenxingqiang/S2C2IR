@@ -324,3 +324,6 @@ Query-only. `Decision.subject=usable`.
 `canonical ≠ display`. `evidence.scope-mismatch` is family
 only. Diagnostic `--capacity` does not print these
 prefixes.
+
+Capability / Applicability (evidence-backed; not sufficient):
+[`capability-applicability.md`](capability-applicability.md).

@@ -967,6 +967,8 @@ Reason vocabulary / evidence schema closure:
 [`evidence-reason-vocab.md`](evidence-reason-vocab.md).
 Machine-readable EvidenceRecord (canonical ≠ display):
 [`evidence-algebra.md`](evidence-algebra.md).
+Capability / Applicability (evidence-backed; not sufficient):
+[`capability-applicability.md`](capability-applicability.md).
 Architecture health check (evaluator ≠ search engine;
 still no rewrite):
 [`architecture-healthcheck.md`](architecture-healthcheck.md).

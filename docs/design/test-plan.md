@@ -1010,6 +1010,8 @@ is parked. Reason vocabulary / evidence schema:
 [`evidence-reason-vocab.md`](evidence-reason-vocab.md).
 Machine-readable EvidenceRecord (canonical ≠ display):
 [`evidence-algebra.md`](evidence-algebra.md).
+Capability / Applicability (evidence-backed; not sufficient):
+[`capability-applicability.md`](capability-applicability.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1087,6 +1089,8 @@ Do not FileCheck microseconds.
 | ALG-1 | same | `--print-evidence-algebra-contract`; `s2c2.evidence_record.v1`; canonical ≠ display; `scope-mismatch` is family; `er-identity` ≠ 6B `E`; `rewrite-license=no` |
 | ALG-2 | same | `--print-evidence-algebra-matrix`; dest-inv does not enter usable Decision; three scope canonicals stay distinct; missing-ordering → `predicate.missing-input`; other selected/object ignored; duplicate identity → `decision.duplicate-identity`; identity.kind ≠ payload kind → `decision.identity-mismatch` |
 | ALG-3 | same | diagnostic `--capacity` does not print `evidence-algebra`; no `applySchedule` |
+| CAPA-1 | `test/Integration/capability-applicability.mlir` | `--print-capability-applicability-contract`; `Decision.subject=applicable`; applicable ≠ usable ≠ sufficient; `unknown-provenance missing-evidence`; closed cpu/cuda/rocm/sycl/ascend/npu/cim; `rewrite-license=no` |
+| CAPA-2 | same | matrix: missing-evidence / unknown-provenance (`applicability=yes` still `capability.missing-evidence`) / unknown-target / unknown-kind=`sufficient` / usable-ne-applicable / ignore-other-device / duplicate-identity / identity-kind-mismatch / ascend-dma-present |
 
 ## Complete SSD + MLP program wall-clock
 
