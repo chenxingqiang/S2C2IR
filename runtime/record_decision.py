@@ -84,6 +84,7 @@ DECISION_REASON_TOKENS = (
     "decision.unknown-subject",
     "decision.unknown-reason",
     "decision.duplicate-identity",
+    "decision.identity-mismatch",
 )
 
 OCCUPANCY_PRINTER_MAP = (
@@ -252,6 +253,15 @@ def evidence_record(
     }
 
 
+def _usable_no(reason: str) -> dict:
+    return {
+        "schema": "s2c2.decision.v1",
+        "subject": "usable",
+        "result": "no",
+        "reasons": [reason],
+    }
+
+
 def derive_usable_decision(
     records: list[dict],
     selected: str,
@@ -262,6 +272,7 @@ def derive_usable_decision(
     Consumes 0 or 1 record per (selected, kind, object). Duplicate
     identity is safe no, not last-writer-wins. dest-invalidation is
     ignored for the predicate, but still counted for uniqueness.
+    identity.kind must equal the payload kind.
     """
     scoped = [
         r
@@ -270,17 +281,17 @@ def derive_usable_decision(
     ]
     by_kind: dict[str, dict] = {}
     for rec in scoped:
+        ident = rec["identity"]
+        if (
+            ident["selected"] != selected
+            or ident["object"] != obj
+            or ident["kind"] != rec["kind"]
+            or ident["object"] != rec["object"]
+        ):
+            return _usable_no("decision.identity-mismatch")
         kind = rec["kind"]
-        ident = (rec["identity"]["selected"], kind, rec["identity"]["object"])
-        if ident[0] != selected or ident[2] != obj or ident[1] != kind:
-            raise RuntimeError("identity fields disagree with record")
         if kind in by_kind:
-            return {
-                "schema": "s2c2.decision.v1",
-                "subject": "usable",
-                "result": "no",
-                "reasons": ["decision.duplicate-identity"],
-            }
+            return _usable_no("decision.duplicate-identity")
         by_kind[kind] = rec
     sd = by_kind.get("source-data")
     ro = by_kind.get("restore-ordering")
@@ -468,6 +479,22 @@ def _algebra_cases() -> list[tuple[str, list[dict]]]:
         scope="unknown",
         provenance="occupancy-query",
     )
+    kind_mismatch = evidence_record(
+        kind="source-data",
+        obj="2",
+        applicability="yes",
+        display="witnessed-unmutated-cover",
+        witness="spec-unmutated-cover",
+        scope="occupancy-live",
+        provenance="spec",
+    )
+    kind_mismatch = {
+        **kind_mismatch,
+        "identity": {
+            **kind_mismatch["identity"],
+            "kind": "restore-ordering",
+        },
+    }
     return [
         ("dest-inv-yes-usable-yes", [yes_src, yes_ord, yes_inv], SELECTED_S0, "2"),
         ("source-unknown-scope", [unknown_scope_src, no_ord], SELECTED_S0, "2"),
@@ -496,6 +523,12 @@ def _algebra_cases() -> list[tuple[str, list[dict]]]:
         (
             "duplicate-identity",
             [dup_src_no, yes_src, yes_ord],
+            SELECTED_S0,
+            "2",
+        ),
+        (
+            "identity-kind-mismatch",
+            [kind_mismatch, yes_ord],
             SELECTED_S0,
             "2",
         ),
@@ -571,6 +604,7 @@ def _validate_algebra() -> None:
         "ignore-other-selected": ("no", ("predicate.missing-input",)),
         "ignore-other-object": ("no", ("predicate.missing-input",)),
         "duplicate-identity": ("no", ("decision.duplicate-identity",)),
+        "identity-kind-mismatch": ("no", ("decision.identity-mismatch",)),
     }
     got = {name: (result, reasons) for name, result, reasons in seen}
     if got != expect:
@@ -591,6 +625,8 @@ def print_evidence_algebra_contract() -> int:
     print("derive-scope selected-object")
     print("identity-cardinality 0-or-1")
     print("duplicate-identity safe-no")
+    print("identity-kind-agrees yes")
+    print("identity-mismatch safe-no")
     print("derive-ignores dest-invalidation")
     print("usable-decision-ne-sufficient-decision yes")
     print("sufficiency-evaluation n/a")
@@ -661,6 +697,8 @@ def print_evidence_algebra_matrix() -> int:
     print("derive-scope selected-object")
     print("identity-cardinality 0-or-1")
     print("duplicate-identity safe-no")
+    print("identity-kind-agrees yes")
+    print("identity-mismatch safe-no")
     print("derive-ignores dest-invalidation")
     print("canonical-ne-display yes")
     print("scope-mismatch-is-family yes")

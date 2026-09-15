@@ -125,6 +125,11 @@ most one record per `kind`. A second record with the same
 `(selected, kind, object)` is `decision.duplicate-identity`,
 not an overwrite.
 
+`identity.kind` must equal the payload `kind`, and
+`identity.object` must equal the payload `object`. A
+disagreement is `decision.identity-mismatch` (safe no),
+not a `RuntimeError` on the host path.
+
 ## Canonical vs display vs family
 
 `reason.display` is the frozen 6C-J/K/L `reason=` string.
@@ -199,6 +204,11 @@ duplicate (selected, kind, object) in scope
   → result=no
     reasons=decision.duplicate-identity
 
+identity.kind ≠ payload kind
+(or identity.object ≠ payload object)
+  → result=no
+    reasons=decision.identity-mismatch
+
 missing source-data or restore-ordering record in scope
   → result=no
     reasons=predicate.missing-input
@@ -228,9 +238,12 @@ Forced:
 derive scope                  (selected, object)
 identity cardinality          0 or 1 per (selected, kind, object)
 duplicate identity            safe no (decision.duplicate-identity)
+identity.kind ≠ payload kind  safe no (decision.identity-mismatch)
 last-writer-wins              forbidden
 dest-invalidation record      does not enter this Decision
-Decision.reasons[]            canonical / predicate.* / decision.duplicate-identity
+Decision.reasons[]            canonical / predicate.* /
+                              decision.duplicate-identity /
+                              decision.identity-mismatch
 Decision.reasons[]            never evidence.scope-mismatch
 Decision.reasons[]            never reason.display
 Decision.subject=sufficient   NOT emitted
@@ -265,6 +278,7 @@ Host-locked cases (query-only). Display strings stay the
 | ignore-other-selected | S0 source-data yes + S1 usable yes | S0 still `predicate.missing-input` |
 | ignore-other-object | object=2 source-data yes + object=3 usable yes | object=2 still `predicate.missing-input` |
 | duplicate-identity | two source-data same identity | `decision.duplicate-identity`; not last-writer-wins |
+| identity-kind-mismatch | `identity.kind=restore-ordering` but payload `kind=source-data` | `decision.identity-mismatch`; not usable yes |
 
 Pairwise: the three scope canonicals are distinct. A
 replica mismatch must not derive `evidence.unknown-scope`

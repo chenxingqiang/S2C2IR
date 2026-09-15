@@ -1085,7 +1085,7 @@ Do not FileCheck microseconds.
 | EV-1 | same | `--print-evidence-reason-vocab`; closed `evidence.*` / `predicate.*` / `decision.*`; `authorization-tokens=none`; occupancy printer map; `rewrite-license=no` |
 | EV-2 | same | no `sufficient-not-composed`; no `token authorization`; diagnostic `--capacity` does not print `evidence-reason-vocab` |
 | ALG-1 | same | `--print-evidence-algebra-contract`; `s2c2.evidence_record.v1`; canonical ≠ display; `scope-mismatch` is family; `er-identity` ≠ 6B `E`; `rewrite-license=no` |
-| ALG-2 | same | `--print-evidence-algebra-matrix`; dest-inv does not enter usable Decision; three scope canonicals stay distinct; missing-ordering → `predicate.missing-input`; other selected/object ignored; duplicate identity → `decision.duplicate-identity` |
+| ALG-2 | same | `--print-evidence-algebra-matrix`; dest-inv does not enter usable Decision; three scope canonicals stay distinct; missing-ordering → `predicate.missing-input`; other selected/object ignored; duplicate identity → `decision.duplicate-identity`; identity.kind ≠ payload kind → `decision.identity-mismatch` |
 | ALG-3 | same | diagnostic `--capacity` does not print `evidence-algebra`; no `applySchedule` |
 
 ## Complete SSD + MLP program wall-clock

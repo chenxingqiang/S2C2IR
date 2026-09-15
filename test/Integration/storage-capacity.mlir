@@ -1076,6 +1076,7 @@
 // VOCAB: token predicate.restore-ordering-present
 // VOCAB: token decision.subject-required
 // VOCAB: token decision.duplicate-identity
+// VOCAB: token decision.identity-mismatch
 // VOCAB: map unknown-witness=evidence.unknown-witness
 // VOCAB: map unknown-scope=evidence.scope-mismatch
 // VOCAB: rewrite-license no
@@ -1099,6 +1100,8 @@
 // ALG: derive-scope selected-object
 // ALG: identity-cardinality 0-or-1
 // ALG: duplicate-identity safe-no
+// ALG: identity-kind-agrees yes
+// ALG: identity-mismatch safe-no
 // ALG: derive-ignores dest-invalidation
 // ALG: record-field identity
 // ALG: record-field reason.canonical
@@ -1126,6 +1129,8 @@
 // ALGM: derive-scope selected-object
 // ALGM: identity-cardinality 0-or-1
 // ALGM: duplicate-identity safe-no
+// ALGM: identity-kind-agrees yes
+// ALGM: identity-mismatch safe-no
 // ALGM: derive-ignores dest-invalidation
 // ALGM: algebra-case dest-inv-yes-usable-yes
 // ALGM: algebra-decision subject=usable result=yes reasons=predicate.source-data-present,predicate.restore-ordering-present
@@ -1150,6 +1155,8 @@
 // ALGM: algebra-decision subject=usable result=no reasons=predicate.missing-input
 // ALGM: algebra-case duplicate-identity
 // ALGM: algebra-decision subject=usable result=no reasons=decision.duplicate-identity
+// ALGM: algebra-case identity-kind-mismatch
+// ALGM: algebra-decision subject=usable result=no reasons=decision.identity-mismatch
 // ALGM: rewrite-license no
 // ALGM: note last-writer-wins-forbidden
 // ALGM-NOT: rewrite-license=yes
