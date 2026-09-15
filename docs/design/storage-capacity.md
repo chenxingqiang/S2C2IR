@@ -969,6 +969,8 @@ Machine-readable EvidenceRecord (canonical ≠ display):
 [`evidence-algebra.md`](evidence-algebra.md).
 Capability / Applicability (evidence-backed; not sufficient):
 [`capability-applicability.md`](capability-applicability.md).
+Raw-record re-validation of that schema in derive:
+[`capability-applicability-schema.md`](capability-applicability-schema.md).
 Architecture health check (evaluator ≠ search engine;
 still no rewrite):
 [`architecture-healthcheck.md`](architecture-healthcheck.md).

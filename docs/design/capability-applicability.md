@@ -310,3 +310,7 @@ python3 runtime/record_capability_applicability.py --print-capability-applicabil
 Query-only. `Decision.subject=applicable`.
 `rewrite-license=no`. Diagnostic occupancy `--capacity`
 does not print these prefixes.
+
+Raw-record re-validation in derive (schema / identity /
+closed enums / canonical; not sufficient):
+[`capability-applicability-schema.md`](capability-applicability-schema.md).
