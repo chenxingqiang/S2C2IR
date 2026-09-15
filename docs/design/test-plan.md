@@ -1008,6 +1008,8 @@ FROZEN). Stage A freezes Evidence → Decision
 Decision has a named `subject`; 6C-M sufficient boolean
 is parked. Reason vocabulary / evidence schema:
 [`evidence-reason-vocab.md`](evidence-reason-vocab.md).
+Machine-readable EvidenceRecord (canonical ≠ display):
+[`evidence-algebra.md`](evidence-algebra.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1082,6 +1084,9 @@ Do not FileCheck microseconds.
 | EA-3 | same | diagnostic `--capacity` does not print `evidence-decision`; no `applySchedule` |
 | EV-1 | same | `--print-evidence-reason-vocab`; closed `evidence.*` / `predicate.*` / `decision.*`; `authorization-tokens=none`; occupancy printer map; `rewrite-license=no` |
 | EV-2 | same | no `sufficient-not-composed`; no `token authorization`; diagnostic `--capacity` does not print `evidence-reason-vocab` |
+| ALG-1 | same | `--print-evidence-algebra-contract`; `s2c2.evidence_record.v1`; canonical ≠ display; `scope-mismatch` is family; `er-identity` ≠ 6B `E`; `rewrite-license=no` |
+| ALG-2 | same | `--print-evidence-algebra-matrix`; dest-inv does not enter usable Decision; three scope canonicals stay distinct; missing-ordering → `predicate.missing-input`; other selected/object ignored; duplicate identity → `decision.duplicate-identity`; identity.kind ≠ payload kind → `decision.identity-mismatch` |
+| ALG-3 | same | diagnostic `--capacity` does not print `evidence-algebra`; no `applySchedule` |
 
 ## Complete SSD + MLP program wall-clock
 

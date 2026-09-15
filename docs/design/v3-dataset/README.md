@@ -153,4 +153,8 @@ remains an independent kind; no
 Closed reason namespaces (`evidence.*` / `predicate.*` /
 `decision.*`; `authorization.*` empty) are locked by
 `python3 runtime/record_decision.py --print-evidence-reason-vocab`.
+Machine-readable EvidenceRecord (canonical ≠ display;
+`scope-mismatch` is family only) is locked by
+`python3 runtime/record_decision.py --print-evidence-algebra-contract`
+and `--print-evidence-algebra-matrix`.
 
