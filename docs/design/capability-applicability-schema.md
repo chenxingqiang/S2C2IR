@@ -171,3 +171,7 @@ python3 runtime/record_capability_applicability.py --print-capability-applicabil
 
 Query-only. `Decision.subject=applicable`.
 `raw-record-revalidated yes`. `rewrite-license=no`.
+
+Independent occupancy usable + capability applicable report
+(two Decisions; not a conjunction; not sufficient):
+[`occupancy-capability-report.md`](occupancy-capability-report.md).
