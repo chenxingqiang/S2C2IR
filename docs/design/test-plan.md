@@ -1020,6 +1020,9 @@ Independent occupancy usable + capability applicable report
 Capability Profile / Applicability aggregation (facts, not
 sufficient):
 [`capability-profile.md`](capability-profile.md).
+Realization Legality (constraint facts copied; not
+sufficient / can-run-plan):
+[`realization-legality.md`](realization-legality.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1104,6 +1107,8 @@ Do not FileCheck microseconds.
 | OCR-2 | same | 11-case report matrix: both-yes ≠ sufficient; usable-yes-applicable-no; usable-no-applicable-yes; both-no; dest-inv ≠ sufficient; occupancy_usable field ≠ usable Decision; ignore-other-selected/object/device; duplicate-identity both sides; identity-schema-mismatch no cross-talk |
 | PROF-1 | `test/Integration/capability-profile.mlir` | `--print-capability-profile-contract`; `s2c2.capability_profile.v1`; profile ≠ applicable ≠ usable ≠ sufficient; `absence-ne-no`; `all-yes-ne-sufficient`; `can-run-plan=no`; `rewrite-license=no` |
 | PROF-2 | same | 10-case matrix: aggregation; missing ≠ forbidden; one-kind-no does not collapse; other device; duplicate; unknown provenance; usable ≠ capability; all-yes ≠ sufficient; no authorization; no rewrite-path |
+| LEG-1 | `test/Integration/realization-legality.mlir` | `--print-realization-legality-contract`; `s2c2.realization_legality.v1`; constraint copied; `all-allowed-ne-sufficient`; `unproven-ne-forbidden`; `can-run-plan=no`; `rewrite-license=no` |
+| LEG-2 | same | 8-case matrix: yes→allowed; no→forbidden; n/a→not-applicable; missing/unknown-provenance→unproven; all-allowed ≠ sufficient; one-kind-forbidden; mixed allowed/unproven |
 
 ## Complete SSD + MLP program wall-clock
 

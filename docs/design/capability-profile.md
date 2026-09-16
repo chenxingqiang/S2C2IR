@@ -199,3 +199,7 @@ python3 runtime/record_capability_profile.py --print-capability-profile-matrix
 
 Query-only. `rewrite-license=no`. Diagnostic occupancy
 `--capacity` does not print these prefixes.
+
+Realization Legality (constraint facts copied; not
+sufficient / can-run-plan):
+[`realization-legality.md`](realization-legality.md).
