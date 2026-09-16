@@ -317,3 +317,6 @@ closed enums / canonical; not sufficient):
 Independent occupancy usable + capability applicable report
 (two Decisions; not a conjunction; not sufficient):
 [`occupancy-capability-report.md`](occupancy-capability-report.md).
+Capability Profile / Applicability aggregation (facts, not
+sufficient):
+[`capability-profile.md`](capability-profile.md).

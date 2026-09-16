@@ -169,3 +169,7 @@ python3 runtime/record_occupancy_capability.py --print-occupancy-capability-repo
 Query-only. Two Decisions. `rewrite-license=no`.
 Diagnostic occupancy `--capacity` does not print these
 prefixes.
+
+Capability Profile / Applicability aggregation (facts, not
+sufficient):
+[`capability-profile.md`](capability-profile.md).
