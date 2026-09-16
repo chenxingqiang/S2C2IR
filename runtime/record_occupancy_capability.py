@@ -61,57 +61,71 @@ def occupancy_capability_report(
     }
 
 
-def _occupancy_yes(*, dest_inv: bool) -> list[dict]:
+def _occ_rec(
+    *,
+    kind: str,
+    obj: str = OBJECT_2,
+    selected: str | None = None,
+    applicability: str = "yes",
+) -> dict:
+    display = {
+        "source-data": "witnessed-unmutated-cover",
+        "restore-ordering": "witnessed-before-consumer",
+        "dest-invalidation": "witnessed-drop-stale",
+    }[kind]
+    witness = {
+        "source-data": "spec-unmutated-cover",
+        "restore-ordering": "spec-before-consumer",
+        "dest-invalidation": "spec-drop-stale",
+    }[kind]
+    kwargs = {
+        "kind": kind,
+        "obj": obj,
+        "applicability": applicability,
+        "display": display,
+        "witness": witness,
+        "scope": "occupancy-live",
+        "provenance": "spec",
+    }
+    if selected is not None:
+        kwargs["selected"] = selected
+    return occ.evidence_record(**kwargs)
+
+
+def _occupancy_yes(
+    *,
+    dest_inv: bool,
+    selected: str | None = None,
+    obj: str = OBJECT_2,
+) -> list[dict]:
     recs = [
-        occ.evidence_record(
-            kind="source-data",
-            obj=OBJECT_2,
-            applicability="yes",
-            display="witnessed-unmutated-cover",
-            witness="spec-unmutated-cover",
-            scope="occupancy-live",
-            provenance="spec",
-        ),
-        occ.evidence_record(
-            kind="restore-ordering",
-            obj=OBJECT_2,
-            applicability="yes",
-            display="witnessed-before-consumer",
-            witness="spec-before-consumer",
-            scope="occupancy-live",
-            provenance="spec",
-        ),
+        _occ_rec(kind="source-data", obj=obj, selected=selected),
+        _occ_rec(kind="restore-ordering", obj=obj, selected=selected),
     ]
     if dest_inv:
-        recs.append(
-            occ.evidence_record(
-                kind="dest-invalidation",
-                obj=OBJECT_2,
-                applicability="yes",
-                display="witnessed-drop-stale",
-                witness="spec-drop-stale",
-                scope="occupancy-live",
-                provenance="spec",
-            )
-        )
+        recs.append(_occ_rec(kind="dest-invalidation", obj=obj, selected=selected))
     return recs
 
 
 def _occupancy_missing_ordering() -> list[dict]:
-    return [
-        occ.evidence_record(
-            kind="source-data",
-            obj=OBJECT_2,
-            applicability="yes",
-            display="witnessed-unmutated-cover",
-            witness="spec-unmutated-cover",
-            scope="occupancy-live",
-            provenance="spec",
-        )
-    ]
+    return [_occ_rec(kind="source-data")]
 
 
-def _cap(*, applicability: str, occupancy_usable: str) -> dict:
+def _occupancy_identity_mismatch() -> list[dict]:
+    rec = _occ_rec(kind="source-data")
+    rec = {
+        **rec,
+        "identity": {**rec["identity"], "kind": "restore-ordering"},
+    }
+    return [rec]
+
+
+def _cap(
+    *,
+    applicability: str,
+    occupancy_usable: str,
+    device: str | None = None,
+) -> dict:
     canonical = (
         "capability.present"
         if applicability == "yes"
@@ -119,7 +133,7 @@ def _cap(*, applicability: str, occupancy_usable: str) -> dict:
     )
     return capa.capability_record(
         target="cuda",
-        device=capa.DEVICE_4090,
+        device=device or capa.DEVICE_4090,
         kind="concurrent-pair",
         applicability=applicability,
         canonical=canonical,
@@ -129,6 +143,11 @@ def _cap(*, applicability: str, occupancy_usable: str) -> dict:
         provenance="catalog",
         occupancy_usable=occupancy_usable,
     )
+
+
+def _cap_invalid_schema() -> dict:
+    rec = _cap(applicability="yes", occupancy_usable="yes")
+    return {**rec, "schema": "s2c2.evidence_record.v1"}
 
 
 def _query() -> tuple[str, str, str, str, str]:
@@ -142,31 +161,51 @@ def _query() -> tuple[str, str, str, str, str]:
 
 
 def _cases() -> list[tuple[str, list[dict], list[dict]]]:
+    yes_cap = [_cap(applicability="yes", occupancy_usable="yes")]
+    no_cap = [_cap(applicability="no", occupancy_usable="yes")]
+    occ_yes = _occupancy_yes(dest_inv=False)
+    occ_yes_inv = _occupancy_yes(dest_inv=True)
+    occ_no = _occupancy_missing_ordering()
+    src = _occ_rec(kind="source-data")
     return [
-        (
-            "both-yes-ne-sufficient",
-            _occupancy_yes(dest_inv=True),
-            [_cap(applicability="yes", occupancy_usable="yes")],
-        ),
-        (
-            "usable-yes-applicable-no",
-            _occupancy_yes(dest_inv=False),
-            [_cap(applicability="no", occupancy_usable="yes")],
-        ),
+        ("both-yes-ne-sufficient", occ_yes_inv, yes_cap),
+        ("usable-yes-applicable-no", occ_yes, no_cap),
         (
             "usable-no-applicable-yes",
-            _occupancy_missing_ordering(),
+            occ_no,
             [_cap(applicability="yes", occupancy_usable="n/a")],
         ),
-        (
-            "dest-inv-ne-sufficient",
-            _occupancy_yes(dest_inv=True),
-            [_cap(applicability="yes", occupancy_usable="yes")],
-        ),
+        ("both-no", occ_no, no_cap),
+        ("dest-inv-ne-sufficient", occ_yes_inv, yes_cap),
         (
             "occupancy-field-ne-usable-decision",
-            _occupancy_yes(dest_inv=False),
+            occ_yes,
             [_cap(applicability="yes", occupancy_usable="no")],
+        ),
+        (
+            "ignore-other-selected",
+            _occupancy_yes(dest_inv=False, selected=occ.SELECTED_S1),
+            yes_cap,
+        ),
+        (
+            "ignore-other-object",
+            _occupancy_yes(dest_inv=False, obj="3"),
+            yes_cap,
+        ),
+        (
+            "ignore-other-device",
+            occ_yes,
+            [_cap(applicability="yes", occupancy_usable="yes", device="sm80:a100")],
+        ),
+        (
+            "duplicate-identity",
+            [src, {**src}, _occ_rec(kind="restore-ordering")],
+            yes_cap + yes_cap,
+        ),
+        (
+            "identity-schema-mismatch",
+            _occupancy_identity_mismatch(),
+            [_cap_invalid_schema()],
         ),
     ]
 
@@ -177,14 +216,67 @@ def _fmt_reasons(decision: dict) -> str:
 
 def _validate() -> None:
     selected, obj, target, device, kind = _query()
+    yes_u = ("predicate.source-data-present", "predicate.restore-ordering-present")
+    present = ("capability.present",)
     expect = {
-        "both-yes-ne-sufficient": ("yes", "yes"),
-        "usable-yes-applicable-no": ("yes", "no"),
-        "usable-no-applicable-yes": ("no", "yes"),
-        "dest-inv-ne-sufficient": ("yes", "yes"),
-        "occupancy-field-ne-usable-decision": ("yes", "yes"),
+        "both-yes-ne-sufficient": ("yes", yes_u, "yes", present),
+        "usable-yes-applicable-no": (
+            "yes",
+            yes_u,
+            "no",
+            ("capability.not-applicable",),
+        ),
+        "usable-no-applicable-yes": (
+            "no",
+            ("predicate.missing-input",),
+            "yes",
+            present,
+        ),
+        "both-no": (
+            "no",
+            ("predicate.missing-input",),
+            "no",
+            ("capability.not-applicable",),
+        ),
+        "dest-inv-ne-sufficient": ("yes", yes_u, "yes", present),
+        "occupancy-field-ne-usable-decision": ("yes", yes_u, "yes", present),
+        "ignore-other-selected": (
+            "no",
+            ("predicate.missing-input",),
+            "yes",
+            present,
+        ),
+        "ignore-other-object": (
+            "no",
+            ("predicate.missing-input",),
+            "yes",
+            present,
+        ),
+        "ignore-other-device": (
+            "yes",
+            yes_u,
+            "no",
+            ("capability.missing-evidence",),
+        ),
+        "duplicate-identity": (
+            "no",
+            ("decision.duplicate-identity",),
+            "no",
+            ("decision.duplicate-identity",),
+        ),
+        "identity-schema-mismatch": (
+            "no",
+            ("decision.identity-mismatch",),
+            "no",
+            ("decision.unknown-reason",),
+        ),
     }
     got = {}
+    names = [name for name, _, _ in _cases()]
+    if names != list(expect):
+        raise RuntimeError(f"report case order drift: {names}")
+    if len(names) != 11:
+        raise RuntimeError(len(names))
     for name, occ_recs, cap_recs in _cases():
         report = occupancy_capability_report(
             occupancy_records=occ_recs,
@@ -222,11 +314,34 @@ def _validate() -> None:
                 raise RuntimeError(name)
             if u["result"] != "yes":
                 raise RuntimeError(name)
+        if name == "ignore-other-selected":
+            if occ_recs[0]["identity"]["selected"] == selected:
+                raise RuntimeError(name)
+        if name == "ignore-other-object":
+            if occ_recs[0]["identity"]["object"] == obj:
+                raise RuntimeError(name)
+        if name == "ignore-other-device":
+            if cap_recs[0]["device"] == device:
+                raise RuntimeError(name)
+            if a["reasons"] == list(u["reasons"]):
+                raise RuntimeError(name)
+        if name == "identity-schema-mismatch":
+            ident = occ_recs[0]["identity"]
+            if ident["kind"] == occ_recs[0]["kind"]:
+                raise RuntimeError(name)
+            if cap_recs[0]["schema"] == capa.SCHEMA:
+                raise RuntimeError(name)
+            if u["reasons"] == a["reasons"]:
+                raise RuntimeError(name)
+            if "decision.unknown-reason" in u["reasons"]:
+                raise RuntimeError(name)
+            if "decision.identity-mismatch" in a["reasons"]:
+                raise RuntimeError(name)
         uid = report["usable-identity"]
         aid = report["applicable-identity"]
         if set(uid) & set(aid):
             raise RuntimeError(name)
-        got[name] = (u["result"], a["result"])
+        got[name] = (u["result"], tuple(u["reasons"]), a["result"], tuple(a["reasons"]))
     if got != expect:
         raise RuntimeError(f"occupancy-capability report drift: {got}")
 
@@ -246,6 +361,13 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("occupancy-usable-field-ne-usable-decision yes")
     print("dest-invalidation-ne-sufficient yes")
+    print("both-no cartesian")
+    print("ignore-other-selected yes")
+    print("ignore-other-object yes")
+    print("ignore-other-device yes")
+    print("duplicate-identity safe-no")
+    print("identity-schema-mismatch no-cross-talk")
+    print("report-matrix-cases 11")
     print("applicable-ne-usable yes")
     print("applicable-ne-sufficient yes")
     print("usable-ne-sufficient yes")
@@ -279,6 +401,7 @@ def print_matrix() -> int:
     print("both-yes-ne-sufficient yes")
     print("usable-identity-ne-applicable-identity yes")
     print("occupancy-usable-field-ne-usable-decision yes")
+    print("report-matrix-cases 11")
     selected, obj, target, device, kind = _query()
     for name, occ_recs, cap_recs in _cases():
         report = occupancy_capability_report(
@@ -303,12 +426,24 @@ def print_matrix() -> int:
             f"device={report['applicable-identity']['device']} "
             f"kind={report['applicable-identity']['kind']}"
         )
+        for rec in occ_recs:
+            ident = rec.get("identity") if isinstance(rec.get("identity"), dict) else {}
+            print(
+                "ocr-occ-record "
+                f"selected={ident.get('selected')} "
+                f"object={ident.get('object')} "
+                f"kind={ident.get('kind')} "
+                f"payload-kind={rec.get('kind')}"
+            )
         for rec in cap_recs:
+            ident = rec.get("identity") if isinstance(rec.get("identity"), dict) else {}
             print(
                 "ocr-cap-record "
-                f"applicability={rec['applicability']} "
-                f"occupancy_usable={rec['occupancy_usable']} "
-                f"provenance={rec['provenance']}"
+                f"schema={rec.get('schema')} "
+                f"device={ident.get('device')} "
+                f"applicability={rec.get('applicability')} "
+                f"occupancy_usable={rec.get('occupancy_usable')} "
+                f"provenance={rec.get('provenance')}"
             )
         print(
             "ocr-usable "

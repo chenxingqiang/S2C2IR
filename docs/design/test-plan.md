@@ -1098,7 +1098,7 @@ Do not FileCheck microseconds.
 | CAPA-2 | same | matrix: missing-evidence / unknown-provenance (`applicability=yes` still `capability.missing-evidence`) / unknown-target / unknown-kind=`sufficient` / usable-ne-applicable / ignore-other-device / duplicate-identity / identity-kind-mismatch / ascend-dma-present |
 | CAPA-3 | same | raw-record re-validation: invalid-schema / invalid-canonical=`authorization.rewrite` (Decision reasons stay `decision.unknown-reason`) / invalid-applicability / invalid-provenance=`invented` → `capability.missing-evidence`; still `Decision.subject=applicable`; no sufficient |
 | OCR-1 | `test/Integration/occupancy-capability-report.mlir` | `--print-occupancy-capability-report-contract`; report ≠ Decision; usable identity ≠ applicable identity; `conjunction-ne-sufficient`; `generic-schema-validator=n/a`; `rewrite-license=no` |
-| OCR-2 | same | matrix: both-yes ≠ sufficient; usable-yes-applicable-no; usable-no-applicable-yes; dest-inv ≠ sufficient; `occupancy_usable=no` field ≠ usable Decision |
+| OCR-2 | same | 11-case report matrix: both-yes ≠ sufficient; usable-yes-applicable-no; usable-no-applicable-yes; both-no; dest-inv ≠ sufficient; occupancy_usable field ≠ usable Decision; ignore-other-selected/object/device; duplicate-identity both sides; identity-schema-mismatch no cross-talk |
 
 ## Complete SSD + MLP program wall-clock
 

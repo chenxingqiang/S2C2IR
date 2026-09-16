@@ -45,6 +45,7 @@ question failed and reopens 6C-M.
 usable=yes ∧ applicable=yes  ≠  sufficient=yes
 usable=yes ∧ applicable=no   names the applicable failure
 usable=no  ∧ applicable=yes  names the usable failure
+usable=no  ∧ applicable=no   names both failures; still not AND-hidden
 ```
 
 The report is **not** a Decision.
@@ -111,13 +112,22 @@ validator and does **not** change
 
 ## Negative fixture matrix
 
+Report-level. 11 cases. Both derives stay frozen; this
+matrix does not borrow coverage from #124/#125/#126.
+
 | Case | Occupancy / capability | Report |
 | ---- | ---------------------- | ------ |
 | both-yes-ne-sufficient | usable yes (incl. dest-inv) + applicable yes | two yes Decisions; `sufficiency-evaluation=n/a` |
-| usable-yes-applicable-no | usable yes + applicability=no | usable yes, applicable no; not AND-hidden |
+| usable-yes-applicable-no | usable yes + applicability=no | usable yes, applicable no |
 | usable-no-applicable-yes | missing restore-ordering + applicable yes | usable no, applicable yes |
+| both-no | missing restore-ordering + applicability=no | both no; distinct reasons |
 | dest-inv-ne-sufficient | dest-invalidation=yes + both yes | dest canonical absent from usable reasons; still not sufficient |
 | occupancy-field-ne-usable-decision | occupancy records yes; `occupancy_usable=no` on cap record | usable still yes; field ≠ Decision |
+| ignore-other-selected | S1 occupancy yes; query S0 | usable missing-input; applicable still yes |
+| ignore-other-object | object=3 occupancy yes; query object=2 | usable missing-input; applicable still yes |
+| ignore-other-device | other device present; query 4090 | applicable missing-evidence; usable still yes |
+| duplicate-identity | duplicate occupancy identity and duplicate cap identity | each side `decision.duplicate-identity` |
+| identity-schema-mismatch | occupancy identity.kind ≠ payload; cap schema wrong | usable `identity-mismatch`; applicable `unknown-reason`; no cross-talk |
 
 ## God object
 
