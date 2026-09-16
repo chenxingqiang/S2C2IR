@@ -1017,6 +1017,9 @@ Raw-record re-validation of that schema in derive:
 Independent occupancy usable + capability applicable report
 (two Decisions; not a conjunction; not sufficient):
 [`occupancy-capability-report.md`](occupancy-capability-report.md).
+Capability Profile / Applicability aggregation (facts, not
+sufficient):
+[`capability-profile.md`](capability-profile.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1099,6 +1102,8 @@ Do not FileCheck microseconds.
 | CAPA-3 | same | raw-record re-validation: invalid-schema / invalid-canonical=`authorization.rewrite` (Decision reasons stay `decision.unknown-reason`) / invalid-applicability / invalid-provenance=`invented` → `capability.missing-evidence`; still `Decision.subject=applicable`; no sufficient |
 | OCR-1 | `test/Integration/occupancy-capability-report.mlir` | `--print-occupancy-capability-report-contract`; report ≠ Decision; usable identity ≠ applicable identity; `conjunction-ne-sufficient`; `generic-schema-validator=n/a`; `rewrite-license=no` |
 | OCR-2 | same | 11-case report matrix: both-yes ≠ sufficient; usable-yes-applicable-no; usable-no-applicable-yes; both-no; dest-inv ≠ sufficient; occupancy_usable field ≠ usable Decision; ignore-other-selected/object/device; duplicate-identity both sides; identity-schema-mismatch no cross-talk |
+| PROF-1 | `test/Integration/capability-profile.mlir` | `--print-capability-profile-contract`; `s2c2.capability_profile.v1`; profile ≠ applicable ≠ usable ≠ sufficient; `absence-ne-no`; `all-yes-ne-sufficient`; `can-run-plan=no`; `rewrite-license=no` |
+| PROF-2 | same | 10-case matrix: aggregation; missing ≠ forbidden; one-kind-no does not collapse; other device; duplicate; unknown provenance; usable ≠ capability; all-yes ≠ sufficient; no authorization; no rewrite-path |
 
 ## Complete SSD + MLP program wall-clock
 
