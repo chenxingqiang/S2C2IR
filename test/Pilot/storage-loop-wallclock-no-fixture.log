@@ -1,0 +1,7 @@
+s2c2-ascend-run storage-loop-wallclock=1
+s2c2-ascend-run storage-loop-wallclock program-measurement=yes
+s2c2-ascend-run storage-loop-wallclock note scf-for-software-pipeline
+s2c2-ascend-run storage-loop-wallclock measured=no
+s2c2-ascend-run storage-loop-wallclock note device-absent
+s2c2-ascend-run storage-loop-wallclock note catalog-untouched
+s2c2-ascend-run storage-loop-wallclock cost=unchanged semantics=unchanged v3=not-claimed

@@ -1,0 +1,23 @@
+sweep_storage_loop_measured n-tile=4194304 k_ref=32 arms=4
+s2c2-cuda-run hardware_id=rtx4090:cuda sched=gpu-async map=default device=gpu sync=named-nonblocking
+s2c2-cuda-run storage-loop-measured=1
+s2c2-cuda-run storage-loop-measured program-measurement=yes
+s2c2-cuda-run storage-loop-measured note one-arm-per-signature
+s2c2-cuda-run storage-loop-measured note measurement-cannot-expand-F
+s2c2-cuda-run storage-loop-measured note prefetch-keep-joint
+s2c2-cuda-run storage-loop-measured note joint-not-preclaimed
+s2c2-cuda-run storage-loop-measured n-tile=4194304 k_ref=32 arms=4 trip=2
+s2c2-cuda-run storage-loop-measured measured=yes
+s2c2-cuda-run storage-loop-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE timing=8495.2 correctness=1
+s2c2-cuda-run storage-loop-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE timing=13349.9 correctness=1
+s2c2-cuda-run storage-loop-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE timing=8921.6 correctness=1
+s2c2-cuda-run storage-loop-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE timing=13713.3 correctness=1
+s2c2-cuda-run storage-loop-measured count=4 note one-row-per-signature
+s2c2-cuda-run storage-loop-measured note catalog-untouched
+s2c2-cuda-run storage-loop-measured note not-ntile-4
+s2c2-cuda-run storage-loop-measured note not-hierarchy-8
+s2c2-cuda-run storage-loop-measured note not-pipeline-s0-s1
+s2c2-cuda-run storage-loop-measured note not-3j-wallclock
+s2c2-cuda-run storage-loop-measured note not-cost-v04
+s2c2-cuda-run storage-loop-measured note measured-ne-rewrite-license
+s2c2-cuda-run storage-loop-measured cost=unchanged semantics=unchanged v3=not-claimed

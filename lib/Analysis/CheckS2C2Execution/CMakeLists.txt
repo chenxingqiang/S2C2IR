@@ -14,4 +14,5 @@ add_mlir_library(S2C2CheckExecution
   MLIRFuncDialect
   MLIRIR
   MLIRPass
+  MLIRSCFDialect
 )
