@@ -173,3 +173,6 @@ prefixes.
 Capability Profile / Applicability aggregation (facts, not
 sufficient):
 [`capability-profile.md`](capability-profile.md).
+Realization Legality (constraint facts copied; not
+sufficient / can-run-plan):
+[`realization-legality.md`](realization-legality.md).
