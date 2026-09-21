@@ -153,10 +153,28 @@ First-seen sequence must not win.
 
 The 7A envelope identity must match
 `(selected, object, action)`. The license-identity must
-match the four-tuple. A selected / object / action /
-license-kind disagreement is `rewrite.identity-mismatch`,
-not Stage-A `decision.identity-mismatch` and not 7A
+match the four-tuple. If `rewrite-license` carries its
+own `identity`, it must equal `license-identity` and the
+planner four-tuple. Frozen 7A Decisions may omit that
+field; absence is not a failure. Disagreement is
+`rewrite.identity-mismatch`, not Stage-A
+`decision.identity-mismatch` and not 7A
 `authorization.identity-mismatch`.
+
+Consume is **producer-contract validation**, not
+re-evaluation:
+
+```text
+schema               = s2c2.authorization.v1
+source-schema        = s2c2.decision.v1
+authorized           = Decision schema/subject/result
+rewrite-license      = Decision schema/subject/result
+license=yes ⇒ authorized=yes
+```
+
+Unknown / malformed Decision shape or `source-schema` is
+`decision.unknown-reason`. 7B does **not** re-evaluate
+sufficient / policy / provenance / action-match.
 
 0 / 1 / >1 authorization envelopes:
 
@@ -200,7 +218,11 @@ Guardrails:
 ```text
 rewrite-license=no                  → rewrite-plan=no / license-no
 authorized=no                       → rewrite-plan=no / license-no
+malformed authorized/license        → rewrite-plan=no / unknown-reason
+source-schema ≠ 7A producer         → rewrite-plan=no / unknown-reason
 identity ≠ planner scope            → rewrite-plan=no / identity-mismatch
+rewrite-license.identity ≠ license-identity
+                                    → rewrite-plan=no / identity-mismatch
 claimed sequence ≠ v0.1             → rewrite-plan=no / sequence-mismatch
 >1 sequence                         → rewrite-plan=no / duplicate-sequence
 >1 envelope                         → rewrite-plan=no / duplicate-envelope
@@ -262,6 +284,10 @@ rewrite.* v0.1        7B unique plan / sequence
 | duplicate-envelope | two 7A envelopes | `rewrite.duplicate-envelope` |
 | unknown-schema | bag schema ≠ authorization.v1 | `decision.unknown-reason` |
 | extras-ignored | license=yes + extra subject | plan=yes; extra ignored |
+| malformed-authorized | authorized=no with license=yes | plan=no `decision.unknown-reason` |
+| malformed-rewrite-license | rewrite-license `{result=yes}` only | plan=no `decision.unknown-reason` |
+| source-schema-mismatch | 7A `source-schema` ≠ `s2c2.decision.v1` | plan=no `decision.unknown-reason` |
+| license-identity-drift | rewrite-license.identity ≠ license-identity | plan=no `rewrite.identity-mismatch` |
 
 ## God object
 

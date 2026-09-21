@@ -26,6 +26,9 @@ func.func @dummy() {
 // REW: sequence-input-not-ignored-extra yes
 // REW: duplicate-sequence-safe-no yes
 // REW: duplicate-envelope-safe-no yes
+// REW: envelope-decision-contract yes
+// REW: source-schema-consumed s2c2.decision.v1
+// REW: license-identity-eq-rewrite-license-identity yes
 // REW: rewrite-namespace v0.1
 // REW: ea-1-authorization-tokens none
 // REW: authorization-namespace frozen
@@ -37,7 +40,7 @@ func.func @dummy() {
 // REW: capability-schedule-ne-god-object yes
 // REW: f-storage-schedule-not-inhabited yes
 // REW: generic-schema-validator n/a
-// REW: rewrite-matrix-cases 14
+// REW: rewrite-matrix-cases 18
 // REW: required-input authorization
 // REW: sequence-input rewrite-sequence
 // REW: token rewrite.license-no
@@ -58,7 +61,7 @@ func.func @dummy() {
 // REWM: decision-subject rewrite-plan
 // REWM: rewrite-license-ne-rewrite-plan yes
 // REWM: rewrite-plan-ne-rewrite-path yes
-// REWM: rewrite-matrix-cases 14
+// REWM: rewrite-matrix-cases 18
 // REWM: rew-case license-missing
 // REWM: rew-plan subject=rewrite-plan result=no reasons=rewrite.license-no
 // REWM: rew-case license-no
@@ -96,6 +99,14 @@ func.func @dummy() {
 // REWM: rew-plan subject=rewrite-plan result=yes reasons=rewrite.plan-closed
 // REWM: rew-applied no
 // REWM: rew-rewrite-path no
+// REWM: rew-case malformed-authorized
+// REWM: rew-plan subject=rewrite-plan result=no reasons=decision.unknown-reason
+// REWM: rew-case malformed-rewrite-license
+// REWM: rew-plan subject=rewrite-plan result=no reasons=decision.unknown-reason
+// REWM: rew-case source-schema-mismatch
+// REWM: rew-plan subject=rewrite-plan result=no reasons=decision.unknown-reason
+// REWM: rew-case license-identity-drift
+// REWM: rew-plan subject=rewrite-plan result=no reasons=rewrite.identity-mismatch
 // REWM: can-run-plan no
 // REWM: rewrite-path no
 // REWM: applied no

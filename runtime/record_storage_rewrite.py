@@ -13,6 +13,7 @@ record_authorization.py or record_sufficiency.py.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
@@ -121,8 +122,7 @@ def _auth_scope3(bag: dict) -> tuple[str, str, str] | None:
     return (selected, obj, action)
 
 
-def _license_scope4(bag: dict) -> tuple[str, str, str, str] | None:
-    ident = bag.get("license-identity")
+def _ident4(ident) -> tuple[str, str, str, str] | None:
     if not isinstance(ident, dict):
         return None
     selected = ident.get("selected")
@@ -132,6 +132,22 @@ def _license_scope4(bag: dict) -> tuple[str, str, str, str] | None:
     if selected is None or obj is None or action is None or kind is None:
         return None
     return (selected, obj, action, kind)
+
+
+def _license_scope4(bag: dict) -> tuple[str, str, str, str] | None:
+    return _ident4(bag.get("license-identity"))
+
+
+def _well_formed_decision(rec, subject: str) -> bool:
+    if not isinstance(rec, dict):
+        return False
+    if rec.get("schema") != DECISION_SCHEMA:
+        return False
+    if rec.get("subject") != subject:
+        return False
+    if rec.get("result") not in ("yes", "no"):
+        return False
+    return True
 
 
 def _as_sequence(rec: dict) -> tuple[str, ...] | None:
@@ -195,17 +211,29 @@ def evaluate_rewrite(
     bag = envelopes[0]
     if bag.get("schema") != AUTH_SCHEMA:
         return emit(_decision("no", ["decision.unknown-reason"]))
+    if bag.get("source-schema") != DECISION_SCHEMA:
+        return emit(_decision("no", ["decision.unknown-reason"]))
+    authorized = bag.get("authorized")
+    license_decision = bag.get("rewrite-license")
+    if not _well_formed_decision(authorized, "authorized"):
+        return emit(_decision("no", ["decision.unknown-reason"]))
+    if not _well_formed_decision(license_decision, "rewrite-license"):
+        return emit(_decision("no", ["decision.unknown-reason"]))
+    if license_decision["result"] == "yes" and authorized["result"] != "yes":
+        return emit(_decision("no", ["decision.unknown-reason"]))
     if _auth_scope3(bag) != expect3:
         return emit(_decision("no", ["rewrite.identity-mismatch"]))
-
-    license_decision = bag.get("rewrite-license")
-    if not isinstance(license_decision, dict):
-        return emit(_decision("no", ["decision.unknown-reason"]))
-    if license_decision.get("result") != "yes":
+    if license_decision["result"] != "yes":
         return emit(_decision("no", ["rewrite.license-no"]))
-
-    if _license_scope4(bag) != expect4:
+    license_scope = _license_scope4(bag)
+    if license_scope != expect4:
         return emit(_decision("no", ["rewrite.identity-mismatch"]))
+    if "identity" in license_decision:
+        claimed_license = _ident4(license_decision.get("identity"))
+        if claimed_license is None:
+            return emit(_decision("no", ["decision.unknown-reason"]))
+        if claimed_license != license_scope or claimed_license != expect4:
+            return emit(_decision("no", ["rewrite.identity-mismatch"]))
 
     claimed = None
     if sequences:
@@ -245,6 +273,39 @@ def _sequence(steps: tuple[str, ...] = SEQUENCE_V01) -> dict:
         "result": "yes",
         "sequence": list(steps),
     }
+
+
+def _tamper(bag: dict, **fields) -> dict:
+    out = copy.deepcopy(bag)
+    out.update(fields)
+    return out
+
+
+def _malformed_authorized() -> dict:
+    bag = _tamper(_licensed())
+    bag["authorized"]["result"] = "no"
+    return bag
+
+
+def _malformed_rewrite_license() -> dict:
+    bag = _tamper(_licensed())
+    bag["rewrite-license"] = {"result": "yes"}
+    return bag
+
+
+def _source_schema_mismatch() -> dict:
+    return _tamper(_licensed(), **{"source-schema": "s2c2.nope.v1"})
+
+
+def _license_identity_drift() -> dict:
+    bag = _tamper(_licensed())
+    bag["rewrite-license"]["identity"] = {
+        "selected": SELECTED_S1,
+        "object": OBJECT_2,
+        "action": ACTION_V01,
+        "license-kind": LICENSE_KIND_V01,
+    }
+    return bag
 
 
 def _cases() -> list[tuple[str, list[dict], dict]]:
@@ -288,6 +349,10 @@ def _cases() -> list[tuple[str, list[dict], dict]]:
             [licensed, {"subject": "cost-rank", "result": "yes"}],
             {},
         ),
+        ("malformed-authorized", [_malformed_authorized()], {}),
+        ("malformed-rewrite-license", [_malformed_rewrite_license()], {}),
+        ("source-schema-mismatch", [_source_schema_mismatch()], {}),
+        ("license-identity-drift", [_license_identity_drift()], {}),
     ]
 
 
@@ -308,10 +373,14 @@ def _validate() -> None:
         "duplicate-envelope",
         "unknown-schema",
         "extras-ignored",
+        "malformed-authorized",
+        "malformed-rewrite-license",
+        "source-schema-mismatch",
+        "license-identity-drift",
     ]
     if names != expect:
         raise RuntimeError(names)
-    if len(names) != 14:
+    if len(names) != 18:
         raise RuntimeError(len(names))
     for token in REWRITE_REASON_TOKENS:
         if not token.startswith("rewrite."):
@@ -390,6 +459,35 @@ def _validate() -> None:
         if name == "matching-sequence":
             if [i["subject"] for i in bag["inputs"]].count(SEQUENCE_SUBJECT) != 1:
                 raise RuntimeError(name)
+        if name in (
+            "malformed-authorized",
+            "malformed-rewrite-license",
+            "source-schema-mismatch",
+        ):
+            if plan["result"] != "no":
+                raise RuntimeError(name)
+            if plan["reasons"] != ["decision.unknown-reason"]:
+                raise RuntimeError(name)
+        if name == "license-identity-drift":
+            if plan["reasons"] != ["rewrite.identity-mismatch"]:
+                raise RuntimeError(name)
+        if name == "malformed-authorized":
+            rec = inputs[0]
+            if rec["authorized"]["schema"] != DECISION_SCHEMA:
+                raise RuntimeError(name)
+            if rec["authorized"]["result"] != "no":
+                raise RuntimeError(name)
+            if rec["rewrite-license"]["result"] != "yes":
+                raise RuntimeError(name)
+        if name == "malformed-rewrite-license":
+            rec = inputs[0]
+            if rec["rewrite-license"] != {"result": "yes"}:
+                raise RuntimeError(name)
+        if name == "source-schema-mismatch":
+            if inputs[0]["schema"] != AUTH_SCHEMA:
+                raise RuntimeError(name)
+            if inputs[0]["source-schema"] == DECISION_SCHEMA:
+                raise RuntimeError(name)
     for token in (
         "rewrite.plan-closed",
         "rewrite.identity-mismatch",
@@ -422,6 +520,9 @@ def print_contract() -> int:
     print("sequence-input-not-ignored-extra yes")
     print("duplicate-sequence-safe-no yes")
     print("duplicate-envelope-safe-no yes")
+    print("envelope-decision-contract yes")
+    print("source-schema-consumed s2c2.decision.v1")
+    print("license-identity-eq-rewrite-license-identity yes")
     print("rewrite-namespace v0.1")
     print("ea-1-authorization-tokens none")
     print("authorization-namespace frozen")
@@ -433,7 +534,7 @@ def print_contract() -> int:
     print("capability-schedule-ne-god-object yes")
     print("f-storage-schedule-not-inhabited yes")
     print("generic-schema-validator n/a")
-    print("rewrite-matrix-cases 14")
+    print("rewrite-matrix-cases 18")
     print("required-input authorization")
     print(f"sequence-input {SEQUENCE_SUBJECT}")
     for token in REWRITE_REASON_TOKENS:
@@ -456,7 +557,7 @@ def print_matrix() -> int:
     print("decision-subject rewrite-plan")
     print("rewrite-license-ne-rewrite-plan yes")
     print("rewrite-plan-ne-rewrite-path yes")
-    print("rewrite-matrix-cases 14")
+    print("rewrite-matrix-cases 18")
     for name, inputs, kwargs in _cases():
         bag = evaluate_rewrite(inputs, **kwargs)
         plan = bag["rewrite-plan"]

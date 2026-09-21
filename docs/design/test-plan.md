@@ -1027,7 +1027,7 @@ action=`storage-rewrite` named, not implemented;
 [`authorization-boundary.md`](authorization-boundary.md).
 7B Storage Rewrite Plan (query-only; unique
 KEEP→EVICT→TRANSFER→RESTORE; `rewrite-plan` ≠ `rewrite-path`;
-applied=no; 14-case matrix):
+applied=no; 18-case matrix):
 [`storage-rewrite.md`](storage-rewrite.md).
 Product spine:
 [`compiler-spine.md`](compiler-spine.md).
@@ -1154,7 +1154,7 @@ Do not FileCheck microseconds.
 | AUTH-1 | `test/Integration/authorization-boundary.mlir` | `--print-authorization-contract`; `Decision.subject=authorized` and `rewrite-license`; identity `(selected, object, action)`; sufficient≠authorized≠license; success tokens `authorization.authorized-closed` / `authorization.rewrite-license-closed`; `rewrite-path=no` |
 | AUTH-2 | same | 20-case matrix: claimed-action `authorization.action-mismatch`; 7A scope `authorization.identity-mismatch`; `>1` license `authorization.duplicate-license`; duplicate REQUIRED stays `decision.duplicate-identity`; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
 | REW-1 | `test/Integration/storage-rewrite.mlir` | `--print-rewrite-contract`; `Decision.subject=rewrite-plan`; identity `(selected, object, action, license-kind)`; license≠plan≠path; unique KEEP→EVICT→TRANSFER→RESTORE; `applied=no`; `rewrite-path=no` |
-| REW-2 | same | 14-case matrix: consume 7A license=yes; sequence mismatch; duplicate sequence/envelope; 7B scope `rewrite.identity-mismatch`; extras ignored; plan=yes still `applied=no` |
+| REW-2 | same | 18-case matrix: consume 7A license=yes; envelope Decision contract; `source-schema=s2c2.decision.v1`; `rewrite-license.identity` matches `license-identity`; sequence mismatch; duplicate sequence/envelope; 7B scope `rewrite.identity-mismatch`; extras ignored; plan=yes still `applied=no` |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
