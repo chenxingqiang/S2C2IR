@@ -126,6 +126,9 @@ not can-run-plan):
 Baseline E2E Integration (compose frozen hosts; no new
 semantics):
 [`realization-checking-e2e.md`](realization-checking-e2e.md).
+Cross-identity Checking E2E (compose frozen cuda / ascend /
+cpu identities; no new semantics):
+[`realization-checking-xid.md`](realization-checking-xid.md).
 Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
