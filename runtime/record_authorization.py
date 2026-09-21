@@ -40,9 +40,13 @@ AUTHORIZATION_REASON_TOKENS = (
     "authorization.policy-unknown",
     "authorization.provenance-unknown",
     "authorization.action-mismatch",
+    "authorization.identity-mismatch",
+    "authorization.duplicate-license",
     "authorization.authorized-no",
+    "authorization.authorized-closed",
     "authorization.rewrite-license-missing",
     "authorization.rewrite-license-no",
+    "authorization.rewrite-license-closed",
 )
 SELECTED_S0 = suf.SELECTED_S0
 SELECTED_S1 = suf.SELECTED_S1
@@ -193,12 +197,12 @@ def evaluate_authorization(
             continue
         if req == "sufficient":
             if _scope2(rec) != scope2:
-                auth = _decision("authorized", "no", ["decision.identity-mismatch"])
+                auth = _decision("authorized", "no", ["authorization.identity-mismatch"])
                 lic, ident = license_no(["authorization.authorized-no"])
                 return emit(auth, lic, ident)
             continue
         if _scope3(rec) != scope3:
-            auth = _decision("authorized", "no", ["decision.identity-mismatch"])
+            auth = _decision("authorized", "no", ["authorization.identity-mismatch"])
             lic, ident = license_no(["authorization.authorized-no"])
             return emit(auth, lic, ident)
 
@@ -257,13 +261,13 @@ def evaluate_authorization(
     if missing:
         reasons.append("predicate.missing-input")
     if all_yes:
-        authorized = _decision("authorized", "yes", ["decision.authorized-closed"])
+        authorized = _decision("authorized", "yes", ["authorization.authorized-closed"])
     else:
         authorized = _decision("authorized", "no", reasons)
 
     license_identity = None
     if len(licenses) > 1:
-        lic, license_identity = license_no(["decision.duplicate-identity"])
+        lic, license_identity = license_no(["authorization.duplicate-license"])
         return emit(authorized, lic, license_identity)
     license_rec = licenses[0] if licenses else None
     if authorized["result"] != "yes":
@@ -275,7 +279,7 @@ def evaluate_authorization(
     ident = _license_scope(license_rec)
     expect_lic = (selected, obj, action, LICENSE_KIND_V01)
     if ident != expect_lic:
-        lic, license_identity = license_no(["decision.identity-mismatch"])
+        lic, license_identity = license_no(["authorization.identity-mismatch"])
         return emit(authorized, lic, license_identity)
     license_identity = {
         "selected": selected,
@@ -286,7 +290,7 @@ def evaluate_authorization(
     lic_result = license_rec.get("result")
     if lic_result == "yes":
         lic = _decision(
-            "rewrite-license", "yes", ["decision.rewrite-license-closed"]
+            "rewrite-license", "yes", ["authorization.rewrite-license-closed"]
         )
         return emit(authorized, lic, license_identity)
     if lic_result == "no":
@@ -552,6 +556,22 @@ def _validate() -> None:
         raise RuntimeError(names)
     if len(names) != 20:
         raise RuntimeError(len(names))
+    for token in (
+        "authorization.authorized-closed",
+        "authorization.rewrite-license-closed",
+        "authorization.identity-mismatch",
+        "authorization.duplicate-license",
+        "authorization.action-mismatch",
+    ):
+        if token not in AUTHORIZATION_REASON_TOKENS:
+            raise RuntimeError(f"vocab missing {token}")
+    for token in (
+        "decision.authorized-closed",
+        "decision.rewrite-license-closed",
+    ):
+        if token in AUTHORIZATION_REASON_TOKENS:
+            raise RuntimeError(f"must not reopen {token}")
+    emitted: set[str] = set()
     for name, inputs in _cases():
         bag = evaluate_authorization(inputs)
         if bag["schema"] != AUTH_SCHEMA:
@@ -578,6 +598,7 @@ def _validate() -> None:
         for token in auth["reasons"] + lic["reasons"]:
             if token.startswith("authorization.") and token not in AUTHORIZATION_REASON_TOKENS:
                 raise RuntimeError(f"{name} unknown authorization token {token}")
+            emitted.add(token)
         if name == "sufficient-no":
             if auth["reasons"] != ["authorization.sufficient-no"]:
                 raise RuntimeError(name)
@@ -603,7 +624,7 @@ def _validate() -> None:
             if auth["reasons"] != ["authorization.action-mismatch"]:
                 raise RuntimeError(name)
         if name in ("selected-mismatch", "object-mismatch"):
-            if auth["reasons"] != ["decision.identity-mismatch"]:
+            if auth["reasons"] != ["authorization.identity-mismatch"]:
                 raise RuntimeError(name)
         if name == "provenance-missing":
             if auth["reasons"] != ["predicate.missing-input"]:
@@ -621,7 +642,7 @@ def _validate() -> None:
         ):
             if auth["result"] != "yes":
                 raise RuntimeError(name)
-            if auth["reasons"] != ["decision.authorized-closed"]:
+            if auth["reasons"] != ["authorization.authorized-closed"]:
                 raise RuntimeError(name)
             if lic["result"] != "no":
                 raise RuntimeError(name)
@@ -638,7 +659,7 @@ def _validate() -> None:
         if name == "rewrite-license-yes":
             if auth["result"] != "yes" or lic["result"] != "yes":
                 raise RuntimeError(name)
-            if lic["reasons"] != ["decision.rewrite-license-closed"]:
+            if lic["reasons"] != ["authorization.rewrite-license-closed"]:
                 raise RuntimeError(name)
             if bag["rewrite-path"] != "no" or bag["transformation"] != "n/a":
                 raise RuntimeError(name)
@@ -649,12 +670,12 @@ def _validate() -> None:
                 raise RuntimeError(name)
             if lic["result"] != "no":
                 raise RuntimeError(name)
-            if lic["reasons"] != ["decision.identity-mismatch"]:
+            if lic["reasons"] != ["authorization.identity-mismatch"]:
                 raise RuntimeError(name)
         if name == "duplicate-license":
             if auth["result"] != "yes":
                 raise RuntimeError(name)
-            if lic["reasons"] != ["decision.duplicate-identity"]:
+            if lic["reasons"] != ["authorization.duplicate-license"]:
                 raise RuntimeError(name)
             if [i["subject"] for i in bag["inputs"]].count(LICENSE_SUBJECT) != 2:
                 raise RuntimeError(name)
@@ -669,6 +690,21 @@ def _validate() -> None:
                 raise RuntimeError(name)
             if lic["reasons"] != ["authorization.authorized-no"]:
                 raise RuntimeError(name)
+    for token in (
+        "authorization.authorized-closed",
+        "authorization.rewrite-license-closed",
+        "authorization.identity-mismatch",
+        "authorization.duplicate-license",
+        "authorization.action-mismatch",
+    ):
+        if token not in emitted:
+            raise RuntimeError(f"matrix did not emit {token}")
+    if "decision.authorized-closed" in emitted:
+        raise RuntimeError("success path reopened decision.authorized-closed")
+    if "decision.rewrite-license-closed" in emitted:
+        raise RuntimeError("success path reopened decision.rewrite-license-closed")
+    if "decision.identity-mismatch" in emitted:
+        raise RuntimeError("7A must not widen decision.identity-mismatch")
 
 
 def print_contract() -> int:

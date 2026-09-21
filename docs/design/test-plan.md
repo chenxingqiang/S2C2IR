@@ -1146,8 +1146,8 @@ Do not FileCheck microseconds.
 | XID-2 | same | cuda-legal satisfy/unproven; ascend-dma unproven+satisfy; cpu-na violate+not-applicable; cross-target contract-error |
 | SUF-1 | `test/Integration/storage-capacity-sufficient.mlir` | `--print-sufficiency-contract`; host-side Decision contract; same `(selected, object)` scope; extras ignored including duplicates; canonical `inputs[]`; `can-run-plan=no`; `rewrite-license=no` |
 | SUF-2 | same | 16-case matrix: reverse-order all-yes still canonical; dest-inv-historic / usable∧applicable stay `no`; cross-scope `identity-mismatch`; unknown result `unknown-reason`; duplicate extras do not affect |
-| AUTH-1 | `test/Integration/authorization-boundary.mlir` | `--print-authorization-contract`; `Decision.subject=authorized` and `rewrite-license`; identity `(selected, object, action)`; sufficient≠authorized≠license; `rewrite-path=no` |
-| AUTH-2 | same | 20-case matrix: claimed-action mismatch; duplicate license is not first-wins; license-kind mismatch; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
+| AUTH-1 | `test/Integration/authorization-boundary.mlir` | `--print-authorization-contract`; `Decision.subject=authorized` and `rewrite-license`; identity `(selected, object, action)`; sufficient≠authorized≠license; success tokens `authorization.authorized-closed` / `authorization.rewrite-license-closed`; `rewrite-path=no` |
+| AUTH-2 | same | 20-case matrix: claimed-action `authorization.action-mismatch`; 7A scope `authorization.identity-mismatch`; `>1` license `authorization.duplicate-license`; duplicate REQUIRED stays `decision.duplicate-identity`; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

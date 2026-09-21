@@ -163,7 +163,9 @@ record.action     = claimed action
 ```
 
 A claimed mismatch with an in-scope identity is
-`authorization.action-mismatch`, not
+`authorization.action-mismatch`. A selected / object /
+action / license-kind scope disagreement is
+`authorization.identity-mismatch`, not Stage-A
 `decision.identity-mismatch`.
 
 `rewrite-license` is a **license input**, not an ignored
@@ -172,7 +174,7 @@ extra:
 ```text
 0 license     → rewrite-license=no / missing
 1 license     → evaluate scope + result
->1 license    → decision.duplicate-identity
+>1 license    → authorization.duplicate-license
 ```
 
 First-seen license must not win. Other extra subjects,
@@ -194,7 +196,7 @@ The evaluator does **not** emit `result=n/a`.
 On `authorized=yes`:
 
 ```text
-reasons = decision.authorized-closed
+reasons = authorization.authorized-closed
 ```
 
 On `rewrite-license=yes` (only if `authorized=yes` **and**
@@ -202,7 +204,7 @@ an explicit in-scope license input is yes with
 `license-kind=storage-capacity-rewrite`):
 
 ```text
-reasons = decision.rewrite-license-closed
+reasons = authorization.rewrite-license-closed
 ```
 
 Guardrails:
@@ -211,8 +213,9 @@ Guardrails:
 sufficient=yes + policy missing     → authorized=no
 authorized=yes + license missing    → rewrite-license=no
 authorized=no  + license=yes        → rewrite-license=no
->1 license                          → rewrite-license=no / duplicate-identity
+>1 license                          → rewrite-license=no / duplicate-license
 license-kind ≠ v0.1                 → rewrite-license=no / identity-mismatch
+duplicate REQUIRED                  → authorized=no / decision.duplicate-identity
 ```
 
 `rewrite-license=yes` is a query Decision. It does **not**
@@ -243,7 +246,31 @@ Stage A vocabulary freeze remains: EA-1 /
 7A opens `authorization.*` v0.1 in
 [`evidence-reason-vocab.md`](evidence-reason-vocab.md).
 This host may emit those tokens. Emitting one is **not**
-a rewrite.
+a rewrite. Frozen `decision.*` stays Decision
+infrastructure; 7A does not widen it.
+
+```text
+decision.*
+    = Stage-A / generic Decision well-formedness
+    ├── decision.duplicate-identity
+    ├── decision.identity-mismatch
+    └── decision.unknown-reason
+
+authorization.*
+    = 7A policy / action / license semantics
+    ├── sufficient-no
+    ├── policy-mismatch
+    ├── policy-unknown
+    ├── provenance-unknown
+    ├── action-mismatch
+    ├── identity-mismatch
+    ├── duplicate-license
+    ├── authorized-no
+    ├── authorized-closed
+    ├── rewrite-license-missing
+    ├── rewrite-license-no
+    └── rewrite-license-closed
+```
 
 ## Negative fixture matrix
 
@@ -254,16 +281,16 @@ a rewrite.
 | wrong-policy | policy name ≠ v0.1 | authorized=no |
 | unknown-policy | policy result=unknown | authorized=no |
 | action-mismatch | identity.action=storage-rewrite, claimed=schedule-rewrite | authorized=no `action-mismatch` |
-| selected-mismatch | sufficient selected=S1 | identity-mismatch |
-| object-mismatch | sufficient object=3 | identity-mismatch |
+| selected-mismatch | sufficient selected=S1 | `authorization.identity-mismatch` |
+| object-mismatch | sufficient object=3 | `authorization.identity-mismatch` |
 | provenance-missing | provenance absent | authorized=no missing-input |
 | provenance-unknown | provenance=unknown | authorized=no |
-| duplicate-identity | two sufficient inputs | duplicate-identity |
-| authorized-yes-license-missing | four REQUIRED yes, license absent | authorized=yes; license=no |
+| duplicate-identity | two sufficient inputs | `decision.duplicate-identity` |
+| authorized-yes-license-missing | four REQUIRED yes, license absent | authorized=yes `authorization.authorized-closed`; license=no |
 | rewrite-license-no | four yes, explicit license=no | authorized=yes; license=no |
-| rewrite-license-yes | four yes, explicit license=yes | authorized=yes; license=yes; path=no |
-| rewrite-license-kind-mismatch | four yes, license-kind=other-kind | license=no identity-mismatch |
-| duplicate-license | four yes, two license inputs | authorized=yes; license=duplicate-identity |
+| rewrite-license-yes | four yes, explicit license=yes | authorized=yes; license=`authorization.rewrite-license-closed`; path=no |
+| rewrite-license-kind-mismatch | four yes, license-kind=other-kind | license=no `authorization.identity-mismatch` |
+| duplicate-license | four yes, two license inputs | authorized=yes; license=`authorization.duplicate-license` |
 | missing-action-match | action-match absent | authorized=no |
 | sufficient-n/a | sufficient=n/a | authorized=no |
 | shuffled-required | REQUIRED reversed | canonical inputs order |

@@ -2,8 +2,8 @@
 // Not a compiler E2E. Does not require s2c2-opt. Not 7B rewrite.
 // sufficient ≠ authorized ≠ rewrite-license.
 // Do not FileCheck microseconds.
-// RUN: python3 %S/../../runtime/record_authorization.py --print-authorization-contract | FileCheck %s --check-prefix=AUTH --implicit-check-not=can-run-plan=yes --implicit-check-not=rewrite-path=yes
-// RUN: python3 %S/../../runtime/record_authorization.py --print-authorization-matrix | FileCheck %s --check-prefix=AUTHM --implicit-check-not=can-run-plan=yes --implicit-check-not=rewrite-path=yes
+// RUN: python3 %S/../../runtime/record_authorization.py --print-authorization-contract | FileCheck %s --check-prefix=AUTH --implicit-check-not=can-run-plan=yes --implicit-check-not=rewrite-path=yes --implicit-check-not=decision.authorized-closed --implicit-check-not=decision.rewrite-license-closed --implicit-check-not=decision.identity-mismatch
+// RUN: python3 %S/../../runtime/record_authorization.py --print-authorization-matrix | FileCheck %s --check-prefix=AUTHM --implicit-check-not=can-run-plan=yes --implicit-check-not=rewrite-path=yes --implicit-check-not=decision.authorized-closed --implicit-check-not=decision.rewrite-license-closed --implicit-check-not=decision.identity-mismatch
 
 func.func @dummy() {
   return
@@ -45,7 +45,20 @@ func.func @dummy() {
 // AUTH: required-input provenance
 // AUTH: required-input action-match
 // AUTH: license-input rewrite-license
+// AUTH: token authorization.sufficient-no
+// AUTH: token authorization.policy-mismatch
+// AUTH: token authorization.policy-unknown
+// AUTH: token authorization.provenance-unknown
 // AUTH: token authorization.action-mismatch
+// AUTH: token authorization.identity-mismatch
+// AUTH: token authorization.duplicate-license
+// AUTH: token authorization.authorized-no
+// AUTH: token authorization.authorized-closed
+// AUTH: token authorization.rewrite-license-missing
+// AUTH: token authorization.rewrite-license-no
+// AUTH: token authorization.rewrite-license-closed
+// AUTH-NOT: token decision.authorized-closed
+// AUTH-NOT: token decision.rewrite-license-closed
 // AUTH: note six-c-m-frozen
 // AUTH: note seven-a-opened
 // AUTH: note seven-b-rewrite-closed
@@ -72,9 +85,9 @@ func.func @dummy() {
 // AUTHM: auth-case action-mismatch
 // AUTHM: auth-authorized subject=authorized result=no reasons=authorization.action-mismatch
 // AUTHM: auth-case selected-mismatch
-// AUTHM: auth-authorized subject=authorized result=no reasons=decision.identity-mismatch
+// AUTHM: auth-authorized subject=authorized result=no reasons=authorization.identity-mismatch
 // AUTHM: auth-case object-mismatch
-// AUTHM: auth-authorized subject=authorized result=no reasons=decision.identity-mismatch
+// AUTHM: auth-authorized subject=authorized result=no reasons=authorization.identity-mismatch
 // AUTHM: auth-case provenance-missing
 // AUTHM: auth-authorized subject=authorized result=no reasons=predicate.missing-input
 // AUTHM: auth-case provenance-unknown
@@ -82,29 +95,29 @@ func.func @dummy() {
 // AUTHM: auth-case duplicate-identity
 // AUTHM: auth-authorized subject=authorized result=no reasons=decision.duplicate-identity
 // AUTHM: auth-case authorized-yes-license-missing
-// AUTHM: auth-authorized subject=authorized result=yes reasons=decision.authorized-closed
+// AUTHM: auth-authorized subject=authorized result=yes reasons=authorization.authorized-closed
 // AUTHM: auth-license subject=rewrite-license result=no reasons=authorization.rewrite-license-missing
 // AUTHM: auth-case rewrite-license-no
 // AUTHM: auth-license subject=rewrite-license result=no reasons=authorization.rewrite-license-no
 // AUTHM: auth-case rewrite-license-yes
-// AUTHM: auth-authorized subject=authorized result=yes reasons=decision.authorized-closed
-// AUTHM: auth-license subject=rewrite-license result=yes reasons=decision.rewrite-license-closed
+// AUTHM: auth-authorized subject=authorized result=yes reasons=authorization.authorized-closed
+// AUTHM: auth-license subject=rewrite-license result=yes reasons=authorization.rewrite-license-closed
 // AUTHM: auth-rewrite-path no
 // AUTHM: auth-transformation n/a
 // AUTHM: auth-case rewrite-license-kind-mismatch
-// AUTHM: auth-license subject=rewrite-license result=no reasons=decision.identity-mismatch
+// AUTHM: auth-license subject=rewrite-license result=no reasons=authorization.identity-mismatch
 // AUTHM: auth-case duplicate-license
-// AUTHM: auth-authorized subject=authorized result=yes reasons=decision.authorized-closed
-// AUTHM: auth-license subject=rewrite-license result=no reasons=decision.duplicate-identity
+// AUTHM: auth-authorized subject=authorized result=yes reasons=authorization.authorized-closed
+// AUTHM: auth-license subject=rewrite-license result=no reasons=authorization.duplicate-license
 // AUTHM: auth-case missing-action-match
 // AUTHM: auth-authorized subject=authorized result=no reasons=predicate.missing-input
 // AUTHM: auth-case sufficient-n/a
 // AUTHM: auth-authorized subject=authorized result=no reasons=authorization.sufficient-no
 // AUTHM: auth-case shuffled-required
 // AUTHM: auth-envelope-inputs sufficient,policy-match,provenance,action-match
-// AUTHM: auth-authorized subject=authorized result=yes reasons=decision.authorized-closed
+// AUTHM: auth-authorized subject=authorized result=yes reasons=authorization.authorized-closed
 // AUTHM: auth-case consume-6c-m-yes
-// AUTHM: auth-authorized subject=authorized result=yes reasons=decision.authorized-closed
+// AUTHM: auth-authorized subject=authorized result=yes reasons=authorization.authorized-closed
 // AUTHM: auth-license subject=rewrite-license result=no reasons=authorization.rewrite-license-missing
 // AUTHM: auth-case license-yes-but-not-authorized
 // AUTHM: auth-authorized subject=authorized result=no reasons=authorization.sufficient-no

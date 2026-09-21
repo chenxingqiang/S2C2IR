@@ -86,9 +86,27 @@ emitting a token   ≠  rewrite-path=yes
 | `authorization.policy-unknown` | policy result is not yes/no/n/a |
 | `authorization.provenance-unknown` | provenance is not known |
 | `authorization.action-mismatch` | claimed action ≠ target identity.action |
+| `authorization.identity-mismatch` | 7A scope (selected / object / action / license-kind) disagrees with the evaluator identity |
+| `authorization.duplicate-license` | more than one `rewrite-license` input |
 | `authorization.authorized-no` | rewrite-license asked but authorized=no |
+| `authorization.authorized-closed` | authorized=yes under Policy v0.1 |
 | `authorization.rewrite-license-missing` | authorized=yes and no license input |
 | `authorization.rewrite-license-no` | explicit license result=no |
+| `authorization.rewrite-license-closed` | rewrite-license=yes; query-only, rewrite-path stays no |
+
+7A does **not** reopen frozen `decision.*`. Stage-A
+well-formedness stays on that table. 7A policy / action /
+license semantics stay on `authorization.*`:
+
+```text
+duplicate REQUIRED        → decision.duplicate-identity
+unknown token             → decision.unknown-reason
+7A scope mismatch         → authorization.identity-mismatch
+>1 rewrite-license        → authorization.duplicate-license
+claimed ≠ target action   → authorization.action-mismatch
+authorized=yes            → authorization.authorized-closed
+rewrite-license=yes       → authorization.rewrite-license-closed
+```
 
 `record_decision.py --print-evidence-reason-vocab` still
 prints `authorization-tokens=none`. 7A prints the v0.1
