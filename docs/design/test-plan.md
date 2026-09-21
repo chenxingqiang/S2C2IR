@@ -1016,8 +1016,13 @@ still not sufficient; still `rewrite-license=no`).
 (`s2c2.capacity_invalidation.v1`; usable ≠ dest-invalidation;
 FROZEN). Stage A freezes Evidence → Decision
 ([`evidence-decision.md`](evidence-decision.md));
-Decision has a named `subject`; 6C-M sufficient boolean
-is parked. Reason vocabulary / evidence schema:
+Decision has a named `subject`; EA-1 still emits
+`subject=usable` only. 6C-M opens
+`Decision.subject=sufficient` as an evaluator:
+[`storage-capacity-sufficient.md`](storage-capacity-sufficient.md).
+Product spine:
+[`compiler-spine.md`](compiler-spine.md).
+Reason vocabulary / evidence schema:
 [`evidence-reason-vocab.md`](evidence-reason-vocab.md).
 Machine-readable EvidenceRecord (canonical ≠ display):
 [`evidence-algebra.md`](evidence-algebra.md).
@@ -1135,6 +1140,8 @@ Do not FileCheck microseconds.
 | RCE-2 | same | legal-claim satisfy/unproven; unsatisfied-claim violate+forbidden; identity-mismatch contract-error; unclaimed kind omitted |
 | XID-1 | `test/Integration/realization-checking-xid.mlir` | `--print-realization-checking-xid-contract`; compose cuda/ascend/cpu; `xid-eq-check-v0`; `xid-invents-npu-cim=no`; `can-run-plan=no` |
 | XID-2 | same | cuda-legal satisfy/unproven; ascend-dma unproven+satisfy; cpu-na violate+not-applicable; cross-target contract-error |
+| SUF-1 | `test/Integration/storage-capacity-sufficient.mlir` | `--print-sufficiency-contract`; host-side Decision contract; same `(selected, object)` scope; extras ignored including duplicates; canonical `inputs[]`; `can-run-plan=no`; `rewrite-license=no` |
+| SUF-2 | same | 16-case matrix: reverse-order all-yes still canonical; dest-inv-historic / usable∧applicable stay `no`; cross-scope `identity-mismatch`; unknown result `unknown-reason`; duplicate extras do not affect |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

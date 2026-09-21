@@ -961,8 +961,13 @@ FileCheck of microseconds
 
 Stage A Evidence algebra / Decision records (query/proof;
 Decision has a named `subject`; no giant `sufficient` AND;
-no implicit `sufficient=false`; 6C-M parked):
+EA-1 still emits `subject=usable` only):
 [`evidence-decision.md`](evidence-decision.md).
+6C-M Sufficiency Decision (evaluator;
+`Decision.subject=sufficient`; still `rewrite-license=no`):
+[`storage-capacity-sufficient.md`](storage-capacity-sufficient.md).
+Compiler spine (product lock; 7A still closed):
+[`compiler-spine.md`](compiler-spine.md).
 Reason vocabulary / evidence schema closure:
 [`evidence-reason-vocab.md`](evidence-reason-vocab.md).
 Machine-readable EvidenceRecord (canonical ≠ display):

@@ -330,3 +330,29 @@ S²C² → Linalg / Async → IREE HAL
 ```
 
 IREE is a **runtime and deployment backend**, not the IR definition base.
+
+## Phase 6C-M → 7A — Executable Optimization Spine
+
+Product lock: [`compiler-spine.md`](design/compiler-spine.md).
+
+The architecture-research layer is frozen. The next work is
+one compiler spine, not more dialects or vendors.
+
+```text
+6C-M   Sufficiency Decision          opened
+7A     Authorization / rewrite-license
+7B     ONE storage rewrite
+7C     End-to-end executable opt
+7D/E   CUDA / Ascend realization
+7F     CIM capability adapter
+8A     StableHLO frontend            later
+```
+
+6C-M: [`storage-capacity-sufficient.md`](design/storage-capacity-sufficient.md).
+`Decision.subject=sufficient` is an evaluator over
+independent required predicates. It is not
+`usable ∧ applicable` and not a rewrite license.
+
+Do **not** start StableHLO, inhabit
+\(F_{\mathrm{storage\_schedule}}\), or open 7A in the same
+cut.

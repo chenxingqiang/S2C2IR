@@ -135,19 +135,20 @@ time. Then freeze a joint candidate family. License and
 rewrite stay after both.
 
 ```text
-6C-J   source-data validity          query-only; still sufficient=no
-6C-K   restore ordering              still sufficient=no
-6C-L   dest invalidation             still sufficient=no
+6C-J   source-data validity          FROZEN
+6C-K   restore ordering              FROZEN
+6C-L   dest invalidation             FROZEN
+6C-M   Sufficiency Decision          evaluator; rewrite-license=no
+7A     Authorization                 CLOSED
+7B     ONE storage rewrite           CLOSED
        F_storage_schedule design     prefetch × depth × residency × capacity
-                                     still no rewrite
-       measured evidence
-          ↓
-       ArgMin
-          ↓
-       license
-          ↓
-       rewrite
+                                     still no inhabitant
 ```
+
+6C-M lock:
+[`storage-capacity-sufficient.md`](storage-capacity-sufficient.md).
+Product spine (do not change the 7.5/10 scores here):
+[`compiler-spine.md`](compiler-spine.md).
 
 `F_storage_schedule` is the later opportunity, not the next
 implementation cut. Opening it now would mix candidate
