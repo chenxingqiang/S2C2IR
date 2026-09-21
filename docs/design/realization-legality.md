@@ -159,3 +159,6 @@ Query-only. `can-run-plan=no`. `rewrite-license=no`.
 Realization Checking (claimed-kinds vs frozen legality facts;
 not can-run-plan):
 [`realization-checking.md`](realization-checking.md).
+Baseline E2E Integration (compose frozen hosts; no new
+semantics):
+[`realization-checking-e2e.md`](realization-checking-e2e.md).

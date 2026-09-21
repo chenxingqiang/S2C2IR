@@ -1026,6 +1026,9 @@ sufficient / can-run-plan):
 Realization Checking (claimed-kinds vs frozen legality facts;
 not can-run-plan):
 [`realization-checking.md`](realization-checking.md).
+Baseline E2E Integration (compose frozen hosts; no new
+semantics):
+[`realization-checking-e2e.md`](realization-checking-e2e.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1114,6 +1117,8 @@ Do not FileCheck microseconds.
 | LEG-2 | same | 8-case matrix: yes→allowed; no→forbidden; n/a→not-applicable; missing/unknown-provenance→unproven; all-allowed ≠ sufficient; one-kind-forbidden; mixed allowed/unproven |
 | CHK-1 | `test/Integration/realization-checking.mlir` | `--print-realization-checking-contract`; `s2c2.realization_checking.v1`; finding `{kind,result,constraint}`; `unclaimed-kind-ne-violation`; `can-run-plan=no`; `rewrite-license=no` |
 | CHK-2 | same | 17-case matrix: original 13 plus missing-claimed-kinds ≠ empty; per-fact schema; identity.kind required; top-level kind rejected |
+| E2E-1 | `test/Integration/realization-checking-e2e.mlir` | `--print-realization-checking-e2e-contract`; compose Profile→Legality→Check; `e2e-eq-check-v0`; `semantic-expansion=none`; `can-run-plan=no` |
+| E2E-2 | same | legal-claim satisfy/unproven; unsatisfied-claim violate+forbidden; identity-mismatch contract-error; unclaimed kind omitted |
 
 ## Complete SSD + MLP program wall-clock
 

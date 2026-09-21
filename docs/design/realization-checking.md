@@ -164,3 +164,7 @@ python3 runtime/record_realization_checking.py --print-realization-checking-matr
 ```
 
 Query-only. `can-run-plan=no`. `rewrite-license=no`.
+
+Baseline E2E Integration (compose frozen hosts; no new
+semantics):
+[`realization-checking-e2e.md`](realization-checking-e2e.md).
