@@ -12,6 +12,7 @@ Query only. Do not FileCheck microseconds.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import sys
 from pathlib import Path
@@ -77,7 +78,12 @@ def _ok(identity: dict, findings: list[dict]) -> dict:
 
 
 def _legality_bag(legality: object) -> dict | None:
-    """Return kind→constraint if L is a closed well-formed bag, else None."""
+    """Return kind→constraint if L is a closed well-formed bag, else None.
+
+    Each fact must carry schema s2c2.realization_legality.v1 and
+    identity=(target, device, kind). Top-level kind is not a fallback.
+    facts[] must appear in frozen KINDS order.
+    """
     if not isinstance(legality, dict):
         return None
     facts = legality.get("facts")
@@ -92,18 +98,24 @@ def _legality_bag(legality: object) -> dict | None:
     for fact in facts:
         if not isinstance(fact, dict):
             return None
-        fident = fact.get("identity") if isinstance(fact.get("identity"), dict) else {}
-        kind = fident.get("kind") or fact.get("kind")
+        if fact.get("schema") != legal.LEGALITY_SCHEMA:
+            return None
+        if "kind" in fact:
+            return None
+        fident = fact.get("identity")
+        if not isinstance(fident, dict):
+            return None
+        kind = fident.get("kind")
+        if kind is None:
+            return None
+        if fident.get("target") != ident["target"] or fident.get("device") != ident["device"]:
+            return None
         constraint = fact.get("constraint")
         if kind in by_kind:
             return None
         if kind not in capa.KINDS:
             return None
         if constraint not in prof.CONSTRAINT_STATUSES:
-            return None
-        if fident.get("target") not in (None, ident["target"]):
-            return None
-        if fident.get("device") not in (None, ident["device"]):
             return None
         by_kind[kind] = constraint
     if tuple(by_kind.keys()) != capa.KINDS:
@@ -112,9 +124,12 @@ def _legality_bag(legality: object) -> dict | None:
 
 
 def _canonical_claimed(raw: object) -> list[str] | str:
-    """Return canonical kinds, or an error token."""
+    """Return canonical kinds, or an error token.
+
+    Missing/null claimed-kinds is invalid-schema, not an empty claim.
+    """
     if raw is None:
-        return []
+        return "invalid-schema"
     if not isinstance(raw, list):
         return "invalid-schema"
     seen: set[str] = set()
@@ -130,6 +145,8 @@ def check_realization(claim: object, legality: object) -> dict:
     if not isinstance(legality, dict) or legality.get("schema") != legal.LEGALITY_SCHEMA:
         return _error("invalid-schema")
     if not isinstance(claim, dict) or claim.get("schema") != CLAIM_SCHEMA:
+        return _error("invalid-schema")
+    if "claimed-kinds" not in claim:
         return _error("invalid-schema")
     by_kind = _legality_bag(legality)
     if by_kind is None:
@@ -193,6 +210,17 @@ def _r(kinds: list[str], device: str | None = None) -> dict:
     }
 
 
+def _r_missing_claimed_kinds() -> dict:
+    return {
+        "schema": CLAIM_SCHEMA,
+        "identity": {"target": "cuda", "device": capa.DEVICE_4090},
+    }
+
+
+def _clone_L(bag: dict) -> dict:
+    return copy.deepcopy(bag)
+
+
 def _cases() -> list[tuple[str, dict, dict]]:
     pair_yes = _rec(kind="concurrent-pair", applicability="yes")
     nbl_yes = _rec(kind="named-nonblocking", applicability="yes")
@@ -252,7 +280,37 @@ def _cases() -> list[tuple[str, dict, dict]]:
         ("unknown-kind", all_allowed, _r(["sufficient"])),
         ("malformed-L-missing-kind", missing_kind_L, _r(["concurrent-pair"])),
         ("invalid-schema", {"schema": "nope"}, _r(["concurrent-pair"])),
+        ("missing-claimed-kinds", all_allowed, _r_missing_claimed_kinds()),
+        ("malformed-L-bad-fact-schema", _bad_fact_schema(all_allowed), _r(["concurrent-pair"])),
+        (
+            "malformed-L-missing-identity-kind",
+            _missing_identity_kind(all_allowed),
+            _r(["concurrent-pair"]),
+        ),
+        (
+            "malformed-L-conflicting-kind",
+            _conflicting_kind(all_allowed),
+            _r(["concurrent-pair"]),
+        ),
     ]
+
+
+def _bad_fact_schema(bag: dict) -> dict:
+    cloned = _clone_L(bag)
+    cloned["facts"][0]["schema"] = "WRONG-SCHEMA"
+    return cloned
+
+
+def _missing_identity_kind(bag: dict) -> dict:
+    cloned = _clone_L(bag)
+    del cloned["facts"][0]["identity"]["kind"]
+    return cloned
+
+
+def _conflicting_kind(bag: dict) -> dict:
+    cloned = _clone_L(bag)
+    cloned["facts"][0]["kind"] = "staged-dma"
+    return cloned
 
 
 def _validate() -> None:
@@ -271,10 +329,14 @@ def _validate() -> None:
         "unknown-kind",
         "malformed-L-missing-kind",
         "invalid-schema",
+        "missing-claimed-kinds",
+        "malformed-L-bad-fact-schema",
+        "malformed-L-missing-identity-kind",
+        "malformed-L-conflicting-kind",
     ]
     if names != expect:
         raise RuntimeError(names)
-    if len(names) != 13:
+    if len(names) != 17:
         raise RuntimeError(len(names))
     for name, legality, claim in _cases():
         bag = check_realization(claim, legality)
@@ -395,6 +457,20 @@ def _validate() -> None:
         if name == "invalid-schema":
             if bag["error"] != "invalid-schema" or bag["findings"] != []:
                 raise RuntimeError(name)
+        if name == "missing-claimed-kinds":
+            if bag["status"] != "contract-error":
+                raise RuntimeError(name)
+            if bag["error"] != "invalid-schema" or bag["findings"] != []:
+                raise RuntimeError(name)
+        if name == "malformed-L-bad-fact-schema":
+            if bag["error"] != "malformed-legality" or bag["findings"] != []:
+                raise RuntimeError(name)
+        if name == "malformed-L-missing-identity-kind":
+            if bag["error"] != "malformed-legality" or bag["findings"] != []:
+                raise RuntimeError(name)
+        if name == "malformed-L-conflicting-kind":
+            if bag["error"] != "malformed-legality" or bag["findings"] != []:
+                raise RuntimeError(name)
 
 
 def print_contract() -> int:
@@ -405,6 +481,10 @@ def print_contract() -> int:
     print(f"source-schema {legal.LEGALITY_SCHEMA}")
     print("checking-identity target-device")
     print("claimed-kinds-canonical yes")
+    print("missing-claimed-kinds-ne-empty yes")
+    print("fact-schema-required yes")
+    print("identity-kind-required yes")
+    print("legality-facts-canonical-order yes")
     print("unclaimed-kind-ne-violation yes")
     print("finding-keeps-constraint yes")
     print("satisfy-ne-can-run-plan yes")
@@ -422,7 +502,7 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("checking-matrix-cases 13")
+    print("checking-matrix-cases 17")
     for result in RESULTS:
         print(f"result {result}")
     for err in ERROR_TOKENS:
@@ -453,7 +533,7 @@ def print_matrix() -> int:
     print("finding-keeps-constraint yes")
     print("unclaimed-kind-ne-violation yes")
     print("all-satisfy-ne-sufficient yes")
-    print("checking-matrix-cases 13")
+    print("checking-matrix-cases 17")
     for name, legality, claim in _cases():
         bag = check_realization(claim, legality)
         print(f"chk-case {name}")

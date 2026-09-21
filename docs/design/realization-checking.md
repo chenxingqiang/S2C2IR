@@ -76,14 +76,33 @@ No aggregate `all-satisfy`.
 
 ```text
 r.identity        (target, device)   # must equal L.identity
-r.claimed-kinds   unique subset of frozen KINDS, canonical order
+r.claimed-kinds   required; unique subset of frozen KINDS,
+                  canonical order
 ```
+
+`claimed-kinds=[]` is a legal empty claim (`status=ok`,
+`findings=[]`). **Absent** `claimed-kinds` is
+`contract-error invalid-schema`, not an empty claim.
 
 ```text
 ["staged-dma", "concurrent-pair", "staged-dma"]
         ↓
 ["concurrent-pair", "staged-dma"]
 ```
+
+`L.facts[]` is a complete closed bag **in frozen KINDS
+order**. Each fact:
+
+```text
+schema      s2c2.realization_legality.v1
+identity    (target, device, kind)   # all three required
+constraint  allowed | forbidden | not-applicable | unproven
+```
+
+Top-level `kind` on a fact is not a fallback and is
+`malformed-legality`. Wrong per-fact `schema` is
+`malformed-legality`. Missing frozen kind in `L` is
+`malformed-legality`, not `unproven`.
 
 Envelope `s2c2.realization_checking.v1`:
 
@@ -103,13 +122,19 @@ identity-mismatch | unknown-kind | malformed-legality | invalid-schema
 ```
 
 `L` missing a frozen kind is `malformed-legality`, not `unproven`.
+Absent `r.claimed-kinds` is `invalid-schema`, not empty claim.
 
 ## Negative fixture matrix
 
-13 cases locked in derive: satisfy / violate-forbidden / violate-n/a /
-unproven-constraint / mixed / all-claimed-satisfy / empty-claim /
-unclaimed-forbidden / claimed-kinds-order / identity-mismatch /
-unknown-kind / malformed-L / invalid-schema.
+17 cases locked in derive. The original 13 plus input
+integrity:
+
+```text
+missing-claimed-kinds
+malformed-L-bad-fact-schema
+malformed-L-missing-identity-kind
+malformed-L-conflicting-kind
+```
 
 ## Out of scope
 

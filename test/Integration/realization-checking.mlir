@@ -14,6 +14,10 @@ func.func @dummy() {
 // CHK: source-schema s2c2.realization_legality.v1
 // CHK: checking-identity target-device
 // CHK: claimed-kinds-canonical yes
+// CHK: missing-claimed-kinds-ne-empty yes
+// CHK: fact-schema-required yes
+// CHK: identity-kind-required yes
+// CHK: legality-facts-canonical-order yes
 // CHK: unclaimed-kind-ne-violation yes
 // CHK: finding-keeps-constraint yes
 // CHK: satisfy-ne-can-run-plan yes
@@ -31,7 +35,7 @@ func.func @dummy() {
 // CHK: rewrite-path no
 // CHK: capability-schedule-ne-god-object yes
 // CHK: generic-schema-validator n/a
-// CHK: checking-matrix-cases 13
+// CHK: checking-matrix-cases 17
 // CHK: result satisfy
 // CHK: result violate
 // CHK: result unproven
@@ -52,7 +56,7 @@ func.func @dummy() {
 // CHKM: finding-keeps-constraint yes
 // CHKM: unclaimed-kind-ne-violation yes
 // CHKM: all-satisfy-ne-sufficient yes
-// CHKM: checking-matrix-cases 13
+// CHKM: checking-matrix-cases 17
 // CHKM: chk-case satisfy-from-allowed
 // CHKM: chk-status ok
 // CHKM: chk-finding kind=concurrent-pair result=satisfy constraint=allowed
@@ -92,6 +96,19 @@ func.func @dummy() {
 // CHKM: chk-findings-count 0
 // CHKM: chk-case invalid-schema
 // CHKM: chk-error invalid-schema
+// CHKM: chk-findings-count 0
+// CHKM: chk-case missing-claimed-kinds
+// CHKM: chk-status contract-error
+// CHKM: chk-error invalid-schema
+// CHKM: chk-findings-count 0
+// CHKM: chk-case malformed-L-bad-fact-schema
+// CHKM: chk-error malformed-legality
+// CHKM: chk-findings-count 0
+// CHKM: chk-case malformed-L-missing-identity-kind
+// CHKM: chk-error malformed-legality
+// CHKM: chk-findings-count 0
+// CHKM: chk-case malformed-L-conflicting-kind
+// CHKM: chk-error malformed-legality
 // CHKM: chk-findings-count 0
 // CHKM: rewrite-license no
 // CHKM: can-run-plan no

@@ -1113,7 +1113,7 @@ Do not FileCheck microseconds.
 | LEG-1 | `test/Integration/realization-legality.mlir` | `--print-realization-legality-contract`; `s2c2.realization_legality.v1`; constraint copied; `all-allowed-ne-sufficient`; `unproven-ne-forbidden`; `can-run-plan=no`; `rewrite-license=no` |
 | LEG-2 | same | 8-case matrix: yes→allowed; no→forbidden; n/a→not-applicable; missing/unknown-provenance→unproven; all-allowed ≠ sufficient; one-kind-forbidden; mixed allowed/unproven |
 | CHK-1 | `test/Integration/realization-checking.mlir` | `--print-realization-checking-contract`; `s2c2.realization_checking.v1`; finding `{kind,result,constraint}`; `unclaimed-kind-ne-violation`; `can-run-plan=no`; `rewrite-license=no` |
-| CHK-2 | same | 13-case matrix: satisfy/violate+source constraint; unproven-constraint; unclaimed forbidden ignored; canonical claimed-kinds; empty findings; contract-error ≠ result |
+| CHK-2 | same | 17-case matrix: original 13 plus missing-claimed-kinds ≠ empty; per-fact schema; identity.kind required; top-level kind rejected |
 
 ## Complete SSD + MLP program wall-clock
 
