@@ -1,7 +1,7 @@
 # 7B Storage Rewrite Plan
 
-**Status:** design/open for `Decision.subject=rewrite-plan`.
-Not frozen until `PR #138 — APPROVED`.
+**Status:** design freeze for `Decision.subject=rewrite-plan`.
+Semantic freeze at `3e942a8` (PR #138 — APPROVED; merge gated).
 Not an IR rewrite. Not `applySchedule`. Not an
 `F_storage_schedule` inhabitant. Not an expansion of
 `S2C2CapabilitySchedule.cpp`. Does not change the frozen
@@ -142,6 +142,11 @@ extra:
 ```
 
 First-seen sequence must not win.
+
+`rewrite-sequence.result` is **non-authoritative**. The
+counted claim is the `sequence` payload. v0.1 does not
+require `result=yes`; a matching payload with `result=no`
+is still the unique plan claim.
 
 ## Planner vs AuthorizationEvaluator
 
@@ -288,6 +293,28 @@ rewrite.* v0.1        7B unique plan / sequence
 | malformed-rewrite-license | rewrite-license `{result=yes}` only | plan=no `decision.unknown-reason` |
 | source-schema-mismatch | 7A `source-schema` ≠ `s2c2.decision.v1` | plan=no `decision.unknown-reason` |
 | license-identity-drift | rewrite-license.identity ≠ license-identity | plan=no `rewrite.identity-mismatch` |
+
+## Acceptance (7B freeze)
+
+```text
+A1  RewritePlanIdentity = (selected, object, action, license-kind)
+A2  consume 7A envelope; do not re-evaluate sufficient/policy/provenance/action
+A3  schema=authorization.v1; source-schema=decision.v1
+A4  authorized / rewrite-license are well-formed Decisions
+A5  license=yes ⇒ authorized=yes
+A6  rewrite-license.identity, if present, equals license-identity
+A7  rewrite-sequence counted 0/1/>1; result is non-authoritative
+A8  unique sequence KEEP→EVICT→TRANSFER→RESTORE
+A9  rewrite-license ≠ rewrite-plan ≠ rewrite-path
+A10 rewrite-plan=yes still applied=no / rewrite-path=no /
+    can-run-plan=no
+A11 transformation names keep-evict-transfer-restore; not applied
+A12 no s2c2-opt / applySchedule / F_storage_schedule inhabitant
+A13 18-case host matrix
+```
+
+This host is a Decision contract, not a compiler E2E.
+`rewrite-plan=yes` is STOP. IR apply stays closed.
 
 ## God object
 

@@ -1,7 +1,7 @@
 # S²C² Compiler Spine
 
 **Status:** product lock. 6C-M frozen. 7A frozen as a
-query boundary. 7B opened as a rewrite plan, not an IR
+query boundary. 7B frozen as a rewrite plan, not an IR
 apply. Not an `F_storage_schedule` inhabitant. Not StableHLO.
 
 ```text
@@ -93,7 +93,7 @@ F  →  argmin  →  rewrite
 #135   F_storage_schedule design      design-only; no inhabitant
 6C-M   Sufficiency Decision           FROZEN @ a0a2a08 (#136; merge gated)
 7A     Authorization Boundary         FROZEN @ 5b57666 (#137; merge gated)
-7B     ONE storage rewrite            opened this wave (plan; applied=no)
+7B     ONE storage rewrite            FROZEN @ 3e942a8 (#138; plan; merge gated)
 7C     End-to-end executable opt
 7D     CUDA backend realization
 7E     Ascend backend realization
@@ -147,6 +147,8 @@ unique plan; `rewrite-path` stays `no`.
 ### 7B
 
 [`storage-rewrite.md`](storage-rewrite.md).
+Semantic freeze at `3e942a8`. Merge still gated.
+IR apply stays closed.
 
 ```text
 rewrite-license  ≠  rewrite-plan

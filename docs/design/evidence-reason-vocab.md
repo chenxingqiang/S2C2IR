@@ -114,10 +114,11 @@ rewrite-license=yes       → authorization.rewrite-license-closed
 prints `authorization-tokens=none`. 7A prints the v0.1
 table from `record_authorization.py`.
 
-## 7B `rewrite.*` v0.1
+## 7B `rewrite.*` v0.1 (frozen)
 
-7B opens this namespace for the RewritePlanner only. See
-[`storage-rewrite.md`](storage-rewrite.md). 7A
+7B opens this namespace for the RewritePlanner only.
+Table frozen at `3e942a8` (PR #138 — APPROVED; merge gated).
+See [`storage-rewrite.md`](storage-rewrite.md). 7A
 `authorization.*` v0.1 stays frozen. Emitting a rewrite
 token is **not** `rewrite-path=yes`.
 
