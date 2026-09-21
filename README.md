@@ -71,6 +71,7 @@ Design notes: [`docs/design/phase1.5-semantic-normalization.md`](docs/design/pha
 [`docs/design/realization-enumerator.md`](docs/design/realization-enumerator.md),
 [`docs/design/realization-argmin-pass.md`](docs/design/realization-argmin-pass.md),
 [`docs/design/search-space.md`](docs/design/search-space.md),
+[`docs/design/search-selection.md`](docs/design/search-selection.md),
 [`docs/design/search-algorithm-contract.md`](docs/design/search-algorithm-contract.md),
 [`docs/design/search-start-policy.md`](docs/design/search-start-policy.md),
 [`docs/design/search-algorithm.md`](docs/design/search-algorithm.md),
