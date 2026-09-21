@@ -1,12 +1,13 @@
 # S²C² Compiler Spine
 
-**Status:** product lock. Not a rewrite. Not 7A.
-Not an `F_storage_schedule` inhabitant. Not StableHLO.
+**Status:** product lock. 6C-M frozen. 7A opened as a
+query boundary. Not a rewrite. Not an
+`F_storage_schedule` inhabitant. Not StableHLO.
 
 ```text
 Goal     name the five products and the only allowed mainline
 Not      a new dialect, vendor, frontend, or generic scheduler
-Rewrite  still closed; 6C-M may emit Decision.subject=sufficient
+Rewrite  still closed; 7A may emit authorized / rewrite-license Decisions
 ```
 
 This page is the engineering constitution after the
@@ -90,9 +91,9 @@ F  →  argmin  →  rewrite
 ```text
 #134   baseline citation              design-only; merge gated
 #135   F_storage_schedule design      design-only; no inhabitant
-6C-M   Sufficiency Decision           opened this wave
-7A     Authorization / rewrite-license
-7B     ONE storage rewrite
+6C-M   Sufficiency Decision           FROZEN @ a0a2a08 (#136)
+7A     Authorization Boundary         opened this wave
+7B     ONE storage rewrite            CLOSED
 7C     End-to-end executable opt
 7D     CUDA backend realization
 7E     Ascend backend realization
@@ -121,7 +122,9 @@ usable ∧ applicable ⇒ sufficient
 
 and **not** a new boolean on the 6C-I license printer.
 
-### 7A (closed)
+### 7A
+
+[`authorization-boundary.md`](authorization-boundary.md).
 
 ```text
 sufficient  ≠  authorized
@@ -129,10 +132,14 @@ authorized  ≠  rewrite-license
 ```
 
 ```text
-Can the realization work?     sufficient
-Should the compiler choose it? policy
-May the compiler change IR?    rewrite-license
+Can the realization work?          sufficient
+Is this action permitted?          authorized
+May the compiler change IR?        rewrite-license
 ```
+
+`AuthorizationIdentity = (selected, object, action)`.
+v0.1 action is `storage-rewrite` (named, not implemented).
+Policy v0.1 is not `if sufficient: authorized = yes`.
 
 ### 7B (closed)
 
@@ -205,8 +212,6 @@ HB_source ⊆ HB_impl       implementation correctness
 ## Out of scope (this page)
 
 ```text
-authorization.* tokens
-rewrite-license=yes
 IR replace / erase / applySchedule
 F_storage_schedule inhabitant
 StableHLO

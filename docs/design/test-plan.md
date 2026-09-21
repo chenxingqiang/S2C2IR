@@ -1020,6 +1020,10 @@ Decision has a named `subject`; EA-1 still emits
 `subject=usable` only. 6C-M opens
 `Decision.subject=sufficient` as an evaluator:
 [`storage-capacity-sufficient.md`](storage-capacity-sufficient.md).
+7A Authorization Boundary (query-only;
+`Decision.subject=authorized` ≠ `rewrite-license`;
+action=`storage-rewrite` named, not implemented):
+[`authorization-boundary.md`](authorization-boundary.md).
 Product spine:
 [`compiler-spine.md`](compiler-spine.md).
 Reason vocabulary / evidence schema:
@@ -1142,6 +1146,8 @@ Do not FileCheck microseconds.
 | XID-2 | same | cuda-legal satisfy/unproven; ascend-dma unproven+satisfy; cpu-na violate+not-applicable; cross-target contract-error |
 | SUF-1 | `test/Integration/storage-capacity-sufficient.mlir` | `--print-sufficiency-contract`; host-side Decision contract; same `(selected, object)` scope; extras ignored including duplicates; canonical `inputs[]`; `can-run-plan=no`; `rewrite-license=no` |
 | SUF-2 | same | 16-case matrix: reverse-order all-yes still canonical; dest-inv-historic / usable∧applicable stay `no`; cross-scope `identity-mismatch`; unknown result `unknown-reason`; duplicate extras do not affect |
+| AUTH-1 | `test/Integration/authorization-boundary.mlir` | `--print-authorization-contract`; `Decision.subject=authorized` and `rewrite-license`; identity `(selected, object, action)`; sufficient≠authorized≠license; `rewrite-path=no` |
+| AUTH-2 | same | 18-case matrix: policy missing stays unauthorized; authorized=yes without license stays `rewrite-license=no`; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
