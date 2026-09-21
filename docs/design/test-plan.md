@@ -1147,7 +1147,7 @@ Do not FileCheck microseconds.
 | SUF-1 | `test/Integration/storage-capacity-sufficient.mlir` | `--print-sufficiency-contract`; host-side Decision contract; same `(selected, object)` scope; extras ignored including duplicates; canonical `inputs[]`; `can-run-plan=no`; `rewrite-license=no` |
 | SUF-2 | same | 16-case matrix: reverse-order all-yes still canonical; dest-inv-historic / usable∧applicable stay `no`; cross-scope `identity-mismatch`; unknown result `unknown-reason`; duplicate extras do not affect |
 | AUTH-1 | `test/Integration/authorization-boundary.mlir` | `--print-authorization-contract`; `Decision.subject=authorized` and `rewrite-license`; identity `(selected, object, action)`; sufficient≠authorized≠license; `rewrite-path=no` |
-| AUTH-2 | same | 18-case matrix: policy missing stays unauthorized; authorized=yes without license stays `rewrite-license=no`; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
+| AUTH-2 | same | 20-case matrix: claimed-action mismatch; duplicate license is not first-wins; license-kind mismatch; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

@@ -1,7 +1,8 @@
 # 7A Authorization Boundary
 
-**Status:** design freeze for `Decision.subject=authorized`
-and `Decision.subject=rewrite-license`.
+**Status:** design/open for `Decision.subject=authorized`
+and `Decision.subject=rewrite-license`. Not frozen until
+`PR #137 — APPROVED`.
 Not a rewrite. Not 7B. Not an `F_storage_schedule` inhabitant.
 Not an expansion of `S2C2CapabilitySchedule.cpp`.
 Does not change the frozen 6C-M evaluator.
@@ -152,9 +153,31 @@ otherwise `authorized = no`. Unknown / missing → safe no.
 
 The sufficient input must match `(selected, object)`.
 The other required inputs must match
-`(selected, object, action)`. Extra subjects, including
-duplicate extras, are ignored. Duplicate REQUIRED subjects
-are safe no.
+`(selected, object, action)`.
+
+For `action-match`:
+
+```text
+identity.action   = target action being evaluated
+record.action     = claimed action
+```
+
+A claimed mismatch with an in-scope identity is
+`authorization.action-mismatch`, not
+`decision.identity-mismatch`.
+
+`rewrite-license` is a **license input**, not an ignored
+extra:
+
+```text
+0 license     → rewrite-license=no / missing
+1 license     → evaluate scope + result
+>1 license    → decision.duplicate-identity
+```
+
+First-seen license must not win. Other extra subjects,
+including duplicate extras, are ignored. Duplicate
+REQUIRED subjects are safe no.
 
 ## Decisions
 
@@ -188,6 +211,8 @@ Guardrails:
 sufficient=yes + policy missing     → authorized=no
 authorized=yes + license missing    → rewrite-license=no
 authorized=no  + license=yes        → rewrite-license=no
+>1 license                          → rewrite-license=no / duplicate-identity
+license-kind ≠ v0.1                 → rewrite-license=no / identity-mismatch
 ```
 
 `rewrite-license=yes` is a query Decision. It does **not**
@@ -202,7 +227,7 @@ Query-only. Not ingested by `s2c2-opt`.
 ```text
 schema
 identity                 (selected, object, action)
-inputs[]                 REQUIRED order, then first-seen extras
+inputs[]                 REQUIRED order, then license inputs, then first-seen extras
 authorized               s2c2.decision.v1 subject=authorized
 rewrite-license          s2c2.decision.v1 subject=rewrite-license
 license-identity         (selected, object, action, license-kind) | n/a
@@ -211,27 +236,14 @@ rewrite-path             no
 transformation           n/a
 ```
 
-## Reason tokens (this host)
+## Reason tokens
 
-EA-1 / `record_decision.py` still has `authorization.*=none`.
-This host may emit:
-
-| Token | When |
-| ----- | ---- |
-| `authorization.sufficient-no` | sufficient result=no |
-| `authorization.policy-mismatch` | policy name is not v0.1 |
-| `authorization.policy-unknown` | policy result unknown |
-| `authorization.provenance-unknown` | provenance is unknown |
-| `authorization.action-mismatch` | claimed action ≠ scope action |
-| `authorization.authorized-no` | license asked but authorized=no |
-| `authorization.rewrite-license-missing` | authorized=yes, license absent |
-| `authorization.rewrite-license-no` | explicit license result=no |
-| `predicate.missing-input` | a REQUIRED subject is absent |
-| `decision.identity-mismatch` | selected/object/action/license-kind scope fail |
-| `decision.duplicate-identity` | duplicate REQUIRED subject |
-| `decision.unknown-reason` | unknown result / missing subject |
-| `decision.authorized-closed` | authorized=yes |
-| `decision.rewrite-license-closed` | rewrite-license=yes |
+Stage A vocabulary freeze remains: EA-1 /
+`record_decision.py` still prints `authorization-tokens=none`.
+7A opens `authorization.*` v0.1 in
+[`evidence-reason-vocab.md`](evidence-reason-vocab.md).
+This host may emit those tokens. Emitting one is **not**
+a rewrite.
 
 ## Negative fixture matrix
 
@@ -241,7 +253,7 @@ This host may emit:
 | sufficient-yes-policy-missing | sufficient=yes, policy absent | authorized=no |
 | wrong-policy | policy name ≠ v0.1 | authorized=no |
 | unknown-policy | policy result=unknown | authorized=no |
-| action-mismatch | action-match result=no | authorized=no |
+| action-mismatch | identity.action=storage-rewrite, claimed=schedule-rewrite | authorized=no `action-mismatch` |
 | selected-mismatch | sufficient selected=S1 | identity-mismatch |
 | object-mismatch | sufficient object=3 | identity-mismatch |
 | provenance-missing | provenance absent | authorized=no missing-input |
@@ -250,6 +262,8 @@ This host may emit:
 | authorized-yes-license-missing | four REQUIRED yes, license absent | authorized=yes; license=no |
 | rewrite-license-no | four yes, explicit license=no | authorized=yes; license=no |
 | rewrite-license-yes | four yes, explicit license=yes | authorized=yes; license=yes; path=no |
+| rewrite-license-kind-mismatch | four yes, license-kind=other-kind | license=no identity-mismatch |
+| duplicate-license | four yes, two license inputs | authorized=yes; license=duplicate-identity |
 | missing-action-match | action-match absent | authorized=no |
 | sufficient-n/a | sufficient=n/a | authorized=no |
 | shuffled-required | REQUIRED reversed | canonical inputs order |

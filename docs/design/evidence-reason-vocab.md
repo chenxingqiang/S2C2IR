@@ -63,8 +63,36 @@ Implementations MUST NOT invent tokens.
 | `decision.*` | Decision record well-formedness | closed table |
 | `authorization.*` | license / rewrite | **empty; CLOSED** |
 
-`authorization.*` has no tokens. Emitting one would be a
-license. This freeze does not open that namespace.
+`authorization.*` has no tokens **on the Stage A / EA-1
+printer**. Emitting one from occupancy classification
+would be a license. That printer stays empty.
+
+## 7A `authorization.*` v0.1
+
+7A opens this namespace for the AuthorizationEvaluator
+only. See [`authorization-boundary.md`](authorization-boundary.md).
+
+```text
+Stage-A / EA-1     authorization.* = empty
+7A evaluator       authorization.* v0.1
+emitting a token   ≠  rewrite-license=yes
+emitting a token   ≠  rewrite-path=yes
+```
+
+| Token | Meaning |
+| ----- | ------- |
+| `authorization.sufficient-no` | sufficient result is not yes |
+| `authorization.policy-mismatch` | policy name is not v0.1 |
+| `authorization.policy-unknown` | policy result is not yes/no/n/a |
+| `authorization.provenance-unknown` | provenance is not known |
+| `authorization.action-mismatch` | claimed action ≠ target identity.action |
+| `authorization.authorized-no` | rewrite-license asked but authorized=no |
+| `authorization.rewrite-license-missing` | authorized=yes and no license input |
+| `authorization.rewrite-license-no` | explicit license result=no |
+
+`record_decision.py --print-evidence-reason-vocab` still
+prints `authorization-tokens=none`. 7A prints the v0.1
+table from `record_authorization.py`.
 
 ## `evidence.*` (closed)
 
@@ -138,12 +166,12 @@ predicate reason on `usable` and not a sufficient Decision.
 | `decision.duplicate-identity` | more than one EvidenceRecord for the same `(selected, kind, object)` |
 | `decision.identity-mismatch` | `identity.kind` or `identity.object` disagrees with the payload |
 
-Not in the vocabulary (forbidden this cut):
+Not in the Stage A occupancy vocabulary (forbidden on EA-1):
 
 ```text
 sufficient-not-composed
 decision.subject-sufficient
-authorization.*
+authorization.* on record_decision.py
 ad-hoc free-form strings
 ```
 
@@ -194,9 +222,9 @@ Capability schedule             frozen pair-license / occupancy query host
 ## Out of scope
 
 ```text
-sufficient=yes print
-Decision.subject=sufficient
-authorization.* tokens
+sufficient=yes print from EA-1 / 6C-I
+Decision.subject=sufficient from record_decision.py
+authorization.* tokens from EA-1
 retargeting 6C-J/K/L reason= strings
 restore-target / live-bytes / alias / lifetime classifiers
 rewrite-license=yes

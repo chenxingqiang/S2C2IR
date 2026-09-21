@@ -33,6 +33,17 @@ REQUIRED = (
 POLICY_V01 = "authorization-policy-v0.1"
 ACTION_V01 = "storage-rewrite"
 LICENSE_KIND_V01 = "storage-capacity-rewrite"
+LICENSE_SUBJECT = "rewrite-license"
+AUTHORIZATION_REASON_TOKENS = (
+    "authorization.sufficient-no",
+    "authorization.policy-mismatch",
+    "authorization.policy-unknown",
+    "authorization.provenance-unknown",
+    "authorization.action-mismatch",
+    "authorization.authorized-no",
+    "authorization.rewrite-license-missing",
+    "authorization.rewrite-license-no",
+)
 SELECTED_S0 = suf.SELECTED_S0
 SELECTED_S1 = suf.SELECTED_S1
 OBJECT_2 = suf.OBJECT_2
@@ -50,6 +61,7 @@ def _decision(subject: str, result: str, reasons: list[str]) -> dict:
 
 def _canonical_inputs(
     required_by: dict[str, dict],
+    licenses: list[dict],
     extras_first_seen: list[dict],
 ) -> list[dict]:
     items = []
@@ -58,6 +70,10 @@ def _canonical_inputs(
         if rec is None:
             continue
         items.append({"subject": req, "result": rec.get("result", "absent")})
+    for rec in licenses:
+        items.append(
+            {"subject": LICENSE_SUBJECT, "result": rec.get("result", "absent")}
+        )
     for extra in extras_first_seen:
         items.append(
             {"subject": extra["subject"], "result": extra.get("result", "absent")}
@@ -129,10 +145,11 @@ def evaluate_authorization(
     obj: str = OBJECT_2,
     action: str = ACTION_V01,
 ) -> dict:
-    """authorized over (selected, object, action). License is separate."""
+    """authorized over (selected, object, action). License is a dedicated input."""
     scope2 = (selected, obj)
     scope3 = (selected, obj, action)
     required_by: dict[str, dict] = {}
+    licenses: list[dict] = []
     extras_first: list[dict] = []
     extras_seen: set[str] = set()
 
@@ -140,7 +157,7 @@ def evaluate_authorization(
         return _envelope(
             authorized=authorized,
             license_decision=license_decision,
-            canonical_inputs=_canonical_inputs(required_by, extras_first),
+            canonical_inputs=_canonical_inputs(required_by, licenses, extras_first),
             selected=selected,
             obj=obj,
             action=action,
@@ -162,6 +179,9 @@ def evaluate_authorization(
                 lic, ident = license_no(["authorization.authorized-no"])
                 return emit(auth, lic, ident)
             required_by[subject] = rec
+            continue
+        if subject == LICENSE_SUBJECT:
+            licenses.append(rec)
             continue
         if subject not in extras_seen:
             extras_seen.add(subject)
@@ -241,11 +261,11 @@ def evaluate_authorization(
     else:
         authorized = _decision("authorized", "no", reasons)
 
-    license_rec = next(
-        (e for e in extras_first if e.get("subject") == "rewrite-license"),
-        None,
-    )
     license_identity = None
+    if len(licenses) > 1:
+        lic, license_identity = license_no(["decision.duplicate-identity"])
+        return emit(authorized, lic, license_identity)
+    license_rec = licenses[0] if licenses else None
     if authorized["result"] != "yes":
         lic, license_identity = license_no(["authorization.authorized-no"])
         return emit(authorized, lic, license_identity)
@@ -340,15 +360,18 @@ def _provenance(
 
 def _action(
     result: str = "yes",
-    action: str = ACTION_V01,
+    *,
+    claimed: str | None = None,
+    identity_action: str = ACTION_V01,
     **ident,
 ) -> dict:
+    """identity.action is the target; record.action is the claim."""
     payload = dict(ident)
-    payload.setdefault("action", ACTION_V01)
+    payload.setdefault("action", identity_action)
     return {
         "subject": "action-match",
         "result": result,
-        "action": action,
+        "action": ACTION_V01 if claimed is None else claimed,
         "identity": _id3(**payload),
     }
 
@@ -420,7 +443,7 @@ def _cases() -> list[tuple[str, list[dict]]]:
                 _sufficient(),
                 _policy(),
                 _provenance(),
-                _action("no", action="schedule-rewrite"),
+                _action(result="no", claimed="schedule-rewrite"),
             ],
         ),
         (
@@ -463,6 +486,15 @@ def _cases() -> list[tuple[str, list[dict]]]:
         (
             "rewrite-license-yes",
             _all_required() + [_license("yes")],
+        ),
+        (
+            "rewrite-license-kind-mismatch",
+            _all_required() + [_license("yes", kind="other-kind")],
+        ),
+        (
+            "duplicate-license",
+            _all_required()
+            + [_license("yes", kind="other-kind"), _license("yes")],
         ),
         ("missing-action-match", [_sufficient(), _policy(), _provenance()]),
         (
@@ -508,6 +540,8 @@ def _validate() -> None:
         "authorized-yes-license-missing",
         "rewrite-license-no",
         "rewrite-license-yes",
+        "rewrite-license-kind-mismatch",
+        "duplicate-license",
         "missing-action-match",
         "sufficient-n/a",
         "shuffled-required",
@@ -516,7 +550,7 @@ def _validate() -> None:
     ]
     if names != expect:
         raise RuntimeError(names)
-    if len(names) != 18:
+    if len(names) != 20:
         raise RuntimeError(len(names))
     for name, inputs in _cases():
         bag = evaluate_authorization(inputs)
@@ -541,6 +575,9 @@ def _validate() -> None:
             raise RuntimeError(name)
         if auth["result"] != "yes" and lic["result"] == "yes":
             raise RuntimeError(f"license without authorized: {name}")
+        for token in auth["reasons"] + lic["reasons"]:
+            if token.startswith("authorization.") and token not in AUTHORIZATION_REASON_TOKENS:
+                raise RuntimeError(f"{name} unknown authorization token {token}")
         if name == "sufficient-no":
             if auth["reasons"] != ["authorization.sufficient-no"]:
                 raise RuntimeError(name)
@@ -558,6 +595,11 @@ def _validate() -> None:
             if auth["reasons"] != ["authorization.policy-unknown"]:
                 raise RuntimeError(name)
         if name == "action-mismatch":
+            rec = next(i for i in inputs if i["subject"] == "action-match")
+            if rec["identity"]["action"] != ACTION_V01:
+                raise RuntimeError(name)
+            if rec["action"] != "schedule-rewrite":
+                raise RuntimeError(name)
             if auth["reasons"] != ["authorization.action-mismatch"]:
                 raise RuntimeError(name)
         if name in ("selected-mismatch", "object-mismatch"):
@@ -602,6 +644,20 @@ def _validate() -> None:
                 raise RuntimeError(name)
             if bag["license-identity"]["license-kind"] != LICENSE_KIND_V01:
                 raise RuntimeError(name)
+        if name == "rewrite-license-kind-mismatch":
+            if auth["result"] != "yes":
+                raise RuntimeError(name)
+            if lic["result"] != "no":
+                raise RuntimeError(name)
+            if lic["reasons"] != ["decision.identity-mismatch"]:
+                raise RuntimeError(name)
+        if name == "duplicate-license":
+            if auth["result"] != "yes":
+                raise RuntimeError(name)
+            if lic["reasons"] != ["decision.duplicate-identity"]:
+                raise RuntimeError(name)
+            if [i["subject"] for i in bag["inputs"]].count(LICENSE_SUBJECT) != 2:
+                raise RuntimeError(name)
         if name == "missing-action-match":
             if auth["reasons"] != ["predicate.missing-input"]:
                 raise RuntimeError(name)
@@ -635,6 +691,11 @@ def print_contract() -> int:
     print("rewrite-license-yes-ne-transformation yes")
     print("inputs-canonical-order yes")
     print("duplicate-required-safe-no yes")
+    print("duplicate-license-safe-no yes")
+    print("license-input-not-ignored-extra yes")
+    print("claimed-action-ne-identity-action yes")
+    print("authorization-namespace v0.1")
+    print("ea-1-authorization-tokens none")
     print("host-side-decision-contract yes")
     print("compiler-e2e no")
     print("can-run-plan no")
@@ -642,9 +703,12 @@ def print_contract() -> int:
     print("transformation n/a")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("authorization-matrix-cases 18")
+    print("authorization-matrix-cases 20")
     for req in REQUIRED:
         print(f"required-input {req}")
+    print(f"license-input {LICENSE_SUBJECT}")
+    for token in AUTHORIZATION_REASON_TOKENS:
+        print(f"token {token}")
     print("note six-c-m-frozen")
     print("note seven-a-opened")
     print("note seven-b-rewrite-closed")
@@ -667,7 +731,7 @@ def print_matrix() -> int:
     print("sufficient-ne-authorized yes")
     print("authorized-ne-rewrite-license yes")
     print("inputs-canonical-order yes")
-    print("authorization-matrix-cases 18")
+    print("authorization-matrix-cases 20")
     for name, inputs in _cases():
         bag = evaluate_authorization(inputs)
         auth = bag["authorized"]

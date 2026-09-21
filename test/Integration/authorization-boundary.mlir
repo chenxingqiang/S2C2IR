@@ -27,6 +27,11 @@ func.func @dummy() {
 // AUTH: rewrite-license-yes-ne-transformation yes
 // AUTH: inputs-canonical-order yes
 // AUTH: duplicate-required-safe-no yes
+// AUTH: duplicate-license-safe-no yes
+// AUTH: license-input-not-ignored-extra yes
+// AUTH: claimed-action-ne-identity-action yes
+// AUTH: authorization-namespace v0.1
+// AUTH: ea-1-authorization-tokens none
 // AUTH: host-side-decision-contract yes
 // AUTH: compiler-e2e no
 // AUTH: can-run-plan no
@@ -34,11 +39,13 @@ func.func @dummy() {
 // AUTH: transformation n/a
 // AUTH: capability-schedule-ne-god-object yes
 // AUTH: generic-schema-validator n/a
-// AUTH: authorization-matrix-cases 18
+// AUTH: authorization-matrix-cases 20
 // AUTH: required-input sufficient
 // AUTH: required-input policy-match
 // AUTH: required-input provenance
 // AUTH: required-input action-match
+// AUTH: license-input rewrite-license
+// AUTH: token authorization.action-mismatch
 // AUTH: note six-c-m-frozen
 // AUTH: note seven-a-opened
 // AUTH: note seven-b-rewrite-closed
@@ -52,7 +59,7 @@ func.func @dummy() {
 // AUTHM: sufficient-ne-authorized yes
 // AUTHM: authorized-ne-rewrite-license yes
 // AUTHM: inputs-canonical-order yes
-// AUTHM: authorization-matrix-cases 18
+// AUTHM: authorization-matrix-cases 20
 // AUTHM: auth-case sufficient-no
 // AUTHM: auth-authorized subject=authorized result=no reasons=authorization.sufficient-no
 // AUTHM: auth-license subject=rewrite-license result=no reasons=authorization.authorized-no
@@ -84,6 +91,11 @@ func.func @dummy() {
 // AUTHM: auth-license subject=rewrite-license result=yes reasons=decision.rewrite-license-closed
 // AUTHM: auth-rewrite-path no
 // AUTHM: auth-transformation n/a
+// AUTHM: auth-case rewrite-license-kind-mismatch
+// AUTHM: auth-license subject=rewrite-license result=no reasons=decision.identity-mismatch
+// AUTHM: auth-case duplicate-license
+// AUTHM: auth-authorized subject=authorized result=yes reasons=decision.authorized-closed
+// AUTHM: auth-license subject=rewrite-license result=no reasons=decision.duplicate-identity
 // AUTHM: auth-case missing-action-match
 // AUTHM: auth-authorized subject=authorized result=no reasons=predicate.missing-input
 // AUTHM: auth-case sufficient-n/a
