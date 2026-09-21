@@ -1023,8 +1023,12 @@ Decision has a named `subject`; EA-1 still emits
 7A Authorization Boundary (query-only; FROZEN @ `5b57666`;
 `Decision.subject=authorized` ≠ `rewrite-license`;
 action=`storage-rewrite` named, not implemented;
-20-case matrix; 7B closed):
+20-case matrix):
 [`authorization-boundary.md`](authorization-boundary.md).
+7B Storage Rewrite Plan (query-only; unique
+KEEP→EVICT→TRANSFER→RESTORE; `rewrite-plan` ≠ `rewrite-path`;
+applied=no; 14-case matrix):
+[`storage-rewrite.md`](storage-rewrite.md).
 Product spine:
 [`compiler-spine.md`](compiler-spine.md).
 Reason vocabulary / evidence schema:
@@ -1149,6 +1153,8 @@ Do not FileCheck microseconds.
 | SUF-2 | same | 16-case matrix: reverse-order all-yes still canonical; dest-inv-historic / usable∧applicable stay `no`; cross-scope `identity-mismatch`; unknown result `unknown-reason`; duplicate extras do not affect |
 | AUTH-1 | `test/Integration/authorization-boundary.mlir` | `--print-authorization-contract`; `Decision.subject=authorized` and `rewrite-license`; identity `(selected, object, action)`; sufficient≠authorized≠license; success tokens `authorization.authorized-closed` / `authorization.rewrite-license-closed`; `rewrite-path=no` |
 | AUTH-2 | same | 20-case matrix: claimed-action `authorization.action-mismatch`; 7A scope `authorization.identity-mismatch`; `>1` license `authorization.duplicate-license`; duplicate REQUIRED stays `decision.duplicate-identity`; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
+| REW-1 | `test/Integration/storage-rewrite.mlir` | `--print-rewrite-contract`; `Decision.subject=rewrite-plan`; identity `(selected, object, action, license-kind)`; license≠plan≠path; unique KEEP→EVICT→TRANSFER→RESTORE; `applied=no`; `rewrite-path=no` |
+| REW-2 | same | 14-case matrix: consume 7A license=yes; sequence mismatch; duplicate sequence/envelope; 7B scope `rewrite.identity-mismatch`; extras ignored; plan=yes still `applied=no` |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
