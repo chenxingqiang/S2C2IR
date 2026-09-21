@@ -338,3 +338,6 @@ sufficient):
 Realization Legality (constraint facts copied; not
 sufficient / can-run-plan):
 [`realization-legality.md`](realization-legality.md).
+Realization Checking (claimed-kinds vs frozen legality facts;
+not can-run-plan):
+[`realization-checking.md`](realization-checking.md).
