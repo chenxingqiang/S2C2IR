@@ -342,7 +342,7 @@ one compiler spine, not more dialects or vendors.
 6C-M   Sufficiency Decision          FROZEN (#136; merge gated)
 7A     Authorization Boundary        FROZEN @ 5b57666 (#137; merge gated)
 7B     ONE storage rewrite           FROZEN @ 3e942a8 (#138; plan; merge gated)
-7B-Apply Controlled IR Apply         CLOSED; contract #139; [`ir-apply-contract.md`](design/ir-apply-contract.md)
+7B-Apply Controlled IR Apply         FROZEN @ 038f4a1 (#139; contract; inhabitant CLOSED)
 7C     End-to-end executable opt
 7D/E   CUDA / Ascend realization
 7F     CIM capability adapter
@@ -357,10 +357,13 @@ one compiler spine, not more dialects or vendors.
 not derived from sufficient or authorized.
 `rewrite-plan=yes` names KEEP→EVICT→TRANSFER→RESTORE.
 `rewrite-path` stays `no`. `applied` stays `no`.
-IR apply stays closed. PR #139 is the contract, not the
-inhabitant: [`ir-apply-contract.md`](design/ir-apply-contract.md).
+IR apply stays closed. PR #139 is the frozen contract
+@ `038f4a1`, not the inhabitant:
+[`ir-apply-contract.md`](design/ir-apply-contract.md).
 Execution route:
 [`compiler-execution-spine.md`](design/compiler-execution-spine.md).
+Do not open apply until `#136` / `#137` / `#138` merge
+and Semantic Baseline v1.
 
 Do **not** start StableHLO or inhabit
 \(F_{\mathrm{storage\_schedule}}\).

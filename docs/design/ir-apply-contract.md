@@ -1,13 +1,14 @@
 # IR Apply Contract v0.1
 
-**Status:** design/open. Not implemented. Not frozen until
-`PR #139 — APPROVED`. IR apply inhabitant stays **CLOSED**
-until `PR #136 — merge`, `PR #137 — merge`, and
-`PR #138 — merge` have all landed, in that order, and
-Semantic Baseline v1 has passed. Does not change frozen
-6C-M / 7A / 7B evaluators. Not an `F_storage_schedule`
-inhabitant. Not an expansion of `S2C2CapabilitySchedule.cpp`.
-Not StableHLO. Not CIM.
+**Status:** design freeze for IR Apply Contract v0.1.
+Semantic freeze at `038f4a1` (PR #139 — APPROVED; merge
+gated). Not implemented. IR apply inhabitant stays
+**CLOSED** until `PR #136 — merge`, `PR #137 — merge`,
+and `PR #138 — merge` have all landed, in that order,
+and Semantic Baseline v1 has passed. Does not change
+frozen 6C-M / 7A / 7B evaluators. Not an
+`F_storage_schedule` inhabitant. Not an expansion of
+`S2C2CapabilitySchedule.cpp`. Not StableHLO. Not CIM.
 
 This PR (#139) names the contract. It is **not** the
 apply inhabitant.
@@ -439,10 +440,15 @@ A13 no s2c2-opt / applySchedule / F_storage_schedule inhabitant
 A14 this PR is the contract; inhabitant stays CLOSED
 ```
 
+This page is a contract freeze, not a compiler E2E.
+Do not enlarge the 17-row matrix. Do not open an apply
+inhabitant or a #140 design until the three merge tokens
+and Semantic Baseline v1.
+
 ## Gate vs later cuts
 
 ```text
-#139 this PR     contract only; apply CLOSED
+#139 this PR     FROZEN @ 038f4a1; apply CLOSED
 after merges     Semantic Baseline v1 (query stack still PASS)
 later inhabitant Controlled IR Apply (one pattern)
 later verify     HB + legality post-check host

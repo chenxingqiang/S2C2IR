@@ -1,12 +1,14 @@
 # Compiler Execution Spine
 
-**Status:** design/open for the post-7B execution route.
-Not implemented. IR apply CLOSED. Does not merge #136 /
-#137 / #138. Does not change frozen evaluators.
-Not StableHLO. Not CIM. Not CUDA compiler.
+**Status:** IR Apply Contract frozen @ `038f4a1`
+(PR #139 — APPROVED; merge gated). Execution route still
+gated on the three query-stack merges. Not implemented.
+IR apply CLOSED. Does not merge #136 / #137 / #138.
+Does not change frozen evaluators. Not StableHLO. Not
+CIM. Not CUDA compiler.
 
-PR #139 is this contract/route page. It is **not** an
-apply inhabitant.
+PR #139 is this frozen contract/route page. It is **not**
+an apply inhabitant.
 
 ```text
 Goal     name how frozen query Decisions become one
@@ -26,7 +28,8 @@ Apply contract: [`ir-apply-contract.md`](ir-apply-contract.md).
 #137  7A Authorization     FROZEN @ 5b57666
 #138  7B Rewrite Plan      FROZEN @ 3e942a8
                            bookkeeping @ fe8f510
-#139  IR Apply Contract    design/open; inhabitant CLOSED
+#139  IR Apply Contract    FROZEN @ 038f4a1
+                           inhabitant CLOSED
 IR apply                   CLOSED
 ```
 
@@ -117,7 +120,13 @@ execution broke or the semantic stack broke.
 ## Then: controlled IR apply
 
 Later inhabitant, not this page and not PR #139.
-Contract: [`ir-apply-contract.md`](ir-apply-contract.md).
+Do **not** open it before the three merge tokens and
+Semantic Baseline v1. Contract:
+[`ir-apply-contract.md`](ir-apply-contract.md).
+
+When that inhabitant opens, it constructs `P'` then
+commits. It does not mutate `P` in place and roll back.
+That is inhabitant strategy, not this freeze.
 
 ```text
 rewrite-plan=yes
@@ -212,7 +221,7 @@ one authorized plan
 ```text
 merge #136 → #137 → #138
 Semantic Baseline v1
-#139 this PR                 contract only
+#139 this PR                 FROZEN contract @ 038f4a1
 Controlled IR Apply          later inhabitant
 Execution Verification       later (HB + legality)
 W0 storage-pressure bench    later
