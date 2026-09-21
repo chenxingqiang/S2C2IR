@@ -132,8 +132,11 @@ cpu identities; no new semantics):
 Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
-Do **not** open \(F_{\mathrm{storage\_schedule}}\) or a
-frontend from this freeze.
+\(F_{\mathrm{storage\_schedule}}\) **design** (named product;
+not implemented; still `rewrite=no`):
+[`storage-schedule-family.md`](storage-schedule-family.md).
+Do **not** inhabit that family or open a frontend from this
+freeze.
 
 When 6C is implemented, it is a new Storage problem class:
 

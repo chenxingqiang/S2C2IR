@@ -170,6 +170,8 @@ F_storage_schedule
 
 That family reuses Evidence / Applicability / \(F\) / policy /
 license. It does **not** reopen 4C, 5A–6B, or 6C-B–I.
+Design lock (still no inhabitant):
+[`storage-schedule-family.md`](storage-schedule-family.md).
 
 ## Out of scope (this freeze)
 

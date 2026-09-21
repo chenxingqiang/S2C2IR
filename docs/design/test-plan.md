@@ -1043,6 +1043,9 @@ semantics):
 Cross-identity Checking E2E (compose frozen cuda / ascend /
 cpu identities; no new semantics):
 [`realization-checking-xid.md`](realization-checking-xid.md).
+\(F_{\mathrm{storage\_schedule}}\) design (named product; no
+inhabitant):
+[`storage-schedule-family.md`](storage-schedule-family.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
