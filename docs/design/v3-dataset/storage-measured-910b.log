@@ -1,0 +1,23 @@
+sweep_storage_measured n-tile=4194304 n-cc128=33554432 k_ref=32
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run storage-pipeline=1
+s2c2-ascend-run storage-pipeline program-measurement=yes
+s2c2-ascend-run storage-pipeline note storage-prefetch||compute
+s2c2-ascend-run storage-pipeline n-tile=4194304 n-cc16=4194304 n-cc128=33554432 k_ref=32
+s2c2-ascend-run storage-pipeline measured=yes
+s2c2-ascend-run storage-pipeline timing seq=13381.1 evi=12719.7 par=28590.0 opt_over_base=0.951
+s2c2-ascend-run storage-pipeline correctness=1
+s2c2-ascend-run storage-pipeline evi=keep-C||Storage,serialize-licensed-C||C
+s2c2-ascend-run storage-pipeline note catalog-untouched
+s2c2-ascend-run storage-pipeline note logical-ssd-ne-disk
+s2c2-ascend-run storage-pipeline note not-cost-v04
+s2c2-ascend-run storage-pipeline cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-ascend-run storage-measured note evi-is-S0-prefetch seq-is-S1-preserve
+s2c2-ascend-run storage-measured note par-not-in-F
+s2c2-ascend-run storage-measured note do-not-filecheck-microseconds
+s2c2-ascend-run storage-measured cost=unchanged

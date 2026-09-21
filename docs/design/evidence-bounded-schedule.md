@@ -123,7 +123,13 @@ destructive optimization.
 Cost v0.4 ranking
 new 4090 / 910B Capability grid points
 C||HtoD / HtoD||DtoH / pipeline rewrite kinds
-streaming SSD→Host→HtoD→Compute workload (later)
 overwriting #69
 reading benchmark logs as compiler input
 ```
+
+Workload candidate discovery is Phase 3E:
+[`evidence-bounded-workload.md`](evidence-bounded-workload.md).
+Two-tile SSD prefetch || compute is Phase 3F:
+[`storage-aware-pipeline.md`](storage-aware-pipeline.md).
+Storage hierarchy scheduling is Phase 3G:
+[`storage-hierarchy.md`](storage-hierarchy.md).

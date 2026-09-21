@@ -1,0 +1,28 @@
+sweep_storage_loop_measured n-tile=4194304 k_ref=32 arms=4
+s2c2-ascend-run hardware_id=ascend910b:ascend sched=npu-async map=default device=npu sync=named-nonblocking
+s2c2-ascend-run workload compute=elemwise
+s2c2-ascend-run workload transfer=host_to_device|device_to_host
+s2c2-ascend-run note workload-semantic-ne-kernel-backend
+s2c2-ascend-run timing=host-wall-clock
+s2c2-ascend-run timing completion=s0,s1
+s2c2-ascend-run storage-loop-measured=1
+s2c2-ascend-run storage-loop-measured program-measurement=yes
+s2c2-ascend-run storage-loop-measured note one-arm-per-signature
+s2c2-ascend-run storage-loop-measured note measurement-cannot-expand-F
+s2c2-ascend-run storage-loop-measured note prefetch-keep-joint
+s2c2-ascend-run storage-loop-measured note joint-not-preclaimed
+s2c2-ascend-run storage-loop-measured n-tile=4194304 k_ref=32 arms=4 trip=2
+s2c2-ascend-run storage-loop-measured measured=yes
+s2c2-ascend-run storage-loop-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE timing=6791.2 correctness=1
+s2c2-ascend-run storage-loop-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE timing=10046.8 correctness=1
+s2c2-ascend-run storage-loop-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE//TRANSFER//TRANSFER|KEEP_RESIDENCY|TRANSFER//MATERIALIZE timing=7865.7 correctness=1
+s2c2-ascend-run storage-loop-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE//TRANSFER//TRANSFER|TRANSFER|TRANSFER//MATERIALIZE timing=11130.2 correctness=1
+s2c2-ascend-run storage-loop-measured count=4 note one-row-per-signature
+s2c2-ascend-run storage-loop-measured note catalog-untouched
+s2c2-ascend-run storage-loop-measured note not-ntile-4
+s2c2-ascend-run storage-loop-measured note not-hierarchy-8
+s2c2-ascend-run storage-loop-measured note not-pipeline-s0-s1
+s2c2-ascend-run storage-loop-measured note not-3j-wallclock
+s2c2-ascend-run storage-loop-measured note not-cost-v04
+s2c2-ascend-run storage-loop-measured note measured-ne-rewrite-license
+s2c2-ascend-run storage-loop-measured cost=unchanged semantics=unchanged v3=not-claimed

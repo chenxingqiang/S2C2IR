@@ -1,0 +1,22 @@
+# Synthetic host log for Phase 5B emit/rank wiring.
+# Not a device campaign. Times are dummy schema witnesses.
+# Do not FileCheck microseconds. Do not treat as 4090/910B fact.
+s2c2-cuda-run hardware_id=rtx4090:cuda sched=gpu-async map=default device=gpu
+s2c2-cuda-run storage-hierarchy-measured=1
+s2c2-cuda-run storage-hierarchy-measured program-measurement=yes
+s2c2-cuda-run storage-hierarchy-measured note one-arm-per-signature
+s2c2-cuda-run storage-hierarchy-measured note measurement-cannot-expand-F
+s2c2-cuda-run storage-hierarchy-measured note keep-residency-ne-rewrite
+s2c2-cuda-run storage-hierarchy-measured measured=yes
+s2c2-cuda-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER|KEEP_RESIDENCY|KEEP_RESIDENCY timing=8000.0 correctness=1
+s2c2-cuda-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER|KEEP_RESIDENCY|TRANSFER timing=8100.0 correctness=1
+s2c2-cuda-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER|TRANSFER|KEEP_RESIDENCY timing=8200.0 correctness=1
+s2c2-cuda-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PREFETCH|TRANSFER|TRANSFER|TRANSFER timing=8300.0 correctness=1
+s2c2-cuda-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER|KEEP_RESIDENCY|KEEP_RESIDENCY timing=8400.0 correctness=1
+s2c2-cuda-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER|KEEP_RESIDENCY|TRANSFER timing=8500.0 correctness=1
+s2c2-cuda-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER|TRANSFER|KEEP_RESIDENCY timing=8600.0 correctness=1
+s2c2-cuda-run storage-hierarchy-measured signature=MATERIALIZE//MATERIALIZE//MATERIALIZE|TRANSFER//PRESERVE|TRANSFER|TRANSFER|TRANSFER timing=8700.0 correctness=1
+s2c2-cuda-run storage-hierarchy-measured count=8 note one-row-per-signature
+s2c2-cuda-run storage-hierarchy-measured note not-pipeline-s0-s1
+s2c2-cuda-run storage-hierarchy-measured note not-cost-v04
+s2c2-cuda-run storage-hierarchy-measured cost=unchanged semantics=unchanged v3=not-claimed

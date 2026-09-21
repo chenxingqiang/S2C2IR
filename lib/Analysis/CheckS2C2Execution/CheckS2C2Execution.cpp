@@ -6,6 +6,11 @@
 //
 // MustProve checker for Execution Semantics E1–E8. Not token lowering.
 // Concurrent sibling lexical order is not happens-before.
+// Validity of a stor.transfer result follows SSA through task /
+// concurrent yields onto the parent result (storage pipeline consume).
+// Phase 3I also walks `scf.for` / `scf.if` / `scf.index_switch` as
+// sequential regions and aliases yields onto their results (not a
+// new HB).
 //
 //===----------------------------------------------------------------------===//
 
@@ -15,6 +20,7 @@
 #include "s2c2/Storage/StorageOps.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/STLExtras.h"
@@ -34,6 +40,7 @@ using sched::PipelineOp;
 using sched::StageOp;
 using sched::TaskOp;
 using sched::WaitOp;
+using sched::YieldOp;
 using stor::PackOp;
 using stor::TransferOp;
 using stor::UnpackOp;
@@ -157,6 +164,53 @@ void CheckS2C2Execution::walkOp(Operation *op, ArrayRef<Operation *> incoming,
     return;
   }
 
+  if (auto forOp = dyn_cast<scf::ForOp>(op)) {
+    if (forOp.getBodyRegion().empty()) {
+      g.addEdges(incoming, op);
+      outgoing.assign({op});
+      return;
+    }
+    SmallVector<Operation *> bodyOut;
+    walkSeq(*forOp.getBody(), incoming, bodyOut, g);
+    g.addEdges(bodyOut, op);
+    outgoing = std::move(bodyOut);
+    outgoing.push_back(op);
+    return;
+  }
+
+  if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
+    SmallVector<Operation *> join;
+    if (Block *thenB = ifOp.thenBlock()) {
+      SmallVector<Operation *> out;
+      walkSeq(*thenB, incoming, out, g);
+      join.append(out.begin(), out.end());
+    }
+    if (Block *elseB = ifOp.elseBlock()) {
+      SmallVector<Operation *> out;
+      walkSeq(*elseB, incoming, out, g);
+      join.append(out.begin(), out.end());
+    }
+    g.addEdges(join, op);
+    outgoing = std::move(join);
+    outgoing.push_back(op);
+    return;
+  }
+
+  if (auto sw = dyn_cast<scf::IndexSwitchOp>(op)) {
+    SmallVector<Operation *> join;
+    for (Region &region : sw->getRegions()) {
+      if (region.empty())
+        continue;
+      SmallVector<Operation *> out;
+      walkSeq(region.front(), incoming, out, g);
+      join.append(out.begin(), out.end());
+    }
+    g.addEdges(join, op);
+    outgoing = std::move(join);
+    outgoing.push_back(op);
+    return;
+  }
+
   g.addEdges(incoming, op);
   if (isa<WaitOp, BarrierOp>(op)) {
     for (Value token : op->getOperands()) {
@@ -217,6 +271,83 @@ void CheckS2C2Execution::runOnOperation() {
       reads.push_back({op, unpack.getBuffer()});
     }
   });
+
+  // Validity follows SSA through task / concurrent yields. The inner
+  // transfer writes a region result; the parent SSA is a different
+  // Value but the same residency after the concurrent join.
+  bool aliased = true;
+  while (aliased) {
+    aliased = false;
+    getOperation()->walk([&](Operation *op) {
+      auto copyWrites = [&](Value from, Value to) {
+        if (from == to)
+          return;
+        for (Operation *write : syncWrites.lookup(from)) {
+          auto &dst = syncWrites[to];
+          if (!llvm::is_contained(dst, write)) {
+            dst.push_back(write);
+            aliased = true;
+          }
+        }
+      };
+      if (auto task = dyn_cast<TaskOp>(op)) {
+        if (task.getBody().empty())
+          return;
+        auto yield = dyn_cast<YieldOp>(task.getBody().front().getTerminator());
+        if (!yield)
+          return;
+        for (auto [from, to] :
+             llvm::zip(yield.getOperands(), task.getValues()))
+          copyWrites(from, to);
+      } else if (auto conc = dyn_cast<ConcurrentOp>(op)) {
+        if (conc.getBody().empty())
+          return;
+        auto yield = dyn_cast<YieldOp>(conc.getBody().front().getTerminator());
+        if (!yield)
+          return;
+        for (auto [from, to] :
+             llvm::zip(yield.getOperands(), conc.getResults()))
+          copyWrites(from, to);
+      } else if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
+        for (Region &region : ifOp->getRegions()) {
+          if (region.empty())
+            continue;
+          auto yield = dyn_cast<scf::YieldOp>(region.front().getTerminator());
+          if (!yield)
+            continue;
+          for (auto [from, to] :
+               llvm::zip(yield.getOperands(), ifOp.getResults()))
+            copyWrites(from, to);
+        }
+      } else if (auto sw = dyn_cast<scf::IndexSwitchOp>(op)) {
+        for (Region &region : sw->getRegions()) {
+          if (region.empty())
+            continue;
+          auto yield = dyn_cast<scf::YieldOp>(region.front().getTerminator());
+          if (!yield)
+            continue;
+          for (auto [from, to] :
+               llvm::zip(yield.getOperands(), sw.getResults()))
+            copyWrites(from, to);
+        }
+      } else if (auto forOp = dyn_cast<scf::ForOp>(op)) {
+        if (forOp.getBodyRegion().empty())
+          return;
+        auto yield = dyn_cast<scf::YieldOp>(forOp.getBody()->getTerminator());
+        if (!yield)
+          return;
+        for (auto [from, to] :
+             llvm::zip(yield.getOperands(), forOp.getResults()))
+          copyWrites(from, to);
+        for (auto [from, to] :
+             llvm::zip(yield.getOperands(), forOp.getRegionIterArgs()))
+          copyWrites(from, to);
+        for (auto [from, to] :
+             llvm::zip(forOp.getInitArgs(), forOp.getRegionIterArgs()))
+          copyWrites(from, to);
+      }
+    });
+  }
 
   bool failed = false;
   for (auto [readOp, residency] : reads) {

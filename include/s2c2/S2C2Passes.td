@@ -19,6 +19,8 @@ def ConvertStorToMemref : Pass<"convert-stor-to-memref", "::mlir::ModuleOp"> {
     `comm.stream` to `memref.copy` (**Phase 2A blocking approximation**;
     not event-preserving comm lowering), and `stor.pack` / `stor.unpack`
     to `bufferization.to_memref` / `bufferization.to_tensor`.
+    `scf.for` / `scf.if` that carry `!stor.buffer` are structurally
+    retargeted to memref (Phase 3I loop pipeline).
 
     `stor.materialize` is allocation only (contents unspecified).
     `stor.transfer` / copy / stream establish valid destination contents.
@@ -33,7 +35,8 @@ def ConvertStorToMemref : Pass<"convert-stor-to-memref", "::mlir::ModuleOp"> {
   }];
   let dependentDialects = [
     "mlir::memref::MemRefDialect",
-    "mlir::bufferization::BufferizationDialect"
+    "mlir::bufferization::BufferizationDialect",
+    "mlir::scf::SCFDialect"
   ];
   let options = [
     Option<"spaceMap", "space-map", "std::string", /*default=*/"\"\"",
@@ -84,7 +87,8 @@ def ConvertCommToMemref : Pass<"convert-comm-to-memref", "::mlir::ModuleOp"> {
   }];
   let dependentDialects = [
     "mlir::memref::MemRefDialect",
-    "mlir::bufferization::BufferizationDialect"
+    "mlir::bufferization::BufferizationDialect",
+    "mlir::scf::SCFDialect"
   ];
   let options = [
     Option<"spaceMap", "space-map", "std::string", /*default=*/"\"\"",
@@ -111,7 +115,8 @@ def LowerS2C2 : Pass<"s2c2-lower", "::mlir::ModuleOp"> {
     "mlir::arith::ArithDialect",
     "mlir::math::MathDialect",
     "mlir::memref::MemRefDialect",
-    "mlir::bufferization::BufferizationDialect"
+    "mlir::bufferization::BufferizationDialect",
+    "mlir::scf::SCFDialect"
   ];
   let options = [
     Option<"spaceMap", "space-map", "std::string", /*default=*/"\"\"",
@@ -434,18 +439,125 @@ def S2C2EvidenceBoundedSchedule : Pass<"s2c2-evidence-bounded-schedule", "::mlir
     Optional `--evidence=` JSONL overrides the profile catalog.
     `--s2c2-capability-schedule=profile=<jsonl>` is unchanged.
     After this pass, `--check-s2c2-execution` must still succeed.
+    Walks every 2-task `sched.concurrent` as a storage-aware
+    workload candidate. Prints KEEP (storage/communication overlap),
+    FLATTEN (licensed compute contention), or PRESERVE (no evidence).
+    Also walks `stor.materialize` / `stor.transfer` and prints a
+    hierarchy plan: MATERIALIZE / PREFETCH / TRANSFER /
+    KEEP_RESIDENCY / PRESERVE. Inferred overlap authorizes PREFETCH
+    only; it does not flatten C||Storage. KEEP_RESIDENCY reuse
+    applies only when a dominating, unmutated, same-type live
+    replica is proven, including a prologue replica that dominates
+    an enclosing `scf.for` and is not packed/deallocated in the
+    loop. For-iter-args stay underdetermined. Prints `loop-pipeline`
+    for each `scf.for` (report only; the loop is not rewritten).
+    Optional `dump-schedule` writes the same decisions as JSON.
+    Optional `measured-cost-table` is a JSONL of candidate-local
+    `measured-storage-v1` records. Ranking does not retarget
+    `default-3g` and does not rewrite the measured winner.
+    Frozen `cost-v04` is unchanged. Does not flatten C||Storage.
+    Optional `schedule-policy` names which ranking is the
+    production selection (`default-3g` / `cost-v04` /
+    `measured-storage-v1`). Policy cannot create legality or a
+    rewrite license.     Optional `explain` prints the selection
+    account. 5A–5D remain frozen. 5E is not opened.
+    Optional `capacity` (`hbm:2`) prints F_capacity
+    occupancy candidates. Optional `capacity-spec` is a
+    `s2c2.capacity.v1` JSONL. Diagnostics only; rewrite=no.
+    measured-capacity-v1 is not opened.
+    Optional `dump-capacity-plan` writes the compiler-visible
+    CapacityPlan JSON (`selected=none`). Not a rewrite license.
   }];
   let dependentDialects = [
     "mlir::s2c2::sched::ScheduleDialect",
     "mlir::s2c2::comp::ComputeDialect",
     "mlir::s2c2::comm::CommDialect",
-    "mlir::s2c2::stor::StorageDialect"
+    "mlir::s2c2::stor::StorageDialect",
+    "mlir::scf::SCFDialect",
+    "mlir::arith::ArithDialect"
   ];
   let options = [
     Option<"profileName", "profile", "std::string", /*default=*/"\"\"",
            "Named profile (rtx4090|910B|unknown) or compiler-profile JSON">,
     Option<"evidencePath", "evidence", "std::string", /*default=*/"\"\"",
-           "Optional evidence JSONL override (not a benchmark log)">
+           "Optional evidence JSONL override (not a benchmark log)">,
+    Option<"dumpSchedule", "dump-schedule", "std::string", /*default=*/"\"\"",
+           "Optional JSON dump of discovered candidates and decisions">,
+    Option<"measuredCostTable", "measured-cost-table", "std::string",
+           /*default=*/"\"\"",
+           "Optional JSONL of measured-storage-v1 candidate records">,
+    Option<"schedulePolicy", "schedule-policy", "std::string",
+           /*default=*/"\"\"",
+           "Selection policy: default-3g|cost-v04|measured-storage-v1">,
+    Option<"explain", "explain", "bool", /*default=*/"false",
+           "Print F, evidence, named-policy selection, rewrite=no">,
+    Option<"capacityBudget", "capacity", "std::string", /*default=*/"\"\"",
+           "Constrained space:tiles for F_capacity (hbm:2). Diagnostics only">,
+    Option<"capacitySpec", "capacity-spec", "std::string", /*default=*/"\"\"",
+           "Optional s2c2.capacity.v1 JSONL occupancy spec">,
+    Option<"dumpCapacityPlan", "dump-capacity-plan", "std::string",
+           /*default=*/"\"\"",
+           "Write s2c2.capacity_plan.v1 JSON; selected=none">
+  ];
+}
+
+def S2C2CapacityPlanQuery : Pass<"s2c2-capacity-plan-query", "::mlir::ModuleOp"> {
+  let summary = "Query F_capacity as a consumer-visible CapacityPlan";
+  let description = [{
+    Phase 6C-D consumer query surface. Builds the same occupancy
+    CapacityPlan as `--s2c2-evidence-bounded-schedule --capacity=...`,
+    then prints `s2c2-capacity-plan-query` plus one
+    `s2c2.capacity_plan.v1` JSON object. Does **not** apply a
+    schedule, load Evidence DB, emit `s2c2-storage-capacity`, or
+    issue a rewrite license. Default `selected` is `none`.
+    Optional `capacity-policy=s0` selects first(F_capacity)
+    (evict incoming at t*). Optional
+    `capacity-policy=measured-capacity-v1` ranks enumerated
+    F_capacity under scoped `s2c2.measured_capacity_cost.v1`
+    records (`measured-capacity-table`). Matcher is
+    profile + workload_class + candidate_identity, then
+    measured=yes and correctness=1. Duplicate scoped
+    identity is `duplicate-measured-identity`. Equal times
+    pick the earliest F_capacity inhabitant. ArgMin is
+    selection only; not a rewrite license. Prints the 6C-G
+    capacity rewrite-license gate (`s2c2.capacity_license.v1`)
+    with result still `no`: selected is not a license; EVICT
+    requires a restore (`TRANSFER|REMATERIALIZE`). Prints the
+    6C-H TRANSFER restore closure (`s2c2.capacity_restore.v1`)
+    from candidate records, not the identity string. Closed
+    restore still does not issue `rewrite-license=yes`.
+    Prints the 6C-I license predicate
+    (`s2c2.capacity_predicate.v1`): necessary conjuncts
+    (selected ∈ F_capacity, enumerated occupancy, EVICT
+    closure, TRANSFER restore kind, capacity proof) versus
+    sufficient proof still missing (source-data validity,
+    restore ordering, destination invalidation, rewrite
+    path). Prints the 6C-J source-data classification
+    (`s2c2.capacity_sourcedata.v1`) from structured
+    `CapacityRestore` records. Source declaration is not
+    data validity; `source-data=yes` is still not
+    sufficient. Result still `no`. Truncated plans cannot
+    be selected. Do not FileCheck microseconds. 6C-B
+    diagnostics stay frozen.
+  }];
+  let dependentDialects = [
+    "mlir::s2c2::stor::StorageDialect",
+    "mlir::s2c2::sched::ScheduleDialect"
+  ];
+  let options = [
+    Option<"capacityBudget", "capacity", "std::string", /*default=*/"\"\"",
+           "HBM occupancy budget (tiles). Same meaning as --capacity.">,
+    Option<"capacitySpec", "capacity-spec", "std::string", /*default=*/"\"\"",
+           "JSON capacity spec (same as --capacity-spec).">,
+    Option<"dumpCapacityPlan", "dump-capacity-plan", "std::string",
+           /*default=*/"\"\"",
+           "Write s2c2.capacity_plan.v1 JSON to this path.">,
+    Option<"capacityPolicy", "capacity-policy", "std::string",
+           /*default=*/"\"\"",
+           "Selection over F_capacity: none|s0|measured-capacity-v1.">,
+    Option<"measuredCapacityTable", "measured-capacity-table", "std::string",
+           /*default=*/"\"\"",
+           "JSONL of s2c2.measured_capacity_cost.v1 (not a campaign log).">
   ];
 }
 

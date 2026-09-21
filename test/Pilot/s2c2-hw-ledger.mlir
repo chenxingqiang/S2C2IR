@@ -25,8 +25,19 @@ module {
 // LEDGER: hw-ledger id=ascend910b-cc-rewrite status=measured files=ok
 // LEDGER: hw-ledger id=ssd-mlp-wallclock status=measured files=ok
 // LEDGER: hw-ledger id=ssd-mlp-wallclock-4090 status=measured files=ok
-// LEDGER: hw-ledger records=20
-// LEDGER: hw-ledger measured=20
+// LEDGER: hw-ledger id=storage-pipeline-4090 status=measured files=ok
+// LEDGER: hw-ledger id=storage-measured-4090 status=measured files=ok
+// LEDGER: hw-ledger id=storage-measured-910b status=measured files=ok
+// LEDGER: hw-ledger id=storage-measured-hierarchy-4090 status=measured files=ok
+// LEDGER: hw-ledger id=storage-measured-hierarchy-910b status=measured files=ok
+// LEDGER: hw-ledger id=storage-loop-wallclock-4090 status=measured files=ok
+// LEDGER: hw-ledger id=storage-loop-wallclock status=measured files=ok
+// LEDGER: hw-ledger id=storage-measured-ntile-4090 status=measured files=ok
+// LEDGER: hw-ledger id=storage-measured-ntile-910b status=measured files=ok
+// LEDGER: hw-ledger id=storage-measured-loop-4090 status=measured files=ok
+// LEDGER: hw-ledger id=storage-measured-loop-910b status=measured files=ok
+// LEDGER: hw-ledger records=31
+// LEDGER: hw-ledger measured=31
 // LEDGER: hw-ledger device-absent=0
 // LEDGER: hw-ledger catalog-69=underdetermined
 // LEDGER: hw-ledger catalog-untouched=yes
@@ -35,6 +46,17 @@ module {
 // LEDGER: hw-ledger npu-demo=not-ledger
 // LEDGER-NOT: hw-ledger ssd-mlp-wallclock=device-absent
 // LEDGER-NOT: hw-ledger ssd-mlp-wallclock-4090=device-absent
+// LEDGER-NOT: hw-ledger storage-pipeline-4090=device-absent
+// LEDGER-NOT: hw-ledger storage-measured-4090=device-absent
+// LEDGER-NOT: hw-ledger storage-measured-910b=device-absent
+// LEDGER-NOT: hw-ledger storage-measured-hierarchy-4090=device-absent
+// LEDGER-NOT: hw-ledger storage-measured-hierarchy-910b=device-absent
+// LEDGER-NOT: hw-ledger storage-loop-wallclock-4090=device-absent
+// LEDGER-NOT: hw-ledger storage-loop-wallclock=device-absent
+// LEDGER-NOT: hw-ledger storage-measured-ntile-4090=device-absent
+// LEDGER-NOT: hw-ledger storage-measured-ntile-910b=device-absent
+// LEDGER-NOT: hw-ledger storage-measured-loop-4090=device-absent
+// LEDGER-NOT: hw-ledger storage-measured-loop-910b=device-absent
 // LEDGER: cost=unchanged
 // LEDGER-NOT: Cost v0.4
 // LEDGER-NOT: password

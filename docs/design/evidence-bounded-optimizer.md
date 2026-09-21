@@ -15,6 +15,13 @@ S²C²
   + Evidence-Bounded Schedule Optimizer
 ```
 
+After 6C-I the identifiable product is Storage-aware
+execution infrastructure: Semantic Execution IR + Storage
+Hierarchy + Evidence-Bounded Scheduling. Diagnosis freeze:
+[`architecture-healthcheck.md`](architecture-healthcheck.md).
+That document does **not** open rewrite, a frontend, or
+\(F_{\mathrm{storage\_schedule}}\).
+
 Hardware evidence is local, conditional, and noisy. The compiler
 must not promote one benchmark into a global rewrite law.
 
