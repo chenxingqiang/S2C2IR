@@ -932,8 +932,9 @@ sufficient=no                         ≠  rewrite-license=yes
 
 `sufficient` stays **no** until the rewrite path is also
 yes. This cut does **not** claim a rewrite path, IR alias
-analysis, `replace`/`erase`, or
-\(F_{\mathrm{storage\_schedule}}\).
+analysis, `replace`/`erase`, or an inhabited
+\(F_{\mathrm{storage\_schedule}}\). Design-only family:
+[`storage-schedule-family.md`](storage-schedule-family.md).
 
 The invalidation prefix prints only on the query consumer.
 Diagnostic `--capacity` does not print it.

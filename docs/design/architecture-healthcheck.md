@@ -141,8 +141,10 @@ rewrite stay after both.
 6C-M   Sufficiency Decision          evaluator; rewrite-license=no
 7A     Authorization                 CLOSED
 7B     ONE storage rewrite           CLOSED
-       F_storage_schedule design     prefetch × depth × residency × capacity
-                                     still no inhabitant
+       F_storage_schedule design     five axes; F_capacity is a constraint
+                                     prefetch, depth, residency lifetime,
+                                     eviction/restore, pipeline overlap
+                                     still no inhabitant; sufficient=no
 ```
 
 6C-M lock:
@@ -170,7 +172,12 @@ F_storage_schedule
 ```
 
 That family reuses Evidence / Applicability / \(F\) / policy /
-license. It does **not** reopen 4C, 5A–6B, or 6C-B–I.
+license. `F_capacity` in the diagram is the frozen
+tile-count constraint, not a product axis. The five lines
+under `F_storage_schedule` are the product. It does
+**not** reopen 4C, 5A–6B, or 6C-B–I.
+Design lock (still no inhabitant):
+[`storage-schedule-family.md`](storage-schedule-family.md).
 
 ## Out of scope (this freeze)
 
