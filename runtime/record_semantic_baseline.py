@@ -39,6 +39,86 @@ def _capture(fn) -> str:
     return buf.getvalue()
 
 
+_REPO = _RUNTIME.parent
+_FROZEN_APPLY_SCHEDULE = _REPO / "lib/Analysis/S2C2Capability/S2C2CapabilitySchedule.cpp"
+
+
+def _pin_critical() -> None:
+    suf_cases = dict(suf._cases())
+    usable_and = suf.evaluate_sufficiency(
+        suf_cases["usable-and-applicable-ne-sufficient"]
+    )
+    if usable_and["decision"]["result"] != "no":
+        raise RuntimeError("usable-and-applicable-ne-sufficient")
+    if usable_and["decision"]["subject"] != "sufficient":
+        raise RuntimeError("suf-subject")
+
+    auth_cases = dict(auth._cases())
+    policy_missing = auth.evaluate_authorization(
+        auth_cases["sufficient-yes-policy-missing"]
+    )
+    if policy_missing["authorized"]["result"] != "no":
+        raise RuntimeError("sufficient-yes-policy-missing")
+    license_missing = auth.evaluate_authorization(
+        auth_cases["authorized-yes-license-missing"]
+    )
+    if license_missing["authorized"]["result"] != "yes":
+        raise RuntimeError("authorized-yes")
+    if license_missing["rewrite-license"]["result"] != "no":
+        raise RuntimeError("license-missing")
+    for token in auth.AUTHORIZATION_REASON_TOKENS:
+        if not token.startswith("authorization."):
+            raise RuntimeError(token)
+
+    for name, inputs, kwargs in rew._cases():
+        if name != "rewrite-plan-yes":
+            continue
+        bag = rew.evaluate_rewrite(inputs, **kwargs)
+        if bag["rewrite-plan"]["result"] != "yes":
+            raise RuntimeError("rewrite-plan-yes")
+        if bag["applied"] != "no":
+            raise RuntimeError("applied")
+        if bag["rewrite-path"] != "no":
+            raise RuntimeError("rewrite-path")
+        if bag["can-run-plan"] != "no":
+            raise RuntimeError("can-run-plan")
+
+
+def _guard_execution() -> None:
+    apply_host = _RUNTIME / "record_storage_apply.py"
+    if apply_host.exists():
+        raise RuntimeError("apply-host-present")
+    for path in _REPO.rglob("*storage_apply*"):
+        if ".git" in path.parts:
+            continue
+        raise RuntimeError(f"apply-artifact {path}")
+    for path in _REPO.rglob("*StorageApply*"):
+        if ".git" in path.parts:
+            continue
+        raise RuntimeError(f"apply-artifact {path}")
+    for path in (_REPO / "lib").rglob("*.cpp"):
+        text = path.read_text(errors="replace")
+        if "applySchedule" not in text:
+            continue
+        if path.resolve() != _FROZEN_APPLY_SCHEDULE.resolve():
+            raise RuntimeError(f"applySchedule-leak {path}")
+    for path in _RUNTIME.glob("record_*.py"):
+        if path.name == "record_semantic_baseline.py":
+            continue
+        text = path.read_text()
+        if 'applied": "yes"' in text or "applied=yes" in text:
+            raise RuntimeError(f"applied-yes {path.name}")
+        if 'rewrite-path": "yes"' in text or "rewrite-path=yes" in text:
+            raise RuntimeError(f"rewrite-path-yes {path.name}")
+        if 'can-run-plan": "yes"' in text or "can-run-plan=yes" in text:
+            raise RuntimeError(f"can-run-plan-yes {path.name}")
+        if "construct P'" in text:
+            raise RuntimeError(f"construct-p {path.name}")
+    for path in (_REPO / "include").rglob("*"):
+        if path.is_file() and "F_storage_schedule" in path.name:
+            raise RuntimeError(f"f-storage-schedule {path}")
+
+
 def _validate() -> dict:
     ea1._validate_reason_vocab()
     ea1._validate_algebra()
@@ -47,6 +127,8 @@ def _validate() -> dict:
     rew._validate()
     e2e._validate()
     xid._validate()
+    _pin_critical()
+    _guard_execution()
 
     contract = _capture(ea1.print_evidence_decision_contract)
     if "decision-subject usable" not in contract:
@@ -62,10 +144,6 @@ def _validate() -> dict:
         raise RuntimeError("auth-cases")
     if len(rew._cases()) != 18:
         raise RuntimeError("rew-cases")
-
-    apply_host = _RUNTIME / "record_storage_apply.py"
-    if apply_host.exists():
-        raise RuntimeError("apply-host-present")
 
     return {
         "ea-1": "usable",
@@ -135,6 +213,14 @@ def print_contract() -> int:
     print("note seven-b-consume-seven-a")
     print("note apply-not-merged")
     print("note apply-inhabitant-closed")
+    print("pin usable-and-applicable-ne-sufficient yes")
+    print("pin sufficient-yes-policy-missing authorized=no")
+    print("pin authorized-yes-license-missing rewrite-license=no")
+    print("pin rewrite-plan-yes applied=no")
+    print("guard record_storage_apply absent")
+    print("guard applySchedule frozen-capability-schedule-only")
+    print("result PASS")
+    print("Semantic Baseline v1 = PASS")
     print("cost=unchanged")
     return 0
 
@@ -142,6 +228,24 @@ def print_contract() -> int:
 def print_summary() -> int:
     _validate()
     print("semantic-baseline-v1-summary gate=query")
+    print("EA-1")
+    print("  producer = record_decision.py")
+    print("  subject  = usable")
+    print("6C-M")
+    print("  producer = record_sufficiency.py")
+    print("  subject  = sufficient")
+    print("  cases    = 16/16")
+    print("7A")
+    print("  producer = record_authorization.py")
+    print("  subjects = authorized + rewrite-license")
+    print("  cases    = 20/20")
+    print("7B")
+    print("  producer = record_storage_rewrite.py")
+    print("  subject  = rewrite-plan")
+    print("  cases    = 18/18")
+    print("Apply")
+    print("  producer = none")
+    print("  status   = specification-only")
     print("layer EA-1 result=usable producer=record_decision.py schema=s2c2.decision.v1")
     print(
         "layer 6C-M result=sufficient producer=record_sufficiency.py "
@@ -174,6 +278,8 @@ def print_summary() -> int:
         f"selected={rew.SELECTED_S0} object={rew.OBJECT_2} "
         f"action={rew.ACTION_V01} license-kind={rew.LICENSE_KIND_V01}"
     )
+    print("result PASS")
+    print("Semantic Baseline v1 = PASS")
     print("cost=unchanged")
     return 0
 

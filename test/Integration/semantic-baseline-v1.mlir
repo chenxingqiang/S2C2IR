@@ -43,11 +43,34 @@ func.func @dummy() {
 // BASE: applied no
 // BASE: note apply-not-merged
 // BASE: note apply-inhabitant-closed
+// BASE: pin usable-and-applicable-ne-sufficient yes
+// BASE: pin sufficient-yes-policy-missing authorized=no
+// BASE: pin authorized-yes-license-missing rewrite-license=no
+// BASE: pin rewrite-plan-yes applied=no
+// BASE: guard record_storage_apply absent
+// BASE: guard applySchedule frozen-capability-schedule-only
+// BASE: result PASS
+// BASE: Semantic Baseline v1 = PASS
 // BASE-NOT: rewrite-path=yes
 // BASE-NOT: applied=yes
 // BASE-NOT: can-run-plan=yes
 
 // SUM: semantic-baseline-v1-summary gate=query
+// SUM: EA-1
+// SUM:   producer = record_decision.py
+// SUM:   subject  = usable
+// SUM: 6C-M
+// SUM:   producer = record_sufficiency.py
+// SUM:   subject  = sufficient
+// SUM: 7A
+// SUM:   producer = record_authorization.py
+// SUM:   subjects = authorized + rewrite-license
+// SUM: 7B
+// SUM:   producer = record_storage_rewrite.py
+// SUM:   subject  = rewrite-plan
+// SUM: Apply
+// SUM:   producer = none
+// SUM:   status   = specification-only
 // SUM: layer EA-1 result=usable
 // SUM: layer 6C-M result=sufficient
 // SUM: layer 7A result=authorized,rewrite-license
@@ -58,6 +81,7 @@ func.func @dummy() {
 // SUM: can-run-plan no
 // SUM: rewrite-path no
 // SUM: applied no
+// SUM: Semantic Baseline v1 = PASS
 // SUM-NOT: rewrite-path=yes
 // SUM-NOT: applied=yes
 // SUM-NOT: can-run-plan=yes

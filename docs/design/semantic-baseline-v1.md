@@ -92,6 +92,42 @@ semantic regression     Decision stack / producer contract
 execution regression    later apply / HB / legality / measure
 ```
 
+## PASS iff
+
+```text
+EA-1        = PASS   subject=usable, not sufficient
+6C-M 16/16  = PASS   suf._validate(); usable∧applicable ≠ sufficient
+7A 20/20    = PASS   auth._validate(); policy-missing ⇒ authorized=no
+                     license-missing ⇒ rewrite-license=no
+7B 18/18    = PASS   rew._validate(); plan=yes still applied=no
+legacy      = PASS   RCE + XID
+provenance  = consistent
+no new Decision.subject
+no IR mutation
+no apply inhabitant
+record_storage_apply.py absent
+rewrite-path=no
+can-run-plan=no
+applied=no
+F_storage_schedule absent
+```
+
+```text
+Semantic Baseline v1 = PASS
+```
+
+only when every line above holds. Then, and only then:
+
+```text
+PR #140 — APPROVED
+        ↓
+freeze baseline
+        ↓
+PR #139 — merge
+        ↓
+open Controlled IR Apply
+```
+
 ## Out of scope
 
 ```text
