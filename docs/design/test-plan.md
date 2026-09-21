@@ -1023,6 +1023,9 @@ sufficient):
 Realization Legality (constraint facts copied; not
 sufficient / can-run-plan):
 [`realization-legality.md`](realization-legality.md).
+Realization Checking (claimed-kinds vs frozen legality facts;
+not can-run-plan):
+[`realization-checking.md`](realization-checking.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1109,6 +1112,8 @@ Do not FileCheck microseconds.
 | PROF-2 | same | 10-case matrix: aggregation; missing ≠ forbidden; one-kind-no does not collapse; other device; duplicate; unknown provenance; usable ≠ capability; all-yes ≠ sufficient; no authorization; no rewrite-path |
 | LEG-1 | `test/Integration/realization-legality.mlir` | `--print-realization-legality-contract`; `s2c2.realization_legality.v1`; constraint copied; `all-allowed-ne-sufficient`; `unproven-ne-forbidden`; `can-run-plan=no`; `rewrite-license=no` |
 | LEG-2 | same | 8-case matrix: yes→allowed; no→forbidden; n/a→not-applicable; missing/unknown-provenance→unproven; all-allowed ≠ sufficient; one-kind-forbidden; mixed allowed/unproven |
+| CHK-1 | `test/Integration/realization-checking.mlir` | `--print-realization-checking-contract`; `s2c2.realization_checking.v1`; finding `{kind,result,constraint}`; `unclaimed-kind-ne-violation`; `can-run-plan=no`; `rewrite-license=no` |
+| CHK-2 | same | 13-case matrix: satisfy/violate+source constraint; unproven-constraint; unclaimed forbidden ignored; canonical claimed-kinds; empty findings; contract-error ≠ result |
 
 ## Complete SSD + MLP program wall-clock
 

@@ -155,3 +155,7 @@ python3 runtime/record_realization_legality.py --print-realization-legality-matr
 ```
 
 Query-only. `can-run-plan=no`. `rewrite-license=no`.
+
+Realization Checking (claimed-kinds vs frozen legality facts;
+not can-run-plan):
+[`realization-checking.md`](realization-checking.md).
