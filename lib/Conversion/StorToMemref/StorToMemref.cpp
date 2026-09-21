@@ -15,6 +15,8 @@
 #include "mlir/Dialect/Bufferization/IR/Bufferization.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Patterns.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
@@ -56,7 +58,11 @@ static MemRefType convertBuffer(BufferType type, const TargetSpaceMap &map) {
 namespace {
 struct BufferToMemRefConverter : TypeConverter {
   explicit BufferToMemRefConverter(const TargetSpaceMap &map) : map(map) {
-    addConversion([](Type type) { return type; });
+    addConversion([](Type type) -> std::optional<Type> {
+      if (llvm::isa<BufferType>(type))
+        return std::nullopt;
+      return type;
+    });
     addConversion([&](BufferType type) -> std::optional<Type> {
       if (!llvm::isa<RankedTensorType>(type.getSourceType()))
         return std::nullopt;
@@ -243,6 +249,8 @@ runMemoryLowering(Operation *op, StringRef spaceMapSpec, MLIRContext *ctx) {
   patterns.add<ConvertAlloc, ConvertMaterialize, ConvertTransfer, ConvertDealloc,
                ConvertUnpack, ConvertPack, ConvertCopy, ConvertStream,
                ConvertWait, ConvertBarrier>(converter, ctx);
+  scf::populateSCFStructuralTypeConversionsAndLegality(converter, patterns,
+                                                       target);
   if (failed(applyPartialConversion(op, target, std::move(patterns))))
     return failure();
 

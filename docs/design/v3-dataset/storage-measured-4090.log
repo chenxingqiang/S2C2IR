@@ -1,0 +1,22 @@
+sweep_storage_measured n-tile=4194304 n-cc128=33554432 k_ref=32
+s2c2-cuda-run hardware_id=rtx4090:cuda sched=gpu-async map=default device=gpu sync=named-nonblocking
+s2c2-cuda-run workload compute=elemwise
+s2c2-cuda-run workload transfer=storage_to_host|host_to_device
+s2c2-cuda-run note workload-semantic-ne-kernel-backend
+s2c2-cuda-run timing=host-wall-clock
+s2c2-cuda-run storage-pipeline=1
+s2c2-cuda-run storage-pipeline program-measurement=yes
+s2c2-cuda-run storage-pipeline note storage-prefetch||compute
+s2c2-cuda-run storage-pipeline n-tile=4194304 n-cc16=4194304 n-cc128=33554432 k_ref=32
+s2c2-cuda-run storage-pipeline measured=yes
+s2c2-cuda-run storage-pipeline timing seq=25656.8 evi=25419.6 par=25324.1 opt_over_base=0.991
+s2c2-cuda-run storage-pipeline correctness=1
+s2c2-cuda-run storage-pipeline evi=keep-C||Storage,serialize-licensed-C||C
+s2c2-cuda-run storage-pipeline note catalog-untouched
+s2c2-cuda-run storage-pipeline note logical-ssd-ne-disk
+s2c2-cuda-run storage-pipeline note not-cost-v04
+s2c2-cuda-run storage-pipeline cost=unchanged semantics=unchanged v3=not-claimed
+s2c2-cuda-run storage-measured note evi-is-S0-prefetch seq-is-S1-preserve
+s2c2-cuda-run storage-measured note par-not-in-F
+s2c2-cuda-run storage-measured note do-not-filecheck-microseconds
+s2c2-cuda-run storage-measured cost=unchanged

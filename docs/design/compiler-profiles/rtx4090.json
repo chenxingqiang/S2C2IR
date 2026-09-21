@@ -1,0 +1,6 @@
+{
+  "schema": "s2c2.compiler_profile.v1",
+  "profile": "rtx4090",
+  "device": "rtx4090",
+  "evidence": "builtin:rtx4090"
+}

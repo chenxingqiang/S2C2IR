@@ -15,6 +15,13 @@ S²C²
   + Evidence-Bounded Schedule Optimizer
 ```
 
+After 6C-I the identifiable product is Storage-aware
+execution infrastructure: Semantic Execution IR + Storage
+Hierarchy + Evidence-Bounded Scheduling. Diagnosis freeze:
+[`architecture-healthcheck.md`](architecture-healthcheck.md).
+That document does **not** open rewrite, a frontend, or
+\(F_{\mathrm{storage\_schedule}}\).
+
 Hardware evidence is local, conditional, and noisy. The compiler
 must not promote one benchmark into a global rewrite law.
 
@@ -72,6 +79,10 @@ HB Verification
 
 That is not Cost v0.4. `seq-slack=1.05` remains an optimizer
 policy threshold.
+
+Phase 3D puts this pipeline on `s2c2-opt` with named compiler
+profiles (`--profile=rtx4090|910B|unknown`):
+[`evidence-bounded-schedule.md`](evidence-bounded-schedule.md).
 
 ## End-to-end slice (this increment)
 
