@@ -77,7 +77,18 @@ not EvidenceRecord bool fields:
 
 ```text
 REQUIRED = (usable, restore-ordering, dest-invalidation, capacity-legal)
+SufficiencyEvaluator.scope = (selected, object)
 ```
+
+Every present REQUIRED record must carry
+
+```text
+identity = (selected, object) == evaluator.scope
+```
+
+Cross-scope bags are `decision.identity-mismatch`. The
+evaluator does not invent a generic schema validator; it
+only checks this one scope equality.
 
 `usable` already means `source-data ∧ restore-ordering`.
 `restore-ordering` is still a required *input* of the
@@ -86,7 +97,9 @@ Inconsistent bags (usable=yes, restore-ordering=no) are
 insufficient because a required input is not `yes`.
 
 `applicable` is **not** required. Extra subjects
-(`applicable`, `authorized`, …) are ignored.
+(`applicable`, `authorized`, …) are ignored, including
+duplicate extras. Duplicate checks apply to REQUIRED
+subjects only.
 
 ## Decision
 
@@ -99,8 +112,8 @@ Decision
 ```
 
 ```text
-yes  iff every REQUIRED input is present and result=yes
-no   otherwise (missing, no, n/a, unknown, duplicate)
+yes  iff every REQUIRED input is present, in-scope, and result=yes
+no   otherwise (missing, no, n/a, unknown, duplicate, cross-scope)
 ```
 
 Unknown / missing → safe no. The evaluator does **not**
@@ -121,7 +134,8 @@ On `result=no`, reasons are collected in REQUIRED order:
 | `no` | `predicate.<subject>-no` |
 | `n/a` | `predicate.<subject>-n/a` |
 | unknown result | `decision.unknown-reason` |
-| duplicate subject | `decision.duplicate-identity` (stops) |
+| duplicate REQUIRED subject | `decision.duplicate-identity` (stops) |
+| REQUIRED identity ≠ scope | `decision.identity-mismatch` (stops) |
 
 ## Envelope `s2c2.sufficiency.v1`
 
@@ -130,8 +144,8 @@ Query-only. Not ingested by `s2c2-opt`.
 ```text
 schema
 source-schema           s2c2.decision.v1
-identity                (selected, object)
-inputs[]                {subject, result} in REQUIRED order, then extras
+identity                evaluator scope (selected, object)
+inputs[]                {subject, result}; REQUIRED order, then first-seen extras
 decision                s2c2.decision.v1 subject=sufficient
 sufficiency-evaluation  evaluated
 can-run-plan            no
@@ -181,6 +195,10 @@ usable | applicable | sufficient | authorized
 | ignore-applicable-extra | four REQUIRED = yes + applicable=no | `yes`; applicable is not a conjunct |
 | duplicate-usable | two usable inputs | `no` `decision.duplicate-identity` |
 | ignore-authorized-extra | four REQUIRED = yes + authorized=yes | `yes`; `authorization=n/a`; no `authorization.*` |
+| ignore-duplicate-applicable-extra | four REQUIRED = yes + applicable=yes + applicable=no | `yes`; extras ignored including duplicates |
+| ignore-duplicate-authorized-extra | four REQUIRED = yes + authorized=yes + authorized=no | `yes`; extras ignored including duplicates |
+| cross-scope | dest-invalidation on another selected | `no` `decision.identity-mismatch` |
+| unknown-capacity-legal | capacity-legal=`unknown` | `no` `decision.unknown-reason` |
 
 ```text
 usable=yes ∧ dest-invalidation=yes
@@ -190,6 +208,30 @@ sufficient=yes          unless capacity-legal is also yes
 
 The historic dest-invalidation fixture remains
 insufficient until `capacity-legal` is present and yes.
+
+`all-required-yes` is fed in reverse subject order. The
+envelope still serializes REQUIRED first. Extra subjects
+never enter the REQUIRED duplicate check.
+
+## Acceptance (6C-M freeze)
+
+```text
+A1  Decision.subject=sufficient is first-class
+A2  REQUIRED = 4
+A3  no usable∧applicable shortcut
+A4  same (selected, object) scope
+A5  duplicate required identity → safe no
+A6  ignored extras do not affect result
+A7  missing / unknown / n/a → safe no
+A8  deterministic reason order
+A9  canonical inputs order
+A10 sufficient=yes does not authorize anything
+A11 no s2c2-opt rewrite
+A12 no F_storage_schedule inhabitant
+```
+
+This host is a Decision contract, not a compiler E2E.
+7A stays closed.
 
 ## God object
 

@@ -3,6 +3,7 @@
 
 Decision.subject=sufficient is a named Decision, not a
 printer AND of usable/applicable. Query only.
+Scope is (selected, object). Extra subjects are ignored.
 rewrite-license=no. can-run-plan=no. authorization=n/a.
 Do not FileCheck microseconds. Do not expand
 S2C2CapabilitySchedule.cpp.
@@ -25,6 +26,7 @@ REQUIRED = (
 IGNORED_EXTRA = ("applicable", "authorized")
 RESULTS = ("yes", "no", "n/a")
 SELECTED_S0 = "keep{0,1}|evict{2}|rematerialize{}"
+SELECTED_S1 = "keep{1,2}|evict{0}|rematerialize{}"
 OBJECT_2 = "2"
 
 
@@ -37,18 +39,35 @@ def _decision(result: str, reasons: list[str]) -> dict:
     }
 
 
+def _canonical_inputs(
+    required_by: dict[str, dict],
+    extras_first_seen: list[dict],
+) -> list[dict]:
+    items = []
+    for req in REQUIRED:
+        rec = required_by.get(req)
+        if rec is None:
+            continue
+        items.append({"subject": req, "result": rec.get("result", "absent")})
+    for extra in extras_first_seen:
+        items.append(
+            {"subject": extra["subject"], "result": extra.get("result", "absent")}
+        )
+    return items
+
+
 def _envelope(
     decision: dict,
-    inputs: list[dict],
+    canonical_inputs: list[dict],
     *,
-    selected: str = SELECTED_S0,
-    obj: str = OBJECT_2,
+    selected: str,
+    obj: str,
 ) -> dict:
     return {
         "schema": SUFFICIENCY_SCHEMA,
         "source-schema": DECISION_SCHEMA,
         "identity": {"selected": selected, "object": obj},
-        "inputs": [{"subject": i["subject"], "result": i.get("result", "absent")} for i in inputs],
+        "inputs": canonical_inputs,
         "decision": decision,
         "sufficiency-evaluation": "evaluated",
         "can-run-plan": "no",
@@ -58,26 +77,67 @@ def _envelope(
     }
 
 
-def evaluate_sufficiency(inputs: list[dict]) -> dict:
-    """Decision.subject=sufficient over independent required inputs.
+def _scope_of(rec: dict) -> tuple[str, str] | None:
+    ident = rec.get("identity")
+    if not isinstance(ident, dict):
+        return None
+    selected = ident.get("selected")
+    obj = ident.get("object")
+    if selected is None or obj is None:
+        return None
+    return (selected, obj)
+
+
+def evaluate_sufficiency(
+    inputs: list[dict],
+    *,
+    selected: str = SELECTED_S0,
+    obj: str = OBJECT_2,
+) -> dict:
+    """Decision.subject=sufficient over one (selected, object) scope.
 
     Does not AND usable with applicable. Extra subjects are
-    ignored. Duplicate subject is safe no.
+    ignored, including duplicate extras. Duplicate REQUIRED
+    subject is safe no. Cross-scope REQUIRED is identity-mismatch.
     """
-    by: dict[str, dict] = {}
+    scope = (selected, obj)
+    required_by: dict[str, dict] = {}
+    extras_first: list[dict] = []
+    extras_seen: set[str] = set()
+
+    def emit(decision: dict) -> dict:
+        return _envelope(
+            decision,
+            _canonical_inputs(required_by, extras_first),
+            selected=selected,
+            obj=obj,
+        )
+
     for rec in inputs:
         subject = rec.get("subject")
         if not subject:
-            return _envelope(_decision("no", ["decision.unknown-reason"]), inputs)
-        if subject in by:
-            return _envelope(_decision("no", ["decision.duplicate-identity"]), inputs)
-        by[subject] = rec
+            return emit(_decision("no", ["decision.unknown-reason"]))
+        if subject in REQUIRED:
+            if subject in required_by:
+                return emit(_decision("no", ["decision.duplicate-identity"]))
+            required_by[subject] = rec
+            continue
+        if subject not in extras_seen:
+            extras_seen.add(subject)
+            extras_first.append(rec)
+
+    for req in REQUIRED:
+        rec = required_by.get(req)
+        if rec is None:
+            continue
+        if _scope_of(rec) != scope:
+            return emit(_decision("no", ["decision.identity-mismatch"]))
 
     reasons: list[str] = []
     all_yes = True
     missing = False
     for req in REQUIRED:
-        rec = by.get(req)
+        rec = required_by.get(req)
         if rec is None:
             all_yes = False
             missing = True
@@ -95,12 +155,22 @@ def evaluate_sufficiency(inputs: list[dict]) -> dict:
     if missing:
         reasons.append("predicate.missing-input")
     if all_yes:
-        return _envelope(_decision("yes", ["decision.sufficient-closed"]), inputs)
-    return _envelope(_decision("no", reasons), inputs)
+        return emit(_decision("yes", ["decision.sufficient-closed"]))
+    return emit(_decision("no", reasons))
 
 
-def _inp(subject: str, result: str) -> dict:
-    return {"subject": subject, "result": result}
+def _inp(
+    subject: str,
+    result: str,
+    *,
+    selected: str = SELECTED_S0,
+    obj: str = OBJECT_2,
+    scoped: bool = True,
+) -> dict:
+    rec: dict = {"subject": subject, "result": result}
+    if scoped:
+        rec["identity"] = {"selected": selected, "object": obj}
+    return rec
 
 
 def _all_yes() -> list[dict]:
@@ -110,14 +180,14 @@ def _all_yes() -> list[dict]:
 def _cases() -> list[tuple[str, list[dict]]]:
     yes = {req: _inp(req, "yes") for req in REQUIRED}
     return [
-        ("all-required-yes", _all_yes()),
+        ("all-required-yes", list(reversed(_all_yes()))),
         (
             "dest-inv-historic",
             [yes["usable"], yes["restore-ordering"], yes["dest-invalidation"]],
         ),
         (
             "usable-and-applicable-ne-sufficient",
-            [_inp("usable", "yes"), _inp("applicable", "yes")],
+            [_inp("usable", "yes"), _inp("applicable", "yes", scoped=False)],
         ),
         (
             "usable-no",
@@ -150,7 +220,7 @@ def _cases() -> list[tuple[str, list[dict]]]:
         ),
         (
             "ignore-applicable-extra",
-            _all_yes() + [_inp("applicable", "no")],
+            _all_yes() + [_inp("applicable", "no", scoped=False)],
         ),
         (
             "duplicate-usable",
@@ -159,9 +229,56 @@ def _cases() -> list[tuple[str, list[dict]]]:
         ),
         (
             "ignore-authorized-extra",
-            _all_yes() + [_inp("authorized", "yes")],
+            _all_yes() + [_inp("authorized", "yes", scoped=False)],
+        ),
+        (
+            "ignore-duplicate-applicable-extra",
+            _all_yes()
+            + [
+                _inp("applicable", "yes", scoped=False),
+                _inp("applicable", "no", scoped=False),
+            ],
+        ),
+        (
+            "ignore-duplicate-authorized-extra",
+            _all_yes()
+            + [
+                _inp("authorized", "yes", scoped=False),
+                _inp("authorized", "no", scoped=False),
+            ],
+        ),
+        (
+            "cross-scope",
+            [
+                yes["usable"],
+                yes["restore-ordering"],
+                _inp("dest-invalidation", "yes", selected=SELECTED_S1),
+                yes["capacity-legal"],
+            ],
+        ),
+        (
+            "unknown-capacity-legal",
+            [_inp("capacity-legal", "unknown")]
+            + [yes[r] for r in REQUIRED if r != "capacity-legal"],
         ),
     ]
+
+
+def _validate_canonical(name: str, bag: dict) -> None:
+    subjects = [i["subject"] for i in bag["inputs"]]
+    required_present = [s for s in subjects if s in REQUIRED]
+    expect_required = [r for r in REQUIRED if r in set(required_present)]
+    if required_present != expect_required:
+        raise RuntimeError(f"canonical required: {name}")
+    seen_extra = False
+    for item in bag["inputs"]:
+        if item["subject"] not in REQUIRED:
+            seen_extra = True
+        elif seen_extra:
+            raise RuntimeError(f"required after extra: {name}")
+    extras = [i["subject"] for i in bag["inputs"] if i["subject"] not in REQUIRED]
+    if len(extras) != len(set(extras)):
+        raise RuntimeError(f"duplicate extra serialized: {name}")
 
 
 def _validate() -> None:
@@ -179,16 +296,22 @@ def _validate() -> None:
         "ignore-applicable-extra",
         "duplicate-usable",
         "ignore-authorized-extra",
+        "ignore-duplicate-applicable-extra",
+        "ignore-duplicate-authorized-extra",
+        "cross-scope",
+        "unknown-capacity-legal",
     ]
     if names != expect:
         raise RuntimeError(names)
-    if len(names) != 12:
+    if len(names) != 16:
         raise RuntimeError(len(names))
     for name, inputs in _cases():
         bag = evaluate_sufficiency(inputs)
         if bag["schema"] != SUFFICIENCY_SCHEMA:
             raise RuntimeError(name)
         if bag["source-schema"] != DECISION_SCHEMA:
+            raise RuntimeError(name)
+        if bag["identity"] != {"selected": SELECTED_S0, "object": OBJECT_2}:
             raise RuntimeError(name)
         if bag["sufficiency-evaluation"] != "evaluated":
             raise RuntimeError(name)
@@ -198,6 +321,7 @@ def _validate() -> None:
             raise RuntimeError(name)
         if bag["rewrite-license"] != "no" or bag["rewrite-path"] != "no":
             raise RuntimeError(name)
+        _validate_canonical(name, bag)
         decision = bag["decision"]
         if decision["schema"] != DECISION_SCHEMA:
             raise RuntimeError(name)
@@ -212,6 +336,8 @@ def _validate() -> None:
             if decision["result"] != "yes":
                 raise RuntimeError(name)
             if decision["reasons"] != ["decision.sufficient-closed"]:
+                raise RuntimeError(name)
+            if [i["subject"] for i in bag["inputs"]] != list(REQUIRED):
                 raise RuntimeError(name)
         if name == "dest-inv-historic":
             if decision["result"] != "no":
@@ -256,6 +382,28 @@ def _validate() -> None:
                 raise RuntimeError(name)
             if any(t.startswith("authorization.") for t in decision["reasons"]):
                 raise RuntimeError(name)
+        if name == "ignore-duplicate-applicable-extra":
+            if decision["result"] != "yes":
+                raise RuntimeError(name)
+            extras = [i for i in bag["inputs"] if i["subject"] not in REQUIRED]
+            if extras != [{"subject": "applicable", "result": "yes"}]:
+                raise RuntimeError(name)
+        if name == "ignore-duplicate-authorized-extra":
+            if decision["result"] != "yes":
+                raise RuntimeError(name)
+            extras = [i for i in bag["inputs"] if i["subject"] not in REQUIRED]
+            if extras != [{"subject": "authorized", "result": "yes"}]:
+                raise RuntimeError(name)
+        if name == "cross-scope":
+            if decision["result"] != "no":
+                raise RuntimeError(name)
+            if decision["reasons"] != ["decision.identity-mismatch"]:
+                raise RuntimeError(name)
+        if name == "unknown-capacity-legal":
+            if decision["result"] != "no":
+                raise RuntimeError(name)
+            if decision["reasons"] != ["decision.unknown-reason"]:
+                raise RuntimeError(name)
 
 
 def print_contract() -> int:
@@ -265,17 +413,25 @@ def print_contract() -> int:
     print(f"decision-schema {DECISION_SCHEMA}")
     print("decision-subject sufficient")
     print("decision-has-subject yes")
+    print("evaluator-scope selected-object")
+    print("required-identity-eq-scope yes")
     print("evaluator-ne-printer-and yes")
     print("usable-ne-sufficient yes")
     print("applicable-ne-sufficient yes")
     print("usable-and-applicable-ne-sufficient yes")
     print("dest-invalidation-ne-sufficient yes")
+    print("cross-scope-identity-mismatch yes")
+    print("duplicate-required-safe-no yes")
+    print("ignored-extra-duplicate-ne-result yes")
+    print("inputs-canonical-order yes")
     print("sufficient-ne-authorized yes")
     print("sufficient-ne-rewrite-license yes")
     print("sufficient-yes-ne-rewrite-license yes")
     print("sufficient-ne-can-run-plan yes")
     print("six-c-i-predicate-ne-six-c-m yes")
     print("ea-1-still-usable-only yes")
+    print("host-side-decision-contract yes")
+    print("compiler-e2e no")
     print("sufficiency-evaluation evaluated")
     print("can-run-plan no")
     print("authorization n/a")
@@ -283,11 +439,26 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("sufficiency-matrix-cases 12")
+    print("sufficiency-matrix-cases 16")
     for req in REQUIRED:
         print(f"required-predicate {req}")
     for extra in IGNORED_EXTRA:
         print(f"ignored-extra {extra}")
+    for aid in (
+        "a1-subject-sufficient",
+        "a2-required-four",
+        "a3-no-usable-applicable-shortcut",
+        "a4-same-selected-object-scope",
+        "a5-duplicate-required-safe-no",
+        "a6-ignored-extras-do-not-affect",
+        "a7-missing-unknown-na-safe-no",
+        "a8-deterministic-reason-order",
+        "a9-canonical-inputs-order",
+        "a10-yes-does-not-authorize",
+        "a11-no-s2c2-opt-rewrite",
+        "a12-no-f-storage-schedule-inhabitant",
+    ):
+        print(f"acceptance {aid}")
     print("note six-c-m-opened")
     print("note seven-a-authorization-closed")
     print("note rewrite-closed")
@@ -311,20 +482,32 @@ def print_matrix() -> int:
     _validate()
     print("sufficiency-matrix gate=query")
     print("decision-subject sufficient")
+    print("evaluator-scope selected-object")
     print("usable-and-applicable-ne-sufficient yes")
     print("dest-invalidation-ne-sufficient yes")
+    print("cross-scope-identity-mismatch yes")
+    print("ignored-extra-duplicate-ne-result yes")
+    print("inputs-canonical-order yes")
     print("sufficient-ne-authorized yes")
-    print("sufficiency-matrix-cases 12")
+    print("sufficiency-matrix-cases 16")
     for name, inputs in _cases():
         bag = evaluate_sufficiency(inputs)
         decision = bag["decision"]
         print(f"suf-case {name}")
+        print(
+            "suf-scope "
+            f"selected={bag['identity']['selected']} "
+            f"object={bag['identity']['object']}"
+        )
+        envelope_subjects = ",".join(i["subject"] for i in bag["inputs"]) or "none"
+        print(f"suf-envelope-inputs {envelope_subjects}")
         for req in REQUIRED:
-            rec = next((i for i in inputs if i["subject"] == req), None)
+            rec = next((i for i in bag["inputs"] if i["subject"] == req), None)
             result = rec["result"] if rec else "absent"
             print(f"suf-input subject={req} result={result}")
-        extras = [i for i in inputs if i["subject"] not in REQUIRED]
-        for extra in extras:
+        for extra in bag["inputs"]:
+            if extra["subject"] in REQUIRED:
+                continue
             print(
                 f"suf-extra subject={extra['subject']} result={extra['result']}"
             )
