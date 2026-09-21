@@ -58,6 +58,10 @@ Today's `F_0` implements (A). (B) is the shape of a compiler search
 over realizations. This document does **not** choose an algorithm
 for (B). It freezes the objects any later algorithm must use.
 
+Closed-set policy prose for (A) (`Search_F(Policy) ⊆ Enum_F`;
+`--s2c2-argmin` is already that policy):
+[`search-selection.md`](search-selection.md).
+
 ---
 
 ## 2. Search Space

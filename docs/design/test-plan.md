@@ -261,6 +261,17 @@ Contract: set-valued `ArgMin_F` / `Pareto_F` over `Enum_F`. Shared
 | K8 | design claim | no `--s2c2-search`; `π` is not a Neighbor axis |
 | K9 | design claim | `M ∈ N_all(M)` and `M ∉ N_1(M)`; a path starts in `X` |
 | K10 | design claim | rewrite `P ↦ P'` rebuilds `X(P', D; F)` |
+| SEL-1 | design claim | `Search_F(Policy) ⊆ Enum_F` for Id / ArgMin / Pareto |
+| SEL-2 | design claim | `T(M)=M'` with `M' ∈ Enum_F` is re-selection |
+| SEL-3 | design claim | `M' ∈ R \ F` is family extension, not Search |
+| SEL-4 | S3 / N4 / K7 | Concurrent → Pipeline ∉ `R` |
+| SEL-5 | A3 / K8 | no `--s2c2-search` heuristic; no unique `M*` |
+| SEL-6 | S4 / A4 | `π` is not a Policy input |
+| SEL-7 | S6 / A2 | same-device `sched` / `spaceMap` stay distinct ties |
+| SEL-8 | A1–A3 / K4 | `--s2c2-argmin` is `Search_F(ArgMin)` and `Search_F(Pareto)` |
+
+Companion: [`search-selection.md`](search-selection.md). Not a new
+version. Do not merge leftover #28 as v0.4.5.
 
 ## Search Algorithm Contract (v0.4.6)
 
