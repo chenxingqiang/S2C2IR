@@ -95,7 +95,7 @@ F  →  argmin  →  rewrite
 6C-M   Sufficiency Decision           FROZEN @ a0a2a08 (#136; merge gated)
 7A     Authorization Boundary         FROZEN @ 5b57666 (#137; merge gated)
 7B     ONE storage rewrite            FROZEN @ 3e942a8 (#138; plan; merge gated)
-7B-Apply Controlled IR Apply          CLOSED; contract only
+7B-Apply Controlled IR Apply          CLOSED; contract #139
 7C     End-to-end executable opt
 7D     CUDA backend realization
 7E     Ascend backend realization
@@ -171,12 +171,15 @@ witness; it is not this first product rewrite.
 
 ### 7B-Apply (closed)
 
-[`ir-apply-contract.md`](ir-apply-contract.md).
-Route: [`compiler-execution-spine.md`](compiler-execution-spine.md).
+[`ir-apply-contract.md`](ir-apply-contract.md)
+(PR #139; design/open). Route:
+[`compiler-execution-spine.md`](compiler-execution-spine.md).
 
 Apply is **CLOSED** until `#136` / `#137` / `#138` merge
-in that order, then a later inhabitant. `rewrite-plan=yes`
-is not `rewrite-path=yes`. Failure is no apply.
+in that order, Semantic Baseline v1 passes, then a later
+inhabitant. This #139 names the contract; it does not
+apply IR. `rewrite-plan=yes` is not `rewrite-path=yes`.
+Failure is no apply.
 
 ## Do not expand sideways
 
