@@ -1029,6 +1029,10 @@ action=`storage-rewrite` named, not implemented;
 unique KEEP→EVICT→TRANSFER→RESTORE; `rewrite-plan` ≠
 `rewrite-path`; applied=no; 18-case matrix):
 [`storage-rewrite.md`](storage-rewrite.md).
+Semantic Baseline v1 (MERGED @ `b62bae4`; `#140`;
+verification-only after `#136` / `#137` / `#138`; no new
+semantics; apply inhabitant CLOSED):
+[`semantic-baseline-v1.md`](semantic-baseline-v1.md).
 Product spine:
 [`compiler-spine.md`](compiler-spine.md).
 Reason vocabulary / evidence schema:
@@ -1155,6 +1159,8 @@ Do not FileCheck microseconds.
 | AUTH-2 | same | 20-case matrix: claimed-action `authorization.action-mismatch`; 7A scope `authorization.identity-mismatch`; `>1` license `authorization.duplicate-license`; duplicate REQUIRED stays `decision.duplicate-identity`; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
 | REW-1 | `test/Integration/storage-rewrite.mlir` | `--print-rewrite-contract`; FROZEN @ `3e942a8`; `Decision.subject=rewrite-plan`; identity `(selected, object, action, license-kind)`; license≠plan≠path; unique KEEP→EVICT→TRANSFER→RESTORE; `applied=no`; `rewrite-path=no` |
 | REW-2 | same | 18-case matrix: consume 7A license=yes; envelope Decision contract; `source-schema=s2c2.decision.v1`; `rewrite-license.identity` matches `license-identity`; sequence mismatch; duplicate sequence/envelope; 7B scope `rewrite.identity-mismatch`; extras ignored; plan=yes still `applied=no` |
+| BASE-1 | `test/Integration/semantic-baseline-v1.mlir` | `--print-semantic-baseline-contract`; replay EA-1 usable / 6C-M 16 / 7A 20 / 7B 18 / RCE+XID; `#139` unmerged; apply inhabitant CLOSED; `applied=no`; `rewrite-path=no` |
+| BASE-2 | same | provenance table EA-1/6C-M/7A/7B/Apply; `Semantic Baseline v1 = PASS`; `can-run-plan=no` |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

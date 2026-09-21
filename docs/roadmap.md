@@ -339,9 +339,11 @@ The architecture-research layer is frozen. The next work is
 one compiler spine, not more dialects or vendors.
 
 ```text
-6C-M   Sufficiency Decision          FROZEN (#136; merge gated)
-7A     Authorization Boundary        FROZEN @ 5b57666 (#137; merge gated)
-7B     ONE storage rewrite           FROZEN @ 3e942a8 (#138; plan; merge gated)
+6C-M   Sufficiency Decision          MERGED (#136)
+7A     Authorization Boundary        MERGED @ 5b57666 (#137)
+7B     ONE storage rewrite           MERGED @ 3e942a8 (#138; plan)
+Semantic Baseline v1                 MERGED @ b62bae4 (#140)
+7B-Apply Controlled IR Apply         CLOSED (#139 unmerged)
 7C     End-to-end executable opt
 7D/E   CUDA / Ascend realization
 7F     CIM capability adapter
@@ -356,7 +358,9 @@ one compiler spine, not more dialects or vendors.
 not derived from sufficient or authorized.
 `rewrite-plan=yes` names KEEP→EVICT→TRANSFER→RESTORE.
 `rewrite-path` stays `no`. `applied` stays `no`.
-IR apply stays closed.
+IR apply stays closed. `#139` is unmerged. Apply inhabitant
+is CLOSED. Semantic Baseline v1 MERGED @ `b62bae4`:
+[`semantic-baseline-v1.md`](design/semantic-baseline-v1.md).
 
 Do **not** start StableHLO or inhabit
 \(F_{\mathrm{storage\_schedule}}\).
