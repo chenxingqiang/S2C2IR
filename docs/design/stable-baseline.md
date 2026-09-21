@@ -123,6 +123,9 @@ sufficient / can-run-plan):
 Realization Checking (claimed-kinds vs frozen legality facts;
 not can-run-plan):
 [`realization-checking.md`](realization-checking.md).
+Baseline E2E Integration (compose frozen hosts; no new
+semantics):
+[`realization-checking-e2e.md`](realization-checking-e2e.md).
 Eviction rewrite stays closed. Post-6C-I
 architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
