@@ -1,7 +1,7 @@
 # 7B Storage Rewrite Plan
 
 **Status:** design/open for `Decision.subject=rewrite-plan`.
-Not frozen until this PR is `APPROVED`.
+Not frozen until `PR #138 — APPROVED`.
 Not an IR rewrite. Not `applySchedule`. Not an
 `F_storage_schedule` inhabitant. Not an expansion of
 `S2C2CapabilitySchedule.cpp`. Does not change the frozen
