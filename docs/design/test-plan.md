@@ -1020,9 +1020,10 @@ Decision has a named `subject`; EA-1 still emits
 `subject=usable` only. 6C-M opens
 `Decision.subject=sufficient` as an evaluator:
 [`storage-capacity-sufficient.md`](storage-capacity-sufficient.md).
-7A Authorization Boundary (query-only;
+7A Authorization Boundary (query-only; FROZEN @ `5b57666`;
 `Decision.subject=authorized` ≠ `rewrite-license`;
-action=`storage-rewrite` named, not implemented):
+action=`storage-rewrite` named, not implemented;
+20-case matrix; 7B closed):
 [`authorization-boundary.md`](authorization-boundary.md).
 Product spine:
 [`compiler-spine.md`](compiler-spine.md).

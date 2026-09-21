@@ -340,7 +340,7 @@ one compiler spine, not more dialects or vendors.
 
 ```text
 6C-M   Sufficiency Decision          FROZEN (#136; merge gated)
-7A     Authorization Boundary        opened
+7A     Authorization Boundary        FROZEN @ 5b57666 (#137; merge gated)
 7B     ONE storage rewrite           CLOSED
 7C     End-to-end executable opt
 7D/E   CUDA / Ascend realization
@@ -352,8 +352,8 @@ one compiler spine, not more dialects or vendors.
 7A: [`authorization-boundary.md`](design/authorization-boundary.md).
 `Decision.subject=authorized` is independent of
 `sufficient`. `rewrite-license` is an explicit Decision,
-not derived from sufficient or authorized. 7B rewrite stays
-closed.
+not derived from sufficient or authorized.
+`rewrite-license=yes` is STOP. 7B rewrite stays closed.
 
 Do **not** start StableHLO or inhabit
 \(F_{\mathrm{storage\_schedule}}\).

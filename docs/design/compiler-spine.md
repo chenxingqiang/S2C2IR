@@ -1,6 +1,6 @@
 # S²C² Compiler Spine
 
-**Status:** product lock. 6C-M frozen. 7A opened as a
+**Status:** product lock. 6C-M frozen. 7A frozen as a
 query boundary. Not a rewrite. Not an
 `F_storage_schedule` inhabitant. Not StableHLO.
 
@@ -91,8 +91,8 @@ F  →  argmin  →  rewrite
 ```text
 #134   baseline citation              design-only; merge gated
 #135   F_storage_schedule design      design-only; no inhabitant
-6C-M   Sufficiency Decision           FROZEN @ a0a2a08 (#136)
-7A     Authorization Boundary         opened this wave
+6C-M   Sufficiency Decision           FROZEN @ a0a2a08 (#136; merge gated)
+7A     Authorization Boundary         FROZEN @ 5b57666 (#137; merge gated)
 7B     ONE storage rewrite            CLOSED
 7C     End-to-end executable opt
 7D     CUDA backend realization
@@ -125,6 +125,7 @@ and **not** a new boolean on the 6C-I license printer.
 ### 7A
 
 [`authorization-boundary.md`](authorization-boundary.md).
+Semantic freeze at `5b57666`. Merge still gated.
 
 ```text
 sufficient  ≠  authorized
@@ -140,6 +141,8 @@ May the compiler change IR?        rewrite-license
 `AuthorizationIdentity = (selected, object, action)`.
 v0.1 action is `storage-rewrite` (named, not implemented).
 Policy v0.1 is not `if sufficient: authorized = yes`.
+`rewrite-license=yes` is still STOP: `rewrite-path=no`,
+`can-run-plan=no`, `transformation=n/a`.
 
 ### 7B (closed)
 

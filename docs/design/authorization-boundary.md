@@ -1,8 +1,8 @@
 # 7A Authorization Boundary
 
-**Status:** design/open for `Decision.subject=authorized`
-and `Decision.subject=rewrite-license`. Not frozen until
-`PR #137 — APPROVED`.
+**Status:** design freeze for `Decision.subject=authorized`
+and `Decision.subject=rewrite-license`. Semantic freeze at
+`5b57666` (PR #137 — APPROVED; merge gated).
 Not a rewrite. Not 7B. Not an `F_storage_schedule` inhabitant.
 Not an expansion of `S2C2CapabilitySchedule.cpp`.
 Does not change the frozen 6C-M evaluator.
@@ -296,6 +296,29 @@ authorization.*
 | shuffled-required | REQUIRED reversed | canonical inputs order |
 | consume-6c-m-yes | 6C-M evaluator output | authorized=yes; license=no |
 | license-yes-but-not-authorized | sufficient=no, license=yes | authorized=no; license=no |
+
+## Acceptance (7A freeze)
+
+```text
+A1  AuthorizationIdentity = (selected, object, action)
+A2  RewriteLicenseIdentity = (selected, object, action, license-kind)
+A3  claimed action ≠ identity.action → authorization.action-mismatch
+A4  7A scope mismatch → authorization.identity-mismatch
+A5  rewrite-license counted 0/1/>1; >1 → authorization.duplicate-license
+A6  authorization.* v0.1 closed; decision.* not reopened
+A7  sufficient ≠ authorized ≠ rewrite-license
+A8  authorized=yes requires four REQUIRED yes, in-scope, unique
+A9  rewrite-license=yes requires authorized=yes + in-scope license
+    + license-kind=storage-capacity-rewrite + result=yes
+A10 rewrite-license=yes still can-run-plan=no / rewrite-path=no /
+    transformation=n/a
+A11 no s2c2-opt rewrite / applySchedule / replace / erase
+A12 no F_storage_schedule inhabitant
+A13 20-case host matrix
+```
+
+This host is a Decision contract, not a compiler E2E.
+`rewrite-license=yes` is STOP. 7B stays closed.
 
 ## God object
 

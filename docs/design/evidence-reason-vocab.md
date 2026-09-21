@@ -67,10 +67,12 @@ Implementations MUST NOT invent tokens.
 printer**. Emitting one from occupancy classification
 would be a license. That printer stays empty.
 
-## 7A `authorization.*` v0.1
+## 7A `authorization.*` v0.1 (frozen)
 
 7A opens this namespace for the AuthorizationEvaluator
-only. See [`authorization-boundary.md`](authorization-boundary.md).
+only. Table frozen at `5b57666` (PR #137 — APPROVED;
+merge gated). See
+[`authorization-boundary.md`](authorization-boundary.md).
 
 ```text
 Stage-A / EA-1     authorization.* = empty
