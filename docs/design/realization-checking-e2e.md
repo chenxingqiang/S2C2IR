@@ -7,9 +7,9 @@ Does not modify Profile, Legality, or Checking result
 semantics. Does not expand `S2C2CapabilitySchedule.cpp`.
 
 ```text
-Goal     replay Evidence → Profile → Legality → Claim → Check
+Goal     replay Evidence records → Profile → Legality → Claim → Check
          through frozen hosts, deterministically
-Not      a new result enum, plan, occupancy, or rewrite
+Not      a new result enum, plan, occupancy, Predicate re-run, or rewrite
 ```
 
 ```text

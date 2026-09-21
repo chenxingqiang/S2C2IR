@@ -11,7 +11,7 @@ func.func @dummy() {
 // E2E: realization-checking-e2e gate=query
 // E2E: e2e-type integration-reproducibility
 // E2E: semantic-expansion none
-// E2E: e2e-chain evidence-predicate-profile-legality-claim-checking
+// E2E: e2e-chain evidence-profile-legality-claim-checking
 // E2E: e2e-uses-frozen-hosts yes
 // E2E: e2e-reimplements-mapping no
 // E2E: e2e-eq-check-v0 yes
@@ -36,14 +36,17 @@ func.func @dummy() {
 // E2EM: e2e-matrix-cases 3
 // E2EM: e2e-case legal-claim
 // E2EM: e2e-status ok
+// E2EM: e2e-claim-identity target=cuda device=sm89:rtx4090
 // E2EM: e2e-finding kind=concurrent-pair result=satisfy constraint=allowed
 // E2EM: e2e-finding kind=staged-dma result=unproven constraint=unproven
 // E2EM: e2e-can-run-plan no
 // E2EM: e2e-case unsatisfied-claim
+// E2EM: e2e-status ok
 // E2EM: e2e-finding kind=concurrent-pair result=violate constraint=forbidden
 // E2EM: e2e-finding kind=staged-dma result=satisfy constraint=allowed
 // E2EM: e2e-case identity-mismatch
 // E2EM: e2e-status contract-error
+// E2EM: e2e-claim-identity target=cuda device=sm80:a100
 // E2EM: e2e-error identity-mismatch
 // E2EM: e2e-findings-count 0
 // E2EM: rewrite-license no
@@ -52,3 +55,4 @@ func.func @dummy() {
 // E2EM-NOT: sufficient=yes
 // E2EM-NOT: subject=sufficient
 // E2EM-NOT: can-run-plan=yes
+// E2EM-NOT: kind=named-nonblocking

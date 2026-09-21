@@ -154,6 +154,15 @@ def _validate() -> None:
             ]:
                 raise RuntimeError(name)
         if name == "identity-mismatch":
+            if profile["target"] != "cuda" or profile["device"] != capa.DEVICE_4090:
+                raise RuntimeError(name)
+            if legality["identity"] != {
+                "target": "cuda",
+                "device": capa.DEVICE_4090,
+            }:
+                raise RuntimeError(name)
+            if claim["identity"]["device"] != "sm80:a100":
+                raise RuntimeError(name)
             if checking["status"] != "contract-error":
                 raise RuntimeError(name)
             if checking["error"] != "identity-mismatch":
@@ -167,7 +176,7 @@ def print_contract() -> int:
     print("realization-checking-e2e gate=query")
     print("e2e-type integration-reproducibility")
     print("semantic-expansion none")
-    print("e2e-chain evidence-predicate-profile-legality-claim-checking")
+    print("e2e-chain evidence-profile-legality-claim-checking")
     print("e2e-uses-frozen-hosts yes")
     print("e2e-reimplements-mapping no")
     print("e2e-eq-check-v0 yes")
@@ -219,7 +228,13 @@ def print_matrix() -> int:
             f"source-schema={bag['legality']['source-schema']}"
         )
         claimed = ",".join(claim.get("claimed-kinds") or [])
+        ident = claim.get("identity") if isinstance(claim.get("identity"), dict) else {}
         print(f"e2e-claim claimed-kinds={claimed or 'none'}")
+        print(
+            "e2e-claim-identity "
+            f"target={ident.get('target') or 'none'} "
+            f"device={ident.get('device') or 'none'}"
+        )
         if checking["status"] == "contract-error":
             print(f"e2e-error {checking['error']}")
             print("e2e-findings-count 0")
