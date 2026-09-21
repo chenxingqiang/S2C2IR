@@ -1,7 +1,7 @@
 # S²C² Compiler Spine
 
 **Status:** product lock. 6C-M / 7A / 7B merged. Semantic
-Baseline v1 is verification-only. IR apply CLOSED. Not an
+Baseline v1 merged @ `b62bae4`. IR apply CLOSED. Not an
 `F_storage_schedule` inhabitant. Not StableHLO.
 
 ```text
@@ -94,7 +94,7 @@ F  →  argmin  →  rewrite
 6C-M   Sufficiency Decision           MERGED @ a0a2a08 (#136)
 7A     Authorization Boundary         MERGED @ 5b57666 (#137)
 7B     ONE storage rewrite            MERGED @ 3e942a8 (#138; plan)
-Semantic Baseline v1                  verification-only
+Semantic Baseline v1                  MERGED @ b62bae4 (#140)
 7B-Apply Controlled IR Apply          CLOSED (#139 contract unmerged)
 7C     End-to-end executable opt
 7D     CUDA backend realization
@@ -174,10 +174,10 @@ witness; it is not this first product rewrite.
 ### Semantic Baseline v1
 
 [`semantic-baseline-v1.md`](semantic-baseline-v1.md).
-Verification-only after `#136` / `#137` / `#138` merged.
-Replays EA-1 / 6C-M 16-case / 7A 20-case / 7B 18-case /
-legacy RCE+XID. No new semantics. `#139` stays unmerged.
-Apply inhabitant stays CLOSED. `applied=no`. `rewrite-path=no`.
+MERGED @ `b62bae4` via `#140`. Replays EA-1 / 6C-M 16-case /
+7A 20-case / 7B 18-case / legacy RCE+XID. No new semantics.
+`#139` stays unmerged. Apply inhabitant stays CLOSED.
+`applied=no`. `rewrite-path=no`.
 
 ## Do not expand sideways
 

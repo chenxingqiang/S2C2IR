@@ -1029,9 +1029,9 @@ action=`storage-rewrite` named, not implemented;
 unique KEEP→EVICT→TRANSFER→RESTORE; `rewrite-plan` ≠
 `rewrite-path`; applied=no; 18-case matrix):
 [`storage-rewrite.md`](storage-rewrite.md).
-Semantic Baseline v1 (verification-only after `#136` /
-`#137` / `#138` merged; no new semantics; apply inhabitant
-CLOSED):
+Semantic Baseline v1 (MERGED @ `b62bae4`; `#140`;
+verification-only after `#136` / `#137` / `#138`; no new
+semantics; apply inhabitant CLOSED):
 [`semantic-baseline-v1.md`](semantic-baseline-v1.md).
 Product spine:
 [`compiler-spine.md`](compiler-spine.md).

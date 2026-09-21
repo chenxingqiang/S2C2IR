@@ -1,10 +1,9 @@
 # Semantic Baseline v1
 
-**Status:** verification-only checkpoint after
-`#136` / `#137` / `#138` landed on `main`.
-No new semantics. Not an IR apply. Not `#139` merge.
-Apply inhabitant stays **CLOSED**. This GitHub PR is
-the baseline checkpoint, not a rewrite inhabitant.
+**Status:** Semantic Baseline v1 frozen. Technical PASS at
+`b62bae4`. Merged onto `main` via `merge` token.
+No new semantics. Not an IR apply. `#139` stays unmerged.
+Apply inhabitant stays **CLOSED**.
 
 ```text
 Goal     prove the frozen Decision stack still composes on main
