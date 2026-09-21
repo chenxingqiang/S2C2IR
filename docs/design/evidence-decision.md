@@ -65,8 +65,14 @@ rewrite-license=no
 rewrite-path=no
 ```
 
-That row stays the lock. 6C-M (`sufficient` as a query
-boolean) is **parked**. It is not authorized by this freeze.
+That row stays the lock **for this host**. 6C-M as a
+printer AND inside `record_capacity.py` / EA-1 stays
+forbidden. `Decision.subject=sufficient` is opened as a
+separate evaluator in
+[`storage-capacity-sufficient.md`](storage-capacity-sufficient.md).
+`record_decision.py` still emits `Decision.subject=usable`
+only. Product spine:
+[`compiler-spine.md`](compiler-spine.md).
 
 ## Layers (do not collapse)
 
