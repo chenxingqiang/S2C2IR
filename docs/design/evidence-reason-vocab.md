@@ -114,6 +114,40 @@ rewrite-license=yes       → authorization.rewrite-license-closed
 prints `authorization-tokens=none`. 7A prints the v0.1
 table from `record_authorization.py`.
 
+## 7B `rewrite.*` v0.1 (frozen)
+
+7B opens this namespace for the RewritePlanner only.
+Table frozen at `3e942a8` (PR #138 — APPROVED; merge gated).
+See [`storage-rewrite.md`](storage-rewrite.md). 7A
+`authorization.*` v0.1 stays frozen. Emitting a rewrite
+token is **not** `rewrite-path=yes`.
+
+```text
+Stage-A / EA-1     rewrite.* = empty
+7A evaluator       authorization.* v0.1 frozen
+7B evaluator       rewrite.* v0.1
+emitting a token   ≠  applied=yes
+emitting a token   ≠  rewrite-path=yes
+```
+
+| Token | Meaning |
+| ----- | ------- |
+| `rewrite.license-no` | 7A rewrite-license is not yes |
+| `rewrite.identity-mismatch` | 7B scope (selected / object / action / license-kind) disagrees with the 7A envelope |
+| `rewrite.sequence-mismatch` | claimed sequence ≠ KEEP→EVICT→TRANSFER→RESTORE |
+| `rewrite.duplicate-envelope` | more than one 7A authorization envelope |
+| `rewrite.duplicate-sequence` | more than one rewrite-sequence input |
+| `rewrite.plan-closed` | rewrite-plan=yes; query-only, applied stays no |
+
+```text
+rewrite-license=no        → rewrite.license-no
+7B scope mismatch         → rewrite.identity-mismatch
+claimed sequence ≠ v0.1   → rewrite.sequence-mismatch
+>1 envelope               → rewrite.duplicate-envelope
+>1 sequence               → rewrite.duplicate-sequence
+rewrite-plan=yes          → rewrite.plan-closed
+```
+
 ## `evidence.*` (closed)
 
 These tokens classify occupancy-kind evidence. They do

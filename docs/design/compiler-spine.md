@@ -1,13 +1,13 @@
 # S²C² Compiler Spine
 
 **Status:** product lock. 6C-M frozen. 7A frozen as a
-query boundary. Not a rewrite. Not an
-`F_storage_schedule` inhabitant. Not StableHLO.
+query boundary. 7B frozen as a rewrite plan, not an IR
+apply. Not an `F_storage_schedule` inhabitant. Not StableHLO.
 
 ```text
 Goal     name the five products and the only allowed mainline
 Not      a new dialect, vendor, frontend, or generic scheduler
-Rewrite  still closed; 7A may emit authorized / rewrite-license Decisions
+Rewrite  still closed at IR; 7B may name KEEP→EVICT→TRANSFER→RESTORE
 ```
 
 This page is the engineering constitution after the
@@ -93,7 +93,7 @@ F  →  argmin  →  rewrite
 #135   F_storage_schedule design      design-only; no inhabitant
 6C-M   Sufficiency Decision           FROZEN @ a0a2a08 (#136; merge gated)
 7A     Authorization Boundary         FROZEN @ 5b57666 (#137; merge gated)
-7B     ONE storage rewrite            CLOSED
+7B     ONE storage rewrite            FROZEN @ 3e942a8 (#138; plan; merge gated)
 7C     End-to-end executable opt
 7D     CUDA backend realization
 7E     Ascend backend realization
@@ -141,10 +141,19 @@ May the compiler change IR?        rewrite-license
 `AuthorizationIdentity = (selected, object, action)`.
 v0.1 action is `storage-rewrite` (named, not implemented).
 Policy v0.1 is not `if sufficient: authorized = yes`.
-`rewrite-license=yes` is still STOP: `rewrite-path=no`,
-`can-run-plan=no`, `transformation=n/a`.
+`rewrite-license=yes` does not transform IR. 7B names the
+unique plan; `rewrite-path` stays `no`.
 
-### 7B (closed)
+### 7B
+
+[`storage-rewrite.md`](storage-rewrite.md).
+Semantic freeze at `3e942a8`. Merge still gated.
+IR apply stays closed.
+
+```text
+rewrite-license  ≠  rewrite-plan
+rewrite-plan     ≠  rewrite-path
+```
 
 One rewrite only:
 
@@ -152,9 +161,11 @@ One rewrite only:
 KEEP → EVICT → TRANSFER → RESTORE
 ```
 
-Not ten optimizations. Concurrent sibling reorder stays a
-frozen transform witness; it is not this first product
-rewrite.
+`rewrite-plan=yes` names that sequence. It does **not**
+apply it. `applied=no`. `rewrite-path=no`. Not ten
+optimizations. Not an `F_storage_schedule` inhabitant.
+Concurrent sibling reorder stays a frozen transform
+witness; it is not this first product rewrite.
 
 ## Do not expand sideways
 
