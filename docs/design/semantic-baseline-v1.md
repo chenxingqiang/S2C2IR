@@ -3,7 +3,8 @@
 **Status:** verification-only checkpoint after
 `#136` / `#137` / `#138` landed on `main`.
 No new semantics. Not an IR apply. Not `#139` merge.
-`#140` stays **CLOSED**.
+Apply inhabitant stays **CLOSED**. This GitHub PR is
+the baseline checkpoint, not a rewrite inhabitant.
 
 ```text
 Goal     prove the frozen Decision stack still composes on main
@@ -21,7 +22,7 @@ Product lock: [`compiler-spine.md`](compiler-spine.md).
 #138  7B Rewrite Plan      MERGED @ 3e942a8
                            bookkeeping @ fe8f510
 #139  IR Apply Contract    NOT MERGED; inhabitant CLOSED
-#140  Apply inhabitant     CLOSED
+Apply inhabitant           CLOSED (not this PR)
 ```
 
 ## Decision stack (this checkpoint)
@@ -95,7 +96,7 @@ execution regression    later apply / HB / legality / measure
 
 ```text
 merging #139
-opening #140 / IR apply inhabitant
+opening an IR apply inhabitant
 new Decision.subject
 new rewrite.* / authorization.* tokens
 F_storage_schedule

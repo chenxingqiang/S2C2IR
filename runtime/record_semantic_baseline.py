@@ -3,7 +3,7 @@
 
 Composes EA-1 / 6C-M / 7A / 7B / legacy RCE+XID after #136/#137/#138
 merged. Does not reimplement evaluators. Does not merge #139.
-Does not open #140. Not an IR apply. Query only.
+Does not open an apply inhabitant. Not an IR apply. Query only.
 Do not FileCheck microseconds.
 """
 
@@ -134,7 +134,7 @@ def print_contract() -> int:
     print("note seven-a-consume-six-c-m")
     print("note seven-b-consume-seven-a")
     print("note apply-not-merged")
-    print("note one-forty-closed")
+    print("note apply-inhabitant-closed")
     print("cost=unchanged")
     return 0
 

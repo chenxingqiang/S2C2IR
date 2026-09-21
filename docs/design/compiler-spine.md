@@ -152,7 +152,7 @@ unique plan; `rewrite-path` stays `no`.
 [`storage-rewrite.md`](storage-rewrite.md).
 Semantic freeze at `3e942a8`. Merged via `#138`.
 IR apply stays closed. `#139` is unmerged contract.
-`#140` stays CLOSED.
+Apply inhabitant stays CLOSED.
 
 ```text
 rewrite-license  ≠  rewrite-plan
@@ -177,7 +177,7 @@ witness; it is not this first product rewrite.
 Verification-only after `#136` / `#137` / `#138` merged.
 Replays EA-1 / 6C-M 16-case / 7A 20-case / 7B 18-case /
 legacy RCE+XID. No new semantics. `#139` stays unmerged.
-`#140` stays CLOSED. `applied=no`. `rewrite-path=no`.
+Apply inhabitant stays CLOSED. `applied=no`. `rewrite-path=no`.
 
 ## Do not expand sideways
 

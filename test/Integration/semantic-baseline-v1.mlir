@@ -1,6 +1,6 @@
 // Semantic Baseline v1. Replay frozen Decision hosts after
 // #136 / #137 / #138 landed. No new semantics. Not IR apply.
-// #139 not merged. #140 CLOSED.
+// #139 not merged. Apply inhabitant CLOSED.
 // Do not FileCheck microseconds.
 // RUN: python3 %S/../../runtime/record_semantic_baseline.py --print-semantic-baseline-contract | FileCheck %s --check-prefix=BASE --implicit-check-not=can-run-plan=yes --implicit-check-not=rewrite-path=yes --implicit-check-not=applied=yes
 // RUN: python3 %S/../../runtime/record_semantic_baseline.py --print-semantic-baseline-summary | FileCheck %s --check-prefix=SUM --implicit-check-not=can-run-plan=yes --implicit-check-not=rewrite-path=yes --implicit-check-not=applied=yes
@@ -41,6 +41,8 @@ func.func @dummy() {
 // BASE: can-run-plan no
 // BASE: rewrite-path no
 // BASE: applied no
+// BASE: note apply-not-merged
+// BASE: note apply-inhabitant-closed
 // BASE-NOT: rewrite-path=yes
 // BASE-NOT: applied=yes
 // BASE-NOT: can-run-plan=yes

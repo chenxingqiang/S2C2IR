@@ -358,8 +358,8 @@ Semantic Baseline v1                 verification-only
 not derived from sufficient or authorized.
 `rewrite-plan=yes` names KEEP→EVICT→TRANSFER→RESTORE.
 `rewrite-path` stays `no`. `applied` stays `no`.
-IR apply stays closed. `#139` is unmerged. `#140` is CLOSED.
-Semantic Baseline v1:
+IR apply stays closed. `#139` is unmerged. Apply inhabitant
+is CLOSED. Semantic Baseline v1:
 [`semantic-baseline-v1.md`](design/semantic-baseline-v1.md).
 
 Do **not** start StableHLO or inhabit
