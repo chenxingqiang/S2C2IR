@@ -1029,6 +1029,11 @@ action=`storage-rewrite` named, not implemented;
 unique KEEP→EVICT→TRANSFER→RESTORE; `rewrite-plan` ≠
 `rewrite-path`; applied=no; 18-case matrix):
 [`storage-rewrite.md`](storage-rewrite.md).
+IR Apply Contract v0.1 (design-only; apply CLOSED;
+not a Decision subject; not an inhabitant):
+[`ir-apply-contract.md`](ir-apply-contract.md).
+Execution route (merge order, then baseline, then apply):
+[`compiler-execution-spine.md`](compiler-execution-spine.md).
 Product spine:
 [`compiler-spine.md`](compiler-spine.md).
 Reason vocabulary / evidence schema:
@@ -1155,6 +1160,7 @@ Do not FileCheck microseconds.
 | AUTH-2 | same | 20-case matrix: claimed-action `authorization.action-mismatch`; 7A scope `authorization.identity-mismatch`; `>1` license `authorization.duplicate-license`; duplicate REQUIRED stays `decision.duplicate-identity`; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
 | REW-1 | `test/Integration/storage-rewrite.mlir` | `--print-rewrite-contract`; FROZEN @ `3e942a8`; `Decision.subject=rewrite-plan`; identity `(selected, object, action, license-kind)`; license≠plan≠path; unique KEEP→EVICT→TRANSFER→RESTORE; `applied=no`; `rewrite-path=no` |
 | REW-2 | same | 18-case matrix: consume 7A license=yes; envelope Decision contract; `source-schema=s2c2.decision.v1`; `rewrite-license.identity` matches `license-identity`; sequence mismatch; duplicate sequence/envelope; 7B scope `rewrite.identity-mismatch`; extras ignored; plan=yes still `applied=no` |
+| APPLY-0 | design only | [`ir-apply-contract.md`](ir-apply-contract.md): identity/sequence/IR-match/postcondition/failure=no-apply; no inhabitant; no `s2c2-opt`; `rewrite-path=no` |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
