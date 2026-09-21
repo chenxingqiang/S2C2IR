@@ -1029,6 +1029,9 @@ not can-run-plan):
 Baseline E2E Integration (compose frozen hosts; no new
 semantics):
 [`realization-checking-e2e.md`](realization-checking-e2e.md).
+Cross-identity Checking E2E (compose frozen cuda / ascend /
+cpu identities; no new semantics):
+[`realization-checking-xid.md`](realization-checking-xid.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
@@ -1119,7 +1122,8 @@ Do not FileCheck microseconds.
 | CHK-2 | same | 17-case matrix: original 13 plus missing-claimed-kinds ≠ empty; per-fact schema; identity.kind required; top-level kind rejected |
 | RCE-1 | `test/Integration/realization-checking-e2e.mlir` | `--print-realization-checking-e2e-contract`; compose Profile→Legality→Check; `e2e-eq-check-v0`; `semantic-expansion=none`; `can-run-plan=no` |
 | RCE-2 | same | legal-claim satisfy/unproven; unsatisfied-claim violate+forbidden; identity-mismatch contract-error; unclaimed kind omitted |
-
+| XID-1 | `test/Integration/realization-checking-xid.mlir` | `--print-realization-checking-xid-contract`; compose cuda/ascend/cpu; `xid-eq-check-v0`; `xid-invents-npu-cim=no`; `can-run-plan=no` |
+| XID-2 | same | cuda-legal satisfy/unproven; ascend-dma unproven+satisfy; cpu-na violate+not-applicable; cross-target contract-error |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
