@@ -37,6 +37,7 @@ SELECTED_S1 = rew.SELECTED_S1
 OBJECT_2 = rew.OBJECT_2
 OBJECT_3 = rew.OBJECT_3
 SEQUENCE_V01 = rew.SEQUENCE_V01
+TRANSFORMATION_V01 = rew.TRANSFORMATION_V01
 MACHINERY = ("evict", "transfer")
 FORBIDDEN = ("prefetch", "preserve", "rematerialize", "evict", "transfer", "restore")
 ALLOWED_OTHER = ("compute", "load")
@@ -210,6 +211,13 @@ def transform_edges(
             )
         )
     return out
+
+
+def _op_ids_unique(program: dict) -> bool:
+    ids = [op.get("op-id") for op in _ops(program)]
+    if any(not isinstance(item, str) or item == "" for item in ids):
+        return False
+    return len(ids) == len(set(ids))
 
 
 def construct_candidate(program: dict, region: dict) -> dict:
@@ -453,6 +461,8 @@ def evaluate_apply(
     plan = copy.deepcopy(plan)
     if plan["result"] != "yes":
         return reject(list(plan["reasons"]), identity, plan)
+    if envelope.get("transformation") != TRANSFORMATION_V01:
+        return reject(["decision.unknown-reason"], identity, plan)
     regions = find_regions(original)
     if len(regions) != 1:
         return reject([], identity, plan)
@@ -470,6 +480,15 @@ def evaluate_apply(
         return reject(["rewrite.sequence-mismatch"], identity, plan)
 
     candidate = construct_candidate(original, region)
+    if not _op_ids_unique(candidate):
+        return finish(
+            [],
+            match="yes",
+            applied="no",
+            plan=plan,
+            identity=identity,
+            result_program=copy.deepcopy(original),
+        )
     candidate_id = canonical_program(candidate)
     if candidate_id == canonical_program(original):
         return finish(
@@ -546,6 +565,7 @@ def _plan(
     sequence=None,
     source_schema: str = AUTH_SCHEMA,
     plan: dict | None = None,
+    transformation: str | None = None,
 ) -> dict:
     if reasons is None:
         reasons = ["rewrite.plan-closed"] if result == "yes" else ["rewrite.license-no"]
@@ -553,6 +573,8 @@ def _plan(
         sequence = list(SEQUENCE_V01)
     if sequence is None:
         sequence = "n/a"
+    if transformation is None:
+        transformation = TRANSFORMATION_V01 if result == "yes" else "n/a"
     return {
         "schema": REWRITE_SCHEMA,
         "source-schema": source_schema,
@@ -571,6 +593,7 @@ def _plan(
             "reasons": list(reasons),
         },
         "sequence": sequence,
+        "transformation": transformation,
         "applied": "no",
         "rewrite-path": "no",
         "can-run-plan": "no",
@@ -675,6 +698,12 @@ def _cases() -> list[tuple[str, list[dict], dict, dict]]:
             {},
         ),
         (
+            "transformation-mismatch",
+            [_plan(transformation="something-else")],
+            happy,
+            {"witness": bound_witness(happy)},
+        ),
+        (
             "postcondition-hb",
             [_plan()],
             sparse,
@@ -728,7 +757,38 @@ def _cases() -> list[tuple[str, list[dict], dict, dict]]:
             _program([_stores(["1", "0", "2"])]),
             {},
         ),
+        (
+            "collide-evict",
+            [_plan()],
+            _collision_program("evict"),
+            {"witness": bound_witness(_collision_program("evict"))},
+        ),
+        (
+            "collide-transfer",
+            [_plan()],
+            _collision_program("transfer"),
+            {"witness": bound_witness(_collision_program("transfer"))},
+        ),
+        (
+            "collide-restore",
+            [_plan()],
+            _collision_program("restore"),
+            {"witness": bound_witness(_collision_program("restore"))},
+        ),
     ]
+
+
+def _collision_program(suffix: str) -> dict:
+    # A second block keeps the W0-3/2 window unique. The colliding
+    # op is machinery so it stays outside E_sem; set-based projection
+    # can still accept the candidate.
+    kind = "evict" if suffix == "restore" else suffix
+    return _program(
+        [
+            _stores(["0", "1", "2"]),
+            [{"op": kind, "name": "old", "op-id": "id2." + suffix}],
+        ]
+    )
 
 
 def _validate() -> None:
@@ -750,6 +810,7 @@ def _validate() -> None:
         "duplicate-envelope",
         "malformed-plan",
         "source-schema-mismatch",
+        "transformation-mismatch",
         "postcondition-hb",
         "postcondition-legal",
         "witness-missing",
@@ -759,6 +820,9 @@ def _validate() -> None:
         "capacity-other",
         "cross-block",
         "keep-order",
+        "collide-evict",
+        "collide-transfer",
+        "collide-restore",
     ]
     if names != expect:
         raise RuntimeError(names)
@@ -778,6 +842,18 @@ def _validate() -> None:
         raise RuntimeError("canonical equality")
     if not projection_holds(happy, again, region):
         raise RuntimeError("happy projection")
+    if not _op_ids_unique(again):
+        raise RuntimeError("happy ids")
+    for suffix in ("evict", "transfer", "restore"):
+        collided = _collision_program(suffix)
+        collided_region = find_regions(collided)
+        if len(collided_region) != 1:
+            raise RuntimeError(suffix)
+        collided_candidate = construct_candidate(collided, collided_region[0])
+        if _op_ids_unique(collided_candidate):
+            raise RuntimeError(f"collision missed {suffix}")
+        if not projection_holds(collided, collided_candidate, collided_region[0]):
+            raise RuntimeError(f"projection hid {suffix}")
     image = set(pi_map(happy, region).values())
     if image != set(_semantic_ids(again)):
         raise RuntimeError("not bijective")
@@ -829,6 +905,7 @@ def _validate() -> None:
             "plan-missing",
             "malformed-plan",
             "source-schema-mismatch",
+            "transformation-mismatch",
         ):
             if bag["reasons"] != ["decision.unknown-reason"] or bag["match"] != "no":
                 raise RuntimeError(name)
@@ -869,6 +946,9 @@ def _validate() -> None:
             "witness-missing",
             "witness-wrong-id",
             "witness-wrong-device",
+            "collide-evict",
+            "collide-transfer",
+            "collide-restore",
         ):
             if bag["match"] != "yes" or bag["applied"] != "no" or bag["reasons"] != []:
                 raise RuntimeError(name)

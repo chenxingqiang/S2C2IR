@@ -41,6 +41,15 @@ match=yes and applied=no is a postcondition failure
 match=no and applied=yes is forbidden
 ```
 
+A yes-plan envelope must carry
+`transformation=keep-evict-transfer-restore`. Any other
+text is a malformed envelope: no apply.
+
+Generated `op-id` values `E.evict`, `E.transfer`, and
+`E.restore` must not already occur in `P`. Every `op-id`
+in `P'` is unique. A collision is a postcondition
+failure: `match=yes`, `applied=no`, `P` unchanged.
+
 Success still does not grant `can-run-plan`.
 
 ## Host

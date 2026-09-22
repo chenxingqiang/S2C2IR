@@ -1031,7 +1031,7 @@ unique KEEP→EVICT→TRANSFER→RESTORE; `rewrite-plan` ≠
 [`storage-rewrite.md`](storage-rewrite.md).
 Semantic Baseline v1 (MERGED @ `b62bae4`; `#140`;
 verification-only after `#136` / `#137` / `#138`; no new
-semantics; apply inhabitant CLOSED):
+semantics; replay does not execute Apply):
 [`semantic-baseline-v1.md`](semantic-baseline-v1.md).
 IR Apply Contract v0.1 (FROZEN @ `038f4a1`; not a
 Decision subject):

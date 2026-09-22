@@ -37,6 +37,9 @@ func.func @dummy() {
 // APPM: app-can-run-plan no
 // APPM: app-case identity-prose-o2
 // APPM: app-reasons rewrite.identity-mismatch
+// APPM: app-case transformation-mismatch
+// APPM: app-match no
+// APPM: app-reasons decision.unknown-reason
 // APPM: app-case postcondition-hb
 // APPM: app-match yes
 // APPM: app-applied no
@@ -44,6 +47,13 @@ func.func @dummy() {
 // APPM: app-applied no
 // APPM: app-case capacity-other
 // APPM: app-match no
+// APPM: app-case collide-evict
+// APPM: app-match yes
+// APPM: app-applied no
+// APPM: app-case collide-transfer
+// APPM: app-applied no
+// APPM: app-case collide-restore
+// APPM: app-applied no
 // APPM: can-run-plan no
 // APPM: enum-f no
 // APPM-NOT: can-run-plan=yes
