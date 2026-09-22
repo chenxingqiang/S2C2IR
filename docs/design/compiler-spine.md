@@ -1,7 +1,8 @@
 # S²C² Compiler Spine
 
 **Status:** product lock. 6C-M / 7A / 7B merged. Semantic
-Baseline v1 merged @ `b62bae4`. IR apply CLOSED. Not an
+Baseline v1 merged @ `b62bae4`. Apply contract frozen @
+`038f4a1`. IR apply inhabitant CLOSED. Not an
 `F_storage_schedule` inhabitant. Not StableHLO.
 
 ```text
@@ -95,7 +96,7 @@ F  →  argmin  →  rewrite
 7A     Authorization Boundary         MERGED @ 5b57666 (#137)
 7B     ONE storage rewrite            MERGED @ 3e942a8 (#138; plan)
 Semantic Baseline v1                  MERGED @ b62bae4 (#140)
-7B-Apply Controlled IR Apply          CLOSED (#139 contract unmerged)
+7B-Apply Controlled IR Apply          FROZEN @ 038f4a1 (#139; contract; inhabitant CLOSED)
 7C     End-to-end executable opt
 7D     CUDA backend realization
 7E     Ascend backend realization
@@ -176,8 +177,21 @@ witness; it is not this first product rewrite.
 [`semantic-baseline-v1.md`](semantic-baseline-v1.md).
 MERGED @ `b62bae4` via `#140`. Replays EA-1 / 6C-M 16-case /
 7A 20-case / 7B 18-case / legacy RCE+XID. No new semantics.
-`#139` stays unmerged. Apply inhabitant stays CLOSED.
-`applied=no`. `rewrite-path=no`.
+Baseline PASS is a prerequisite, not apply authorization.
+
+### 7B-Apply (closed)
+
+[`ir-apply-contract.md`](ir-apply-contract.md)
+(PR #139; FROZEN @ `038f4a1`; re-approved at `9c99134`;
+not merged). Route:
+[`compiler-execution-spine.md`](compiler-execution-spine.md).
+
+This #139 names the contract; it does not apply IR.
+Do not open the IR Apply inhabitant in this cut.
+Semantic Baseline v1 PASS ≠ Apply inhabitant OPEN.
+The inhabitant requires a separate cut and an explicit
+start. `rewrite-plan=yes` is not `rewrite-path=yes`.
+Failure is no apply.
 
 ## Do not expand sideways
 

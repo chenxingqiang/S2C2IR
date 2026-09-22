@@ -115,16 +115,17 @@ F_storage_schedule absent
 Semantic Baseline v1 = PASS
 ```
 
-only when every line above holds. Then, and only then:
+only when every line above holds. `#140` is already
+merged. That does **not** open apply:
 
 ```text
-PR #140 — APPROVED
-        ↓
-freeze baseline
-        ↓
-PR #139 — merge
-        ↓
-open Controlled IR Apply
+Semantic Baseline v1 PASS
+        ≠
+Apply Inhabitant OPEN
+
+#139 is the apply contract only.
+The inhabitant requires a separate cut
+and an explicit start.
 ```
 
 ## Out of scope

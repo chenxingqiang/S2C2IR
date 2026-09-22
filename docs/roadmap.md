@@ -343,7 +343,7 @@ one compiler spine, not more dialects or vendors.
 7A     Authorization Boundary        MERGED @ 5b57666 (#137)
 7B     ONE storage rewrite           MERGED @ 3e942a8 (#138; plan)
 Semantic Baseline v1                 MERGED @ b62bae4 (#140)
-7B-Apply Controlled IR Apply         CLOSED (#139 unmerged)
+7B-Apply Controlled IR Apply         FROZEN @ 038f4a1 (#139 APPROVED @ 9c99134; not merged; inhabitant CLOSED)
 7C     End-to-end executable opt
 7D/E   CUDA / Ascend realization
 7F     CIM capability adapter
@@ -358,9 +358,15 @@ Semantic Baseline v1                 MERGED @ b62bae4 (#140)
 not derived from sufficient or authorized.
 `rewrite-plan=yes` names KEEP→EVICT→TRANSFER→RESTORE.
 `rewrite-path` stays `no`. `applied` stays `no`.
-IR apply stays closed. `#139` is unmerged. Apply inhabitant
-is CLOSED. Semantic Baseline v1 MERGED @ `b62bae4`:
+IR apply stays closed. PR #139 is the frozen contract
+@ `038f4a1`, not the inhabitant:
+[`ir-apply-contract.md`](design/ir-apply-contract.md).
+Execution route:
+[`compiler-execution-spine.md`](design/compiler-execution-spine.md).
+Semantic Baseline v1 MERGED @ `b62bae4`:
 [`semantic-baseline-v1.md`](design/semantic-baseline-v1.md).
+Do not open the IR Apply inhabitant in this cut.
+Baseline PASS ≠ inhabitant OPEN.
 
 Do **not** start StableHLO or inhabit
 \(F_{\mathrm{storage\_schedule}}\).
