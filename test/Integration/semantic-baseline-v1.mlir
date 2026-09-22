@@ -1,6 +1,6 @@
-// Semantic Baseline v1. Replay frozen Decision hosts after
-// #136 / #137 / #138 landed. No new semantics. Not IR apply.
-// #139 not merged. Apply inhabitant CLOSED.
+// Semantic Baseline v1. Replay frozen Decision hosts.
+// #139 is merged. The apply host may exist.
+// This replay does not execute Apply.
 // Do not FileCheck microseconds.
 // RUN: python3 %S/../../runtime/record_semantic_baseline.py --print-semantic-baseline-contract | FileCheck %s --check-prefix=BASE --implicit-check-not=can-run-plan=yes --implicit-check-not=rewrite-path=yes --implicit-check-not=applied=yes
 // RUN: python3 %S/../../runtime/record_semantic_baseline.py --print-semantic-baseline-summary | FileCheck %s --check-prefix=SUM --implicit-check-not=can-run-plan=yes --implicit-check-not=rewrite-path=yes --implicit-check-not=applied=yes
@@ -15,8 +15,9 @@ func.func @dummy() {
 // BASE: main-merge 136
 // BASE: main-merge 137
 // BASE: main-merge 138
-// BASE: main-merge-139 no
-// BASE: apply-inhabitant closed
+// BASE: main-merge 139
+// BASE: apply-host present
+// BASE: baseline-replay-executes-apply no
 // BASE: decision-stack usable
 // BASE: decision-stack sufficient
 // BASE: decision-stack authorized
@@ -29,9 +30,9 @@ func.func @dummy() {
 // BASE: rewrite-matrix-cases 18
 // BASE: legacy-rce pass
 // BASE: legacy-xid pass
-// BASE: apply-contract specification-only
-// BASE: apply-contract-on-main no
-// BASE: ir-mutation none
+// BASE: apply-contract merged
+// BASE: apply-contract-on-main yes
+// BASE: ir-mutation-by-replay none
 // BASE: f-storage-schedule none
 // BASE: producer ea-1 usable
 // BASE: producer sufficiency sufficient
@@ -41,13 +42,13 @@ func.func @dummy() {
 // BASE: can-run-plan no
 // BASE: rewrite-path no
 // BASE: applied no
-// BASE: note apply-not-merged
-// BASE: note apply-inhabitant-closed
+// BASE: note apply-contract-merged
+// BASE: note baseline-does-not-execute-apply
 // BASE: pin usable-and-applicable-ne-sufficient yes
 // BASE: pin sufficient-yes-policy-missing authorized=no
 // BASE: pin authorized-yes-license-missing rewrite-license=no
 // BASE: pin rewrite-plan-yes applied=no
-// BASE: guard record_storage_apply absent
+// BASE: guard baseline-skips-apply-host yes
 // BASE: guard applySchedule frozen-capability-schedule-only
 // BASE: result PASS
 // BASE: Semantic Baseline v1 = PASS
@@ -69,14 +70,15 @@ func.func @dummy() {
 // SUM:   producer = record_storage_rewrite.py
 // SUM:   subject  = rewrite-plan
 // SUM: Apply
-// SUM:   producer = none
-// SUM:   status   = specification-only
+// SUM:   producer = record_storage_apply.py
+// SUM:   status   = not-replayed
 // SUM: layer EA-1 result=usable
 // SUM: layer 6C-M result=sufficient
 // SUM: layer 7A result=authorized,rewrite-license
 // SUM: layer 7B result=rewrite-plan
-// SUM: layer apply-contract result=specification-only merged=no
-// SUM: layer ir-mutation result=none
+// SUM: layer apply-contract result=merged
+// SUM: layer apply-host present replay=no
+// SUM: layer ir-mutation-by-replay result=none
 // SUM: failure-class semantic-vs-execution yes
 // SUM: can-run-plan no
 // SUM: rewrite-path no

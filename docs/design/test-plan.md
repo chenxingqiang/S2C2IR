@@ -1031,13 +1031,14 @@ unique KEEP→EVICT→TRANSFER→RESTORE; `rewrite-plan` ≠
 [`storage-rewrite.md`](storage-rewrite.md).
 Semantic Baseline v1 (MERGED @ `b62bae4`; `#140`;
 verification-only after `#136` / `#137` / `#138`; no new
-semantics; apply inhabitant CLOSED):
+semantics; replay does not execute Apply):
 [`semantic-baseline-v1.md`](semantic-baseline-v1.md).
-IR Apply Contract v0.1 (FROZEN @ `038f4a1`; re-approved
-at `9c99134`; PR #139 not merged;
-design-only; apply CLOSED; not a Decision subject; not
-an inhabitant):
+IR Apply Contract v0.1 (FROZEN @ `038f4a1`; not a
+Decision subject):
 [`ir-apply-contract.md`](ir-apply-contract.md).
+W0-3/2 Apply inhabitant v0 (host; one pattern; external
+witness; `can-run-plan=no`):
+[`ir-apply-inhabitant.md`](ir-apply-inhabitant.md).
 Execution route (contract only; Baseline PASS ≠ inhabitant
 OPEN):
 [`compiler-execution-spine.md`](compiler-execution-spine.md).
@@ -1167,13 +1168,13 @@ Do not FileCheck microseconds.
 | AUTH-2 | same | 20-case matrix: claimed-action `authorization.action-mismatch`; 7A scope `authorization.identity-mismatch`; `>1` license `authorization.duplicate-license`; duplicate REQUIRED stays `decision.duplicate-identity`; consume 6C-M yes; explicit license=yes still `transformation=n/a` |
 | REW-1 | `test/Integration/storage-rewrite.mlir` | `--print-rewrite-contract`; FROZEN @ `3e942a8`; `Decision.subject=rewrite-plan`; identity `(selected, object, action, license-kind)`; license≠plan≠path; unique KEEP→EVICT→TRANSFER→RESTORE; `applied=no`; `rewrite-path=no` |
 | REW-2 | same | 18-case matrix: consume 7A license=yes; envelope Decision contract; `source-schema=s2c2.decision.v1`; `rewrite-license.identity` matches `license-identity`; sequence mismatch; duplicate sequence/envelope; 7B scope `rewrite.identity-mismatch`; extras ignored; plan=yes still `applied=no` |
-| BASE-1 | `test/Integration/semantic-baseline-v1.mlir` | `--print-semantic-baseline-contract`; replay EA-1 usable / 6C-M 16 / 7A 20 / 7B 18 / RCE+XID; apply inhabitant CLOSED; `applied=no`; `rewrite-path=no` |
+| BASE-1 | `test/Integration/semantic-baseline-v1.mlir` | `--print-semantic-baseline-contract`; replay EA-1 usable / 6C-M 16 / 7A 20 / 7B 18 / RCE+XID; baseline does not execute apply; `applied=no`; `rewrite-path=no` |
 | BASE-2 | same | provenance table EA-1/6C-M/7A/7B/Apply; `Semantic Baseline v1 = PASS`; `can-run-plan=no` |
-| APPLY-0 | design only | [`ir-apply-contract.md`](ir-apply-contract.md) FROZEN @ `038f4a1`; PR #139: five fields; consume 7B; ApplyIdentity=four-tuple; W0-3/2 match; `T(P)≠⊥ ⇒ HB(P')=HB(P)`; failure=no-apply; no inhabitant; no `s2c2-opt`; `rewrite-path=no` |
-| APPLY-1 | design only | identity/sequence exact-match; `rewrite.identity-mismatch` / `rewrite.sequence-mismatch`; plan for S0 must not act on S1 |
-| APPLY-2 | design only | IR mismatch (extra/missing store, unknown op, reorder) → `match=no` `applied=no`; not a new Decision.subject |
-| APPLY-3 | design only | postcondition fail (HB or legality) → rollback; `match=yes` `applied=no`; IR unchanged |
-| APPLY-4 | design only | `rewrite-applicable` is `ApplyResult.match`; no `rewrite.apply-*`; 17-row negative matrix; `can-run-plan=no` |
+| APPLY-0 | `test/Integration/storage-apply.mlir` | [`ir-apply-contract.md`](ir-apply-contract.md) FROZEN @ `038f4a1`; inhabitant [`ir-apply-inhabitant.md`](ir-apply-inhabitant.md); consume 7B; W0-3/2 only; `can-run-plan=no` |
+| APPLY-1 | same | identity/sequence exact-match; `rewrite.identity-mismatch` / `rewrite.sequence-mismatch`; prose `O2` ≠ object `"2"` |
+| APPLY-2 | same | IR mismatch (extra/missing store, unknown op, multi-region, other capacity) → `match=no` `applied=no` |
+| APPLY-3 | same | postcondition fail (HB*, legality, witness binding) → `match=yes` `applied=no`; program unchanged |
+| APPLY-4 | same | `rewrite-applicable` is not a Decision; no `rewrite.apply-*`; `can-run-plan=no`; success `applied=yes` still not run permission |
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:

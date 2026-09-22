@@ -1,9 +1,10 @@
 # Semantic Baseline v1
 
-**Status:** Semantic Baseline v1 frozen. Technical PASS at
+**Status:** Semantic Baseline v1 replay. Technical PASS at
 `b62bae4`. Merged onto `main` via `merge` token.
-No new semantics. Not an IR apply. `#139` stays unmerged.
-Apply inhabitant stays **CLOSED**.
+`#139` IR Apply Contract is MERGED @ `2821de8`.
+The apply inhabitant host is present in this cut.
+This replay does not execute Apply.
 
 ```text
 Goal     prove the frozen Decision stack still composes on main
@@ -20,8 +21,9 @@ Product lock: [`compiler-spine.md`](compiler-spine.md).
 #137  7A Authorization     MERGED @ 5b57666
 #138  7B Rewrite Plan      MERGED @ 3e942a8
                            bookkeeping @ fe8f510
-#139  IR Apply Contract    NOT MERGED; inhabitant CLOSED
-Apply inhabitant           CLOSED (not this PR)
+#139  IR Apply Contract    MERGED @ 2821de8
+Apply inhabitant host      present in this cut
+Semantic Baseline replay   does not execute Apply
 ```
 
 ## Decision stack (this checkpoint)
@@ -32,7 +34,7 @@ Sufficiency         → sufficient
 Authorization       → authorized
 Authorization       → rewrite-license
 Rewrite Planner     → rewrite-plan
-Apply Contract      → specification only (#139; not on main)
+Apply Contract      → MERGED @ 2821de8; replay does not execute it
 ```
 
 ```text
@@ -43,13 +45,13 @@ rewrite-license
 rewrite-plan
 ```
 
-Still:
+This replay still prints:
 
 ```text
 NO rewrite-path
 NO applied
 NO can-run-plan
-NO IR mutation
+NO IR mutation by this replay
 NO F_storage_schedule
 ```
 
@@ -62,8 +64,9 @@ NO F_storage_schedule
 | 7A | 20-case matrix passes |
 | 7B | 18-case matrix passes |
 | legacy RCE / XID | frozen compose hosts pass |
-| Apply contract | spec only; not merged |
-| IR mutation | none |
+| Apply contract | MERGED @ `2821de8` |
+| Apply host | present; this replay does not execute it |
+| IR mutation by this replay | none |
 | `F_storage_schedule` | none |
 | `rewrite-path` | `no` |
 | `can-run-plan` | `no` |
@@ -102,9 +105,9 @@ EA-1        = PASS   subject=usable, not sufficient
 legacy      = PASS   RCE + XID
 provenance  = consistent
 no new Decision.subject
-no IR mutation
-no apply inhabitant
-record_storage_apply.py absent
+no IR mutation by this replay
+no apply execution in this replay
+baseline does not execute record_storage_apply.py
 rewrite-path=no
 can-run-plan=no
 applied=no
@@ -115,24 +118,18 @@ F_storage_schedule absent
 Semantic Baseline v1 = PASS
 ```
 
-only when every line above holds. `#140` is already
-merged. That does **not** open apply:
+only when every line above holds.
 
 ```text
-Semantic Baseline v1 PASS
-        ≠
-Apply Inhabitant OPEN
-
-#139 is the apply contract only.
-The inhabitant requires a separate cut
-and an explicit start.
+#139 IR Apply Contract = MERGED @ 2821de8
+Apply inhabitant host = present in this cut
+Semantic Baseline replay = does not execute Apply
 ```
 
 ## Out of scope
 
 ```text
-merging #139
-opening an IR apply inhabitant
+executing Apply inside this replay
 new Decision.subject
 new rewrite.* / authorization.* tokens
 F_storage_schedule

@@ -2,8 +2,11 @@
 
 **Status:** product lock. 6C-M / 7A / 7B merged. Semantic
 Baseline v1 merged @ `b62bae4`. Apply contract frozen @
-`038f4a1`. IR apply inhabitant CLOSED. Not an
-`F_storage_schedule` inhabitant. Not StableHLO.
+`038f4a1`. W0-3/2 inhabitant v0 is a host
+([`ir-apply-inhabitant.md`](ir-apply-inhabitant.md);
+`PR #141 — APPROVED` at `88764fb`; merge still gated).
+Not an `F_storage_schedule` inhabitant. Not StableHLO.
+`can-run-plan` stays no.
 
 ```text
 Goal     name the five products and the only allowed mainline
@@ -96,7 +99,8 @@ F  →  argmin  →  rewrite
 7A     Authorization Boundary         MERGED @ 5b57666 (#137)
 7B     ONE storage rewrite            MERGED @ 3e942a8 (#138; plan)
 Semantic Baseline v1                  MERGED @ b62bae4 (#140)
-7B-Apply Controlled IR Apply          FROZEN @ 038f4a1 (#139; contract; inhabitant CLOSED)
+7B-Apply Controlled IR Apply          FROZEN @ 038f4a1 (#139; contract)
+W0-3/2 Apply inhabitant v0            host; not can-run-plan; not Enum_F
 7C     End-to-end executable opt
 7D     CUDA backend realization
 7E     Ascend backend realization
@@ -179,19 +183,20 @@ MERGED @ `b62bae4` via `#140`. Replays EA-1 / 6C-M 16-case /
 7A 20-case / 7B 18-case / legacy RCE+XID. No new semantics.
 Baseline PASS is a prerequisite, not apply authorization.
 
-### 7B-Apply (closed)
+### 7B-Apply
 
 [`ir-apply-contract.md`](ir-apply-contract.md)
-(PR #139; FROZEN @ `038f4a1`; re-approved at `9c99134`;
-not merged). Route:
+(PR #139; FROZEN @ `038f4a1`; merged @ `2821de8`).
+Route:
 [`compiler-execution-spine.md`](compiler-execution-spine.md).
+Host:
+[`ir-apply-inhabitant.md`](ir-apply-inhabitant.md).
 
-This #139 names the contract; it does not apply IR.
-Do not open the IR Apply inhabitant in this cut.
-Semantic Baseline v1 PASS ≠ Apply inhabitant OPEN.
-The inhabitant requires a separate cut and an explicit
-start. `rewrite-plan=yes` is not `rewrite-path=yes`.
-Failure is no apply.
+The contract page does not itself apply IR. The W0-3/2
+host is one pattern: match, construct a candidate, check
+`HB*` and an external witness, then commit or discard.
+`can-run-plan` stays no. Failure leaves the source program
+unchanged. Not `Enum_F`. Not Search.
 
 ## Do not expand sideways
 

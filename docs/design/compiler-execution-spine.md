@@ -1,22 +1,23 @@
 # Compiler Execution Spine
 
 **Status:** IR Apply Contract frozen @ `038f4a1`.
-Re-approved at `9c99134` (`PR #139 — APPROVED`; not
-merged). `#136` / `#137` / `#138` / `#140` are on `main`.
+`#136` / `#137` / `#138` / `#140` / `#139` are on `main`.
 Semantic Baseline v1 PASS is a prerequisite, not apply
-authorization. Not implemented. IR apply CLOSED.
-Does not change frozen evaluators. Not StableHLO. Not
-CIM. Not CUDA compiler.
+authorization. W0-3/2 inhabitant v0 is the host in
+[`ir-apply-inhabitant.md`](ir-apply-inhabitant.md).
+It does not change frozen 6C-M / 7A / 7B evaluators.
+Not StableHLO. Not CIM. Not CUDA compiler.
+`can-run-plan` stays no.
 
-PR #139 is this frozen contract/route page. It is **not**
-an apply inhabitant. Do not open the IR Apply inhabitant
-in this cut.
+`#139` is merged @ `2821de8`. The W0-3/2 host exists.
+`PR #141 — APPROVED` at `88764fb`; merge still gated.
+Semantic Baseline replay does not execute that host.
 
 ```text
 Goal     name how frozen query Decisions become one
          measured transformation
 Not      a new Decision subject, dialect, or optimizer
-Rewrite  still closed; Baseline PASS ≠ inhabitant OPEN
+Rewrite  host is W0-3/2 only; Baseline replay does not apply
 ```
 
 Product lock: [`compiler-spine.md`](compiler-spine.md).
@@ -29,9 +30,8 @@ Apply contract: [`ir-apply-contract.md`](ir-apply-contract.md).
 #137  7A Authorization     MERGED @ 5b57666
 #138  7B Rewrite Plan      MERGED @ 3e942a8
 #140  Semantic Baseline v1 MERGED @ b62bae4  PASS
-#139  IR Apply Contract    FROZEN @ 038f4a1
-                           inhabitant CLOSED
-IR apply                   CLOSED
+#139  IR Apply Contract    MERGED @ 2821de8 / freeze 038f4a1
+W0-3/2 inhabitant v0       host; not Enum_F; can-run-plan=no
 ```
 
 ```text
@@ -57,24 +57,21 @@ reopen 7B to require `result=yes`.
 
 ## Merge order (landed)
 
-`#136` / `#137` / `#138` / `#140` are on `main` @ `a4b6fed`.
-`#139` now targets `main`. APPROVED is not merge.
+`#136` / `#137` / `#138` / `#140` / `#139` are on `main`.
+`#139` merged @ `2821de8`.
 
 ```text
 #136 / #137 / #138 MERGED
         ↓
 Semantic Baseline v1 PASS   (#140 MERGED)
         ↓
-#139 Apply Contract         (this PR; not inhabitant)
+#139 Apply Contract         MERGED @ 2821de8
         ↓
-Apply inhabitant STILL CLOSED
-        ↓
-future: separate inhabitant cut
-        + explicit start
+W0-3/2 inhabitant v0       host; can-run-plan=no
 ```
 
-Do not merge `#139` as if it applied IR.
-Baseline PASS ≠ inhabitant OPEN.
+`#139` merged the contract. The host is a separate cut.
+Baseline PASS ≠ `can-run-plan`.
 
 ## Semantic Baseline v1 (landed)
 
@@ -113,18 +110,16 @@ NO can-run-plan
 If a later apply fails, this baseline answers whether
 execution broke or the semantic stack broke.
 
-## Then: controlled IR apply
+## W0-3/2 inhabitant host
 
-Later inhabitant, not this page and not PR #139.
-Do not open the IR Apply inhabitant in this cut.
-Semantic Baseline v1 PASS ≠ Apply inhabitant OPEN.
-The inhabitant requires a separate cut and an explicit
-start. Contract:
-[`ir-apply-contract.md`](ir-apply-contract.md).
+The host is
+[`ir-apply-inhabitant.md`](ir-apply-inhabitant.md).
+`#139` remains the contract
+([`ir-apply-contract.md`](ir-apply-contract.md)).
+Semantic Baseline replay does not execute the host.
 
-When that inhabitant opens, it constructs `P'` then
-commits. It does not mutate `P` in place and roll back.
-That is inhabitant strategy, not this freeze.
+The host constructs `P'` then commits. It does not mutate
+`P` in place and roll back. `can-run-plan` stays no.
 
 ```text
 rewrite-plan=yes
@@ -187,13 +182,13 @@ Rewrite Plan
 Plan / IR Match
  │
  ▼
-IR Apply          CLOSED
+IR Apply          host v0; baseline does not execute it
  │
  ▼
-HB Check          CLOSED
+HB Check          host v0
  │
  ▼
-Legality Check    CLOSED
+Legality Check    host v0; external witness
  │
  ▼
 Lowering          later
@@ -219,8 +214,8 @@ one authorized plan
 ```text
 #136 / #137 / #138 MERGED
 #140 Semantic Baseline v1    MERGED PASS
-#139 this PR                 contract only @ 038f4a1
-Controlled IR Apply          later inhabitant (separate cut)
+#139 IR Apply Contract        MERGED @ 2821de8
+W0-3/2 inhabitant            host present; baseline does not execute it
 Execution Verification       later (HB + legality)
 W0 storage-pressure bench    later
 Cost / measurement           later; legal+authorized only
@@ -244,7 +239,7 @@ Pareto, come after that closed loop.
 ## Out of scope (this page)
 
 ```text
-opening the IR Apply inhabitant
+executing Apply inside the baseline replay
 s2c2-opt rewrite pass
 new Decision subjects
 F_storage_schedule

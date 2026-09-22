@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Semantic Baseline v1 — replay frozen Decision hosts on main.
 
-Composes EA-1 / 6C-M / 7A / 7B / legacy RCE+XID after #136/#137/#138
-merged. Does not reimplement evaluators. Does not merge #139.
-Does not open an apply inhabitant. Not an IR apply. Query only.
-Do not FileCheck microseconds.
+Composes EA-1 / 6C-M / 7A / 7B / legacy RCE+XID.
+#139 is merged. The apply host may exist. This replay does not
+execute it. Query only. Do not FileCheck microseconds.
 """
 
 from __future__ import annotations
@@ -85,11 +84,11 @@ def _pin_critical() -> None:
 
 
 def _guard_execution() -> None:
-    apply_host = _RUNTIME / "record_storage_apply.py"
-    if apply_host.exists():
-        raise RuntimeError("apply-host-present")
+    apply_host = (_RUNTIME / "record_storage_apply.py").resolve()
     for path in _REPO.rglob("*storage_apply*"):
-        if ".git" in path.parts:
+        if ".git" in path.parts or "__pycache__" in path.parts:
+            continue
+        if path.resolve() == apply_host:
             continue
         raise RuntimeError(f"apply-artifact {path}")
     for path in _REPO.rglob("*StorageApply*"):
@@ -106,12 +105,14 @@ def _guard_execution() -> None:
         if path.name == "record_semantic_baseline.py":
             continue
         text = path.read_text()
+        if 'can-run-plan": "yes"' in text or "can-run-plan=yes" in text:
+            raise RuntimeError(f"can-run-plan-yes {path.name}")
+        if path.name == "record_storage_apply.py":
+            continue
         if 'applied": "yes"' in text or "applied=yes" in text:
             raise RuntimeError(f"applied-yes {path.name}")
         if 'rewrite-path": "yes"' in text or "rewrite-path=yes" in text:
             raise RuntimeError(f"rewrite-path-yes {path.name}")
-        if 'can-run-plan": "yes"' in text or "can-run-plan=yes" in text:
-            raise RuntimeError(f"can-run-plan-yes {path.name}")
         if "construct P'" in text:
             raise RuntimeError(f"construct-p {path.name}")
     for path in (_REPO / "include").rglob("*"):
@@ -152,8 +153,9 @@ def _validate() -> dict:
         "7b": 18,
         "legacy-rce": "pass",
         "legacy-xid": "pass",
-        "apply-contract": "specification-only",
-        "ir-mutation": "none",
+        "apply-contract": "merged",
+        "apply-host": "present-not-replayed",
+        "ir-mutation-by-replay": "none",
     }
 
 
@@ -165,8 +167,9 @@ def print_contract() -> int:
     print("main-merge 136")
     print("main-merge 137")
     print("main-merge 138")
-    print("main-merge-139 no")
-    print("apply-inhabitant closed")
+    print("main-merge 139")
+    print("apply-host present")
+    print("baseline-replay-executes-apply no")
     print("decision-stack usable")
     print("decision-stack sufficient")
     print("decision-stack authorized")
@@ -179,9 +182,9 @@ def print_contract() -> int:
     print("rewrite-matrix-cases 18")
     print("legacy-rce pass")
     print("legacy-xid pass")
-    print("apply-contract specification-only")
-    print("apply-contract-on-main no")
-    print("ir-mutation none")
+    print("apply-contract merged")
+    print("apply-contract-on-main yes")
+    print("ir-mutation-by-replay none")
     print("f-storage-schedule none")
     print("producer ea-1 usable")
     print("producer sufficiency sufficient")
@@ -211,13 +214,13 @@ def print_contract() -> int:
     print("capability-schedule-ne-god-object yes")
     print("note seven-a-consume-six-c-m")
     print("note seven-b-consume-seven-a")
-    print("note apply-not-merged")
-    print("note apply-inhabitant-closed")
+    print("note apply-contract-merged")
+    print("note baseline-does-not-execute-apply")
     print("pin usable-and-applicable-ne-sufficient yes")
     print("pin sufficient-yes-policy-missing authorized=no")
     print("pin authorized-yes-license-missing rewrite-license=no")
     print("pin rewrite-plan-yes applied=no")
-    print("guard record_storage_apply absent")
+    print("guard baseline-skips-apply-host yes")
     print("guard applySchedule frozen-capability-schedule-only")
     print("result PASS")
     print("Semantic Baseline v1 = PASS")
@@ -244,8 +247,8 @@ def print_summary() -> int:
     print("  subject  = rewrite-plan")
     print("  cases    = 18/18")
     print("Apply")
-    print("  producer = none")
-    print("  status   = specification-only")
+    print("  producer = record_storage_apply.py")
+    print("  status   = not-replayed")
     print("layer EA-1 result=usable producer=record_decision.py schema=s2c2.decision.v1")
     print(
         "layer 6C-M result=sufficient producer=record_sufficiency.py "
@@ -259,8 +262,9 @@ def print_summary() -> int:
         "layer 7B result=rewrite-plan producer=record_storage_rewrite.py "
         "schema=s2c2.storage_rewrite.v1 cases=18"
     )
-    print("layer apply-contract result=specification-only merged=no")
-    print("layer ir-mutation result=none")
+    print("layer apply-contract result=merged")
+    print("layer apply-host present replay=no")
+    print("layer ir-mutation-by-replay result=none")
     print("layer f-storage-schedule result=none")
     print("failure-class semantic-vs-execution yes")
     print("can-run-plan no")
