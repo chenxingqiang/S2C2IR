@@ -1,9 +1,10 @@
 # W0-3/2 Apply Inhabitant v0
 
 **Status:** host for the frozen IR Apply Contract v0.1
-(`038f4a1`, merged @ `2821de8`). One pattern. Not a
-generic rewrite engine. Not `Enum_F`. Not Search. Not
-authorization. `can-run-plan` stays no.
+(`038f4a1`, merged @ `2821de8`). Review head `88764fb`
+(`PR #141 — APPROVED`; merge still gated). One pattern.
+Not a generic rewrite engine. Not `Enum_F`. Not Search.
+Not authorization. `can-run-plan` stays no.
 
 Parent contract: [`ir-apply-contract.md`](ir-apply-contract.md).
 Does not edit `record_sufficiency.py`,

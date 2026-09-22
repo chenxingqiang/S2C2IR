@@ -10,6 +10,7 @@ Not StableHLO. Not CIM. Not CUDA compiler.
 `can-run-plan` stays no.
 
 `#139` is merged @ `2821de8`. The W0-3/2 host exists.
+`PR #141 — APPROVED` at `88764fb`; merge still gated.
 Semantic Baseline replay does not execute that host.
 
 ```text

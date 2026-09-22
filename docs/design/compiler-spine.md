@@ -3,7 +3,8 @@
 **Status:** product lock. 6C-M / 7A / 7B merged. Semantic
 Baseline v1 merged @ `b62bae4`. Apply contract frozen @
 `038f4a1`. W0-3/2 inhabitant v0 is a host
-([`ir-apply-inhabitant.md`](ir-apply-inhabitant.md)).
+([`ir-apply-inhabitant.md`](ir-apply-inhabitant.md);
+`PR #141 — APPROVED` at `88764fb`; merge still gated).
 Not an `F_storage_schedule` inhabitant. Not StableHLO.
 `can-run-plan` stays no.
 
