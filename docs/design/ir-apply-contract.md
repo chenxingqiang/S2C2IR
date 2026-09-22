@@ -1,15 +1,16 @@
 # IR Apply Contract v0.1
 
 **Status:** design freeze for IR Apply Contract v0.1.
-Semantic freeze at `038f4a1`. Not implemented. This PR
-(#139) is the contract only. IR apply inhabitant stays
-**CLOSED**. `#136` / `#137` / `#138` / `#140` already
-landed; Semantic Baseline v1 PASS is a **prerequisite**,
-not apply authorization. The inhabitant requires a
-separate cut and an explicit start. Does not change
-frozen 6C-M / 7A / 7B evaluators. Not an
-`F_storage_schedule` inhabitant. Not an expansion of
-`S2C2CapabilitySchedule.cpp`. Not StableHLO. Not CIM.
+Semantic freeze at `038f4a1`. Re-approved at head
+`9c99134` (`PR #139 — APPROVED`; merge still gated).
+Not implemented. This PR (#139) is the contract only.
+IR apply inhabitant stays **CLOSED**. `#136` / `#137` /
+`#138` / `#140` already landed; Semantic Baseline v1
+PASS is a **prerequisite**, not apply authorization.
+The inhabitant requires a separate cut and an explicit
+start. Does not change frozen 6C-M / 7A / 7B evaluators.
+Not an `F_storage_schedule` inhabitant. Not an expansion
+of `S2C2CapabilitySchedule.cpp`. Not StableHLO. Not CIM.
 
 This PR (#139) names the contract. It is **not** the
 apply inhabitant.

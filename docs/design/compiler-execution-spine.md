@@ -1,7 +1,8 @@
 # Compiler Execution Spine
 
 **Status:** IR Apply Contract frozen @ `038f4a1`.
-`#136` / `#137` / `#138` / `#140` are on `main`.
+Re-approved at `9c99134` (`PR #139 — APPROVED`; not
+merged). `#136` / `#137` / `#138` / `#140` are on `main`.
 Semantic Baseline v1 PASS is a prerequisite, not apply
 authorization. Not implemented. IR apply CLOSED.
 Does not change frozen evaluators. Not StableHLO. Not

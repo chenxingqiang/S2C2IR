@@ -182,7 +182,8 @@ Baseline PASS is a prerequisite, not apply authorization.
 ### 7B-Apply (closed)
 
 [`ir-apply-contract.md`](ir-apply-contract.md)
-(PR #139; FROZEN @ `038f4a1`; contract only). Route:
+(PR #139; FROZEN @ `038f4a1`; re-approved at `9c99134`;
+not merged). Route:
 [`compiler-execution-spine.md`](compiler-execution-spine.md).
 
 This #139 names the contract; it does not apply IR.
