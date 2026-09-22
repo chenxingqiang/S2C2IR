@@ -1,21 +1,21 @@
 # Compiler Execution Spine
 
-**Status:** IR Apply Contract frozen @ `038f4a1`
-(PR #139 — APPROVED; merge gated). Execution route still
-gated on the three query-stack merges. Not implemented.
-IR apply CLOSED. Does not merge #136 / #137 / #138.
+**Status:** IR Apply Contract frozen @ `038f4a1`.
+`#136` / `#137` / `#138` / `#140` are on `main`.
+Semantic Baseline v1 PASS is a prerequisite, not apply
+authorization. Not implemented. IR apply CLOSED.
 Does not change frozen evaluators. Not StableHLO. Not
 CIM. Not CUDA compiler.
 
 PR #139 is this frozen contract/route page. It is **not**
-an apply inhabitant.
+an apply inhabitant. Do not open the IR Apply inhabitant
+in this cut.
 
 ```text
 Goal     name how frozen query Decisions become one
          measured transformation
 Not      a new Decision subject, dialect, or optimizer
-Rewrite  still closed until the three merge tokens,
-         Semantic Baseline v1, and a later apply inhabitant
+Rewrite  still closed; Baseline PASS ≠ inhabitant OPEN
 ```
 
 Product lock: [`compiler-spine.md`](compiler-spine.md).
@@ -24,10 +24,10 @@ Apply contract: [`ir-apply-contract.md`](ir-apply-contract.md).
 ## Frozen query stack
 
 ```text
-#136  6C-M Sufficiency     FROZEN @ a0a2a08
-#137  7A Authorization     FROZEN @ 5b57666
-#138  7B Rewrite Plan      FROZEN @ 3e942a8
-                           bookkeeping @ fe8f510
+#136  6C-M Sufficiency     MERGED @ a0a2a08
+#137  7A Authorization     MERGED @ 5b57666
+#138  7B Rewrite Plan      MERGED @ 3e942a8
+#140  Semantic Baseline v1 MERGED @ b62bae4  PASS
 #139  IR Apply Contract    FROZEN @ 038f4a1
                            inhabitant CLOSED
 IR apply                   CLOSED
@@ -54,35 +54,30 @@ rewrite-plan=yes
 `rewrite-sequence.result` is non-authoritative. Do not
 reopen 7B to require `result=yes`.
 
-## Merge order (gated)
+## Merge order (landed)
 
-Exact tokens only: `PR #N — merge` / `合并`.
-APPROVED is not merge.
+`#136` / `#137` / `#138` / `#140` are on `main` @ `a4b6fed`.
+`#139` now targets `main`. APPROVED is not merge.
 
 ```text
-PR #136 — merge
+#136 / #137 / #138 MERGED
         ↓
-main obtains 6C-M
+Semantic Baseline v1 PASS   (#140 MERGED)
         ↓
-PR #137 — merge
+#139 Apply Contract         (this PR; not inhabitant)
         ↓
-main obtains 7A
+Apply inhabitant STILL CLOSED
         ↓
-PR #138 — merge
-        ↓
-main obtains 7B Rewrite Plan
-        ↓
-Semantic Baseline v1
-        ↓
-later apply inhabitant
+future: separate inhabitant cut
+        + explicit start
 ```
 
-`#137` is stacked on `#136`. `#138` is stacked on `#137`.
-`#139` is stacked on `#138` as the **contract**, not as
-apply. Do not merge `#138` before `#137`, or `#137`
-before `#136`. Do not merge `#139` as if it applied IR.
+Do not merge `#139` as if it applied IR.
+Baseline PASS ≠ inhabitant OPEN.
 
-## After the three merges: Semantic Baseline v1
+## Semantic Baseline v1 (landed)
+
+Replay is complete on `main`. This is a prerequisite.
 
 Do **not** write apply immediately after merge.
 
@@ -120,8 +115,10 @@ execution broke or the semantic stack broke.
 ## Then: controlled IR apply
 
 Later inhabitant, not this page and not PR #139.
-Do **not** open it before the three merge tokens and
-Semantic Baseline v1. Contract:
+Do not open the IR Apply inhabitant in this cut.
+Semantic Baseline v1 PASS ≠ Apply inhabitant OPEN.
+The inhabitant requires a separate cut and an explicit
+start. Contract:
 [`ir-apply-contract.md`](ir-apply-contract.md).
 
 When that inhabitant opens, it constructs `P'` then
@@ -219,10 +216,10 @@ one authorized plan
 ## Suggested later route (not opened)
 
 ```text
-merge #136 → #137 → #138
-Semantic Baseline v1
-#139 this PR                 FROZEN contract @ 038f4a1
-Controlled IR Apply          later inhabitant
+#136 / #137 / #138 MERGED
+#140 Semantic Baseline v1    MERGED PASS
+#139 this PR                 contract only @ 038f4a1
+Controlled IR Apply          later inhabitant (separate cut)
 Execution Verification       later (HB + legality)
 W0 storage-pressure bench    later
 Cost / measurement           later; legal+authorized only
@@ -246,8 +243,7 @@ Pareto, come after that closed loop.
 ## Out of scope (this page)
 
 ```text
-merging #136 / #137 / #138
-IR apply inhabitant
+opening the IR Apply inhabitant
 s2c2-opt rewrite pass
 new Decision subjects
 F_storage_schedule

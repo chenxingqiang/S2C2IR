@@ -1,11 +1,12 @@
 # IR Apply Contract v0.1
 
 **Status:** design freeze for IR Apply Contract v0.1.
-Semantic freeze at `038f4a1` (PR #139 — APPROVED; merge
-gated). Not implemented. IR apply inhabitant stays
-**CLOSED** until `PR #136 — merge`, `PR #137 — merge`,
-and `PR #138 — merge` have all landed, in that order,
-and Semantic Baseline v1 has passed. Does not change
+Semantic freeze at `038f4a1`. Not implemented. This PR
+(#139) is the contract only. IR apply inhabitant stays
+**CLOSED**. `#136` / `#137` / `#138` / `#140` already
+landed; Semantic Baseline v1 PASS is a **prerequisite**,
+not apply authorization. The inhabitant requires a
+separate cut and an explicit start. Does not change
 frozen 6C-M / 7A / 7B evaluators. Not an
 `F_storage_schedule` inhabitant. Not an expansion of
 `S2C2CapabilitySchedule.cpp`. Not StableHLO. Not CIM.
@@ -333,8 +334,8 @@ input IR is the result. `applied=no`. `rewrite-path=no`.
 gate).
 
 Verification is a **forced postcondition** of apply, not
-an optional test. A later verification host (#140 route)
-does not invent a second `T`; it re-proves this gate.
+an optional test. A later verification host does not
+invent a second `T`; it re-proves this gate.
 
 ## 5. Failure semantics
 
@@ -441,22 +442,33 @@ A14 this PR is the contract; inhabitant stays CLOSED
 ```
 
 This page is a contract freeze, not a compiler E2E.
-Do not enlarge the 17-row matrix. Do not open an apply
-inhabitant or a #140 design until the three merge tokens
-and Semantic Baseline v1.
+Do not enlarge the 17-row matrix. Do not open the IR
+Apply inhabitant in this cut.
+
+```text
+Semantic Baseline v1 PASS
+    ≠
+Apply Inhabitant OPEN
+
+#139 defines the apply contract only.
+The apply inhabitant requires a separate cut
+and an explicit start command.
+```
 
 ## Gate vs later cuts
 
 ```text
-#139 this PR     FROZEN @ 038f4a1; apply CLOSED
-after merges     Semantic Baseline v1 (query stack still PASS)
-later inhabitant Controlled IR Apply (one pattern)
-later verify     HB + legality post-check host
-later W0         storage-pressure microbenchmark
+#136 / #137 / #138   MERGED  (prerequisite)
+#140 Baseline v1     MERGED  PASS (prerequisite)
+#139 this PR         contract only; apply CLOSED
+later inhabitant     Controlled IR Apply (separate cut)
+later verify         HB + legality post-check host
+later W0             storage-pressure microbenchmark
 ```
 
 Those later steps are **route**, not opened PRs. Do not
-treat this #139 as the inhabitant.
+treat this #139 as the inhabitant. Baseline PASS does
+not authorize implementation.
 
 ## Out of scope
 
