@@ -1033,7 +1033,8 @@ Semantic Baseline v1 (MERGED @ `b62bae4`; `#140`;
 verification-only after `#136` / `#137` / `#138`; no new
 semantics; apply inhabitant CLOSED):
 [`semantic-baseline-v1.md`](semantic-baseline-v1.md).
-IR Apply Contract v0.1 (FROZEN @ `038f4a1`; PR #139;
+IR Apply Contract v0.1 (FROZEN @ `038f4a1`; re-approved
+at `9c99134`; PR #139 not merged;
 design-only; apply CLOSED; not a Decision subject; not
 an inhabitant):
 [`ir-apply-contract.md`](ir-apply-contract.md).
