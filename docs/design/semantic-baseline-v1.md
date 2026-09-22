@@ -103,8 +103,8 @@ legacy      = PASS   RCE + XID
 provenance  = consistent
 no new Decision.subject
 no IR mutation
-no apply inhabitant
-record_storage_apply.py absent
+no apply execution in this replay
+baseline does not execute record_storage_apply.py
 rewrite-path=no
 can-run-plan=no
 applied=no

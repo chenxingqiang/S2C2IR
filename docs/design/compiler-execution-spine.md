@@ -1,12 +1,13 @@
 # Compiler Execution Spine
 
 **Status:** IR Apply Contract frozen @ `038f4a1`.
-Re-approved at `9c99134` (`PR #139 — APPROVED`; not
-merged). `#136` / `#137` / `#138` / `#140` are on `main`.
+`#136` / `#137` / `#138` / `#140` / `#139` are on `main`.
 Semantic Baseline v1 PASS is a prerequisite, not apply
-authorization. Not implemented. IR apply CLOSED.
-Does not change frozen evaluators. Not StableHLO. Not
-CIM. Not CUDA compiler.
+authorization. W0-3/2 inhabitant v0 is the host in
+[`ir-apply-inhabitant.md`](ir-apply-inhabitant.md).
+It does not change frozen 6C-M / 7A / 7B evaluators.
+Not StableHLO. Not CIM. Not CUDA compiler.
+`can-run-plan` stays no.
 
 PR #139 is this frozen contract/route page. It is **not**
 an apply inhabitant. Do not open the IR Apply inhabitant
@@ -29,9 +30,8 @@ Apply contract: [`ir-apply-contract.md`](ir-apply-contract.md).
 #137  7A Authorization     MERGED @ 5b57666
 #138  7B Rewrite Plan      MERGED @ 3e942a8
 #140  Semantic Baseline v1 MERGED @ b62bae4  PASS
-#139  IR Apply Contract    FROZEN @ 038f4a1
-                           inhabitant CLOSED
-IR apply                   CLOSED
+#139  IR Apply Contract    MERGED @ 2821de8 / freeze 038f4a1
+W0-3/2 inhabitant v0       host; not Enum_F; can-run-plan=no
 ```
 
 ```text
@@ -65,16 +65,13 @@ reopen 7B to require `result=yes`.
         ↓
 Semantic Baseline v1 PASS   (#140 MERGED)
         ↓
-#139 Apply Contract         (this PR; not inhabitant)
+#139 Apply Contract         MERGED @ 2821de8
         ↓
-Apply inhabitant STILL CLOSED
-        ↓
-future: separate inhabitant cut
-        + explicit start
+W0-3/2 inhabitant v0       host; can-run-plan=no
 ```
 
-Do not merge `#139` as if it applied IR.
-Baseline PASS ≠ inhabitant OPEN.
+`#139` merged the contract. The host is a separate cut.
+Baseline PASS ≠ `can-run-plan`.
 
 ## Semantic Baseline v1 (landed)
 

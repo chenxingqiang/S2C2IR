@@ -85,11 +85,11 @@ def _pin_critical() -> None:
 
 
 def _guard_execution() -> None:
-    apply_host = _RUNTIME / "record_storage_apply.py"
-    if apply_host.exists():
-        raise RuntimeError("apply-host-present")
+    apply_host = (_RUNTIME / "record_storage_apply.py").resolve()
     for path in _REPO.rglob("*storage_apply*"):
-        if ".git" in path.parts:
+        if ".git" in path.parts or "__pycache__" in path.parts:
+            continue
+        if path.resolve() == apply_host:
             continue
         raise RuntimeError(f"apply-artifact {path}")
     for path in _REPO.rglob("*StorageApply*"):
@@ -106,12 +106,14 @@ def _guard_execution() -> None:
         if path.name == "record_semantic_baseline.py":
             continue
         text = path.read_text()
+        if 'can-run-plan": "yes"' in text or "can-run-plan=yes" in text:
+            raise RuntimeError(f"can-run-plan-yes {path.name}")
+        if path.name == "record_storage_apply.py":
+            continue
         if 'applied": "yes"' in text or "applied=yes" in text:
             raise RuntimeError(f"applied-yes {path.name}")
         if 'rewrite-path": "yes"' in text or "rewrite-path=yes" in text:
             raise RuntimeError(f"rewrite-path-yes {path.name}")
-        if 'can-run-plan": "yes"' in text or "can-run-plan=yes" in text:
-            raise RuntimeError(f"can-run-plan-yes {path.name}")
         if "construct P'" in text:
             raise RuntimeError(f"construct-p {path.name}")
     for path in (_REPO / "include").rglob("*"):
@@ -217,7 +219,7 @@ def print_contract() -> int:
     print("pin sufficient-yes-policy-missing authorized=no")
     print("pin authorized-yes-license-missing rewrite-license=no")
     print("pin rewrite-plan-yes applied=no")
-    print("guard record_storage_apply absent")
+    print("guard baseline-skips-apply-host yes")
     print("guard applySchedule frozen-capability-schedule-only")
     print("result PASS")
     print("Semantic Baseline v1 = PASS")

@@ -47,7 +47,7 @@ func.func @dummy() {
 // BASE: pin sufficient-yes-policy-missing authorized=no
 // BASE: pin authorized-yes-license-missing rewrite-license=no
 // BASE: pin rewrite-plan-yes applied=no
-// BASE: guard record_storage_apply absent
+// BASE: guard baseline-skips-apply-host yes
 // BASE: guard applySchedule frozen-capability-schedule-only
 // BASE: result PASS
 // BASE: Semantic Baseline v1 = PASS
