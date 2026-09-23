@@ -81,3 +81,11 @@ Evidence scope is contract-level and host-level.
 `compiler-e2e` stays no. Not `s2c2-opt`. Not hardware
 execution. Not a performance claim. Not a new semantic
 cut. `can-run-plan` stays no.
+
+Scenario Corpus v1 replays that same producer chain
+across ten scenes and pins one behavior fingerprint.
+It does not change this host.
+
+```bash
+python3 runtime/record_scenario_corpus.py --print-scenario-corpus
+```
