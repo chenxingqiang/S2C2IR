@@ -1175,6 +1175,8 @@ Do not FileCheck microseconds.
 | APPLY-2 | same | IR mismatch (extra/missing store, unknown op, multi-region, other capacity) → `match=no` `applied=no` |
 | APPLY-3 | same | postcondition fail (HB*, legality, witness binding) → `match=yes` `applied=no`; program unchanged |
 | APPLY-4 | same | `rewrite-applicable` is not a Decision; no `rewrite.apply-*`; `can-run-plan=no`; success `applied=yes` still not run permission |
+| APPLY-SCN | `test/Integration/apply-scenario.mlir` | acceptance `w0-3-2-storage-capacity-001`; real 7B envelope; pinned `canonical(P')`; `can-run-plan=no`; not compiler E2E |
+
 ## Complete SSD + MLP program wall-clock
 
 **Not Cost v0.4.** Design:
