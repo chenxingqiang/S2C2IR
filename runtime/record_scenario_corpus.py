@@ -27,7 +27,7 @@ NO = "no"
 BASELINE = "71a6880dbaaac929bac837af0b7fbcad78708bb4"
 CORPUS_ID = "w0-3-2-scenario-corpus-v1"
 # sha256 of the S01..S10 fingerprint lines. Behavior pin, not CandidateId.
-EXPECTED_FINGERPRINT = "63d8a7ed45fd372296e108f2807adfd5cb8efe53a855a163d535cf1cf16d211f"
+EXPECTED_FINGERPRINT = "52bf4be9680046a725f9f79c7abf2d045efbd7d03b3cb87a355419b67a7a0d00"
 
 
 def _sha256(text: str) -> str:
@@ -254,6 +254,18 @@ def _immutability_line(rows: list[dict], second: dict) -> str:
     )
 
 
+def _authorization_reopened() -> str:
+    # Apply consumes the 7B envelope. It does not re-evaluate authorization.
+    return NO
+
+
+def _boundary_line() -> str:
+    state = _authorization_reopened()
+    if state != NO:
+        raise RuntimeError("authorization-reopened")
+    return "boundary authorization-reopened=" + state
+
+
 def _fingerprint(lines: list[str]) -> str:
     return _sha256("\n".join(lines))
 
@@ -270,6 +282,7 @@ def _validate() -> tuple[list[str], str]:
     _check_row(second, specs[0])
     lines = [_line(spec, row) for spec, row in zip(specs, rows)]
     lines.append(_immutability_line(rows, second))
+    lines.append(_boundary_line())
     digest = _fingerprint(lines)
     if EXPECTED_FINGERPRINT and digest != EXPECTED_FINGERPRINT:
         raise RuntimeError("drift " + digest)
@@ -299,7 +312,7 @@ def print_contract() -> int:
     print("s2c2-opt no")
     print("enum-f no")
     print("search no")
-    print("authorization-reopened no")
+    print("authorization-reopened " + _authorization_reopened())
     print("semantic-cut no")
     print("can-run-plan no")
     print("scene-count 10")

@@ -16,6 +16,7 @@ func.func @dummy() {
 // SCN: s2c2-opt no
 // SCN: enum-f no
 // SCN: search no
+// SCN: authorization-reopened no
 // SCN: semantic-cut no
 // SCN: can-run-plan no
 // SCN: scene-count 10
@@ -29,6 +30,7 @@ func.func @dummy() {
 // SCN: S08 opid-collision match=yes applied=no rewrite-path=no can-run-plan=no reasons=none result=d5ff06aa86b9d47915995c8ed73edfdad3435b65086a7645771481f220ebdcf9
 // SCN: S09 transformation-mismatch match=no applied=no rewrite-path=no can-run-plan=no reasons=decision.unknown-reason result=53dd047f769895f90a692d5ed4879f9474744bfa93c1b96f81ff598f42d73328
 // SCN: S10 source-envelope-immutability source-unchanged=yes envelope-unchanged=yes double-run=equal
-// SCN: fingerprint 63d8a7ed45fd372296e108f2807adfd5cb8efe53a855a163d535cf1cf16d211f
+// SCN: boundary authorization-reopened=no
+// SCN: fingerprint 52bf4be9680046a725f9f79c7abf2d045efbd7d03b3cb87a355419b67a7a0d00
 // SCN: corpus-result PASS
 // SCN-NOT: can-run-plan=yes

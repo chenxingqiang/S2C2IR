@@ -39,6 +39,8 @@ S09 starts from the real 7B envelope and changes only
 `can-run-plan` stays no on every scene. Failure leaves the
 source program and the envelope unchanged. S01's result
 digest is the acceptance anchor's `canonical(P')` digest.
+`authorization-reopened` stays no. That boundary line is
+inside the fingerprint, so a reopen is drift.
 
 ```bash
 python3 runtime/record_scenario_corpus.py --print-scenario-corpus
