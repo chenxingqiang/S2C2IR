@@ -204,6 +204,18 @@ It does not open a new cut. Scenario Corpus v1
 replays ten scenes of that same host and pins a
 behavior fingerprint. It does not change the contract.
 
+Stage seal at `36fd6fd`. Corpus and the W0-3/2 host are
+on main. Workload mapping
+([`workload-mapping-v1.md`](workload-mapping-v1.md)) is
+evidence only: W1 EXPRESSIBLE, W2 and W3
+OUTSIDE-CONTRACT, no cut proposed. MLIR adapter design
+([`mlir-adapter-design-v0.md`](mlir-adapter-design-v0.md))
+is READY and not implemented. `extract` stays
+unimplemented until a real carrier exists. No new
+dialect. The next cut stays closed unless that carrier
+appears, or a real W2/W3 workload shows a relation this
+contract cannot express.
+
 ## Do not expand sideways
 
 ```text
