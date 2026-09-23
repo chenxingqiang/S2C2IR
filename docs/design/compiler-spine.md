@@ -234,6 +234,19 @@ still comes from `evaluate_apply`. `s2c2-opt` is not
 invoked and has no carrier dialect. Lowering stays
 closed. Semantic baseline stays `36fd6fd`.
 
+### Workload mapping and adapter boundary
+
+[`workload-mapping-v1.md`](workload-mapping-v1.md) is
+evidence only: W1 EXPRESSIBLE, W2 and W3
+OUTSIDE-CONTRACT, no cut proposed.
+[`mlir-adapter-design-v0.md`](mlir-adapter-design-v0.md)
+names which fields a carrier region determines and which
+inputs stay outside that text. `device` and `induced-hb`
+are external. They are not encoded by the carrier, and
+they are not decided by extract. This page does not add
+an extract, a dialect, or a rewrite. The next cut stays
+closed.
+
 ## Do not expand sideways
 
 ```text
