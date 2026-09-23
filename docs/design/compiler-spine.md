@@ -199,7 +199,10 @@ host is one pattern: match, construct a candidate, check
 unchanged. Not `Enum_F`. Not Search. Acceptance anchor
 `w0-3-2-storage-capacity-001`
 (`runtime/record_apply_scenario.py`) replays that host.
-It does not open a new cut.
+It does not open a new cut. Scenario Corpus v1
+([`scenario-corpus-v1.md`](scenario-corpus-v1.md))
+replays ten scenes of that same host and pins a
+behavior fingerprint. It does not change the contract.
 
 ## Do not expand sideways
 
