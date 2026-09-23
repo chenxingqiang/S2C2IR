@@ -20,6 +20,7 @@ if str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
 import record_apply_scenario as anchor
+import record_authorization as auth
 import record_storage_apply as apply
 
 YES = "yes"
@@ -79,17 +80,45 @@ def _witness(program: dict, mode: str):
     raise RuntimeError(mode)
 
 
+def _apply_guarded(envelope: dict, source: dict, witness) -> tuple[dict, int]:
+    """Call evaluate_apply. Any authorization call during that call fails."""
+    calls = [0]
+    original = auth.evaluate_authorization
+
+    def forbidden(*_args, **_kwargs):
+        calls[0] += 1
+        raise RuntimeError("authorization-reopened")
+
+    saved: list[tuple[object, str, object]] = []
+    auth.evaluate_authorization = forbidden
+    for module in (apply, apply.rew):
+        for name, value in list(vars(module).items()):
+            if value is original:
+                saved.append((module, name, value))
+                setattr(module, name, forbidden)
+    try:
+        bag = apply.evaluate_apply(
+            [envelope],
+            source,
+            device=anchor.DEVICE,
+            witness=witness,
+        )
+    finally:
+        auth.evaluate_authorization = original
+        for module, name, value in saved:
+            setattr(module, name, value)
+    if calls[0] != 0:
+        raise RuntimeError("authorization-reopened")
+    return bag, calls[0]
+
+
 def observe(program: dict, mode: str, envelope: dict | None = None) -> dict:
     source = copy.deepcopy(program)
     env = copy.deepcopy(envelope if envelope is not None else _real_plan())
     before = apply.canonical_program(source)
     before_env = json.dumps(env, sort_keys=True)
-    bag = apply.evaluate_apply(
-        [env],
-        source,
-        device=anchor.DEVICE,
-        witness=_witness(source, mode),
-    )
+    witness = _witness(source, mode)
+    bag, auth_calls = _apply_guarded(env, source, witness)
     unchanged_source = apply.canonical_program(source) == before and source == program
     unchanged_env = json.dumps(env, sort_keys=True) == before_env
     return {
@@ -102,6 +131,7 @@ def observe(program: dict, mode: str, envelope: dict | None = None) -> dict:
         "canonical-result": apply.canonical_program(bag["program"]),
         "source-unchanged": YES if unchanged_source else NO,
         "envelope-unchanged": YES if unchanged_env else NO,
+        "authorization-calls": auth_calls,
     }
 
 
@@ -254,23 +284,19 @@ def _immutability_line(rows: list[dict], second: dict) -> str:
     )
 
 
-def _authorization_reopened() -> str:
-    # Apply consumes the 7B envelope. It does not re-evaluate authorization.
-    return NO
-
-
-def _boundary_line() -> str:
-    state = _authorization_reopened()
-    if state != NO:
+def _reopened_token(rows: list[dict], second: dict) -> str:
+    observed = [row["authorization-calls"] for row in rows]
+    observed.append(second["authorization-calls"])
+    if any(count != 0 for count in observed):
         raise RuntimeError("authorization-reopened")
-    return "boundary authorization-reopened=" + state
+    return NO
 
 
 def _fingerprint(lines: list[str]) -> str:
     return _sha256("\n".join(lines))
 
 
-def _validate() -> tuple[list[str], str]:
+def _validate() -> tuple[list[str], str, str]:
     specs = _specs()
     rows = [
         observe(spec["program"], spec["mode"], spec["envelope"])
@@ -280,18 +306,19 @@ def _validate() -> tuple[list[str], str]:
         _check_row(row, spec)
     second = observe(specs[0]["program"], specs[0]["mode"], specs[0]["envelope"])
     _check_row(second, specs[0])
+    token = _reopened_token(rows, second)
     lines = [_line(spec, row) for spec, row in zip(specs, rows)]
     lines.append(_immutability_line(rows, second))
-    lines.append(_boundary_line())
+    lines.append("boundary authorization-reopened=" + token)
     digest = _fingerprint(lines)
     if EXPECTED_FINGERPRINT and digest != EXPECTED_FINGERPRINT:
         raise RuntimeError("drift " + digest)
-    return lines, digest
+    return lines, digest, token
 
 
 def print_contract() -> int:
     try:
-        lines, digest = _validate()
+        lines, digest, token = _validate()
     except RuntimeError as exc:
         print("scenario-corpus gate=v1")
         print("corpus-result DRIFT")
@@ -312,7 +339,7 @@ def print_contract() -> int:
     print("s2c2-opt no")
     print("enum-f no")
     print("search no")
-    print("authorization-reopened " + _authorization_reopened())
+    print("authorization-reopened " + token)
     print("semantic-cut no")
     print("can-run-plan no")
     print("scene-count 10")
