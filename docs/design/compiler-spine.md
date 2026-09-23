@@ -196,7 +196,10 @@ The contract page does not itself apply IR. The W0-3/2
 host is one pattern: match, construct a candidate, check
 `HB*` and an external witness, then commit or discard.
 `can-run-plan` stays no. Failure leaves the source program
-unchanged. Not `Enum_F`. Not Search.
+unchanged. Not `Enum_F`. Not Search. Acceptance anchor
+`w0-3-2-storage-capacity-001`
+(`runtime/record_apply_scenario.py`) replays that host.
+It does not open a new cut.
 
 ## Do not expand sideways
 

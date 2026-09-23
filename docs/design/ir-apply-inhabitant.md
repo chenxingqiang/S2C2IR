@@ -63,3 +63,21 @@ python3 runtime/record_storage_apply.py --print-apply-matrix
 Schema `s2c2.storage_apply.v1`. Source schema
 `s2c2.storage_rewrite.v1`. Witness schema
 `s2c2.apply_legality_witness.v1`.
+
+## Acceptance scenario
+
+`w0-3-2-storage-capacity-001` is the regression anchor for
+this host. It replays the producers already on main
+(authorization → 7B envelope → apply) and pins
+`canonical(P)`, `canonical(P')`, and `ApplyResult`.
+
+```bash
+python3 runtime/record_apply_scenario.py --print-apply-scenario
+```
+
+Same source `P`, same envelope, same witness must yield
+the same `canonical(P')` and the same `ApplyResult`.
+Evidence scope is contract-level and host-level.
+`compiler-e2e` stays no. Not `s2c2-opt`. Not hardware
+execution. Not a performance claim. Not a new semantic
+cut. `can-run-plan` stays no.
