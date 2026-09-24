@@ -215,6 +215,16 @@ OUTSIDE-CONTRACT is an inhabitant scope boundary.
 The next cut stays closed until `stor`, `comp`, `comm`,
 and `sched` cannot express a necessary relation.
 
+### MLIR Carrier v0
+
+[`mlir-carrier-v0.md`](mlir-carrier-v0.md).
+Design only. Not implemented. The carrier is syntax for
+the host fields `evaluate_apply` already reads. It is
+not a new semantic model. `stor.transfer` is not the
+host machinery step. extract stays unimplemented.
+Lowering stays closed. Semantic baseline stays
+`36fd6fd`.
+
 ## Do not expand sideways
 
 ```text
