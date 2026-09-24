@@ -108,8 +108,9 @@ a performance measurement
 
 ## Corpus
 
-Eighteen closed runs on two Ascend 910B2 devices, plus the
-local MoE step on one of them. Classification is
+Eighteen closed runs. Seventeen use two Ascend 910B2
+devices. W2-910B2-001 is the local MoE step on one device
+and is one of the eighteen. Classification is
 OUTSIDE-CONTRACT. `semantic_gap` is false. `hb_proof` is
 false. `new_contract` is NONE. `next_cut` is NOT OPENED.
 Apply was not called. The repository was not modified by
