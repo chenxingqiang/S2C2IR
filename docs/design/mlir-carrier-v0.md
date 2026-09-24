@@ -1,10 +1,15 @@
 # MLIR Carrier v0
 
-**Status:** DESIGN ONLY. Not implemented. Not a lowering.
-Not a new semantic model. Semantic baseline remains
+**Status:** TEXT EXTRACT IMPLEMENTED. TableGen is not added.
+Lowering is not implemented. Not a new semantic model.
+Semantic baseline remains
 `36fd6fd931c109c6849cc366bd91b5abdfcab4b1`.
 This page does not change a dialect in the tree, the IR,
 or Apply.
+
+```bash
+python3 runtime/record_mlir_carrier.py --print-carrier-extract
+```
 
 ```text
 Goal     name the syntax that projects onto the frozen host program
@@ -18,7 +23,7 @@ Parent inhabitant: [`ir-apply-inhabitant.md`](ir-apply-inhabitant.md).
 ```text
 carrier text
     ↓
-extract          projection only; not implemented here
+extract          runtime/record_mlir_carrier.py
     ↓
 host program     the dict evaluate_apply already consumes
     ↓
@@ -230,8 +235,12 @@ argument. extract adds no branch to that chain.
 
 ## Test plan
 
-Not executable in this pull request. Phase 2 implements
-them against this page. `evaluate_apply` is not copied.
+`runtime/record_mlir_carrier.py --print-carrier-extract`
+runs this table. `evaluate_apply` is not copied. C14's
+`induced-hb` is not carrier syntax: a text that tries to
+spell it is refused, and the host failure is checked on
+the extracted dict only after the test attaches that
+field.
 
 | id | layer | input | required result |
 | --- | --- | --- | --- |
@@ -259,7 +268,6 @@ handed the dict through unchanged.
 ## Not in this design
 
 ```text
-implementation of extract
 TableGen ops
 lowering
 s2c2-opt
