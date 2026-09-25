@@ -265,6 +265,14 @@ C08 through C16 are host results already defined by the
 inhabitant. The carrier test only checks that extract
 handed the dict through unchanged.
 
+The same check replays all 29 rows of `evaluate_apply`'s
+matrix. Each program is rendered to carrier text and
+extracted again. `induced-hb` is not in that text. The
+one row that carries it has the field attached by the
+test after extract. The envelope, witness, and device
+argument stay the ones the host case already used.
+`ApplyResult` must match the direct host call.
+
 ## Not in this design
 
 ```text

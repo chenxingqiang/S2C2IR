@@ -315,6 +315,74 @@ def _acceptance_body(*, fact_order: str = "name-op-id", hb_pairs: list[tuple[str
     return f"carrier.block {{ {facts} {_hb(hb_pairs)} }}"
 
 
+def render(program: dict) -> str:
+    """Spell the host fields this carrier is allowed to carry."""
+    hb = program.get("hb") or []
+    edges = " ".join(
+        f'carrier.hb {{ from = "{src}", to = "{dst}" }}' for src, dst in hb
+    )
+    blocks: list[str] = []
+    for index, block in enumerate(program.get("blocks") or []):
+        facts = [
+            _fact(str(op["name"]), str(op["op"]), str(op["op-id"]))
+            for op in block.get("ops") or []
+        ]
+        parts = facts
+        if index == 0 and edges:
+            parts = facts + [edges]
+        blocks.append("carrier.block { " + " ".join(parts) + " }")
+    return _module(
+        " ".join(blocks),
+        capacity=f"{int(program['capacity'])} : i64",
+        working_set=f"{int(program['working-set'])} : i64",
+    )
+
+
+def _spellable(program: dict) -> dict:
+    body = {
+        "blocks": program["blocks"],
+        "capacity": program["capacity"],
+        "working-set": program["working-set"],
+    }
+    if "hb" in program:
+        body["hb"] = sorted([list(pair) for pair in program["hb"]])
+    return body
+
+
+def _replay_host_matrix() -> int:
+    count = 0
+    for name, envelopes, program, kwargs in apply._cases():
+        extracted = extract(render(program))
+        if "induced-hb" in extracted:
+            raise RuntimeError(name)
+        if extracted != _spellable(program):
+            raise RuntimeError(name)
+        handed = copy.deepcopy(extracted)
+        if "induced-hb" in program:
+            handed["induced-hb"] = copy.deepcopy(program["induced-hb"])
+        direct = apply.evaluate_apply(
+            copy.deepcopy(envelopes),
+            copy.deepcopy(program),
+            **copy.deepcopy(kwargs),
+        )
+        via = apply.evaluate_apply(
+            copy.deepcopy(envelopes),
+            handed,
+            **copy.deepcopy(kwargs),
+        )
+        for key in ("match", "applied", "rewrite-path", "can-run-plan", "reasons"):
+            if via[key] != direct[key]:
+                raise RuntimeError(name)
+        if apply.canonical_program(via["program"]) != apply.canonical_program(direct["program"]):
+            raise RuntimeError(name)
+        if via["can-run-plan"] != "no":
+            raise RuntimeError(name)
+        count += 1
+    if count != 29:
+        raise RuntimeError(count)
+    return count
+
+
 def _host(program: dict, envelope: dict, *, witness, device: str = "D0") -> dict:
     bag = apply.evaluate_apply(
         [envelope],
@@ -465,9 +533,11 @@ def _validate() -> dict[str, str]:
         match="yes",
         reasons=[],
     )
+    matrix = _replay_host_matrix()
     return {
         "C01": "canonical-p",
         "C03": from_carrier["match"] + "/" + from_carrier["applied"],
+        "matrix": str(matrix),
     }
 
 
@@ -519,6 +589,8 @@ def print_contract() -> int:
     print("C14 host match=yes applied=no induced-not-extracted")
     print("C15 host reasons=rewrite.identity-mismatch")
     print("C16 host match=yes applied=no")
+    print("host-matrix-cases " + summary["matrix"])
+    print("host-matrix-through-carrier " + summary["matrix"])
     return 0
 
 
