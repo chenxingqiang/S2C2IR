@@ -204,6 +204,17 @@ It does not open a new cut. Scenario Corpus v1
 replays ten scenes of that same host and pins a
 behavior fingerprint. It does not change the contract.
 
+### Empirical Semantic Boundary v1
+
+[`empirical-semantic-boundary-v1.md`](empirical-semantic-boundary-v1.md).
+Documentation checkpoint after the real-workload corpus.
+Semantic baseline stays `36fd6fd`. This page does not
+move it. Dialect, IR, and Apply are unchanged. Inside the
+tested range, no `semantic_gap=true` was found.
+OUTSIDE-CONTRACT is an inhabitant scope boundary.
+The next cut stays closed until `stor`, `comp`, `comm`,
+and `sched` cannot express a necessary relation.
+
 ## Do not expand sideways
 
 ```text
