@@ -13,6 +13,59 @@ sched  which events must happen before others
 
 This tree does not fork XLA, TVM, or IREE. IREE is a possible runtime backend, not the definition of the IR.
 
+## Architecture
+
+Five products sit in one order. A later product may carry an earlier result. It may not redefine it.
+
+```text
+        Semantic IR          Evidence / Capability          Hardware
+              │                        │                        │
+              └────────────────────────┼────────────────────────┘
+                                       ▼
+                              Realization engine
+                                       ▼
+                            Schedule / Transform
+                                       ▼
+                                    Backend
+```
+
+| Product | Question | Where it stands |
+| ------- | -------- | --------------- |
+| Semantic IR | What is stored, computed, moved, and ordered? | Frozen as `stor`, `comp`, `comm`, `sched`. |
+| Evidence / Capability | What can this device do, and under which evidence? | Frozen. No evidence means no destructive rewrite. |
+| Realization | Which implementations are legal for program `P` on device `D`? | Frozen. A legal `M` keeps the source happens-before. |
+| Optimization | Which legal candidate is sufficient, authorized, and transformed? | The only open mainline. It does not jump from a cost score to a rewrite. |
+| Backend | How does a realization become a runtime or a kernel? | Not a semantic definition. It must not invent a new one. |
+
+A candidate moves only in this order:
+
+```text
+legal
+  → sufficient
+  → authorized
+  → rewrite-plan
+  → apply, or stop
+```
+
+`sufficient` is not `authorized`. `authorized` is not a rewrite license. A rewrite plan names KEEP → EVICT → TRANSFER → RESTORE and still does not apply it. Apply is a separate host.
+
+That host, W0-3/2, is one pattern: one device, one contiguous region, capacity 2. It matches a plan, builds a candidate without editing the source, checks a happens-before projection and an external witness, then commits or discards. `can-run-plan` stays `no` even when apply succeeds.
+
+```text
+dialect module                         s2c2-opt
+stor / comp / comm / sched             parse, verify, sequential lower
+
+carrier text                           not a dialect in s2c2-opt
+        │
+        ▼
+host program                           fields evaluate_apply already reads
+        │
+        ▼
+evaluate_apply                         the W0-3/2 host only
+```
+
+The two pictures are not one automatic compiler. `s2c2-opt` checks the four dialects. The carrier text is a projection into the host. The host does not parse MLIR, and the optimizer does not call `evaluate_apply`.
+
 ## Start here
 
 You can check the frozen host without building LLVM. From the repository root:
