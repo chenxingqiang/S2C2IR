@@ -66,6 +66,14 @@ evaluate_apply                         the W0-3/2 host only
 
 The two pictures are not one automatic compiler. `s2c2-opt` checks the four dialects. The carrier text is a projection into the host. The host does not parse MLIR, and the optimizer does not call `evaluate_apply`.
 
+## Direction and current goal
+
+The research direction matches the industry report: a token path that crosses storage, compute, communication, and execution needs a composition semantics, and a vendor stack is a realization of that semantics.
+
+The delivery on this tree is narrower. It is done when the dialect ops stay as they are, the apply host stays W0-3/2, `can-run-plan` stays `no`, the carrier text stays separate from `s2c2-opt`, and `next_cut` stays `NOT OPENED`. Token Path, MoE dispatch, cluster topology, and CIM compute stay research sketches. They are not a contract and not an inhabitant.
+
+The boundary, including the ops the report sketches but this tree does not have, is [`docs/design/goal-alignment-v1.md`](docs/design/goal-alignment-v1.md).
+
 ## Start here
 
 You can check the frozen host without building LLVM. From the repository root:
@@ -142,5 +150,6 @@ If LLVM is already installed, point `MLIR_DIR` at `<prefix>/lib/cmake/mlir`. Som
 | The carrier text and its tests | [`docs/design/mlir-carrier-v0.md`](docs/design/mlir-carrier-v0.md) |
 | Storage, compute, communication, and events | [`docs/design/execution-semantics.md`](docs/design/execution-semantics.md) |
 | What the hardware runs did and did not prove | [`docs/design/empirical-semantic-boundary-v1.md`](docs/design/empirical-semantic-boundary-v1.md) |
+| Research direction versus this cut | [`docs/design/goal-alignment-v1.md`](docs/design/goal-alignment-v1.md) |
 
 Phase histories, cost versions, and search contracts stay in those design notes. They are frozen unless a page says otherwise.
