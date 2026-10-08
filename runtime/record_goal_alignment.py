@@ -11,11 +11,16 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import zipfile
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 _ROOT = Path(__file__).resolve().parents[1]
 _DOC = _ROOT / "docs" / "design" / "goal-alignment-v1.md"
+_README = _ROOT / "README.md"
+_STATUS = _ROOT / "docs" / "design" / "goal-alignment-v1-status.pptx"
 _INCLUDE = _ROOT / "include" / "s2c2"
+_A_T = "{http://schemas.openxmlformats.org/drawingml/2006/main}t"
 
 _DIALECT = {
     "Stor": "stor",
@@ -132,6 +137,31 @@ def _csv(text: str) -> set[str]:
     return {part.strip() for part in text.split(",") if part.strip()}
 
 
+def _require(text: str, phrases: tuple[str, ...], code: str) -> None:
+    for phrase in phrases:
+        if phrase not in text:
+            raise AlignmentRefusal(code)
+
+
+def status_text(path: Path | None = None) -> str:
+    pptx = _STATUS if path is None else path
+    if not pptx.is_file():
+        raise AlignmentRefusal("missing-status-insert")
+    chunks: list[str] = []
+    with zipfile.ZipFile(pptx) as package:
+        names = [
+            name
+            for name in package.namelist()
+            if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)
+        ]
+        if len(names) != 3:
+            raise AlignmentRefusal("status-slides")
+        for name in sorted(names, key=lambda item: int(re.search(r"(\d+)", item).group(1))):
+            root = ET.fromstring(package.read(name))
+            chunks.extend(node.text or "" for node in root.iter(_A_T))
+    return "\n".join(chunks)
+
+
 def check(td: str | None = None, doc: str | None = None) -> dict:
     td_text = _td_text() if td is None else td
     doc_text = _DOC.read_text(encoding="utf-8") if doc is None else doc
@@ -159,6 +189,40 @@ def check(td: str | None = None, doc: str | None = None) -> dict:
     ):
         if sentence not in doc_text:
             raise AlignmentRefusal("delivery-sentence")
+    readme = _README.read_text(encoding="utf-8")
+    _require(
+        readme,
+        (
+            "docs/design/goal-alignment-v1.md",
+            "the apply host stays W0-3/2",
+            "`can-run-plan` stays `no`",
+            "the carrier text stays separate from `s2c2-opt`",
+            "`next_cut` stays `NOT OPENED`",
+            "Token Path, MoE dispatch, cluster topology, and CIM compute",
+            "python3 runtime/record_goal_alignment.py --print-goal-alignment",
+        ),
+        "readme",
+    )
+    _require(
+        status_text(),
+        (
+            "研究方向一致，这一刀的交付更窄",
+            "can-run-plan = no",
+            "next_cut = NOT OPENED",
+            "gated_mlp",
+            "comm.copy",
+            "sched.pipeline",
+            "Token Path",
+            "MoE dispatch",
+            "集群拓扑",
+            "CIM MVM",
+            "必要关系",
+            "routing dialect",
+            "record_goal_alignment.py",
+            "36fd6fd",
+        ),
+        "status-insert",
+    )
     return {
         "stor": len(live["ops"]["stor"]),
         "comp": len(live["ops"]["comp"]),
@@ -195,6 +259,8 @@ def print_contract() -> int:
     print("carrier-separate yes")
     print("host W0-3/2")
     print("next-cut NOT-OPENED")
+    print("readme linked")
+    print("status-slides 3")
     print("semantic-cut no")
     return 0
 

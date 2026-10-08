@@ -135,12 +135,17 @@ this page does not promote them into a contract.
 `s2c2-cuda-adapter` is a host dry-run. Neither applies
 the W0-3/2 host.
 
-## One slide, if the report needs a status page
+## Status insert, if the report needs a current-tree page
 
 Insert [`goal-alignment-v1-status.pptx`](goal-alignment-v1-status.pptx)
-after the report's architecture picture. It is a status
-page for this tree. It does not replace the report and
-it does not add an op.
+after the report's architecture picture. Three slides:
+this cut versus the research sketches, the ops that
+exist, and the condition for opening a next cut. The
+condition is the one in
+[`empirical-semantic-boundary-v1.md`](empirical-semantic-boundary-v1.md).
+The insert does not replace the report and it does not
+add an op. The check above also reads the README and
+these three slides.
 
 ```text
 S²C²IR status on this tree
