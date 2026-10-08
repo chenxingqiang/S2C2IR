@@ -66,6 +66,14 @@ evaluate_apply                         the W0-3/2 host only
 
 The two pictures are not one automatic compiler. `s2c2-opt` checks the four dialects. The carrier text is a projection into the host. The host does not parse MLIR, and the optimizer does not call `evaluate_apply`.
 
+## Direction and current goal
+
+The research direction matches the industry report: a token path that crosses storage, compute, communication, and execution needs a composition semantics, and a vendor stack is a realization of that semantics.
+
+The delivery on this tree is narrower. It is done when the dialect ops stay as they are, the apply host stays W0-3/2, `can-run-plan` stays `no`, the carrier text stays separate from `s2c2-opt`, and `next_cut` stays `NOT OPENED`. Token Path, MoE dispatch, cluster topology, and CIM compute stay research sketches. They are not a contract and not an inhabitant.
+
+The boundary, including the ops the report sketches but this tree does not have, is [`docs/design/goal-alignment-v1.md`](docs/design/goal-alignment-v1.md).
+
 ## Start here
 
 You can check the frozen host without building LLVM. From the repository root:
@@ -75,6 +83,7 @@ python3 runtime/record_semantic_baseline.py --print-semantic-baseline-summary
 python3 runtime/record_apply_scenario.py --print-apply-scenario
 python3 runtime/record_storage_apply.py --print-apply-contract
 python3 runtime/record_mlir_carrier.py --print-carrier-extract
+python3 runtime/record_goal_alignment.py --print-goal-alignment
 ```
 
 | Command | What you should see |
@@ -83,6 +92,7 @@ python3 runtime/record_mlir_carrier.py --print-carrier-extract
 | apply scenario | The acceptance case `w0-3-2-storage-capacity-001`. `can-run-plan` stays `no`. |
 | apply contract | The W0-3/2 host: one region, capacity 2, then KEEP → EVICT → TRANSFER → RESTORE. |
 | carrier extract | The same host result, read back from a text carrier. `host-matrix-through-carrier 29`. |
+| goal alignment | `goal-alignment PASS`. The design page, this README, and the three status slides name the same cut. `next-cut NOT-OPENED`. |
 
 The carrier is a text projection onto the program `evaluate_apply` already accepts. It is not a new semantic model, and `s2c2-opt` does not register it. `stor.transfer` in MLIR is a residency copy. The host string `"transfer"` is a different step, produced by the host when it builds a candidate.
 
@@ -142,5 +152,6 @@ If LLVM is already installed, point `MLIR_DIR` at `<prefix>/lib/cmake/mlir`. Som
 | The carrier text and its tests | [`docs/design/mlir-carrier-v0.md`](docs/design/mlir-carrier-v0.md) |
 | Storage, compute, communication, and events | [`docs/design/execution-semantics.md`](docs/design/execution-semantics.md) |
 | What the hardware runs did and did not prove | [`docs/design/empirical-semantic-boundary-v1.md`](docs/design/empirical-semantic-boundary-v1.md) |
+| Research direction versus this cut | [`docs/design/goal-alignment-v1.md`](docs/design/goal-alignment-v1.md) |
 
 Phase histories, cost versions, and search contracts stay in those design notes. They are frozen unless a page says otherwise.
