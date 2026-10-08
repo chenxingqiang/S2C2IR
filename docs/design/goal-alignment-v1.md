@@ -16,6 +16,13 @@ Product lock: [`compiler-spine.md`](compiler-spine.md).
 Evidence lock: [`empirical-semantic-boundary-v1.md`](empirical-semantic-boundary-v1.md).
 Carrier: [`mlir-carrier-v0.md`](mlir-carrier-v0.md).
 
+```bash
+python3 runtime/record_goal_alignment.py --print-goal-alignment
+```
+
+The command passes only when the op list below matches
+`include/s2c2`. It does not apply IR.
+
 The industry report (异构编译与集群编译, Rubin mathematical
 modeling edition) and this repository share one direction.
 They do not share one delivery target.
@@ -129,6 +136,11 @@ this page does not promote them into a contract.
 the W0-3/2 host.
 
 ## One slide, if the report needs a status page
+
+Insert [`goal-alignment-v1-status.pptx`](goal-alignment-v1-status.pptx)
+after the report's architecture picture. It is a status
+page for this tree. It does not replace the report and
+it does not add an op.
 
 ```text
 S²C²IR status on this tree
