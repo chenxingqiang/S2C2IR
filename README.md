@@ -83,6 +83,7 @@ python3 runtime/record_semantic_baseline.py --print-semantic-baseline-summary
 python3 runtime/record_apply_scenario.py --print-apply-scenario
 python3 runtime/record_storage_apply.py --print-apply-contract
 python3 runtime/record_mlir_carrier.py --print-carrier-extract
+python3 runtime/record_compiler_spine.py --print-compiler-spine
 python3 runtime/record_goal_alignment.py --print-goal-alignment
 ```
 
@@ -92,6 +93,7 @@ python3 runtime/record_goal_alignment.py --print-goal-alignment
 | apply scenario | The acceptance case `w0-3-2-storage-capacity-001`. `can-run-plan` stays `no`. |
 | apply contract | The W0-3/2 host: one region, capacity 2, then KEEP → EVICT → TRANSFER → RESTORE. |
 | carrier extract | The same host result, read back from a text carrier. `host-matrix-through-carrier 29`. |
+| compiler spine | `spine-match yes`, `can-run-plan no`, `host-matrix-through-spine 29`, `induced-hb-copied no`. S05 is not a carrier result: the fixture stays `applied no`, and the extracted text applies. |
 | goal alignment | `goal-alignment PASS`. The design page, this README, and the three status slides name the same cut. `next-cut NOT-OPENED`. |
 
 The carrier is a text projection onto the program `evaluate_apply` already accepts. It is not a new semantic model, and `s2c2-opt` does not register it. `stor.transfer` in MLIR is a residency copy. The host string `"transfer"` is a different step, produced by the host when it builds a candidate.
@@ -150,6 +152,7 @@ If LLVM is already installed, point `MLIR_DIR` at `<prefix>/lib/cmake/mlir`. Som
 | How to build and what each phase froze | [`docs/roadmap.md`](docs/roadmap.md) |
 | The one apply pattern that is implemented | [`docs/design/ir-apply-inhabitant.md`](docs/design/ir-apply-inhabitant.md) |
 | The carrier text and its tests | [`docs/design/mlir-carrier-v0.md`](docs/design/mlir-carrier-v0.md) |
+| The carrier handoff into the host | [`docs/design/compiler-spine-integration.md`](docs/design/compiler-spine-integration.md) |
 | Storage, compute, communication, and events | [`docs/design/execution-semantics.md`](docs/design/execution-semantics.md) |
 | What the hardware runs did and did not prove | [`docs/design/empirical-semantic-boundary-v1.md`](docs/design/empirical-semantic-boundary-v1.md) |
 | Research direction versus this cut | [`docs/design/goal-alignment-v1.md`](docs/design/goal-alignment-v1.md) |

@@ -31,6 +31,33 @@ not add. Asking it to run `--s2c2-evidence-bounded-schedule`
 or any other opt argument would let a pass produce a
 result beside the host. The spine refuses that argument
 before `extract` and before `evaluate_apply`.
+A carrier text that extracts but does not contain exactly
+one W0-3/2 region is refused before `bound_witness` and
+before `evaluate_apply`. That refusal is not `match=no`.
+Capacity other than 2, a working set that is not above 2,
+fewer than three stores, and two regions in one block all
+take that refusal. A different one-region program still
+reaches the host. The host returns `match=no` and
+`applied=no`, and it does not edit the source.
+
+The same driver replays the 29 host matrix rows from
+carrier-spellable fields only. Each row is rendered and
+extracted, then passed to `evaluate_apply` with that
+row's own envelopes and witness. `induced-hb` is not
+copied onto the extracted program. The one fixture that
+has it, `postcondition-hb`, still agrees with the host
+on match and applied. Rows the host rejects stay host
+rejections.
+
+Eight Scenario Corpus scenes whose programs are spellable
+take the same path and match the direct corpus rows.
+S05 does not. Its fixture failure depends on `induced-hb`.
+Carrier text does not contain that field. Observing the
+extracted program applies; observing the fixture does not.
+The replay does not paste the fixture field back, because
+that paste changes `applied` from yes to no and would
+make the corpus pin look like a carrier result. The
+corpus fingerprint is not claimed through this handoff.
 
 ```text
 s2c2-opt-invoked no
@@ -64,3 +91,5 @@ a new semantic baseline
 ```
 
 NEXT CUT stays NOT OPENED.
+Audit record, not an approval:
+[`pr-152-evidence.md`](pr-152-evidence.md).

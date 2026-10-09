@@ -229,8 +229,10 @@ closed. Semantic baseline stays `36fd6fd`.
 
 [`compiler-spine-integration.md`](compiler-spine-integration.md).
 Host driver `runtime/record_compiler_spine.py`.
-An opt flag is refused before extract. The ApplyResult
-still comes from `evaluate_apply`. `s2c2-opt` is not
+An opt flag is refused before extract. A text with no
+single W0-3/2 region is refused before `evaluate_apply`.
+The acceptance ApplyResult still comes from
+`evaluate_apply`. `s2c2-opt` is not
 invoked and has no carrier dialect. Lowering stays
 closed. Semantic baseline stays `36fd6fd`.
 

@@ -200,6 +200,7 @@ def check(td: str | None = None, doc: str | None = None) -> dict:
             "`next_cut` stays `NOT OPENED`",
             "Token Path, MoE dispatch, cluster topology, and CIM compute",
             "python3 runtime/record_goal_alignment.py --print-goal-alignment",
+            "python3 runtime/record_compiler_spine.py --print-compiler-spine",
         ),
         "readme",
     )
