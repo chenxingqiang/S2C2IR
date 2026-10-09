@@ -20,6 +20,7 @@ if str(_RUNTIME) not in sys.path:
 
 import record_apply_scenario as scenario
 import record_mlir_carrier as carrier
+import record_scenario_corpus as corpus
 import record_storage_apply as apply
 
 
@@ -87,6 +88,59 @@ def replay_matrix() -> int:
     if count != 29:
         raise RuntimeError("spine-matrix-count")
     return count
+
+
+_CORPUS_KEYS = (
+    "match",
+    "applied",
+    "rewrite-path",
+    "can-run-plan",
+    "reasons",
+    "canonical-result",
+    "source-unchanged",
+    "envelope-unchanged",
+    "authorization-calls",
+)
+
+
+def replay_corpus() -> int:
+    """Ten W0-3/2 scenes, read back from carrier text.
+
+    The host still decides. This replay does not refuse a scene
+    the corpus already sends to evaluate_apply.
+    """
+    specs = corpus._specs()
+    via_rows = []
+    for spec in specs:
+        extracted = project(carrier.render(spec["program"]))
+        if "induced-hb" in extracted:
+            raise RuntimeError("spine-corpus-induced-" + spec["id"])
+        handed = _restore_induced(spec["program"], extracted)
+        direct = corpus.observe(spec["program"], spec["mode"], spec["envelope"])
+        via = corpus.observe(handed, spec["mode"], spec["envelope"])
+        for key in _CORPUS_KEYS:
+            if via[key] != direct[key]:
+                raise RuntimeError("spine-corpus-" + spec["id"])
+        if via["can-run-plan"] != "no":
+            raise RuntimeError("spine-corpus-plan-" + spec["id"])
+        via_rows.append(via)
+    first = specs[0]
+    handed = _restore_induced(first["program"], project(carrier.render(first["program"])))
+    second = corpus.observe(handed, first["mode"], first["envelope"])
+    direct_second = corpus.observe(first["program"], first["mode"], first["envelope"])
+    for key in _CORPUS_KEYS:
+        if second[key] != direct_second[key]:
+            raise RuntimeError("spine-corpus-S10")
+    lines = [corpus._line(spec, row) for spec, row in zip(specs, via_rows)]
+    lines.append(corpus._immutability_line(via_rows, second))
+    lines.append(
+        "boundary authorization-reopened=" + corpus._reopened_token(via_rows, second)
+    )
+    if corpus._fingerprint(lines) != corpus.EXPECTED_FINGERPRINT:
+        raise RuntimeError("spine-corpus-drift")
+    if len(specs) != 9:
+        raise RuntimeError("spine-corpus-count")
+    return 10
 
 
 def _refuse_region(text: str, apply_fn, calls: list[str], code: str) -> None:
@@ -187,6 +241,7 @@ def _validate() -> dict:
     if calls:
         raise RuntimeError("opt-before-extract-called-apply")
     matrix = replay_matrix()
+    scenes = replay_corpus()
 
     renamed = copy.deepcopy(scenario.source_program())
     renamed["blocks"][0]["ops"][0]["name"] = "9"
@@ -201,6 +256,7 @@ def _validate() -> dict:
         "match": bag["match"],
         "applied": bag["applied"],
         "matrix": matrix,
+        "corpus": scenes,
     }
 
 
@@ -229,6 +285,7 @@ def print_contract() -> int:
     print("other-program applied no")
     print("apply-called yes")
     print("host-matrix-through-spine " + str(summary["matrix"]))
+    print("scenario-corpus-through-spine " + str(summary["corpus"]))
     return 0
 
 

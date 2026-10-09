@@ -40,6 +40,15 @@ take that refusal. A different one-region program still
 reaches the host. The host returns `match=no` and
 `applied=no`, and it does not edit the source.
 
+The same driver also replays the ten Scenario Corpus v1
+scenes. S01 through S10, including the second success run,
+are rendered and extracted, then observed with that
+scene's own envelope and witness mode. The behavior
+fingerprint matches the corpus pin. Multi-region and
+cross-block scenes still reach the host, because the
+corpus already does. The acceptance driver refuses those
+shapes before `bound_witness`. The corpus replay does not.
+
 The same driver also replays the 29 host matrix rows.
 Each row is rendered, extracted, and passed to
 `evaluate_apply` with that row's own envelopes and
