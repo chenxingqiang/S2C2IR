@@ -46,47 +46,29 @@ def integrate(text: str, opt_argv: tuple[str, ...] = (), apply_fn=None) -> dict:
     return fn([envelope], program, device=scenario.DEVICE, witness=witness)
 
 
-def _restore_induced(program: dict, extracted: dict) -> dict:
-    """Copy extract output. `induced-hb` is not Carrier v0 text.
+def replay_matrix() -> int:
+    """Carrier-spellable fields only, then the case's own host arguments.
 
-    The synthetic fixture field is attached after extraction.
-    Spellable fields stay the ones extract returned.
-    """
-    if "induced-hb" in extracted:
-        raise RuntimeError("carrier-encoded-induced-hb")
-    handed = copy.deepcopy(extracted)
-    if "induced-hb" in program:
-        handed["induced-hb"] = copy.deepcopy(program["induced-hb"])
-    return handed
-
-
-def replay_matrix() -> tuple[int, int]:
-    """Carrier-spellable fields, then the case's own host arguments.
-
-    `induced-hb` is restored out of band after extraction. It is
-    not encoded by Carrier v0. This does not build a witness.
-    A case the host rejects stays a host rejection.
-    can-run-plan stays no on every row.
+    `induced-hb` is not copied onto the extracted program. The one
+    fixture that has it, postcondition-hb, still matches the host
+    call on match and applied. This replay does not build a witness.
     """
     count = 0
-    restored: list[str] = []
+    induced_rows: list[str] = []
     for name, envelopes, program, kwargs in apply._cases():
         extracted = project(carrier.render(program))
-        handed = _restore_induced(program, extracted)
-        if "induced-hb" in program:
-            if handed["induced-hb"] != program["induced-hb"]:
-                raise RuntimeError("spine-induced-value-" + name)
-            restored.append(name)
-        elif handed != extracted:
+        if extracted != carrier._spellable(program):
             raise RuntimeError("spine-spellable-" + name)
+        if "induced-hb" in extracted:
+            raise RuntimeError("spine-induced-in-text-" + name)
+        via = apply.evaluate_apply(
+            copy.deepcopy(envelopes),
+            copy.deepcopy(extracted),
+            **copy.deepcopy(kwargs),
+        )
         direct = apply.evaluate_apply(
             copy.deepcopy(envelopes),
             copy.deepcopy(program),
-            **copy.deepcopy(kwargs),
-        )
-        via = apply.evaluate_apply(
-            copy.deepcopy(envelopes),
-            handed,
             **copy.deepcopy(kwargs),
         )
         for key in ("match", "applied", "rewrite-path", "can-run-plan", "reasons"):
@@ -98,12 +80,16 @@ def replay_matrix() -> tuple[int, int]:
             raise RuntimeError("spine-matrix-program-" + name)
         if via["can-run-plan"] != "no":
             raise RuntimeError("spine-matrix-plan-" + name)
+        if "induced-hb" in program:
+            induced_rows.append(name)
+            if via["applied"] == "yes" or direct["applied"] != "no":
+                raise RuntimeError("spine-induced-fabricated-" + name)
         count += 1
     if count != 29:
         raise RuntimeError("spine-matrix-count")
-    if restored != ["postcondition-hb"]:
+    if induced_rows != ["postcondition-hb"]:
         raise RuntimeError("spine-induced-rows")
-    return count, len(restored)
+    return count
 
 
 _CORPUS_KEYS = (
@@ -119,49 +105,52 @@ _CORPUS_KEYS = (
 )
 
 
-def replay_corpus() -> tuple[int, int]:
-    """Ten W0-3/2 scenes. Spellable fields come from carrier text.
+def replay_corpus() -> int:
+    """Spellable corpus scenes only. Do not copy `induced-hb`.
 
-    The synthetic `induced-hb` fixture is restored out of band
-    after extraction. It is not encoded by Carrier v0. The host
-    still decides. This replay does not refuse a scene the
-    corpus already sends to evaluate_apply.
+    S05's fixture failure depends on that field. Carrier text does
+    not contain it. Observing the text does not reproduce the
+    fixture's applied=no, and this replay does not paste the
+    field back to force the pin.
     """
     specs = corpus._specs()
-    via_rows = []
-    restored: list[str] = []
+    spellable = 0
+    saw_s05 = False
     for spec in specs:
         extracted = project(carrier.render(spec["program"]))
-        handed = _restore_induced(spec["program"], extracted)
+        if "induced-hb" in extracted:
+            raise RuntimeError("spine-corpus-induced-in-text-" + spec["id"])
         if "induced-hb" in spec["program"]:
-            restored.append(spec["id"])
+            if spec["id"] != "S05":
+                raise RuntimeError("spine-corpus-induced-id")
+            saw_s05 = True
+            fixture = corpus.observe(spec["program"], spec["mode"], spec["envelope"])
+            plain = corpus.observe(extracted, spec["mode"], spec["envelope"])
+            if fixture["applied"] != "no" or fixture["match"] != "yes":
+                raise RuntimeError("spine-s05-fixture")
+            if plain["applied"] != "yes" or plain["match"] != "yes":
+                raise RuntimeError("spine-s05-carrier")
+            if plain["can-run-plan"] != "no" or "induced-hb" in plain:
+                raise RuntimeError("spine-s05-copied")
+            continue
         direct = corpus.observe(spec["program"], spec["mode"], spec["envelope"])
-        via = corpus.observe(handed, spec["mode"], spec["envelope"])
+        via = corpus.observe(extracted, spec["mode"], spec["envelope"])
         for key in _CORPUS_KEYS:
             if via[key] != direct[key]:
                 raise RuntimeError("spine-corpus-" + spec["id"])
         if via["can-run-plan"] != "no":
             raise RuntimeError("spine-corpus-plan-" + spec["id"])
-        via_rows.append(via)
+        spellable += 1
+    if not saw_s05 or spellable != 8:
+        raise RuntimeError("spine-corpus-count")
     first = specs[0]
-    handed = _restore_induced(first["program"], project(carrier.render(first["program"])))
-    second = corpus.observe(handed, first["mode"], first["envelope"])
+    extracted = project(carrier.render(first["program"]))
+    second = corpus.observe(extracted, first["mode"], first["envelope"])
     direct_second = corpus.observe(first["program"], first["mode"], first["envelope"])
     for key in _CORPUS_KEYS:
         if second[key] != direct_second[key]:
             raise RuntimeError("spine-corpus-S10")
-    lines = [corpus._line(spec, row) for spec, row in zip(specs, via_rows)]
-    lines.append(corpus._immutability_line(via_rows, second))
-    lines.append(
-        "boundary authorization-reopened=" + corpus._reopened_token(via_rows, second)
-    )
-    if corpus._fingerprint(lines) != corpus.EXPECTED_FINGERPRINT:
-        raise RuntimeError("spine-corpus-drift")
-    if len(specs) != 9:
-        raise RuntimeError("spine-corpus-count")
-    if restored != ["S05"]:
-        raise RuntimeError("spine-corpus-induced-rows")
-    return 10, len(restored)
+    return spellable
 
 
 def _refuse_region(text: str, apply_fn, calls: list[str], code: str) -> None:
@@ -261,8 +250,8 @@ def _validate() -> dict:
         raise RuntimeError("opt-before-extract")
     if calls:
         raise RuntimeError("opt-before-extract-called-apply")
-    matrix, matrix_induced = replay_matrix()
-    scenes, corpus_induced = replay_corpus()
+    matrix = replay_matrix()
+    scenes = replay_corpus()
 
     renamed = copy.deepcopy(scenario.source_program())
     renamed["blocks"][0]["ops"][0]["name"] = "9"
@@ -278,8 +267,6 @@ def _validate() -> dict:
         "applied": bag["applied"],
         "matrix": matrix,
         "corpus": scenes,
-        "matrix-induced": matrix_induced,
-        "corpus-induced": corpus_induced,
     }
 
 
@@ -308,9 +295,10 @@ def print_contract() -> int:
     print("other-program applied no")
     print("apply-called yes")
     print("host-matrix-through-spine " + str(summary["matrix"]))
-    print("matrix-induced-hb-out-of-band " + str(summary["matrix-induced"]))
-    print("scenario-corpus-through-spine " + str(summary["corpus"]))
-    print("corpus-induced-hb-out-of-band " + str(summary["corpus-induced"]))
+    print("induced-hb-copied no")
+    print("scenario-corpus-spellable " + str(summary["corpus"]))
+    print("S05-fixture applied no")
+    print("S05-carrier-only applied yes")
     print("carrier-encodes-induced-hb no")
     return 0
 

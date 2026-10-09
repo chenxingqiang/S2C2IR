@@ -40,30 +40,24 @@ take that refusal. A different one-region program still
 reaches the host. The host returns `match=no` and
 `applied=no`, and it does not edit the source.
 
-The same driver also replays the ten Scenario Corpus v1
-scenes. S01 through S10, including the second success run,
-are rendered and extracted, then observed with that
-scene's own envelope and witness mode. The behavior
-fingerprint matches the corpus pin. Multi-region and
-cross-block scenes still reach the host, because the
-corpus already does. The acceptance driver refuses those
-shapes before `bound_witness`. The corpus replay does not.
+The same driver replays the 29 host matrix rows from
+carrier-spellable fields only. Each row is rendered and
+extracted, then passed to `evaluate_apply` with that
+row's own envelopes and witness. `induced-hb` is not
+copied onto the extracted program. The one fixture that
+has it, `postcondition-hb`, still agrees with the host
+on match and applied. Rows the host rejects stay host
+rejections.
 
-The same driver also replays the 29 host matrix rows.
-Each row is rendered and extracted, then passed to
-`evaluate_apply` with that row's own envelopes and
-witness. The ApplyResult matches calling the host on the
-source program. Rows the host rejects stay host
-rejections. This replay does not build a witness and does
-not turn a rejection into the acceptance apply.
-
-The matrix round-trip tests carrier-spellable fields. The
-synthetic `induced-hb` fixture field is restored out of
-band after extraction; it is not encoded by Carrier v0.
-One matrix row, `postcondition-hb`, carries that field.
-One corpus scene, S05, does too. Every other row is the
-extract result alone. Extract of carrier text does not
-contain `induced-hb`.
+Eight Scenario Corpus scenes whose programs are spellable
+take the same path and match the direct corpus rows.
+S05 does not. Its fixture failure depends on `induced-hb`.
+Carrier text does not contain that field. Observing the
+extracted program applies; observing the fixture does not.
+The replay does not paste the fixture field back, because
+that paste changes `applied` from yes to no and would
+make the corpus pin look like a carrier result. The
+corpus fingerprint is not claimed through this handoff.
 
 ```text
 s2c2-opt-invoked no
@@ -97,3 +91,5 @@ a new semantic baseline
 ```
 
 NEXT CUT stays NOT OPENED.
+Audit record, not an approval:
+[`pr-152-evidence.md`](pr-152-evidence.md).
