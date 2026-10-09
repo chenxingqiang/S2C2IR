@@ -8,14 +8,56 @@ review token from this record. Semantic baseline remains
 
 ```text
 Technical review       PASS, host handoff scope only
-GitHub state           MERGED, 463c6b0, head 2d858a0
-LLVM check-s2c2        NOT VERIFIED
+GitHub API             merged=true, state=closed, draft=false
+GitHub merge commit    463c6b0, parent ae88e42, squash
+GitHub head            2d858a0, not an ancestor of main
+Host handoff replay    PASS, on main at 5bad0c7
+LLVM check-s2c2        BLOCKED, s2c2-opt absent, NOT VERIFIED
 Semantic baseline      36fd6fd, UNCHANGED
 evaluate_apply         UNCHANGED
 can-run-plan           no
 next_cut               NOT OPENED
 PR #152 — APPROVED     NOT ISSUED
 ```
+
+## Seal
+
+The pulls API says `#152` is merged. `merged=true`,
+`draft=false`, `merged_at=2026-10-09T07:39:00Z`,
+`merge_commit_sha=463c6b0`, `head.sha=2d858a0`.
+A page that still shows Draft and two commits does not
+match that API. `463c6b0` is on `main`. It has one parent,
+`ae88e42`, and six files. The handoff sources in that
+commit match `2d858a0`. The squash commit is not that
+branch commit. Code on `main` is not `PR #152 — APPROVED`.
+
+Replay on `main` at `5bad0c7`:
+
+```text
+spine-match yes
+host-matrix-through-spine 29
+induced-hb-copied no
+no-region refusal apply-not-called
+other-program match no
+other-program applied no
+scenario-corpus-spellable 8
+S05-fixture applied no
+S05-carrier-only applied yes
+Semantic Baseline v1 = PASS
+next-cut NOT-OPENED
+host contract commands PASS 52 FAIL 0
+```
+
+S05 stays a difference. `induced-hb` is not pasted back.
+Eight spellable scenes pass through the carrier. The full
+corpus fingerprint is not claimed. The 52 commands are
+host printers. They do not include `check-s2c2`.
+
+`build/bin/s2c2-opt` is absent. `check-s2c2` was not run.
+The toolchain gate is `BLOCKED`, which is `NOT VERIFIED`.
+It is not a pass. Preparing that build does not register
+a carrier dialect, add lowering, or change
+`evaluate_apply`.
 
 Merged range is the host handoff: acceptance entry
 refuses before `bound_witness` and `evaluate_apply`;
