@@ -1,20 +1,37 @@
 # PR #152 evidence audit
 
-**Status:** audit record. Not `PR #152 — APPROVED`.
-Not a merge. Not a semantic baseline change.
-Semantic baseline remains
+**Status:** post-merge record. Not `PR #152 — APPROVED`.
+The GitHub merge is a repository fact. It is not a
+review token from this record. Semantic baseline remains
 `36fd6fd931c109c6849cc366bd91b5abdfcab4b1`.
 `next_cut` stays `NOT OPENED`.
 
 ```text
-Host development       IMPLEMENTED, this audit fixed one evidence bug
+Technical review       PASS, host handoff scope only
+GitHub state           MERGED, 463c6b0, head 2d858a0
+LLVM check-s2c2        NOT VERIFIED
 Semantic baseline      36fd6fd, UNCHANGED
 evaluate_apply         UNCHANGED
-LLVM check-s2c2        NOT VERIFIED
-PR #152                DRAFT
-PR #135 / #144         NOT MERGED
+can-run-plan           no
 next_cut               NOT OPENED
+PR #152 — APPROVED     NOT ISSUED
 ```
+
+Merged range is the host handoff: acceptance entry
+refuses before `bound_witness` and `evaluate_apply`;
+29 matrix rows compare carrier-spellable fields with
+the direct host call; S05 stays a recorded difference.
+`induced-hb` is not copied back. Eight spellable corpus
+scenes match. The full corpus fingerprint is not claimed
+through the carrier. This merge does not authorize Token
+Path, a device backend, Search, or a new semantic rule.
+
+The sections below were written before `463c6b0`.
+They describe the audit that removed the silent
+`induced-hb` copy. Where they say the pull request is
+still a draft, or that `#135` and `#144` are unmerged,
+that was true at audit time and is not the post-merge
+state.
 
 ## P0. What the pull request actually contains
 
