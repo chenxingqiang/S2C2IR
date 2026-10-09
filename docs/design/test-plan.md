@@ -1072,6 +1072,9 @@ cpu identities; no new semantics):
 [`realization-checking-xid.md`](realization-checking-xid.md).
 Citable baseline on `main` (`3b46bea`):
 [`s2c2-baseline-3b46bea.md`](s2c2-baseline-3b46bea.md).
+\(F_{\mathrm{storage\_schedule}}\) design (named product; no
+inhabitant):
+[`storage-schedule-family.md`](storage-schedule-family.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |

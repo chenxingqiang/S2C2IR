@@ -134,9 +134,12 @@ architecture diagnosis:
 [`architecture-healthcheck.md`](architecture-healthcheck.md).
 Citable FACT/CHECKING + Search_F baseline on `main`:
 [`s2c2-baseline-3b46bea.md`](s2c2-baseline-3b46bea.md)
-(`3b46bea`). Do **not** open
-\(F_{\mathrm{storage\_schedule}}\) implementation or a
-frontend from this freeze.
+(`3b46bea`).
+\(F_{\mathrm{storage\_schedule}}\) **design** (named product;
+not implemented; `sufficient=no`; `rewrite-license=no`):
+[`storage-schedule-family.md`](storage-schedule-family.md).
+Do **not** inhabit that family, open its implementation,
+or open a frontend from this freeze.
 
 When 6C is implemented, it is a new Storage problem class:
 
