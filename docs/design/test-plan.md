@@ -1070,6 +1070,8 @@ semantics):
 Cross-identity Checking E2E (compose frozen cuda / ascend /
 cpu identities; no new semantics):
 [`realization-checking-xid.md`](realization-checking-xid.md).
+Citable baseline on `main` (`3b46bea`):
+[`s2c2-baseline-3b46bea.md`](s2c2-baseline-3b46bea.md).
 Do not FileCheck microseconds.
 
 | ID | File | Checks |
