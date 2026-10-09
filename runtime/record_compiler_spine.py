@@ -47,24 +47,38 @@ def integrate(text: str, opt_argv: tuple[str, ...] = (), apply_fn=None) -> dict:
 
 
 def _restore_induced(program: dict, extracted: dict) -> dict:
+    """Copy extract output. `induced-hb` is not Carrier v0 text.
+
+    The synthetic fixture field is attached after extraction.
+    Spellable fields stay the ones extract returned.
+    """
+    if "induced-hb" in extracted:
+        raise RuntimeError("carrier-encoded-induced-hb")
     handed = copy.deepcopy(extracted)
     if "induced-hb" in program:
         handed["induced-hb"] = copy.deepcopy(program["induced-hb"])
     return handed
 
 
-def replay_matrix() -> int:
-    """Text round-trip, then the case's own evaluate_apply arguments.
+def replay_matrix() -> tuple[int, int]:
+    """Carrier-spellable fields, then the case's own host arguments.
 
-    This does not build a witness. A case the host rejects stays a
-    host rejection. can-run-plan stays no on every row.
+    `induced-hb` is restored out of band after extraction. It is
+    not encoded by Carrier v0. This does not build a witness.
+    A case the host rejects stays a host rejection.
+    can-run-plan stays no on every row.
     """
     count = 0
+    restored: list[str] = []
     for name, envelopes, program, kwargs in apply._cases():
         extracted = project(carrier.render(program))
-        if "induced-hb" in extracted:
-            raise RuntimeError("spine-induced-" + name)
         handed = _restore_induced(program, extracted)
+        if "induced-hb" in program:
+            if handed["induced-hb"] != program["induced-hb"]:
+                raise RuntimeError("spine-induced-value-" + name)
+            restored.append(name)
+        elif handed != extracted:
+            raise RuntimeError("spine-spellable-" + name)
         direct = apply.evaluate_apply(
             copy.deepcopy(envelopes),
             copy.deepcopy(program),
@@ -87,7 +101,9 @@ def replay_matrix() -> int:
         count += 1
     if count != 29:
         raise RuntimeError("spine-matrix-count")
-    return count
+    if restored != ["postcondition-hb"]:
+        raise RuntimeError("spine-induced-rows")
+    return count, len(restored)
 
 
 _CORPUS_KEYS = (
@@ -103,19 +119,22 @@ _CORPUS_KEYS = (
 )
 
 
-def replay_corpus() -> int:
-    """Ten W0-3/2 scenes, read back from carrier text.
+def replay_corpus() -> tuple[int, int]:
+    """Ten W0-3/2 scenes. Spellable fields come from carrier text.
 
-    The host still decides. This replay does not refuse a scene
-    the corpus already sends to evaluate_apply.
+    The synthetic `induced-hb` fixture is restored out of band
+    after extraction. It is not encoded by Carrier v0. The host
+    still decides. This replay does not refuse a scene the
+    corpus already sends to evaluate_apply.
     """
     specs = corpus._specs()
     via_rows = []
+    restored: list[str] = []
     for spec in specs:
         extracted = project(carrier.render(spec["program"]))
-        if "induced-hb" in extracted:
-            raise RuntimeError("spine-corpus-induced-" + spec["id"])
         handed = _restore_induced(spec["program"], extracted)
+        if "induced-hb" in spec["program"]:
+            restored.append(spec["id"])
         direct = corpus.observe(spec["program"], spec["mode"], spec["envelope"])
         via = corpus.observe(handed, spec["mode"], spec["envelope"])
         for key in _CORPUS_KEYS:
@@ -140,7 +159,9 @@ def replay_corpus() -> int:
         raise RuntimeError("spine-corpus-drift")
     if len(specs) != 9:
         raise RuntimeError("spine-corpus-count")
-    return 10
+    if restored != ["S05"]:
+        raise RuntimeError("spine-corpus-induced-rows")
+    return 10, len(restored)
 
 
 def _refuse_region(text: str, apply_fn, calls: list[str], code: str) -> None:
@@ -240,8 +261,8 @@ def _validate() -> dict:
         raise RuntimeError("opt-before-extract")
     if calls:
         raise RuntimeError("opt-before-extract-called-apply")
-    matrix = replay_matrix()
-    scenes = replay_corpus()
+    matrix, matrix_induced = replay_matrix()
+    scenes, corpus_induced = replay_corpus()
 
     renamed = copy.deepcopy(scenario.source_program())
     renamed["blocks"][0]["ops"][0]["name"] = "9"
@@ -257,6 +278,8 @@ def _validate() -> dict:
         "applied": bag["applied"],
         "matrix": matrix,
         "corpus": scenes,
+        "matrix-induced": matrix_induced,
+        "corpus-induced": corpus_induced,
     }
 
 
@@ -285,7 +308,10 @@ def print_contract() -> int:
     print("other-program applied no")
     print("apply-called yes")
     print("host-matrix-through-spine " + str(summary["matrix"]))
+    print("matrix-induced-hb-out-of-band " + str(summary["matrix-induced"]))
     print("scenario-corpus-through-spine " + str(summary["corpus"]))
+    print("corpus-induced-hb-out-of-band " + str(summary["corpus-induced"]))
+    print("carrier-encodes-induced-hb no")
     return 0
 
 

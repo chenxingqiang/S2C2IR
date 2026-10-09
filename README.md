@@ -93,7 +93,7 @@ python3 runtime/record_goal_alignment.py --print-goal-alignment
 | apply scenario | The acceptance case `w0-3-2-storage-capacity-001`. `can-run-plan` stays `no`. |
 | apply contract | The W0-3/2 host: one region, capacity 2, then KEEP → EVICT → TRANSFER → RESTORE. |
 | carrier extract | The same host result, read back from a text carrier. `host-matrix-through-carrier 29`. |
-| compiler spine | `spine-match yes`, `can-run-plan no`, `host-matrix-through-spine 29`, `scenario-corpus-through-spine 10`. |
+| compiler spine | `spine-match yes`, `can-run-plan no`, `host-matrix-through-spine 29`, `scenario-corpus-through-spine 10`, `carrier-encodes-induced-hb no`. The matrix checks carrier-spellable fields. `induced-hb` is restored out of band after extract. |
 | goal alignment | `goal-alignment PASS`. The design page, this README, and the three status slides name the same cut. `next-cut NOT-OPENED`. |
 
 The carrier is a text projection onto the program `evaluate_apply` already accepts. It is not a new semantic model, and `s2c2-opt` does not register it. `stor.transfer` in MLIR is a residency copy. The host string `"transfer"` is a different step, produced by the host when it builds a candidate.

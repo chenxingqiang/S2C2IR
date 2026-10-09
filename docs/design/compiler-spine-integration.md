@@ -50,12 +50,20 @@ corpus already does. The acceptance driver refuses those
 shapes before `bound_witness`. The corpus replay does not.
 
 The same driver also replays the 29 host matrix rows.
-Each row is rendered, extracted, and passed to
+Each row is rendered and extracted, then passed to
 `evaluate_apply` with that row's own envelopes and
 witness. The ApplyResult matches calling the host on the
 source program. Rows the host rejects stay host
 rejections. This replay does not build a witness and does
 not turn a rejection into the acceptance apply.
+
+The matrix round-trip tests carrier-spellable fields. The
+synthetic `induced-hb` fixture field is restored out of
+band after extraction; it is not encoded by Carrier v0.
+One matrix row, `postcondition-hb`, carries that field.
+One corpus scene, S05, does too. Every other row is the
+extract result alone. Extract of carrier text does not
+contain `induced-hb`.
 
 ```text
 s2c2-opt-invoked no
