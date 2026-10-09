@@ -29,10 +29,14 @@ class SpineRefusal(Exception):
         super().__init__(code)
 
 
-def integrate(text: str, opt_argv: tuple[str, ...] = (), apply_fn=None) -> dict:
+def project(text: str, opt_argv: tuple[str, ...] = ()) -> dict:
     if opt_argv:
         raise SpineRefusal("opt-bypass")
-    program = carrier.extract(text)
+    return carrier.extract(text)
+
+
+def integrate(text: str, opt_argv: tuple[str, ...] = (), apply_fn=None) -> dict:
+    program = project(text, opt_argv)
     if len(apply.find_regions(program)) != 1:
         raise SpineRefusal("no-region")
     envelope = scenario.rewrite_plan()
@@ -41,9 +45,73 @@ def integrate(text: str, opt_argv: tuple[str, ...] = (), apply_fn=None) -> dict:
     return fn([envelope], program, device=scenario.DEVICE, witness=witness)
 
 
+def _restore_induced(program: dict, extracted: dict) -> dict:
+    handed = copy.deepcopy(extracted)
+    if "induced-hb" in program:
+        handed["induced-hb"] = copy.deepcopy(program["induced-hb"])
+    return handed
+
+
+def replay_matrix() -> int:
+    """Text round-trip, then the case's own evaluate_apply arguments.
+
+    This does not build a witness. A case the host rejects stays a
+    host rejection. can-run-plan stays no on every row.
+    """
+    count = 0
+    for name, envelopes, program, kwargs in apply._cases():
+        extracted = project(carrier.render(program))
+        if "induced-hb" in extracted:
+            raise RuntimeError("spine-induced-" + name)
+        handed = _restore_induced(program, extracted)
+        direct = apply.evaluate_apply(
+            copy.deepcopy(envelopes),
+            copy.deepcopy(program),
+            **copy.deepcopy(kwargs),
+        )
+        via = apply.evaluate_apply(
+            copy.deepcopy(envelopes),
+            handed,
+            **copy.deepcopy(kwargs),
+        )
+        for key in ("match", "applied", "rewrite-path", "can-run-plan", "reasons"):
+            if via[key] != direct[key]:
+                raise RuntimeError("spine-matrix-" + name)
+        if apply.canonical_program(via["program"]) != apply.canonical_program(
+            direct["program"]
+        ):
+            raise RuntimeError("spine-matrix-program-" + name)
+        if via["can-run-plan"] != "no":
+            raise RuntimeError("spine-matrix-plan-" + name)
+        count += 1
+    if count != 29:
+        raise RuntimeError("spine-matrix-count")
+    return count
+
+
+def _refuse_region(text: str, apply_fn, calls: list[str], code: str) -> None:
+    try:
+        integrate(text, apply_fn=apply_fn)
+    except SpineRefusal as refusal:
+        if refusal.code != "no-region":
+            raise RuntimeError(code) from refusal
+    else:
+        raise RuntimeError(code)
+    if calls:
+        raise RuntimeError(code + "-called-apply")
+
+
 def _validate() -> dict:
     text = carrier.render(scenario.source_program())
-    bag = integrate(text)
+    watched = {"n": 0}
+
+    def _watch(envelopes, program, **kwargs):
+        watched["n"] += 1
+        return apply.evaluate_apply(envelopes, program, **kwargs)
+
+    bag = integrate(text, apply_fn=_watch)
+    if watched["n"] != 1:
+        raise RuntimeError("spine-apply-not-called")
     if apply.canonical_program(bag["program"]) != scenario.CANONICAL_P_PRIME:
         raise RuntimeError("spine-prime")
     if bag["match"] != "yes" or bag["applied"] != "yes":
@@ -86,15 +154,39 @@ def _validate() -> dict:
 
     other = copy.deepcopy(scenario.source_program())
     other["capacity"] = 1
+    _refuse_region(carrier.render(other), _forbid, calls, "no-region-capacity")
+    thin = copy.deepcopy(scenario.source_program())
+    thin["working-set"] = 2
+    _refuse_region(carrier.render(thin), _forbid, calls, "no-region-working-set")
+    by_name = {
+        name: program for name, _envelopes, program, _kwargs in apply._cases()
+    }
+    if len(apply.find_regions(by_name["ir-extra-store"])) < 2:
+        raise RuntimeError("spine-two-region-fixture")
+    _refuse_region(
+        carrier.render(by_name["ir-extra-store"]),
+        _forbid,
+        calls,
+        "no-region-two",
+    )
+    if apply.find_regions(by_name["ir-missing-store"]):
+        raise RuntimeError("spine-short-fixture")
+    _refuse_region(
+        carrier.render(by_name["ir-missing-store"]),
+        _forbid,
+        calls,
+        "no-region-short",
+    )
     try:
-        integrate(carrier.render(other), apply_fn=_forbid)
+        integrate("not-carrier", ("--s2c2-lower",), apply_fn=_forbid)
     except SpineRefusal as refusal:
-        if refusal.code != "no-region":
-            raise RuntimeError(refusal.code) from refusal
+        if refusal.code != "opt-bypass":
+            raise RuntimeError("opt-before-extract") from refusal
     else:
-        raise RuntimeError("no-region-missing")
+        raise RuntimeError("opt-before-extract")
     if calls:
-        raise RuntimeError("no-region-called-apply")
+        raise RuntimeError("opt-before-extract-called-apply")
+    matrix = replay_matrix()
 
     renamed = copy.deepcopy(scenario.source_program())
     renamed["blocks"][0]["ops"][0]["name"] = "9"
@@ -105,7 +197,11 @@ def _validate() -> dict:
         raise RuntimeError("spine-mismatch-boundary")
     if apply.canonical_program(mismatch["program"]) != apply.canonical_program(renamed):
         raise RuntimeError("spine-mismatch-mutated")
-    return {"match": bag["match"], "applied": bag["applied"]}
+    return {
+        "match": bag["match"],
+        "applied": bag["applied"],
+        "matrix": matrix,
+    }
 
 
 def print_contract() -> int:
@@ -131,6 +227,8 @@ def print_contract() -> int:
     print("no-region refusal apply-not-called")
     print("other-program match no")
     print("other-program applied no")
+    print("apply-called yes")
+    print("host-matrix-through-spine " + str(summary["matrix"]))
     return 0
 
 

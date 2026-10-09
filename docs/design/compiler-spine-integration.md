@@ -34,9 +34,19 @@ before `extract` and before `evaluate_apply`.
 A carrier text that extracts but does not contain exactly
 one W0-3/2 region is refused before `bound_witness` and
 before `evaluate_apply`. That refusal is not `match=no`.
-A different one-region program still reaches the host.
-The host returns `match=no` and `applied=no`, and it does
-not edit the source.
+Capacity other than 2, a working set that is not above 2,
+fewer than three stores, and two regions in one block all
+take that refusal. A different one-region program still
+reaches the host. The host returns `match=no` and
+`applied=no`, and it does not edit the source.
+
+The same driver also replays the 29 host matrix rows.
+Each row is rendered, extracted, and passed to
+`evaluate_apply` with that row's own envelopes and
+witness. The ApplyResult matches calling the host on the
+source program. Rows the host rejects stay host
+rejections. This replay does not build a witness and does
+not turn a rejection into the acceptance apply.
 
 ```text
 s2c2-opt-invoked no
