@@ -10,6 +10,7 @@ copy the host.
 from __future__ import annotations
 
 import argparse
+import copy
 import sys
 from pathlib import Path
 
@@ -32,6 +33,8 @@ def integrate(text: str, opt_argv: tuple[str, ...] = (), apply_fn=None) -> dict:
     if opt_argv:
         raise SpineRefusal("opt-bypass")
     program = carrier.extract(text)
+    if len(apply.find_regions(program)) != 1:
+        raise SpineRefusal("no-region")
     envelope = scenario.rewrite_plan()
     witness = apply.bound_witness(program, device=scenario.DEVICE)
     fn = apply.evaluate_apply if apply_fn is None else apply_fn
@@ -80,6 +83,28 @@ def _validate() -> dict:
         raise RuntimeError("extract-refusal-missing")
     if calls:
         raise RuntimeError("extract-called-apply")
+
+    other = copy.deepcopy(scenario.source_program())
+    other["capacity"] = 1
+    try:
+        integrate(carrier.render(other), apply_fn=_forbid)
+    except SpineRefusal as refusal:
+        if refusal.code != "no-region":
+            raise RuntimeError(refusal.code) from refusal
+    else:
+        raise RuntimeError("no-region-missing")
+    if calls:
+        raise RuntimeError("no-region-called-apply")
+
+    renamed = copy.deepcopy(scenario.source_program())
+    renamed["blocks"][0]["ops"][0]["name"] = "9"
+    mismatch = integrate(carrier.render(renamed))
+    if mismatch["match"] != "no" or mismatch["applied"] != "no":
+        raise RuntimeError("spine-mismatch")
+    if mismatch["can-run-plan"] != "no" or mismatch["rewrite-path"] != "no":
+        raise RuntimeError("spine-mismatch-boundary")
+    if apply.canonical_program(mismatch["program"]) != apply.canonical_program(renamed):
+        raise RuntimeError("spine-mismatch-mutated")
     return {"match": bag["match"], "applied": bag["applied"]}
 
 
@@ -103,6 +128,9 @@ def print_contract() -> int:
     print("spine-applied " + summary["applied"])
     print("opt-bypass refusal apply-not-called")
     print("extract-refusal apply-not-called")
+    print("no-region refusal apply-not-called")
+    print("other-program match no")
+    print("other-program applied no")
     return 0
 
 

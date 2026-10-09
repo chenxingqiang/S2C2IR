@@ -31,6 +31,12 @@ not add. Asking it to run `--s2c2-evidence-bounded-schedule`
 or any other opt argument would let a pass produce a
 result beside the host. The spine refuses that argument
 before `extract` and before `evaluate_apply`.
+A carrier text that extracts but does not contain exactly
+one W0-3/2 region is refused before `bound_witness` and
+before `evaluate_apply`. That refusal is not `match=no`.
+A different one-region program still reaches the host.
+The host returns `match=no` and `applied=no`, and it does
+not edit the source.
 
 ```text
 s2c2-opt-invoked no
