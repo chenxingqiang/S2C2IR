@@ -116,10 +116,23 @@ Apply match=no
 Apply applied=no
 ```
 
-If the projection succeeds, extract does not interpret it.
-Zero regions, two regions, capacity other than 2, KEEP
-order, HB* failure, a missing witness, a wrong device, and
-an op-id collision stay inside `evaluate_apply`.
+Two different refusals stay separate. Neither one is a
+new contract.
+
+The W0-3/2 acceptance entry refuses before
+`bound_witness` and before `evaluate_apply` when the
+carrier text does not parse, or when the extracted
+program is not one acceptance region. That includes zero
+regions, two regions, capacity other than 2, a working
+set that is not above 2, and fewer than three stores.
+The caller does not get an `ApplyResult` from that
+refusal.
+
+After a spellable extract that meets that entry, the
+existing host contract still decides. KEEP order, HB*
+failure, a missing witness, a wrong device, and an op-id
+collision stay inside `evaluate_apply`. This page does
+not add an authorization and does not add a semantic.
 
 extract must not call `evaluate_authorization`.
 
