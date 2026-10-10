@@ -4,9 +4,9 @@
 Baseline v1 merged @ `b62bae4`. Apply contract frozen @
 `038f4a1`. W0-3/2 inhabitant v0 is a host
 ([`ir-apply-inhabitant.md`](ir-apply-inhabitant.md);
-`PR #141 — APPROVED` at `88764fb`; merge still gated).
+merged @ `c19b356` via `#141`).
 Not an `F_storage_schedule` inhabitant. Not StableHLO.
-`can-run-plan` stays no.
+`can-run-plan` stays no. `next_cut` stays `NOT OPENED`.
 
 ```text
 Goal     name the five products and the only allowed mainline
@@ -93,23 +93,33 @@ F  →  argmin  →  rewrite
 ## Mainline
 
 ```text
-#134   baseline citation              design-only; merge gated
-#135   F_storage_schedule design      design-only; no inhabitant
+#134   baseline citation              MERGED @ adda9d6; design-only
+#135   F_storage_schedule design      MERGED @ c2d940f; design-only; no inhabitant
 6C-M   Sufficiency Decision           MERGED @ a0a2a08 (#136)
 7A     Authorization Boundary         MERGED @ 5b57666 (#137)
 7B     ONE storage rewrite            MERGED @ 3e942a8 (#138; plan)
 Semantic Baseline v1                  MERGED @ b62bae4 (#140)
 7B-Apply Controlled IR Apply          FROZEN @ 038f4a1 (#139; contract)
-W0-3/2 Apply inhabitant v0            host; not can-run-plan; not Enum_F
-7C     End-to-end executable opt
-7D     CUDA backend realization
-7E     Ascend backend realization
-7F     CIM capability adapter
+W0-3/2 Apply inhabitant v0            MERGED @ c19b356 (#141); host; not can-run-plan; not Enum_F
+Empirical Semantic Boundary v1        MERGED @ 3b31b79 (#145); evidence only
+MLIR Carrier v0                       MERGED @ d328605 (#146) design, 87a782e (#147) text extract
+Carrier handoff                       MERGED @ d8dc50f (#148); entry refusal @ 463c6b0 (#152)
+Sealed stage                          MERGED @ ae88e42 (#144); evidence only
+Host replay + CI                      MERGED @ ebc4cb6 (#158); check, not approval
+7C     End-to-end executable opt      NOT OPENED
+7D     CUDA backend realization       NOT OPENED
+7E     Ascend backend realization     NOT OPENED
+7F     CIM capability adapter         NOT OPENED
 8A     StableHLO frontend             not before the spine runs
 ```
 
-`#134` / `#135` stay drafts until the exact review token
-`PR #N — APPROVED`. This page does not merge them.
+`7C` is not an engineering follow-up that opens by itself.
+Orchestrating authorization, rewrite-plan, and apply from
+`s2c2-opt` would make `s2c2-opt` reach the W0-3/2 host. The
+current boundary is the opposite: the carrier is not
+registered in `s2c2-opt`, and the optimizer does not call
+`evaluate_apply`. Changing that is an explicit decision to
+open a cut, not a documentation sync.
 
 ### 6C-M
 

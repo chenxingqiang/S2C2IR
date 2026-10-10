@@ -344,10 +344,15 @@ one compiler spine, not more dialects or vendors.
 7B     ONE storage rewrite           MERGED @ 3e942a8 (#138; plan)
 Semantic Baseline v1                 MERGED @ b62bae4 (#140)
 7B-Apply Controlled IR Apply         FROZEN @ 038f4a1 (#139)
-W0-3/2 Apply inhabitant v0           host; one pattern; not Enum_F; can-run-plan=no
-7C     End-to-end executable opt
-7D/E   CUDA / Ascend realization
-7F     CIM capability adapter
+W0-3/2 Apply inhabitant v0           MERGED @ c19b356 (#141); host; one pattern; not Enum_F; can-run-plan=no
+Empirical Semantic Boundary v1       MERGED @ 3b31b79 (#145); evidence only
+MLIR Carrier v0                      MERGED @ d328605 (#146), 87a782e (#147); text projection
+Carrier handoff                      MERGED @ d8dc50f (#148), 463c6b0 (#152)
+Sealed stage                         MERGED @ ae88e42 (#144); evidence only
+Host replay + CI                     MERGED @ ebc4cb6 (#158)
+7C     End-to-end executable opt     NOT OPENED
+7D/E   CUDA / Ascend realization     NOT OPENED
+7F     CIM capability adapter        NOT OPENED
 8A     StableHLO frontend            later
 ```
 
@@ -358,16 +363,51 @@ W0-3/2 Apply inhabitant v0           host; one pattern; not Enum_F; can-run-plan
 `sufficient`. `rewrite-license` is an explicit Decision,
 not derived from sufficient or authorized.
 `rewrite-plan=yes` names KEEP→EVICT→TRANSFER→RESTORE.
-`rewrite-path` stays `no`. `applied` stays `no`.
-IR apply stays closed. PR #139 is the frozen contract
-@ `038f4a1`, not the inhabitant:
+At 7B, `rewrite-path` and `applied` stay `no`. Apply is a
+separate host. PR #139 is the frozen contract @ `038f4a1`:
 [`ir-apply-contract.md`](design/ir-apply-contract.md).
+The W0-3/2 host from `#141` is that contract's one inhabited
+pattern: [`ir-apply-inhabitant.md`](design/ir-apply-inhabitant.md).
+It is one device, one contiguous region, capacity 2.
+`can-run-plan` stays `no` even when apply succeeds.
 Execution route:
 [`compiler-execution-spine.md`](design/compiler-execution-spine.md).
 Semantic Baseline v1 MERGED @ `b62bae4`:
 [`semantic-baseline-v1.md`](design/semantic-baseline-v1.md).
-Do not open the IR Apply inhabitant in this cut.
-Baseline PASS ≠ inhabitant OPEN.
+The semantic baseline is `36fd6fd`; later documentation, the
+carrier, the handoff, and CI do not move it.
+Baseline PASS ≠ `can-run-plan`.
 
 Do **not** start StableHLO or inhabit
-\(F_{\mathrm{storage\_schedule}}\).
+\(F_{\mathrm{storage\_schedule}}\) (named in
+[`storage-schedule-family.md`](design/storage-schedule-family.md);
+`sufficient=no`, `rewrite-license=no`).
+
+### What is open, and what is not
+
+Carrier text projects onto the host program
+(`runtime/record_mlir_carrier.py`). It is not registered in
+`s2c2-opt`, and the optimizer does not call `evaluate_apply`.
+The handoff refuses an opt flag before extract and refuses any
+text that is not one W0-3/2 region before the host
+([`compiler-spine-integration.md`](design/compiler-spine-integration.md)).
+Scenario S05 is a known carrier/fixture difference; the full
+corpus is not claimed through the carrier.
+
+`7C`, `7D` / `7E`, `7F`, and `8A` are `NOT OPENED`. `7C` in
+particular would make `s2c2-opt` reach the host, which changes
+the boundary above. That is an explicit decision to open a
+cut. A next cut opens only when `stor`, `comp`, `comm`, and
+`sched`, composed, cannot express a necessary relation in a real
+scene
+([`empirical-semantic-boundary-v1.md`](design/empirical-semantic-boundary-v1.md)).
+Research direction versus this cut:
+[`goal-alignment-v1.md`](design/goal-alignment-v1.md).
+
+### Checks
+
+`scripts/check-host.sh` replays the 52 host contract and matrix
+printers plus the Ascend schema identity check and CUDA schema
+printer. CI runs it and `check-s2c2` (`.github/workflows/ci.yml`).
+`main` requires both. They are checks, not review approval and not
+merge authorization.
