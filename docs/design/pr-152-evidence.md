@@ -12,7 +12,8 @@ GitHub API             merged=true, state=closed, draft=false
 GitHub merge commit    463c6b0, parent ae88e42, squash
 GitHub head            2d858a0, not an ancestor of main
 Host handoff replay    PASS, on main at 5bad0c7
-LLVM check-s2c2        FAIL, 119 passed, 1 failed
+LLVM check-s2c2        FAIL before #156, 119 passed, 1 failed
+LLVM check-s2c2 (now)  PASS on main 0f8bd9f, 120 passed, 0 failed
 Semantic baseline      36fd6fd, UNCHANGED
 evaluate_apply         UNCHANGED
 can-run-plan           no
@@ -203,6 +204,26 @@ The failure is FileCheck prefix `ALGM`. The check expects
 `selected=` and `object=` before `kind=`. `evaluate_apply`
 was not changed to make this pass. `check-s2c2` is `FAIL`,
 not `PASS`, and not `NOT VERIFIED`. It does not open a cut.
+
+### After #156
+
+`#156` changed three `ALGM` FileCheck lines in
+`test/Integration/storage-capacity.mlir` to name the
+`selected=` and `object=` fields the printer already
+emits. It did not touch `record_decision.py` or
+`evaluate_apply`. The FAIL above was real when it was
+recorded and is not rewritten. After `#156` merged
+(`0f8bd9f`), the same build on `main` gave:
+
+```text
+cmake --build build --target check-s2c2   EXIT 0
+Total Discovered Tests: 120
+Passed: 120
+```
+
+Toolchain: Ubuntu LLVM/MLIR 20.1.2, lit 18.1.8, one machine.
+That is one environment, not a CI result. It does not change
+the semantic baseline, S05, or `next_cut`.
 
 ## P4. Conclusion
 
