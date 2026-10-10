@@ -403,8 +403,10 @@ derives the host program from the IR (A2). Defining that
 mapping is a contract, so 7C would be a semantic cut. It does
 not meet the opening condition below. The owner also set the
 authorization rule for that cut: the most efficient optimal
-strategy is the authorization. The frozen hosts still do not
-derive authorization from a selection. Opening a cut is an
+strategy is the authorization.
+`runtime/record_optimum_authorization.py` implements that rule.
+The frozen 7A evaluator does not derive authorization from a
+selection. Opening a cut is an
 explicit decision.
 A semantic cut, one that adds a contract, opens only when
 `stor`, `comp`, `comm`, and `sched`, composed, cannot express a
@@ -415,8 +417,10 @@ Research direction versus this cut:
 
 ### Checks
 
-`scripts/check-host.sh` replays the 52 host contract and matrix
+`scripts/check-host.sh` replays the 53 host contract and matrix
 printers plus the Ascend schema identity check and CUDA schema
-printer. CI runs it and `check-s2c2` (`.github/workflows/ci.yml`).
+printer. One of them is optimum authorization: the unique
+lowest-cost legal strategy is the authorization. That host does
+not change the frozen 7A evaluator. CI runs it and `check-s2c2` (`.github/workflows/ci.yml`).
 `main` requires both. They are checks, not review approval and not
 merge authorization.

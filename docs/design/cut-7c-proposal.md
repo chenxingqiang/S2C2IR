@@ -249,7 +249,7 @@ authorization is the selected optimum; no authorization file
 witness source stays decision 3; a missing witness stays applied=no
 a missing or refused input stays applied=no, source unchanged
 can-run-plan stays no
-scripts/check-host.sh PASS 52 FAIL 0
+scripts/check-host.sh PASS 53 FAIL 0
 check-s2c2 PASS
 S05 stays a known difference; evaluate_apply unchanged
 no new Decision subject, dialect op, HB rule, or Enum_F
@@ -279,4 +279,16 @@ whether the semantic baseline moves is decided by the owner;
    to A1, or produce a scene. Open.
 
 Until 3 and 5 are answered and a review passes, this page
-changes nothing.
+does not open the cut.
+
+## Host for decision 2
+
+`runtime/record_optimum_authorization.py` implements the rule
+above. A unique minimum cost among `legal=yes` strategies is
+the authorization and the rewrite license, then the existing
+7B plan. A tie, a missing cost, or no legal strategy stays
+unauthorized. The frozen `evaluate_authorization` is not
+changed: `sufficient=yes` with a missing policy is still
+`authorized=no`. Apply still requires the existing witness.
+`can-run-plan` stays `no`. This host does not derive a program
+from IR, so it is not A2, and it does not open the cut.

@@ -123,8 +123,10 @@ orchestrator derives the host program from an IR file (A2).
 Defining that mapping is a contract, so 7C would be a semantic
 cut. It does not meet the written opening condition. The owner
 also set the authorization rule for that cut: the most
-efficient optimal strategy is the authorization. The frozen
-hosts still do not derive authorization from a selection.
+efficient optimal strategy is the authorization.
+`runtime/record_optimum_authorization.py` implements that rule.
+The frozen 7A evaluator does not derive authorization from a
+selection.
 Opening is an explicit decision, not a documentation sync.
 
 ### 6C-M
