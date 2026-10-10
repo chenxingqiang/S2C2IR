@@ -114,16 +114,18 @@ Host replay + CI                      MERGED @ ebc4cb6 (#158); check, not approv
 ```
 
 `7C` is not an engineering follow-up that opens by itself.
-A proposal exists and is not decided:
+A proposal exists and is not opened:
 [`cut-7c-proposal.md`](cut-7c-proposal.md). Its option A is an
 orchestrator outside `s2c2-opt`, so the carrier stays
 unregistered in `s2c2-opt` and the optimizer still does not
 call `evaluate_apply`. The owner chose the reading in which the
 orchestrator derives the host program from an IR file (A2).
 Defining that mapping is a contract, so 7C would be a semantic
-cut. It does not meet the written opening condition, and the
-owner has not yet decided how to proceed. Opening is an
-explicit decision, not a documentation sync.
+cut. It does not meet the written opening condition. The owner
+also set the authorization rule for that cut: the most
+efficient optimal strategy is the authorization. The frozen
+hosts still do not derive authorization from a selection.
+Opening is an explicit decision, not a documentation sync.
 
 ### 6C-M
 

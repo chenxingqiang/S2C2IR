@@ -9,9 +9,12 @@ does not move the semantic baseline
 **Recorded (2026-10-10):** the owner chose option A, then
 reading A2 (the orchestrator derives the program from the IR).
 That makes 7C a **semantic cut**, and it does not meet the
-written opening condition. These are decisions 1 and 4. They
-are not a go-ahead. Decisions 2 and 5 are open. Implementation
-waits for those, a review, a freeze, and a separate verbal go.
+written opening condition. The owner also set the decision
+rule: selection is the most efficient optimal strategy, and
+that strategy is the authorization. These are decisions 1, 2,
+and 4. They are not a go-ahead. Decisions 3 and 5 are open.
+Implementation waits for those, a review, a freeze, and a
+separate verbal go.
 
 ```text
 Goal     one IR file takes the whole path to an ApplyResult
@@ -22,8 +25,8 @@ Rewrite  W0-3/2 only; evaluate_apply unchanged
 How a cut opens is already written down: propose, review,
 freeze, then verbal go
 ([`storage-schedule-family.md`](storage-schedule-family.md)).
-This is the propose step. Nothing below is decided except
-decision 1.
+This is the propose step. Decisions 1, 2, and 4 are answered.
+Decisions 3 and 5 are not.
 
 ## Is 7C a semantic cut?
 
@@ -118,11 +121,11 @@ coincidence is not established here. It is not a contract.
    (`provenance=occupancy-query` appears in the algebra
    matrix). Whether they are the same thing is to be checked in
    review, not assumed.
-2. **Authorization.** 7A forbids `if sufficient: authorized =
-   yes`. Authorization needs an independent policy, so an
-   end-to-end path cannot grant it to itself. The acceptance
-   driver's fixture authorization is acceptance evidence, not
-   this.
+2. **Authorization.** The owner rule below replaces the
+   separate signer for this cut. The selected optimum is the
+   authorization. Frozen 7A still forbids
+   `if sufficient: authorized = yes` on this tree; this page
+   does not change that evaluator.
 3. **Witness.** The legality witness is an external oracle by
    contract. A witness the driver builds from the candidate is
    acceptance only.
@@ -142,9 +145,10 @@ they differ on the mapping:
   that the plan identity matches the carrier region's
   realization identity. The host already makes that check and
   emits `rewrite.identity-mismatch` on a mismatch. The
-  orchestrator invents no mapping. Authorization and witness
-  are also caller-supplied files with no default. This adds no
-  contract.
+  orchestrator invents no mapping. Under the owner rule,
+  authorization is the selected optimum, not a file. The
+  legality witness is still an open input (decision 3). This
+  reading adds no contract.
 - **A2. Orchestrator derives the program from the IR.
   Chosen (2026-10-10).** It must define the mapping. That is
   a contract (see above).
@@ -207,7 +211,33 @@ paths, and this page does not pick one:
    was not motivated by one.
 
 The condition is the owner's rule, so only the owner can
-amend it.
+amend it. The rule recorded below is about authorization.
+It does not amend this opening condition, and it does not
+answer decision 5.
+
+## Owner rule: the optimum is the authorization
+
+Recorded 2026-10-10. This is decision 2.
+
+```text
+Every selection is the most efficient optimal strategy.
+The optimal strategy is authorized by being optimal.
+```
+
+Among legal candidates, the strategy the frozen cost policy
+already selects is `authorized=yes` and carries the rewrite
+license for that action. There is no second signer and no
+authorization file.
+
+This is the opposite of frozen 7A (`sufficient` does not
+imply `authorized`) and of the spine path that forbids
+`F → argmin → rewrite`. Adopting it is an amendment of those
+two sentences for this cut, and only when the cut opens.
+Until then the running hosts keep the old doors.
+
+Legality stays a filter in front of the selection: a
+candidate that is not legal is not a strategy. The witness
+that attests legality is decision 3 and is still open.
 
 ## Acceptance, if opened
 
@@ -215,7 +245,8 @@ Common to both readings:
 
 ```text
 one IR file in test/ → capacity plan → hosts → ApplyResult
-authorization and witness supplied by the caller, no default
+authorization is the selected optimum; no authorization file
+witness source stays decision 3; a missing witness stays applied=no
 a missing or refused input stays applied=no, source unchanged
 can-run-plan stays no
 scripts/check-host.sh PASS 52 FAIL 0
@@ -240,13 +271,12 @@ whether the semantic baseline moves is decided by the owner;
 ## Decisions
 
 1. Option. **Answered: A.**
-2. Authorization policy source. Needs the owner to confirm: a
-   caller-supplied file, no default in the repo.
-3. Legality witness source. Needs the owner to confirm: a
-   caller-supplied file, no default.
+2. Authorization source. **Answered:** the optimal strategy
+   is the authorization. No caller-supplied authorization file.
+3. Legality witness source. Needs the owner to confirm.
 4. A1 or A2. **Answered: A2.** That makes this a semantic cut.
-5. **New.** How A2 gets past the opening condition: amend it,
-   return to A1, or produce a scene. Open.
+5. How A2 gets past the opening condition: amend it, return
+   to A1, or produce a scene. Open.
 
-Until 2 and 5 are answered and a review passes, this page
+Until 3 and 5 are answered and a review passes, this page
 changes nothing.
