@@ -27,9 +27,19 @@ The pulls API says `#152` is merged. `merged=true`,
 `merge_commit_sha=463c6b0`, `head.sha=2d858a0`.
 A page that still shows Draft and two commits does not
 match that API. `463c6b0` is on `main`. It has one parent,
-`ae88e42`, and six files. The handoff sources in that
-commit match `2d858a0`. The squash commit is not that
-branch commit. Code on `main` is not `PR #152 — APPROVED`.
+`ae88e42`. That squash commit changes these six files:
+
+```text
+README.md
+docs/design/compiler-spine-integration.md
+docs/design/compiler-spine.md
+docs/design/pr-152-evidence.md
+runtime/record_compiler_spine.py
+runtime/record_goal_alignment.py
+```
+
+The squash commit is not the branch commit `2d858a0`.
+Code on `main` is not `PR #152 — APPROVED`.
 
 Replay on `main` at `5bad0c7`:
 
@@ -51,7 +61,9 @@ host contract commands PASS 52 FAIL 0
 S05 stays a difference. `induced-hb` is not pasted back.
 Eight spellable scenes pass through the carrier. The full
 corpus fingerprint is not claimed. The 52 commands are
-host printers. They do not include `check-s2c2`.
+host contract and matrix printers plus the Ascend schema
+identity check and CUDA schema printer. These checks do
+not include `check-s2c2`.
 
 `build/bin/s2c2-opt` is absent. `check-s2c2` was not run.
 The toolchain gate is `BLOCKED`, which is `NOT VERIFIED`.
@@ -84,19 +96,25 @@ state.
 2ec7572  Replay the host matrix through the carrier handoff.
 40ef6e6  Replay the W0-3/2 scenario corpus through carrier text.
 5174b41  State that induced-hb is restored outside carrier text.
+2d858a0  Stop copying induced-hb onto carrier extracts.
 ```
 
-Files against `main`:
+The branch diff of `2d858a0` against base `adda9d6` is
+these six files. It is the same path list as squash
+`463c6b0`, recorded separately so the squash commit and
+the branch diff are not one list:
 
 ```text
 README.md
-docs/design/compiler-spine.md
 docs/design/compiler-spine-integration.md
+docs/design/compiler-spine.md
+docs/design/pr-152-evidence.md
 runtime/record_compiler_spine.py
 runtime/record_goal_alignment.py
 ```
 
-`runtime/record_storage_apply.py` is the same blob as `main`.
+`runtime/record_storage_apply.py` is in neither list.
+Neither the squash nor the branch diff edits it.
 No dialect, no TableGen, no `s2c2-opt` registration.
 
 `2ec7572` is not the branch tip. `40ef6e6` added the corpus
@@ -156,10 +174,9 @@ next-cut NOT-OPENED
 host contract commands PASS 52 FAIL 0
 ```
 
-The 52 commands are the host contract and matrix printers
-under `runtime/record_*.py`, plus the Ascend schema
-identity check and the CUDA schema printer. They do not
-include `check-s2c2`.
+The 52 commands are host contract and matrix printers plus
+the Ascend schema identity check and CUDA schema printer.
+These checks do not include `check-s2c2`.
 
 ## P3. LLVM
 
