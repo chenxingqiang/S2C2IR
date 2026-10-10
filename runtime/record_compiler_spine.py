@@ -12,6 +12,8 @@ from __future__ import annotations
 import argparse
 import copy
 import sys
+import threading
+import time
 from pathlib import Path
 
 _RUNTIME = Path(__file__).resolve().parent
@@ -153,6 +155,55 @@ def replay_corpus() -> int:
     return spellable
 
 
+def check_guard_overlap() -> None:
+    """Two guarded host calls overlap in one process. The real
+    authorization function must still be the real one afterwards.
+
+    `_apply_guarded` replaces process-global authorization functions
+    while the host runs. Overlapping calls must not leave the
+    replacement installed.
+    """
+    import record_authorization as auth
+
+    real_eval = apply.evaluate_apply
+    real_auth = auth.evaluate_authorization
+    envelope = corpus._real_plan()
+    program = corpus._programs()["success"]
+    witness = corpus._witness(program, "bound")
+
+    def slow(envelopes, prog, **kwargs):
+        time.sleep(0.05)
+        return real_eval(envelopes, prog, **kwargs)
+
+    errors: list[str] = []
+
+    def run() -> None:
+        try:
+            corpus._apply_guarded(
+                copy.deepcopy(envelope),
+                copy.deepcopy(program),
+                copy.deepcopy(witness),
+            )
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(repr(exc))
+
+    apply.evaluate_apply = slow
+    try:
+        threads = [threading.Thread(target=run) for _ in range(3)]
+        for thread in threads:
+            thread.start()
+            time.sleep(0.01)
+        for thread in threads:
+            thread.join()
+    finally:
+        apply.evaluate_apply = real_eval
+    if errors:
+        raise RuntimeError("guard-overlap-error " + errors[0])
+    if auth.evaluate_authorization is not real_auth:
+        raise RuntimeError("guard-overlap-poisoned")
+    auth.evaluate_authorization(auth._all_required() + [auth._license("yes")])
+
+
 def _refuse_region(text: str, apply_fn, calls: list[str], code: str) -> None:
     try:
         integrate(text, apply_fn=apply_fn)
@@ -252,6 +303,7 @@ def _validate() -> dict:
         raise RuntimeError("opt-before-extract-called-apply")
     matrix = replay_matrix()
     scenes = replay_corpus()
+    check_guard_overlap()
 
     renamed = copy.deepcopy(scenario.source_program())
     renamed["blocks"][0]["ops"][0]["name"] = "9"
@@ -300,6 +352,7 @@ def print_contract() -> int:
     print("S05-fixture applied no")
     print("S05-carrier-only applied yes")
     print("carrier-encodes-induced-hb no")
+    print("authorization-guard-overlap restored")
     return 0
 
 
