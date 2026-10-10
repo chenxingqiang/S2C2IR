@@ -1,0 +1,63 @@
+name: ci
+
+# Replays checks that were run by hand. A pass here does not change the
+# semantic baseline, does not set can-run-plan, and does not open a cut.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host:
+    name: host contract and matrix printers
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replay host checks
+        run: scripts/check-host.sh --log host-logs
+      - name: Upload host logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-logs
+          path: host-logs
+          if-no-files-found: ignore
+
+  check-s2c2:
+    name: check-s2c2 (LLVM/MLIR 20)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LLVM/MLIR 20
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang ninja-build libstdc++-14-dev \
+            llvm-20-dev llvm-20-tools libmlir-20-dev mlir-20-tools
+      - name: Install lit
+        # lit 23 rejects this tree's lit.cfg.py. Match the LLVM 18 line.
+        run: |
+          python3 -m pip install --user 'lit==18.1.8'
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "/usr/lib/llvm-20/bin" >> "$GITHUB_PATH"
+      - name: Configure
+        run: |
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DMLIR_DIR=/usr/lib/llvm-20/lib/cmake/mlir \
+            -DLLVM_EXTERNAL_LIT="$(command -v lit)"
+      - name: Build s2c2-opt
+        run: cmake --build build --target s2c2-opt
+      - name: Run check-s2c2
+        run: cmake --build build --target check-s2c2
