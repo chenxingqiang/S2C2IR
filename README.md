@@ -102,6 +102,18 @@ The carrier is a text projection onto the program `evaluate_apply` already accep
 
 Semantic baseline remains `36fd6fd931c109c6849cc366bd91b5abdfcab4b1`. Later documentation and the carrier extract do not replace that baseline.
 
+### Run every host check at once
+
+```sh
+scripts/check-host.sh
+```
+
+This replays the 52 host contract and matrix printers plus the Ascend schema identity check and the CUDA schema printer. Expect `PASS 52 FAIL 0`; any failure makes it exit 1. `--log DIR` keeps each command's output. It needs Python 3 only. It does not include `check-s2c2`, and a pass does not change the semantic baseline, `can-run-plan`, or `next_cut`.
+
+### CI
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`. The `host contract and matrix printers` job runs the script above. The `check-s2c2 (LLVM/MLIR 20)` job builds `s2c2-opt` against Ubuntu LLVM/MLIR 20.1.2 and runs `check-s2c2`. It pins lit to 18.1.8, because lit 23 rejects this tree's `lit.cfg.py`. A green run is a check result. It is not a review approval and not a merge authorization.
+
 ## What this repository will not do for you
 
 - It will not plan a run. `can-run-plan` stays `no`.
