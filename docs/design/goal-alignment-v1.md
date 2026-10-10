@@ -14,6 +14,8 @@ Rewrite  still closed; can-run-plan stays no
 
 Product lock: [`compiler-spine.md`](compiler-spine.md).
 Evidence lock: [`empirical-semantic-boundary-v1.md`](empirical-semantic-boundary-v1.md).
+Expressibility audit: [`expressibility-audit-v1.md`](expressibility-audit-v1.md).
+That audit does not open a cut.
 Carrier: [`mlir-carrier-v0.md`](mlir-carrier-v0.md).
 
 ```bash

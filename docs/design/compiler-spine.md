@@ -241,6 +241,11 @@ tested range, no `semantic_gap=true` was found.
 OUTSIDE-CONTRACT is an inhabitant scope boundary.
 The next cut stays closed until `stor`, `comp`, `comm`,
 and `sched` cannot express a necessary relation.
+The storage-pipeline audit
+([`expressibility-audit-v1.md`](expressibility-audit-v1.md))
+reads `@ssd_pipeline_two_tiles` against the 4090 and 910B
+logs and finds no such relation. `next_cut` stays
+`NOT OPENED`.
 
 ### MLIR Carrier v0
 
