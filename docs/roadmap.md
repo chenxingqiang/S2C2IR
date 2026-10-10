@@ -398,9 +398,12 @@ corpus is not claimed through the carrier.
 for `7C` exists and is not decided:
 [`cut-7c-proposal.md`](design/cut-7c-proposal.md). Its option A
 is an orchestrator outside `s2c2-opt`, so the boundary above
-holds. The open question is how an IR file becomes the program
-the host consumes. Defining that mapping would be a contract.
-Opening a cut is an explicit decision.
+holds. The owner chose the reading in which the orchestrator
+derives the host program from the IR (A2). Defining that
+mapping is a contract, so 7C would be a semantic cut. It does
+not meet the opening condition below, and the owner has not
+yet decided how to proceed. Opening a cut is an explicit
+decision.
 A semantic cut, one that adds a contract, opens only when
 `stor`, `comp`, `comm`, and `sched`, composed, cannot express a
 necessary relation in a real scene

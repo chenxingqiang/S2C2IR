@@ -118,10 +118,12 @@ A proposal exists and is not decided:
 [`cut-7c-proposal.md`](cut-7c-proposal.md). Its option A is an
 orchestrator outside `s2c2-opt`, so the carrier stays
 unregistered in `s2c2-opt` and the optimizer still does not
-call `evaluate_apply`. The open question is the mapping from
-an IR file to the program the host consumes. If 7C must define
-that mapping, it is a semantic cut. Opening is an explicit
-decision, not a documentation sync.
+call `evaluate_apply`. The owner chose the reading in which the
+orchestrator derives the host program from an IR file (A2).
+Defining that mapping is a contract, so 7C would be a semantic
+cut. It does not meet the written opening condition, and the
+owner has not yet decided how to proceed. Opening is an
+explicit decision, not a documentation sync.
 
 ### 6C-M
 

@@ -6,9 +6,12 @@ This page adds no dialect op, no contract, no code, and
 does not move the semantic baseline
 `36fd6fd931c109c6849cc366bd91b5abdfcab4b1`.
 
-**Recorded:** the owner chose option A (2026-10-10). That is
-decision 1 of 4. It is not a go-ahead. Implementation waits
-for review, freeze, and a separate verbal go.
+**Recorded (2026-10-10):** the owner chose option A, then
+reading A2 (the orchestrator derives the program from the IR).
+That makes 7C a **semantic cut**, and it does not meet the
+written opening condition. These are decisions 1 and 4. They
+are not a go-ahead. Decisions 2 and 5 are open. Implementation
+waits for those, a review, a freeze, and a separate verbal go.
 
 ```text
 Goal     one IR file takes the whole path to an ApplyResult
@@ -142,44 +145,108 @@ they differ on the mapping:
   orchestrator invents no mapping. Authorization and witness
   are also caller-supplied files with no default. This adds no
   contract.
-- **A2. Orchestrator derives the program from the IR.** It
-  must define the mapping. That is a contract (see above).
+- **A2. Orchestrator derives the program from the IR.
+  Chosen (2026-10-10).** It must define the mapping. That is
+  a contract (see above).
 
-A1 is the reading that keeps the cut non-semantic. It also
-means the end-to-end path does not remove the hand-written
-carrier: it only connects the stages around it. A2 would, and
-it is the larger decision.
+A1 would have kept the cut non-semantic, and would have left
+the hand-written carrier in place. A2 removes the hand-written
+step, and in exchange it is a semantic cut. The next two
+sections say what that means.
 
 B (`s2c2-opt` calls the Python hosts) and C (port the Decision
 hosts to C++) are not chosen. B makes a C++ tool depend on
 Python at run time and changes the carrier boundary. C
 re-derives frozen semantics in a second language.
 
+## A2: what the mapping must define
+
+Read from the IR that the capacity plan is computed from
+(`test/Integration/storage-capacity.mlir`, function
+`@four_tile_hbm`): four `stor.object`, each with a
+`stor.materialize` into an `hbm` buffer, and a `stor.unpack`
+as the use. The host consumes `store` operations. The mapping
+has to answer each of these. The candidate answers are
+**not decided**; they are here so a review has something to
+accept or reject.
+
+| Question | Candidate answer |
+| -------- | ---------------- |
+| Which IR op is a host `store`? `stor.materialize` creates a residency and writes no data. `stor.pack` writes data. `stor.unpack` reads. | `stor.materialize` into the constrained space |
+| Where do `name` and `op-id` come from? Both must be unique strings. | the plan's tile ids and a stable derived id; how the pass numbers tiles is implementation, not a stated contract |
+| Which three of four tiles form the one region, with `working-set` 3 and `capacity` 2? | the tiles the plan keeps or evicts; `working-set` from `peak_live` |
+| Where does order come from, and does `sched` become `hb`? | program order in the block; no `hb` unless `sched` edges are mapped on purpose |
+| What is `stor.unpack`, and what are `comp` and `comm` ops inside the window? The host allows `compute` and `load` and forbids the rest. | classify each; refuse what is not classified |
+| What if the IR does not fit? | refuse before the host, as carrier extract does |
+
+There is a precedent against doing this by name. Carrier v0
+refuses to map `stor.transfer` onto the host's `"transfer"`
+step, because "mapping one onto the other would be a new
+meaning" ([`mlir-carrier-v0.md`](mlir-carrier-v0.md)). The
+`store` question above is the same kind of question. A2 is
+where that meaning gets decided.
+
+## A2: the opening condition is not met
+
+The written condition for a semantic cut asks for a real scene
+that `stor`, `comp`, `comm`, `sched` cannot express
+([`empirical-semantic-boundary-v1.md`](empirical-semantic-boundary-v1.md)).
+A2 does not fit it. Its problem is that the mapping is
+unwritten, not that a relation is inexpressible. The IR above
+already expresses the scene.
+
+So A2 cannot open under the rule as written. There are three
+paths, and this page does not pick one:
+
+1. **The owner records an amendment.** A connectivity cut,
+   limited to this mapping, may open without the
+   inexpressibility condition. It must be written in a merged
+   page, not implied.
+2. **Go back to A1.** No amendment is needed.
+3. **Find a real scene** the four dialects cannot express. A2
+   was not motivated by one.
+
+The condition is the owner's rule, so only the owner can
+amend it.
+
 ## Acceptance, if opened
+
+Common to both readings:
 
 ```text
 one IR file in test/ → capacity plan → hosts → ApplyResult
-program supplied by the caller (A1); no derived mapping
 authorization and witness supplied by the caller, no default
 a missing or refused input stays applied=no, source unchanged
-plan identity and carrier identity disagree → host mismatch
 can-run-plan stays no
-Semantic Baseline v1 = PASS, baseline still 36fd6fd
 scripts/check-host.sh PASS 52 FAIL 0
 check-s2c2 PASS
 S05 stays a known difference; evaluate_apply unchanged
 no new Decision subject, dialect op, HB rule, or Enum_F
 ```
 
+A2 only:
+
+```text
+the mapping spec page is reviewed and frozen before any code
+the mapping is a pure function: same IR, same program
+an IR that expresses the acceptance scene maps to exactly the
+  program the frozen host already accepts (no drift from it)
+an IR shape the mapping does not cover is refused before the
+  host, and that refusal is not match=no
+whether the semantic baseline moves is decided by the owner;
+  it is not assumed unchanged
+```
+
 ## Decisions
 
 1. Option. **Answered: A.**
-2. Authorization policy source. Under A1: a caller-supplied
-   file, no default in the repo. Needs the owner to confirm.
-3. Legality witness source. Under A1: a caller-supplied file,
-   no default. Needs the owner to confirm.
-4. A1 or A2. **Open.** A1 keeps the cut non-semantic. A2 is a
-   semantic cut and needs the empirical-boundary condition.
+2. Authorization policy source. Needs the owner to confirm: a
+   caller-supplied file, no default in the repo.
+3. Legality witness source. Needs the owner to confirm: a
+   caller-supplied file, no default.
+4. A1 or A2. **Answered: A2.** That makes this a semantic cut.
+5. **New.** How A2 gets past the opening condition: amend it,
+   return to A1, or produce a scene. Open.
 
-Until 2 to 4 are answered and a review passes, this page
+Until 2 and 5 are answered and a review passes, this page
 changes nothing.
