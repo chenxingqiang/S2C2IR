@@ -394,11 +394,13 @@ text that is not one W0-3/2 region before the host
 Scenario S05 is a known carrier/fixture difference; the full
 corpus is not claimed through the carrier.
 
-`7C`, `7D` / `7E`, `7F`, and `8A` are `NOT OPENED`. `7C` in
-particular would make `s2c2-opt` reach the host, which changes
-the boundary above. That is an explicit decision to open a
-cut. A proposal exists and is not decided:
-[`cut-7c-proposal.md`](design/cut-7c-proposal.md).
+`7C`, `7D` / `7E`, `7F`, and `8A` are `NOT OPENED`. A proposal
+for `7C` exists and is not decided:
+[`cut-7c-proposal.md`](design/cut-7c-proposal.md). Its option A
+is an orchestrator outside `s2c2-opt`, so the boundary above
+holds. The open question is how an IR file becomes the program
+the host consumes. Defining that mapping would be a contract.
+Opening a cut is an explicit decision.
 A semantic cut, one that adds a contract, opens only when
 `stor`, `comp`, `comm`, and `sched`, composed, cannot express a
 necessary relation in a real scene

@@ -114,12 +114,14 @@ Host replay + CI                      MERGED @ ebc4cb6 (#158); check, not approv
 ```
 
 `7C` is not an engineering follow-up that opens by itself.
-Orchestrating authorization, rewrite-plan, and apply from
-`s2c2-opt` would make `s2c2-opt` reach the W0-3/2 host. The
-current boundary is the opposite: the carrier is not
-registered in `s2c2-opt`, and the optimizer does not call
-`evaluate_apply`. Changing that is an explicit decision to
-open a cut, not a documentation sync.
+A proposal exists and is not decided:
+[`cut-7c-proposal.md`](cut-7c-proposal.md). Its option A is an
+orchestrator outside `s2c2-opt`, so the carrier stays
+unregistered in `s2c2-opt` and the optimizer still does not
+call `evaluate_apply`. The open question is the mapping from
+an IR file to the program the host consumes. If 7C must define
+that mapping, it is a semantic cut. Opening is an explicit
+decision, not a documentation sync.
 
 ### 6C-M
 
