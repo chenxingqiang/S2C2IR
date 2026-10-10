@@ -12,7 +12,7 @@ GitHub API             merged=true, state=closed, draft=false
 GitHub merge commit    463c6b0, parent ae88e42, squash
 GitHub head            2d858a0, not an ancestor of main
 Host handoff replay    PASS, on main at 5bad0c7
-LLVM check-s2c2        BLOCKED, s2c2-opt absent, NOT VERIFIED
+LLVM check-s2c2        FAIL, 119 passed, 1 failed
 Semantic baseline      36fd6fd, UNCHANGED
 evaluate_apply         UNCHANGED
 can-run-plan           no
@@ -65,11 +65,11 @@ host contract and matrix printers plus the Ascend schema
 identity check and CUDA schema printer. These checks do
 not include `check-s2c2`.
 
-`build/bin/s2c2-opt` is absent. `check-s2c2` was not run.
-The toolchain gate is `BLOCKED`, which is `NOT VERIFIED`.
-It is not a pass. Preparing that build does not register
-a carrier dialect, add lowering, or change
-`evaluate_apply`.
+A later run on LLVM/MLIR 20.1.2 built `s2c2-opt` and ran
+`check-s2c2`. The result is `FAIL`: 119 passed, 1 failed
+(`Integration/storage-capacity.mlir`, prefix `ALGM`).
+That run did not register a carrier dialect, add lowering,
+or change `evaluate_apply`.
 
 Merged range is the host handoff: acceptance entry
 refuses before `bound_witness` and `evaluate_apply`;
@@ -180,9 +180,29 @@ These checks do not include `check-s2c2`.
 
 ## P3. LLVM
 
-`build/bin/s2c2-opt` is absent in this environment.
-`check-s2c2` was not run. That is `NOT VERIFIED`.
-It is not a pass, and it does not open a cut.
+An earlier environment had no `s2c2-opt`. That state was
+`BLOCKED`. This run used Ubuntu LLVM/MLIR 20.1.2
+(`/usr/lib/llvm-20/lib/cmake/mlir`), Ninja, and lit 18.1.8.
+lit 23 was not used: its shell default does not match this
+tree's `lit.cfg.py`. No existing CMake cache was overwritten.
+
+```text
+cmake --build build --target s2c2-opt     EXIT 0
+cmake --build build --target check-s2c2   EXIT 1
+```
+
+```text
+Total Discovered Tests: 120
+Passed: 119
+Failed: 1
+Failed Tests: S2C2 :: Integration/storage-capacity.mlir
+```
+
+The failure is FileCheck prefix `ALGM`. The check expects
+`algebra-record kind=source-data`. The printer emits
+`selected=` and `object=` before `kind=`. `evaluate_apply`
+was not changed to make this pass. `check-s2c2` is `FAIL`,
+not `PASS`, and not `NOT VERIFIED`. It does not open a cut.
 
 ## P4. Conclusion
 
