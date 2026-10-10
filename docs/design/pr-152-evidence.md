@@ -8,14 +8,68 @@ review token from this record. Semantic baseline remains
 
 ```text
 Technical review       PASS, host handoff scope only
-GitHub state           MERGED, 463c6b0, head 2d858a0
-LLVM check-s2c2        NOT VERIFIED
+GitHub API             merged=true, state=closed, draft=false
+GitHub merge commit    463c6b0, parent ae88e42, squash
+GitHub head            2d858a0, not an ancestor of main
+Host handoff replay    PASS, on main at 5bad0c7
+LLVM check-s2c2        FAIL, 119 passed, 1 failed
 Semantic baseline      36fd6fd, UNCHANGED
 evaluate_apply         UNCHANGED
 can-run-plan           no
 next_cut               NOT OPENED
 PR #152 — APPROVED     NOT ISSUED
 ```
+
+## Seal
+
+The pulls API says `#152` is merged. `merged=true`,
+`draft=false`, `merged_at=2026-10-09T07:39:00Z`,
+`merge_commit_sha=463c6b0`, `head.sha=2d858a0`.
+A page that still shows Draft and two commits does not
+match that API. `463c6b0` is on `main`. It has one parent,
+`ae88e42`. That squash commit changes these six files:
+
+```text
+README.md
+docs/design/compiler-spine-integration.md
+docs/design/compiler-spine.md
+docs/design/pr-152-evidence.md
+runtime/record_compiler_spine.py
+runtime/record_goal_alignment.py
+```
+
+The squash commit is not the branch commit `2d858a0`.
+Code on `main` is not `PR #152 — APPROVED`.
+
+Replay on `main` at `5bad0c7`:
+
+```text
+spine-match yes
+host-matrix-through-spine 29
+induced-hb-copied no
+no-region refusal apply-not-called
+other-program match no
+other-program applied no
+scenario-corpus-spellable 8
+S05-fixture applied no
+S05-carrier-only applied yes
+Semantic Baseline v1 = PASS
+next-cut NOT-OPENED
+host contract commands PASS 52 FAIL 0
+```
+
+S05 stays a difference. `induced-hb` is not pasted back.
+Eight spellable scenes pass through the carrier. The full
+corpus fingerprint is not claimed. The 52 commands are
+host contract and matrix printers plus the Ascend schema
+identity check and CUDA schema printer. These checks do
+not include `check-s2c2`.
+
+A later run on LLVM/MLIR 20.1.2 built `s2c2-opt` and ran
+`check-s2c2`. The result is `FAIL`: 119 passed, 1 failed
+(`Integration/storage-capacity.mlir`, prefix `ALGM`).
+That run did not register a carrier dialect, add lowering,
+or change `evaluate_apply`.
 
 Merged range is the host handoff: acceptance entry
 refuses before `bound_witness` and `evaluate_apply`;
@@ -42,19 +96,25 @@ state.
 2ec7572  Replay the host matrix through the carrier handoff.
 40ef6e6  Replay the W0-3/2 scenario corpus through carrier text.
 5174b41  State that induced-hb is restored outside carrier text.
+2d858a0  Stop copying induced-hb onto carrier extracts.
 ```
 
-Files against `main`:
+The branch diff of `2d858a0` against base `adda9d6` is
+these six files. It is the same path list as squash
+`463c6b0`, recorded separately so the squash commit and
+the branch diff are not one list:
 
 ```text
 README.md
-docs/design/compiler-spine.md
 docs/design/compiler-spine-integration.md
+docs/design/compiler-spine.md
+docs/design/pr-152-evidence.md
 runtime/record_compiler_spine.py
 runtime/record_goal_alignment.py
 ```
 
-`runtime/record_storage_apply.py` is the same blob as `main`.
+`runtime/record_storage_apply.py` is in neither list.
+Neither the squash nor the branch diff edits it.
 No dialect, no TableGen, no `s2c2-opt` registration.
 
 `2ec7572` is not the branch tip. `40ef6e6` added the corpus
@@ -114,16 +174,35 @@ next-cut NOT-OPENED
 host contract commands PASS 52 FAIL 0
 ```
 
-The 52 commands are the host contract and matrix printers
-under `runtime/record_*.py`, plus the Ascend schema
-identity check and the CUDA schema printer. They do not
-include `check-s2c2`.
+The 52 commands are host contract and matrix printers plus
+the Ascend schema identity check and CUDA schema printer.
+These checks do not include `check-s2c2`.
 
 ## P3. LLVM
 
-`build/bin/s2c2-opt` is absent in this environment.
-`check-s2c2` was not run. That is `NOT VERIFIED`.
-It is not a pass, and it does not open a cut.
+An earlier environment had no `s2c2-opt`. That state was
+`BLOCKED`. This run used Ubuntu LLVM/MLIR 20.1.2
+(`/usr/lib/llvm-20/lib/cmake/mlir`), Ninja, and lit 18.1.8.
+lit 23 was not used: its shell default does not match this
+tree's `lit.cfg.py`. No existing CMake cache was overwritten.
+
+```text
+cmake --build build --target s2c2-opt     EXIT 0
+cmake --build build --target check-s2c2   EXIT 1
+```
+
+```text
+Total Discovered Tests: 120
+Passed: 119
+Failed: 1
+Failed Tests: S2C2 :: Integration/storage-capacity.mlir
+```
+
+The failure is FileCheck prefix `ALGM`. The check expects
+`algebra-record kind=source-data`. The printer emits
+`selected=` and `object=` before `kind=`. `evaluate_apply`
+was not changed to make this pass. `check-s2c2` is `FAIL`,
+not `PASS`, and not `NOT VERIFIED`. It does not open a cut.
 
 ## P4. Conclusion
 
