@@ -165,6 +165,14 @@ Any other shape, including a non-empty rematerialize, is
 `rewrite.sequence-mismatch`. Binding does not apply the
 plan. `applied` stays `no`. `rewrite-path` stays `no`.
 
+The 4-tile `F_capacity` candidates are strategies of this
+shape. Costs are the usable rows of the existing measured
+fixture table. The unique minimum is authorized and bound.
+A tie is not authorized. An identity that is not in
+`F_capacity` is ignored, even if its recorded time is
+lower. This path does not change the capacity printers:
+they still report `selected=none` and `rewrite-license=no`.
+
 ## Planner vs AuthorizationEvaluator
 
 ```text

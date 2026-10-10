@@ -202,7 +202,10 @@ apply it. `applied=no`. `rewrite-path=no`. Not ten
 optimizations. Not an `F_storage_schedule` inhabitant.
 `bind_rewrite_plan` names those four steps on the objects
 in `selected`. The 18-case planner still emits the unbound
-step list. `evaluate_rewrite` is unchanged.
+step list. `evaluate_rewrite` is unchanged. The 4-tile
+`F_capacity` set is ranked by the existing measured fixture
+table; the unique minimum is that bound plan. The capacity
+printers still report `rewrite-license=no`.
 Concurrent sibling reorder stays a frozen transform
 witness; it is not this first product rewrite.
 

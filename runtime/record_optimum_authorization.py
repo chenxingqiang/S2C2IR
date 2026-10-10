@@ -21,11 +21,22 @@ if str(_RUNTIME) not in sys.path:
 
 import record_apply_scenario as scenario
 import record_authorization as auth
+import record_capacity as cap
 import record_storage_apply as apply
 import record_storage_rewrite as rew
 
 SCHEMA = "s2c2.optimum_authorization.v1"
 RULE = "unique-minimum-cost"
+_ROOT = _RUNTIME.parent
+_CAPACITY_SPEC = _ROOT / "docs/design/v3-dataset/storage-capacity-4tile.jsonl"
+_CAPACITY_TABLE = (
+    _ROOT / "docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl"
+)
+_CAPACITY_ONE = (
+    _ROOT / "docs/design/v3-dataset/storage-capacity-measured-4tile-one.jsonl"
+)
+_CAPACITY_PROFILE = "fixture"
+_CAPACITY_WORKLOAD = "ssd-capacity-4tile"
 
 
 def _refuse(reason: str) -> dict:
@@ -181,6 +192,79 @@ def apply_optimum(strategies: list, program: dict, *, device: str = "D0", witnes
     )
 
 
+def strategies_from_capacity(plan: dict, costs: dict) -> list[dict]:
+    """One strategy per F_capacity candidate. Costs outside F are ignored."""
+    if not isinstance(plan, dict) or not isinstance(costs, dict):
+        return []
+    if plan.get("truncated") is True or plan.get("enumerated") is False:
+        return []
+    candidates = plan.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        return []
+    rows = []
+    for cand in candidates:
+        if not isinstance(cand, dict):
+            return []
+        ident = cand.get("identity")
+        if not isinstance(ident, str) or ident == "":
+            return []
+        row = {
+            "id": ident,
+            "legal": "yes",
+            "selected": ident,
+            "object": auth.OBJECT_2,
+            "action": auth.ACTION_V01,
+        }
+        if ident in costs:
+            row["cost"] = costs[ident]
+        rows.append(row)
+    return rows
+
+
+def authorize_capacity(plan: dict, costs: dict) -> dict:
+    """Unique minimum cost in F_capacity is the 7B authorization."""
+    if not isinstance(plan, dict) or not isinstance(costs, dict):
+        return _refuse("optimum.malformed")
+    strategies = strategies_from_capacity(plan, costs)
+    if not strategies:
+        return _refuse("optimum.no-legal")
+    return authorize_optimum(strategies)
+
+
+def costs_from_measured(table_path, profile: str, workload: str) -> dict:
+    """Usable measured rows. Identities absent from F stay in the map and are ignored later."""
+    costs: dict[str, int] = {}
+    for rec in cap._load_measured_capacity_table(Path(table_path)):
+        if rec.get("profile") != profile or rec.get("workload_class") != workload:
+            continue
+        if str(rec.get("measured") or "no").lower() != "yes":
+            continue
+        if int(rec.get("correctness") or 0) != 1:
+            continue
+        ident = str(rec["candidate_identity"])
+        if ident in costs:
+            raise ValueError("duplicate-measured-identity")
+        costs[ident] = int(rec["measured_time_us"])
+    return costs
+
+
+def load_capacity_plan(spec_path=_CAPACITY_SPEC) -> dict:
+    return cap._build_capacity_plan(cap._load_spec(Path(spec_path)))
+
+
+def program_for_selection(selected: str) -> dict | None:
+    parsed = rew.parse_selected(selected)
+    if (
+        parsed is None
+        or parsed["rematerialize"]
+        or len(parsed["keep"]) != 2
+        or len(parsed["evict"]) != 1
+    ):
+        return None
+    names = [parsed["keep"][0], parsed["keep"][1], parsed["evict"][0]]
+    return apply._program([apply._stores(names)])
+
+
 def acceptance_strategies() -> list[dict]:
     """Illegal cheaper, one legal optimum, one legal costlier."""
     return [
@@ -326,6 +410,64 @@ def _validate() -> None:
     tied = apply_optimum(_tie_strategies(), program, device=scenario.DEVICE, witness=witness)
     if tied["result"] != "no" or tied["applied"] != "no" or tied["can-run-plan"] != "no":
         raise RuntimeError("tie-apply")
+    _validate_capacity()
+
+
+def _validate_capacity() -> None:
+    plan = load_capacity_plan()
+    if plan["selected"] != "none" or plan["rewrite_license"] != "no":
+        raise RuntimeError("capacity-unlicensed")
+    if plan["rewrite"] != "no":
+        raise RuntimeError("capacity-rewrite")
+    costs = costs_from_measured(_CAPACITY_TABLE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD)
+    snapshot = copy.deepcopy(plan)
+    chosen = authorize_capacity(plan, costs)
+    if plan != snapshot:
+        raise RuntimeError("capacity-mutated")
+    if chosen["result"] != "yes":
+        raise RuntimeError("capacity-select")
+    ranked = cap.rank_measured_capacity(
+        plan, _CAPACITY_TABLE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD
+    )
+    if ranked["_argmin_size"] != 1 or ranked["selected"] != chosen["strategy-id"]:
+        raise RuntimeError("capacity-rank")
+    if chosen["strategy-id"] != auth.SELECTED_S0:
+        raise RuntimeError("capacity-winner")
+    in_f = [costs[c["identity"]] for c in plan["candidates"]]
+    if chosen["cost"] != min(in_f):
+        raise RuntimeError("capacity-cost")
+    if chosen["can-run-plan"] != "no":
+        raise RuntimeError("capacity-run")
+    if plan["selected"] != "none":
+        raise RuntimeError("capacity-selected-changed")
+    outside = dict(costs)
+    outside["keep{9}|evict{9}|rematerialize{}"] = 1
+    if authorize_capacity(plan, outside)["strategy-id"] != chosen["strategy-id"]:
+        raise RuntimeError("outside-f")
+    tied_costs = {c["identity"]: 5 for c in plan["candidates"]}
+    if authorize_capacity(plan, tied_costs)["reasons"] != ["optimum.tie"]:
+        raise RuntimeError("capacity-tie")
+    one = costs_from_measured(_CAPACITY_ONE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD)
+    if authorize_capacity(plan, one)["reasons"] != ["optimum.cost-missing"]:
+        raise RuntimeError("capacity-one")
+    program = program_for_selection(chosen["strategy-id"])
+    if program is None:
+        raise RuntimeError("capacity-program")
+    before = copy.deepcopy(program)
+    applied = apply.evaluate_apply(
+        [chosen["rewrite"]],
+        program,
+        device=scenario.DEVICE,
+        witness=apply.bound_witness(program, device=scenario.DEVICE),
+    )
+    if applied["match"] != "yes" or applied["applied"] != "yes":
+        raise RuntimeError("capacity-apply")
+    if applied["can-run-plan"] != "no":
+        raise RuntimeError("capacity-apply-run")
+    if program != before:
+        raise RuntimeError("capacity-program-mutated")
+    if apply.canonical_program(applied["program"]) != scenario.CANONICAL_P_PRIME:
+        raise RuntimeError("capacity-canonical")
 
 
 def print_optimum_authorization() -> int:
@@ -367,6 +509,24 @@ def print_optimum_authorization() -> int:
     print(f"apply-match {applied['match']}")
     print("apply-can-run-plan " + applied["can-run-plan"])
     print("can-run-plan no")
+    cap_plan = load_capacity_plan()
+    cap_costs = costs_from_measured(
+        _CAPACITY_TABLE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD
+    )
+    cap_chosen = authorize_capacity(cap_plan, cap_costs)
+    print(f"capacity-f {_CAPACITY_WORKLOAD}")
+    print(f"capacity-selected {cap_chosen['strategy-id']}")
+    print(
+        "capacity-bound "
+        + ",".join(
+            f"{step['step']}:{step['name']}"
+            for step in cap_chosen["rewrite"]["sequence"]
+        )
+    )
+    print("capacity-matches-measured-rank yes")
+    print("outside-f-ignored yes")
+    print("capacity-tie no")
+    print("capacity-plan-rewrite-license no")
     print("seven-a-unchanged yes")
     print("next-cut NOT-OPENED")
     print("result PASS")
