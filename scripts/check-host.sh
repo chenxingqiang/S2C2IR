@@ -54,6 +54,7 @@ run sufficiency-contract "${PY}" runtime/record_sufficiency.py --print-sufficien
 run sufficiency-matrix "${PY}" runtime/record_sufficiency.py --print-sufficiency-matrix
 run authorization-contract "${PY}" runtime/record_authorization.py --print-authorization-contract
 run authorization-matrix "${PY}" runtime/record_authorization.py --print-authorization-matrix
+run optimum-authorization "${PY}" runtime/record_optimum_authorization.py --print-optimum-authorization
 run rewrite-contract "${PY}" runtime/record_storage_rewrite.py --print-rewrite-contract
 run rewrite-matrix "${PY}" runtime/record_storage_rewrite.py --print-rewrite-matrix
 

@@ -85,6 +85,7 @@ python3 runtime/record_storage_apply.py --print-apply-contract
 python3 runtime/record_mlir_carrier.py --print-carrier-extract
 python3 runtime/record_compiler_spine.py --print-compiler-spine
 python3 runtime/record_goal_alignment.py --print-goal-alignment
+python3 runtime/record_optimum_authorization.py --print-optimum-authorization
 ```
 
 | Command | What you should see |
@@ -95,6 +96,7 @@ python3 runtime/record_goal_alignment.py --print-goal-alignment
 | carrier extract | The same host result, read back from a text carrier. `host-matrix-through-carrier 29`. |
 | compiler spine | `spine-match yes`, `host-matrix-through-spine 29`, `can-run-plan no`, `induced-hb-copied no`. S05 is not a carrier result: the fixture stays `applied no`, and the extracted text applies. Eight spellable scenes pass. The full corpus is not claimed. |
 | goal alignment | `goal-alignment PASS`. The design page, this README, and the three status slides name the same cut. `next-cut NOT-OPENED`. |
+| optimum authorization | `result PASS`. The unique lowest-cost legal strategy is the authorization. The frozen 7A evaluator is unchanged. `can-run-plan` stays `no`. |
 
 The compiler spine command is the host carrier acceptance entry. It is not a substitute for `cmake --build build --target check-s2c2`. Running it does not change the semantic baseline and does not change `can-run-plan`.
 
@@ -108,7 +110,7 @@ Semantic baseline remains `36fd6fd931c109c6849cc366bd91b5abdfcab4b1`. Later docu
 scripts/check-host.sh
 ```
 
-This replays the 52 host contract and matrix printers plus the Ascend schema identity check and the CUDA schema printer. Expect `PASS 52 FAIL 0`; any failure makes it exit 1. `--log DIR` keeps each command's output. It needs Python 3 only. It does not include `check-s2c2`, and a pass does not change the semantic baseline, `can-run-plan`, or `next_cut`.
+This replays the 53 host contract and matrix printers plus the Ascend schema identity check and the CUDA schema printer. Expect `PASS 53 FAIL 0`; any failure makes it exit 1. `--log DIR` keeps each command's output. It needs Python 3 only. It does not include `check-s2c2`, and a pass does not change the semantic baseline, `can-run-plan`, or `next_cut`.
 
 ### CI
 

@@ -394,20 +394,33 @@ text that is not one W0-3/2 region before the host
 Scenario S05 is a known carrier/fixture difference; the full
 corpus is not claimed through the carrier.
 
-`7C`, `7D` / `7E`, `7F`, and `8A` are `NOT OPENED`. `7C` in
-particular would make `s2c2-opt` reach the host, which changes
-the boundary above. That is an explicit decision to open a
-cut. A next cut opens only when `stor`, `comp`, `comm`, and
-`sched`, composed, cannot express a necessary relation in a real
-scene
+`7C`, `7D` / `7E`, `7F`, and `8A` are `NOT OPENED`. A proposal
+for `7C` exists and is not opened:
+[`cut-7c-proposal.md`](design/cut-7c-proposal.md). Its option A
+is an orchestrator outside `s2c2-opt`, so the boundary above
+holds. The owner chose the reading in which the orchestrator
+derives the host program from the IR (A2). Defining that
+mapping is a contract, so 7C would be a semantic cut. It does
+not meet the opening condition below. The owner also set the
+authorization rule for that cut: the most efficient optimal
+strategy is the authorization.
+`runtime/record_optimum_authorization.py` implements that rule.
+The frozen 7A evaluator does not derive authorization from a
+selection. Opening a cut is an
+explicit decision.
+A semantic cut, one that adds a contract, opens only when
+`stor`, `comp`, `comm`, and `sched`, composed, cannot express a
+necessary relation in a real scene
 ([`empirical-semantic-boundary-v1.md`](design/empirical-semantic-boundary-v1.md)).
 Research direction versus this cut:
 [`goal-alignment-v1.md`](design/goal-alignment-v1.md).
 
 ### Checks
 
-`scripts/check-host.sh` replays the 52 host contract and matrix
+`scripts/check-host.sh` replays the 53 host contract and matrix
 printers plus the Ascend schema identity check and CUDA schema
-printer. CI runs it and `check-s2c2` (`.github/workflows/ci.yml`).
+printer. One of them is optimum authorization: the unique
+lowest-cost legal strategy is the authorization. That host does
+not change the frozen 7A evaluator. CI runs it and `check-s2c2` (`.github/workflows/ci.yml`).
 `main` requires both. They are checks, not review approval and not
 merge authorization.

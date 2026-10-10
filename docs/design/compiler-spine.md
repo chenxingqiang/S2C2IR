@@ -114,12 +114,20 @@ Host replay + CI                      MERGED @ ebc4cb6 (#158); check, not approv
 ```
 
 `7C` is not an engineering follow-up that opens by itself.
-Orchestrating authorization, rewrite-plan, and apply from
-`s2c2-opt` would make `s2c2-opt` reach the W0-3/2 host. The
-current boundary is the opposite: the carrier is not
-registered in `s2c2-opt`, and the optimizer does not call
-`evaluate_apply`. Changing that is an explicit decision to
-open a cut, not a documentation sync.
+A proposal exists and is not opened:
+[`cut-7c-proposal.md`](cut-7c-proposal.md). Its option A is an
+orchestrator outside `s2c2-opt`, so the carrier stays
+unregistered in `s2c2-opt` and the optimizer still does not
+call `evaluate_apply`. The owner chose the reading in which the
+orchestrator derives the host program from an IR file (A2).
+Defining that mapping is a contract, so 7C would be a semantic
+cut. It does not meet the written opening condition. The owner
+also set the authorization rule for that cut: the most
+efficient optimal strategy is the authorization.
+`runtime/record_optimum_authorization.py` implements that rule.
+The frozen 7A evaluator does not derive authorization from a
+selection.
+Opening is an explicit decision, not a documentation sync.
 
 ### 6C-M
 
