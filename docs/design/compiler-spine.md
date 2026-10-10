@@ -166,8 +166,17 @@ unique plan; `rewrite-path` stays `no`.
 
 [`storage-rewrite.md`](storage-rewrite.md).
 Semantic freeze at `3e942a8`. Merged via `#138`.
-IR apply stays closed. `#139` is unmerged contract.
-Apply inhabitant stays CLOSED.
+The 7B storage rewrite plan does not itself apply IR:
+`rewrite-path=no` and `applied=no` remain unchanged.
+
+The separate 7B-Apply contract is frozen and merged
+(`038f4a1`, `2821de8`, `#139`). The W0-3/2 Apply inhabitant
+v0 exists as a constrained host implementation (`c19b356`,
+`#141`). It is not `Enum_F`, does not make
+`can-run-plan=yes`, and does not open 7C. See 7B-Apply below.
+
+The carrier is not registered in `s2c2-opt`, and the
+optimizer does not call `evaluate_apply`.
 
 ```text
 rewrite-license  ≠  rewrite-plan
