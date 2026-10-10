@@ -11,6 +11,7 @@
 #include "AdapterContract.h"
 
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -2151,6 +2152,41 @@ static int runSsdMlpWallclock(int nHtod, int nCc, int kRef, int warmup,
   return 0;
 }
 
+// Name the GPU that is actually current. A 5090 run must not
+// print the 4090 contract tag.
+static std::string cudaGpuSlug() {
+  cudaDeviceProp prop{};
+  if (cudaGetDeviceProperties(&prop, 0) != cudaSuccess) {
+    std::fprintf(stderr, "s2c2-cuda-run gpu-name=unknown\n");
+    return "unknown";
+  }
+  std::fprintf(stderr, "s2c2-cuda-run gpu-name=%s compute=%d.%d\n", prop.name,
+               prop.major, prop.minor);
+  std::string lower;
+  for (const char *p = prop.name; *p; ++p)
+    lower.push_back(
+        static_cast<char>(std::tolower(static_cast<unsigned char>(*p))));
+  auto pos = lower.find("rtx");
+  if (pos != std::string::npos) {
+    std::string slug = "rtx";
+    for (size_t i = pos + 3; i < lower.size(); ++i) {
+      unsigned char c = static_cast<unsigned char>(lower[i]);
+      if (std::isdigit(c))
+        slug.push_back(static_cast<char>(c));
+      else if (slug.size() > 3)
+        break;
+    }
+    if (slug.size() > 3)
+      return slug;
+  }
+  std::string slug;
+  for (unsigned char c : lower) {
+    if (std::isalnum(c))
+      slug.push_back(static_cast<char>(c));
+  }
+  return slug.empty() ? std::string("unknown") : slug;
+}
+
 // Two-tile storage-aware pipeline wall-clock. Logical SSD is a
 // pageable host buffer, not NVMe. T_evi keeps C||Storage overlap
 // and flattens licensed C||C. Not Cost v0.4.
@@ -2329,15 +2365,21 @@ static int runStoragePipelineWallclock(int nTile, int nCc, int kRef, int warmup,
                           ProgArm::Par);
   double ratio = tSeq > 0.0 ? tEvi / tSeq : 0.0;
 
-  std::fprintf(stderr, "s2c2-cuda-run hardware_id=rtx4090:cuda sched=%s "
+  std::string gpu = cudaGpuSlug();
+  std::fprintf(stderr, "s2c2-cuda-run hardware_id=%s:cuda sched=%s "
                        "map=%s device=gpu sync=named-nonblocking\n",
-               kSched, kMap);
+               gpu.c_str(), kSched, kMap);
+  if (gpu != "rtx4090") {
+    std::fprintf(stderr, "s2c2-cuda-run storage-pipeline note "
+                         "not-rtx4090-contract\n");
+  }
   std::fprintf(stderr, "s2c2-cuda-run workload compute=elemwise\n");
   std::fprintf(stderr, "s2c2-cuda-run workload transfer=storage_to_host|"
                        "host_to_device\n");
   std::fprintf(stderr,
                "s2c2-cuda-run note workload-semantic-ne-kernel-backend\n");
   std::fprintf(stderr, "s2c2-cuda-run timing=host-wall-clock\n");
+  std::fprintf(stderr, "s2c2-cuda-run note host-wall-clock-ne-hb\n");
   std::fprintf(stderr, "s2c2-cuda-run storage-pipeline=1\n");
   std::fprintf(stderr,
                "s2c2-cuda-run storage-pipeline program-measurement=yes\n");

@@ -99,6 +99,13 @@ s2c2-cuda-run --storage-pipeline
 Do not FileCheck microseconds. Do not freeze `T_evi/T_seq` as Cost.
 `#69` untouched. Not a new Capability grid.
 
+A later run on an RTX 5090 is
+`docs/design/v3-dataset/storage-pipeline-5090.log`. It is
+`hardware_id=rtx5090:cuda`, `correctness=1`, and
+`not-rtx4090-contract`. It does not replace the 4090 log,
+does not name a disk path, and its host wall clock is not
+an HB edge.
+
 ```text
 T_seq  sequential SSD→Host→HtoD then compute then flattened C||C
 T_evi  KEEP C||Storage (SSD prefetch || compute); flatten licensed C||C
