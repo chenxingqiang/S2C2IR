@@ -12,6 +12,8 @@ from __future__ import annotations
 import argparse
 import copy
 import sys
+import threading
+import time
 from pathlib import Path
 
 _RUNTIME = Path(__file__).resolve().parent
@@ -36,14 +38,74 @@ def project(text: str, opt_argv: tuple[str, ...] = ()) -> dict:
     return carrier.extract(text)
 
 
-def integrate(text: str, opt_argv: tuple[str, ...] = (), apply_fn=None) -> dict:
+_UNSET = object()
+
+
+def integrate(
+    text: str,
+    opt_argv: tuple[str, ...] = (),
+    apply_fn=None,
+    *,
+    envelope=_UNSET,
+    witness=_UNSET,
+) -> dict:
+    """Carrier text to the existing host.
+
+    Without `envelope` and `witness` this is the acceptance driver. It
+    supplies the acceptance 7B envelope and builds a legal witness from
+    the extracted program. Neither comes from the caller, so
+    a successful apply on that path is acceptance evidence. It is not
+    an authorization of an arbitrary program.
+
+    A caller-supplied `envelope` or `witness` is passed to the host
+    unchanged, including `None` and a `legal=no` witness. The driver
+    does not replace a caller's refusal.
+    """
     program = project(text, opt_argv)
     if len(apply.find_regions(program)) != 1:
         raise SpineRefusal("no-region")
-    envelope = scenario.rewrite_plan()
-    witness = apply.bound_witness(program, device=scenario.DEVICE)
+    if envelope is _UNSET:
+        envelope = scenario.rewrite_plan()
+    if witness is _UNSET:
+        witness = apply.bound_witness(program, device=scenario.DEVICE)
     fn = apply.evaluate_apply if apply_fn is None else apply_fn
     return fn([envelope], program, device=scenario.DEVICE, witness=witness)
+
+
+def check_caller_supplied() -> None:
+    """A caller's missing or illegal witness, or a closed plan, stays a refusal."""
+    text = carrier.render(scenario.source_program())
+    extracted = project(text)
+
+    missing = integrate(text, witness=None)
+    if missing["match"] != "yes" or missing["applied"] != "no":
+        raise RuntimeError("caller-witness-missing")
+
+    illegal = integrate(
+        text,
+        witness=apply.bound_witness(extracted, device=scenario.DEVICE, legal="no"),
+    )
+    if illegal["match"] != "yes" or illegal["applied"] != "no":
+        raise RuntimeError("caller-witness-illegal")
+
+    wrong = integrate(
+        text, witness=apply.bound_witness(extracted, device="D2")
+    )
+    if wrong["match"] != "yes" or wrong["applied"] != "no":
+        raise RuntimeError("caller-witness-device")
+
+    closed = copy.deepcopy(scenario.rewrite_plan())
+    closed["rewrite-plan"]["result"] = "no"
+    closed["rewrite-plan"]["reasons"] = ["rewrite.license-no"]
+    refused = integrate(text, envelope=closed)
+    if refused["match"] != "no" or refused["applied"] != "no":
+        raise RuntimeError("caller-plan-closed")
+
+    for bag in (missing, illegal, wrong, refused):
+        if bag["can-run-plan"] != "no" or bag["rewrite-path"] != "no":
+            raise RuntimeError("caller-boundary")
+        if apply.canonical_program(bag["program"]) != apply.canonical_program(extracted):
+            raise RuntimeError("caller-source-mutated")
 
 
 def replay_matrix() -> int:
@@ -153,6 +215,55 @@ def replay_corpus() -> int:
     return spellable
 
 
+def check_guard_overlap() -> None:
+    """Two guarded host calls overlap in one process. The real
+    authorization function must still be the real one afterwards.
+
+    `_apply_guarded` replaces process-global authorization functions
+    while the host runs. Overlapping calls must not leave the
+    replacement installed.
+    """
+    import record_authorization as auth
+
+    real_eval = apply.evaluate_apply
+    real_auth = auth.evaluate_authorization
+    envelope = corpus._real_plan()
+    program = corpus._programs()["success"]
+    witness = corpus._witness(program, "bound")
+
+    def slow(envelopes, prog, **kwargs):
+        time.sleep(0.05)
+        return real_eval(envelopes, prog, **kwargs)
+
+    errors: list[str] = []
+
+    def run() -> None:
+        try:
+            corpus._apply_guarded(
+                copy.deepcopy(envelope),
+                copy.deepcopy(program),
+                copy.deepcopy(witness),
+            )
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(repr(exc))
+
+    apply.evaluate_apply = slow
+    try:
+        threads = [threading.Thread(target=run) for _ in range(3)]
+        for thread in threads:
+            thread.start()
+            time.sleep(0.01)
+        for thread in threads:
+            thread.join()
+    finally:
+        apply.evaluate_apply = real_eval
+    if errors:
+        raise RuntimeError("guard-overlap-error " + errors[0])
+    if auth.evaluate_authorization is not real_auth:
+        raise RuntimeError("guard-overlap-poisoned")
+    auth.evaluate_authorization(auth._all_required() + [auth._license("yes")])
+
+
 def _refuse_region(text: str, apply_fn, calls: list[str], code: str) -> None:
     try:
         integrate(text, apply_fn=apply_fn)
@@ -252,6 +363,8 @@ def _validate() -> dict:
         raise RuntimeError("opt-before-extract-called-apply")
     matrix = replay_matrix()
     scenes = replay_corpus()
+    check_guard_overlap()
+    check_caller_supplied()
 
     renamed = copy.deepcopy(scenario.source_program())
     renamed["blocks"][0]["ops"][0]["name"] = "9"
@@ -300,6 +413,14 @@ def print_contract() -> int:
     print("S05-fixture applied no")
     print("S05-carrier-only applied yes")
     print("carrier-encodes-induced-hb no")
+    print("authorization-guard-overlap restored")
+    print("default-path authorization acceptance-fixture")
+    print("default-path witness driver-built")
+    print("default-path caller-authorized no")
+    print("caller-witness-missing applied-no")
+    print("caller-witness-illegal applied-no")
+    print("caller-witness-wrong-device applied-no")
+    print("caller-plan-closed match-no applied-no")
     return 0
 
 

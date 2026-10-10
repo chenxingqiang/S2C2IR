@@ -13,6 +13,7 @@ import copy
 import hashlib
 import json
 import sys
+import threading
 from pathlib import Path
 
 _RUNTIME = Path(__file__).resolve().parent
@@ -22,6 +23,8 @@ if str(_RUNTIME) not in sys.path:
 import record_apply_scenario as anchor
 import record_authorization as auth
 import record_storage_apply as apply
+
+_GUARD_LOCK = threading.RLock()
 
 YES = "yes"
 NO = "no"
@@ -81,6 +84,19 @@ def _witness(program: dict, mode: str):
 
 
 def _apply_guarded(envelope: dict, source: dict, witness) -> tuple[dict, int]:
+    """Serialize guarded calls.
+
+    The guard replaces process-global authorization functions and
+    puts them back. Two overlapping calls would restore a stale
+    replacement and leave later authorization calls raising.
+    """
+    with _GUARD_LOCK:
+        return _apply_guarded_unlocked(envelope, source, witness)
+
+
+def _apply_guarded_unlocked(
+    envelope: dict, source: dict, witness
+) -> tuple[dict, int]:
     """Call evaluate_apply. Any authorization call during that call fails."""
     calls = [0]
     original = auth.evaluate_authorization
