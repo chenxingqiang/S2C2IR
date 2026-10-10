@@ -397,9 +397,11 @@ corpus is not claimed through the carrier.
 `7C`, `7D` / `7E`, `7F`, and `8A` are `NOT OPENED`. `7C` in
 particular would make `s2c2-opt` reach the host, which changes
 the boundary above. That is an explicit decision to open a
-cut. A next cut opens only when `stor`, `comp`, `comm`, and
-`sched`, composed, cannot express a necessary relation in a real
-scene
+cut. A proposal exists and is not decided:
+[`cut-7c-proposal.md`](design/cut-7c-proposal.md).
+A semantic cut, one that adds a contract, opens only when
+`stor`, `comp`, `comm`, and `sched`, composed, cannot express a
+necessary relation in a real scene
 ([`empirical-semantic-boundary-v1.md`](design/empirical-semantic-boundary-v1.md)).
 Research direction versus this cut:
 [`goal-alignment-v1.md`](design/goal-alignment-v1.md).
