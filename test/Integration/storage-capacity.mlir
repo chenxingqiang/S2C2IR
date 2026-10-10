@@ -1135,13 +1135,13 @@
 // ALGM: algebra-case dest-inv-yes-usable-yes
 // ALGM: algebra-decision subject=usable result=yes reasons=predicate.source-data-present,predicate.restore-ordering-present
 // ALGM: algebra-case source-unknown-scope
-// ALGM: algebra-record kind=source-data applicability=no canonical=evidence.unknown-scope display=unknown-scope family=evidence.scope-mismatch
+// ALGM: algebra-record selected=keep{0,1}|evict{2}|rematerialize{} object=2 kind=source-data applicability=no canonical=evidence.unknown-scope display=unknown-scope family=evidence.scope-mismatch
 // ALGM: algebra-decision subject=usable result=no reasons=evidence.unknown-scope,evidence.no-ordering-witness
 // ALGM: algebra-case replica-scope-mismatch
-// ALGM: algebra-record kind=source-data applicability=no canonical=evidence.replica-scope-mismatch display=replica-scope-mismatch family=evidence.scope-mismatch
+// ALGM: algebra-record selected=keep{0,1}|evict{2}|rematerialize{} object=2 kind=source-data applicability=no canonical=evidence.replica-scope-mismatch display=replica-scope-mismatch family=evidence.scope-mismatch
 // ALGM: algebra-decision subject=usable result=no reasons=evidence.replica-scope-mismatch,evidence.no-ordering-witness
 // ALGM: algebra-case dest-scope-mismatch-usable-yes
-// ALGM: algebra-record kind=dest-invalidation applicability=no canonical=evidence.destination-scope-mismatch display=destination-scope-mismatch family=evidence.scope-mismatch
+// ALGM: algebra-record selected=keep{0,1}|evict{2}|rematerialize{} object=2 kind=dest-invalidation applicability=no canonical=evidence.destination-scope-mismatch display=destination-scope-mismatch family=evidence.scope-mismatch
 // ALGM: algebra-decision subject=usable result=yes reasons=predicate.source-data-present,predicate.restore-ordering-present
 // ALGM: algebra-case missing-ordering
 // ALGM: algebra-decision subject=usable result=no reasons=predicate.missing-input
