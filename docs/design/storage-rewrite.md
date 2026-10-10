@@ -148,6 +148,23 @@ counted claim is the `sequence` payload. v0.1 does not
 require `result=yes`; a matching payload with `result=no`
 is still the unique plan claim.
 
+## Object binding
+
+`evaluate_rewrite` still emits the unbound step list. That
+18-case planner is unchanged.
+
+`bind_rewrite_plan` copies a yes-plan and names the steps
+on `identity.selected`:
+
+```text
+keep{K1,K2}|evict{E}|rematerialize{}
+    → KEEP K1, KEEP K2, EVICT E, TRANSFER E, RESTORE E
+```
+
+Any other shape, including a non-empty rematerialize, is
+`rewrite.sequence-mismatch`. Binding does not apply the
+plan. `applied` stays `no`. `rewrite-path` stays `no`.
+
 ## Planner vs AuthorizationEvaluator
 
 ```text
