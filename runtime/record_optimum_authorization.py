@@ -130,12 +130,19 @@ def authorize_optimum(strategies: list) -> dict:
         return _refuse("optimum.identity-missing")
     selected, obj, action = ident
     envelope = _authorization(winner, selected, obj, action)
-    plan = rew.evaluate_rewrite(
-        [envelope],
-        selected=selected,
-        obj=obj,
-        action=action,
+    plan = rew.bind_rewrite_plan(
+        rew.evaluate_rewrite(
+            [envelope],
+            selected=selected,
+            obj=obj,
+            action=action,
+        )
     )
+    if plan["rewrite-plan"]["result"] != "yes":
+        refused = _refuse("optimum.unbound")
+        refused["authorization"] = envelope
+        refused["rewrite"] = plan
+        return refused
     return {
         "schema": SCHEMA,
         "rule": RULE,
@@ -239,6 +246,19 @@ def _validate() -> None:
         raise RuntimeError("plan-boundary")
     if plan["identity"]["selected"] != auth.SELECTED_S0:
         raise RuntimeError("plan-identity")
+    if plan["sequence"] != [
+        {"step": "KEEP", "name": "0"},
+        {"step": "KEEP", "name": "1"},
+        {"step": "EVICT", "name": "2"},
+        {"step": "TRANSFER", "name": "2"},
+        {"step": "RESTORE", "name": "2"},
+    ]:
+        raise RuntimeError("bound-sequence")
+    unbound = acceptance_strategies()
+    unbound[1]["selected"] = "keep{0}|evict{1,2}|rematerialize{}"
+    unbound[1]["cost"] = 1
+    if authorize_optimum(unbound)["reasons"] != ["optimum.unbound"]:
+        raise RuntimeError("unbound")
 
     if authorize_optimum(_tie_strategies())["reasons"] != ["optimum.tie"]:
         raise RuntimeError("tie")
@@ -329,6 +349,12 @@ def print_optimum_authorization() -> int:
     print(f"authorized {chosen['authorization']['authorized']['result']}")
     print(f"rewrite-license {chosen['authorization']['rewrite-license']['result']}")
     print(f"rewrite-plan {chosen['rewrite']['rewrite-plan']['result']}")
+    print(
+        "bound-sequence "
+        + ",".join(
+            f"{step['step']}:{step['name']}" for step in chosen["rewrite"]["sequence"]
+        )
+    )
     print("illegal-cheaper-not-selected yes")
     print(f"tie {authorize_optimum(_tie_strategies())['result']}")
     print(
