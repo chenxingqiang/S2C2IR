@@ -38,14 +38,74 @@ def project(text: str, opt_argv: tuple[str, ...] = ()) -> dict:
     return carrier.extract(text)
 
 
-def integrate(text: str, opt_argv: tuple[str, ...] = (), apply_fn=None) -> dict:
+_UNSET = object()
+
+
+def integrate(
+    text: str,
+    opt_argv: tuple[str, ...] = (),
+    apply_fn=None,
+    *,
+    envelope=_UNSET,
+    witness=_UNSET,
+) -> dict:
+    """Carrier text to the existing host.
+
+    Without `envelope` and `witness` this is the acceptance driver. It
+    supplies the acceptance 7B envelope and builds a legal witness from
+    the extracted program. Neither comes from the caller, so
+    a successful apply on that path is acceptance evidence. It is not
+    an authorization of an arbitrary program.
+
+    A caller-supplied `envelope` or `witness` is passed to the host
+    unchanged, including `None` and a `legal=no` witness. The driver
+    does not replace a caller's refusal.
+    """
     program = project(text, opt_argv)
     if len(apply.find_regions(program)) != 1:
         raise SpineRefusal("no-region")
-    envelope = scenario.rewrite_plan()
-    witness = apply.bound_witness(program, device=scenario.DEVICE)
+    if envelope is _UNSET:
+        envelope = scenario.rewrite_plan()
+    if witness is _UNSET:
+        witness = apply.bound_witness(program, device=scenario.DEVICE)
     fn = apply.evaluate_apply if apply_fn is None else apply_fn
     return fn([envelope], program, device=scenario.DEVICE, witness=witness)
+
+
+def check_caller_supplied() -> None:
+    """A caller's missing or illegal witness, or a closed plan, stays a refusal."""
+    text = carrier.render(scenario.source_program())
+    extracted = project(text)
+
+    missing = integrate(text, witness=None)
+    if missing["match"] != "yes" or missing["applied"] != "no":
+        raise RuntimeError("caller-witness-missing")
+
+    illegal = integrate(
+        text,
+        witness=apply.bound_witness(extracted, device=scenario.DEVICE, legal="no"),
+    )
+    if illegal["match"] != "yes" or illegal["applied"] != "no":
+        raise RuntimeError("caller-witness-illegal")
+
+    wrong = integrate(
+        text, witness=apply.bound_witness(extracted, device="D2")
+    )
+    if wrong["match"] != "yes" or wrong["applied"] != "no":
+        raise RuntimeError("caller-witness-device")
+
+    closed = copy.deepcopy(scenario.rewrite_plan())
+    closed["rewrite-plan"]["result"] = "no"
+    closed["rewrite-plan"]["reasons"] = ["rewrite.license-no"]
+    refused = integrate(text, envelope=closed)
+    if refused["match"] != "no" or refused["applied"] != "no":
+        raise RuntimeError("caller-plan-closed")
+
+    for bag in (missing, illegal, wrong, refused):
+        if bag["can-run-plan"] != "no" or bag["rewrite-path"] != "no":
+            raise RuntimeError("caller-boundary")
+        if apply.canonical_program(bag["program"]) != apply.canonical_program(extracted):
+            raise RuntimeError("caller-source-mutated")
 
 
 def replay_matrix() -> int:
@@ -304,6 +364,7 @@ def _validate() -> dict:
     matrix = replay_matrix()
     scenes = replay_corpus()
     check_guard_overlap()
+    check_caller_supplied()
 
     renamed = copy.deepcopy(scenario.source_program())
     renamed["blocks"][0]["ops"][0]["name"] = "9"
@@ -353,6 +414,13 @@ def print_contract() -> int:
     print("S05-carrier-only applied yes")
     print("carrier-encodes-induced-hb no")
     print("authorization-guard-overlap restored")
+    print("default-path authorization acceptance-fixture")
+    print("default-path witness driver-built")
+    print("default-path caller-authorized no")
+    print("caller-witness-missing applied-no")
+    print("caller-witness-illegal applied-no")
+    print("caller-witness-wrong-device applied-no")
+    print("caller-plan-closed match-no applied-no")
     return 0
 
 

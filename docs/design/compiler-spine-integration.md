@@ -74,6 +74,39 @@ rewrite plan stay the existing producers. This driver
 does not re-evaluate them and does not copy
 `evaluate_apply`.
 
+## Who supplies authorization and the witness
+
+Called with only carrier text, `integrate` is the acceptance
+driver. It supplies the acceptance 7B envelope and builds a
+legal witness from the extracted program. Neither comes from
+the caller. So `applied=yes` on that path is acceptance
+evidence for a program that matches the acceptance identity.
+It is not an authorization of an arbitrary program, and it
+is not a compiler deciding to rewrite.
+
+```text
+default-path authorization   acceptance-fixture
+default-path witness         driver-built
+default-path caller-authorized  no
+```
+
+A caller may pass its own `envelope` and `witness`. They go
+to the host unchanged. A missing witness, a `legal=no`
+witness, a witness for another device, and a closed plan are
+each still a refusal: `applied=no`, `can-run-plan=no`, source
+unchanged. The driver does not replace a caller's refusal.
+The contract run checks all four.
+
+## Guard overlap
+
+The Scenario Corpus replay swaps process-global authorization
+functions while the host runs, to prove the host does not
+re-open authorization. Calls are serialized by a lock. Without
+it, overlapping calls left a stale replacement installed and
+later authorization calls raised `authorization-reopened`.
+The contract run forces that overlap and checks the real
+function is back.
+
 ## Not in this handoff
 
 ```text
