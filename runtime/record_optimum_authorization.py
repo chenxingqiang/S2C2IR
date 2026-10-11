@@ -32,6 +32,9 @@ _CAPACITY_SPEC = _ROOT / "docs/design/v3-dataset/storage-capacity-4tile.jsonl"
 _CAPACITY_RESTORE = (
     _ROOT / "docs/design/v3-dataset/storage-capacity-4tile-restore-order.jsonl"
 )
+_CAPACITY_DEST = (
+    _ROOT / "docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl"
+)
 _CAPACITY_TABLE = (
     _ROOT / "docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl"
 )
@@ -196,7 +199,11 @@ def apply_optimum(strategies: list, program: dict, *, device: str = "D0", witnes
 
 
 def _restore_usable(cand: dict) -> bool:
-    """An evict is a strategy only when every restore is usable."""
+    """An evict is eligible only when every restore is usable and invalidated.
+
+    This is not Decision.subject=sufficient. That decision stays
+    in the frozen evaluator and is not derived here.
+    """
     evict = cand.get("evict")
     restores = cand.get("restores")
     if not isinstance(evict, list) or not isinstance(restores, list):
@@ -205,14 +212,19 @@ def _restore_usable(cand: dict) -> bool:
         return not restores
     if len(restores) != len(evict):
         return False
-    return all(isinstance(rec, dict) and rec.get("usable") is True for rec in restores)
+    for rec in restores:
+        if not isinstance(rec, dict):
+            return False
+        if rec.get("usable") is not True or rec.get("dest_invalidation") is not True:
+            return False
+    return True
 
 
 def strategies_from_capacity(plan: dict, costs: dict) -> list[dict]:
     """One strategy per F_capacity candidate. Costs outside F are ignored.
 
-    A candidate whose restore is not usable is legal=no, so a lower
-    cost cannot select it.
+    A candidate whose restore is not usable, or whose destination
+    was not invalidated, is legal=no. A lower cost cannot select it.
     """
     if not isinstance(plan, dict) or not isinstance(costs, dict):
         return []
@@ -443,7 +455,10 @@ def _validate_capacity() -> None:
     costs = costs_from_measured(_CAPACITY_TABLE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD)
     if authorize_capacity(plain, costs)["reasons"] != ["optimum.no-legal"]:
         raise RuntimeError("capacity-plain")
-    plan = load_capacity_plan(_CAPACITY_RESTORE)
+    ordered = load_capacity_plan(_CAPACITY_RESTORE)
+    if authorize_capacity(ordered, costs)["reasons"] != ["optimum.no-legal"]:
+        raise RuntimeError("capacity-ordered")
+    plan = load_capacity_plan(_CAPACITY_DEST)
     snapshot = copy.deepcopy(plan)
     chosen = authorize_capacity(plan, costs)
     if plan != snapshot:
@@ -464,6 +479,8 @@ def _validate_capacity() -> None:
         raise RuntimeError("capacity-run")
     if plan["selected"] != "none" or plain["selected"] != "none":
         raise RuntimeError("capacity-selected-changed")
+    if ordered["selected"] != "none":
+        raise RuntimeError("capacity-ordered-selected")
     outside = dict(costs)
     outside["keep{9}|evict{9}|rematerialize{}"] = 1
     if authorize_capacity(plan, outside)["strategy-id"] != chosen["strategy-id"]:
@@ -478,7 +495,7 @@ def _validate_capacity() -> None:
     for cand in blocked["candidates"]:
         if cand["identity"] == auth.SELECTED_S0:
             for rec in cand["restores"]:
-                rec["usable"] = False
+                rec["dest_invalidation"] = False
     skipped = authorize_capacity(blocked, costs)
     nxt = min(
         (costs[cand["identity"]], cand["identity"])
@@ -552,9 +569,11 @@ def print_optimum_authorization() -> int:
         _CAPACITY_TABLE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD
     )
     plain_chosen = authorize_capacity(load_capacity_plan(), cap_costs)
-    cap_chosen = authorize_capacity(load_capacity_plan(_CAPACITY_RESTORE), cap_costs)
+    ordered_chosen = authorize_capacity(load_capacity_plan(_CAPACITY_RESTORE), cap_costs)
+    cap_chosen = authorize_capacity(load_capacity_plan(_CAPACITY_DEST), cap_costs)
     print(f"capacity-f {_CAPACITY_WORKLOAD}")
     print(f"capacity-plain {plain_chosen['result']}")
+    print(f"capacity-restore-order {ordered_chosen['result']}")
     print(f"capacity-selected {cap_chosen['strategy-id']}")
     print(
         "capacity-bound "
