@@ -33,6 +33,8 @@ S2C2_GIT_COMMIT=$(git rev-parse HEAD) ./runtime/cuda/sweep_cuda_val_async.sh ./s
 #   ./s2c2-cuda-run docs/design/v3-dataset/storage-pipeline-4090
 # RTX 5090 observation (not the 4090 contract):
 #   docs/design/v3-dataset/storage-pipeline-5090.log
+# Optional file backing (storage pipeline only; default stays malloc):
+#   ./s2c2-cuda-run --storage-pipeline --ssd-dir=/var/tmp/s2c2-ssd
 # Loop-pipeline timed (4090): runtime/cuda/sweep_storage_loop_wallclock.sh \
 #   ./s2c2-cuda-run docs/design/v3-dataset/storage-loop-wallclock-4090
 # Measured-storage-v1 (4090): runtime/cuda/sweep_storage_measured.sh \
