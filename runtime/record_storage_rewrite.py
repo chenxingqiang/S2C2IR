@@ -159,6 +159,92 @@ def _as_sequence(rec: dict) -> tuple[str, ...] | None:
     return tuple(raw)
 
 
+def parse_selected(selected: str):
+    """keep{a,b}|evict{c}|rematerialize{} → those name lists, in order."""
+    if not isinstance(selected, str) or not selected.startswith("keep{"):
+        return None
+    rest = selected[len("keep{") :]
+    keep_s, sep, rest = rest.partition("}|evict{")
+    if not sep:
+        return None
+    evict_s, sep, rest = rest.partition("}|rematerialize{")
+    if not sep or not rest.endswith("}"):
+        return None
+    remat_s = rest[:-1]
+
+    def split(text: str):
+        if text == "":
+            return []
+        parts = text.split(",")
+        if any(part == "" for part in parts):
+            return None
+        return parts
+
+    keep = split(keep_s)
+    evict = split(evict_s)
+    remat = split(remat_s)
+    if keep is None or evict is None or remat is None:
+        return None
+    return {"keep": keep, "evict": evict, "rematerialize": remat}
+
+
+def bound_sequence(selected: str):
+    """The one rewrite, named on the selected objects.
+
+    Two KEEP, one EVICT, then TRANSFER and RESTORE of that EVICT.
+    Rematerialize stays empty. Any other shape is not this plan.
+    """
+    parsed = parse_selected(selected)
+    if parsed is None:
+        return None
+    keep = parsed["keep"]
+    evict = parsed["evict"]
+    if parsed["rematerialize"] or len(keep) != 2 or len(evict) != 1:
+        return None
+    if len(set(keep + evict)) != 3:
+        return None
+    evicted = evict[0]
+    return [
+        {"step": "KEEP", "name": keep[0]},
+        {"step": "KEEP", "name": keep[1]},
+        {"step": "EVICT", "name": evicted},
+        {"step": "TRANSFER", "name": evicted},
+        {"step": "RESTORE", "name": evicted},
+    ]
+
+
+def bind_rewrite_plan(plan: dict) -> dict:
+    """Copy a yes-plan and name the sequence on identity.selected.
+
+    evaluate_rewrite is unchanged: its sequence stays the unbound
+    step list. This does not apply the plan.
+    """
+    if not isinstance(plan, dict):
+        return {
+            "schema": REWRITE_SCHEMA,
+            "rewrite-plan": _decision("no", ["rewrite.sequence-mismatch"]),
+            "sequence": "n/a",
+            "transformation": "n/a",
+            "applied": "no",
+            "rewrite-path": "no",
+            "can-run-plan": "no",
+        }
+    out = copy.deepcopy(plan)
+    decision = out.get("rewrite-plan")
+    if not isinstance(decision, dict) or decision.get("result") != "yes":
+        return out
+    ident = out.get("identity")
+    selected = ident.get("selected") if isinstance(ident, dict) else None
+    bound = bound_sequence(selected) if isinstance(selected, str) else None
+    if bound is None:
+        out["rewrite-plan"] = _decision("no", ["rewrite.sequence-mismatch"])
+        out["sequence"] = "n/a"
+        out["transformation"] = "n/a"
+        return out
+    out["sequence"] = bound
+    return out
+
+
 def evaluate_rewrite(
     inputs: list[dict],
     *,
@@ -500,6 +586,48 @@ def _validate() -> None:
             raise RuntimeError(f"matrix did not emit {token}")
     if "decision.plan-closed" in emitted:
         raise RuntimeError("success path reopened decision.*")
+    _validate_binding()
+
+
+def _validate_binding() -> None:
+    yes = None
+    for name, inputs, kwargs in _cases():
+        if name == "rewrite-plan-yes":
+            yes = evaluate_rewrite(inputs, **kwargs)
+            break
+    if yes is None:
+        raise RuntimeError("binding-source")
+    raw = copy.deepcopy(yes)
+    bound = bind_rewrite_plan(yes)
+    if yes != raw:
+        raise RuntimeError("binding-mutated")
+    if yes["sequence"] != list(SEQUENCE_V01):
+        raise RuntimeError("planner-sequence")
+    if bound["sequence"] != [
+        {"step": "KEEP", "name": "0"},
+        {"step": "KEEP", "name": "1"},
+        {"step": "EVICT", "name": "2"},
+        {"step": "TRANSFER", "name": "2"},
+        {"step": "RESTORE", "name": "2"},
+    ]:
+        raise RuntimeError("bound-sequence")
+    if bound["rewrite-plan"]["result"] != "yes":
+        raise RuntimeError("bound-plan")
+    if bound["applied"] != "no" or bound["rewrite-path"] != "no":
+        raise RuntimeError("bound-boundary")
+    if bound["can-run-plan"] != "no":
+        raise RuntimeError("bound-run")
+    if bound["transformation"] != TRANSFORMATION_V01:
+        raise RuntimeError("bound-transformation")
+    remat = copy.deepcopy(yes)
+    remat["identity"]["selected"] = "keep{0,1}|evict{2}|rematerialize{9}"
+    refused = bind_rewrite_plan(remat)
+    if refused["rewrite-plan"]["reasons"] != ["rewrite.sequence-mismatch"]:
+        raise RuntimeError("rematerialize")
+    if remat["rewrite-plan"]["result"] != "yes":
+        raise RuntimeError("rematerialize-input")
+    if bind_rewrite_plan("nope")["rewrite-plan"]["reasons"] != ["rewrite.sequence-mismatch"]:
+        raise RuntimeError("binding-malformed")
 
 
 def print_contract() -> int:
