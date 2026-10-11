@@ -412,6 +412,11 @@ A semantic cut, one that adds a contract, opens only when
 `stor`, `comp`, `comm`, and `sched`, composed, cannot express a
 necessary relation in a real scene
 ([`empirical-semantic-boundary-v1.md`](design/empirical-semantic-boundary-v1.md)).
+The storage-pipeline audit
+([`expressibility-audit-v1.md`](design/expressibility-audit-v1.md))
+reads `@ssd_pipeline_two_tiles` against the 4090 and 910B
+device logs and finds no such relation, so this round does
+not open a cut.
 Research direction versus this cut:
 [`goal-alignment-v1.md`](design/goal-alignment-v1.md).
 
