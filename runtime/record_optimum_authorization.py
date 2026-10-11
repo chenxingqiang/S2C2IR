@@ -29,6 +29,9 @@ SCHEMA = "s2c2.optimum_authorization.v1"
 RULE = "unique-minimum-cost"
 _ROOT = _RUNTIME.parent
 _CAPACITY_SPEC = _ROOT / "docs/design/v3-dataset/storage-capacity-4tile.jsonl"
+_CAPACITY_RESTORE = (
+    _ROOT / "docs/design/v3-dataset/storage-capacity-4tile-restore-order.jsonl"
+)
 _CAPACITY_TABLE = (
     _ROOT / "docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl"
 )
@@ -192,8 +195,25 @@ def apply_optimum(strategies: list, program: dict, *, device: str = "D0", witnes
     )
 
 
+def _restore_usable(cand: dict) -> bool:
+    """An evict is a strategy only when every restore is usable."""
+    evict = cand.get("evict")
+    restores = cand.get("restores")
+    if not isinstance(evict, list) or not isinstance(restores, list):
+        return False
+    if not evict:
+        return not restores
+    if len(restores) != len(evict):
+        return False
+    return all(isinstance(rec, dict) and rec.get("usable") is True for rec in restores)
+
+
 def strategies_from_capacity(plan: dict, costs: dict) -> list[dict]:
-    """One strategy per F_capacity candidate. Costs outside F are ignored."""
+    """One strategy per F_capacity candidate. Costs outside F are ignored.
+
+    A candidate whose restore is not usable is legal=no, so a lower
+    cost cannot select it.
+    """
     if not isinstance(plan, dict) or not isinstance(costs, dict):
         return []
     if plan.get("truncated") is True or plan.get("enumerated") is False:
@@ -208,21 +228,22 @@ def strategies_from_capacity(plan: dict, costs: dict) -> list[dict]:
         ident = cand.get("identity")
         if not isinstance(ident, str) or ident == "":
             return []
+        usable = _restore_usable(cand)
         row = {
             "id": ident,
-            "legal": "yes",
+            "legal": "yes" if usable else "no",
             "selected": ident,
             "object": auth.OBJECT_2,
             "action": auth.ACTION_V01,
         }
-        if ident in costs:
+        if usable and ident in costs:
             row["cost"] = costs[ident]
         rows.append(row)
     return rows
 
 
 def authorize_capacity(plan: dict, costs: dict) -> dict:
-    """Unique minimum cost in F_capacity is the 7B authorization."""
+    """Unique minimum cost among restore-usable F_capacity candidates."""
     if not isinstance(plan, dict) or not isinstance(costs, dict):
         return _refuse("optimum.malformed")
     strategies = strategies_from_capacity(plan, costs)
@@ -414,12 +435,15 @@ def _validate() -> None:
 
 
 def _validate_capacity() -> None:
-    plan = load_capacity_plan()
-    if plan["selected"] != "none" or plan["rewrite_license"] != "no":
+    plain = load_capacity_plan()
+    if plain["selected"] != "none" or plain["rewrite_license"] != "no":
         raise RuntimeError("capacity-unlicensed")
-    if plan["rewrite"] != "no":
+    if plain["rewrite"] != "no":
         raise RuntimeError("capacity-rewrite")
     costs = costs_from_measured(_CAPACITY_TABLE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD)
+    if authorize_capacity(plain, costs)["reasons"] != ["optimum.no-legal"]:
+        raise RuntimeError("capacity-plain")
+    plan = load_capacity_plan(_CAPACITY_RESTORE)
     snapshot = copy.deepcopy(plan)
     chosen = authorize_capacity(plan, costs)
     if plan != snapshot:
@@ -438,7 +462,7 @@ def _validate_capacity() -> None:
         raise RuntimeError("capacity-cost")
     if chosen["can-run-plan"] != "no":
         raise RuntimeError("capacity-run")
-    if plan["selected"] != "none":
+    if plan["selected"] != "none" or plain["selected"] != "none":
         raise RuntimeError("capacity-selected-changed")
     outside = dict(costs)
     outside["keep{9}|evict{9}|rematerialize{}"] = 1
@@ -450,6 +474,21 @@ def _validate_capacity() -> None:
     one = costs_from_measured(_CAPACITY_ONE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD)
     if authorize_capacity(plan, one)["reasons"] != ["optimum.cost-missing"]:
         raise RuntimeError("capacity-one")
+    blocked = copy.deepcopy(plan)
+    for cand in blocked["candidates"]:
+        if cand["identity"] == auth.SELECTED_S0:
+            for rec in cand["restores"]:
+                rec["usable"] = False
+    skipped = authorize_capacity(blocked, costs)
+    nxt = min(
+        (costs[cand["identity"]], cand["identity"])
+        for cand in plan["candidates"]
+        if cand["identity"] != auth.SELECTED_S0
+    )
+    if skipped["result"] != "yes" or skipped["strategy-id"] != nxt[1]:
+        raise RuntimeError("skipped-unusable")
+    if skipped["can-run-plan"] != "no":
+        raise RuntimeError("skipped-run")
     program = program_for_selection(chosen["strategy-id"])
     if program is None:
         raise RuntimeError("capacity-program")
@@ -509,12 +548,13 @@ def print_optimum_authorization() -> int:
     print(f"apply-match {applied['match']}")
     print("apply-can-run-plan " + applied["can-run-plan"])
     print("can-run-plan no")
-    cap_plan = load_capacity_plan()
     cap_costs = costs_from_measured(
         _CAPACITY_TABLE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD
     )
-    cap_chosen = authorize_capacity(cap_plan, cap_costs)
+    plain_chosen = authorize_capacity(load_capacity_plan(), cap_costs)
+    cap_chosen = authorize_capacity(load_capacity_plan(_CAPACITY_RESTORE), cap_costs)
     print(f"capacity-f {_CAPACITY_WORKLOAD}")
+    print(f"capacity-plain {plain_chosen['result']}")
     print(f"capacity-selected {cap_chosen['strategy-id']}")
     print(
         "capacity-bound "

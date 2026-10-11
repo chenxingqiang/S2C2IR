@@ -204,8 +204,10 @@ optimizations. Not an `F_storage_schedule` inhabitant.
 in `selected`. The 18-case planner still emits the unbound
 step list. `evaluate_rewrite` is unchanged. The 4-tile
 `F_capacity` set is ranked by the existing measured fixture
-table; the unique minimum is that bound plan. The capacity
-printers still report `rewrite-license=no`.
+table only among candidates whose restore is usable. The
+plain spec has no restore witness and is not authorized.
+The unique minimum of the restore-order spec is that bound
+plan. The capacity printers still report `rewrite-license=no`.
 Concurrent sibling reorder stays a frozen transform
 witness; it is not this first product rewrite.
 
