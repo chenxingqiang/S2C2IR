@@ -204,9 +204,10 @@ optimizations. Not an `F_storage_schedule` inhabitant.
 in `selected`. The 18-case planner still emits the unbound
 step list. `evaluate_rewrite` is unchanged. The 4-tile
 `F_capacity` set is ranked by the existing measured fixture
-table only among candidates whose restore is usable and
-whose destination was invalidated. That filter is not
-`Decision.subject=sufficient`. The plain spec and the
+table only among candidates the frozen sufficiency
+evaluator accepts. `capacity-legal=yes` is membership in
+the enumerated, non-truncated set. `sufficient=yes` does
+not set `rewrite-license`. The plain spec and the
 restore-order spec are not authorized. The unique minimum
 of the dest-invalidation spec is that bound plan. The
 capacity printers still report `rewrite-license=no`.

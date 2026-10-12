@@ -23,6 +23,7 @@ import record_apply_scenario as scenario
 import record_authorization as auth
 import record_capacity as cap
 import record_storage_apply as apply
+import record_sufficiency as suf
 import record_storage_rewrite as rew
 
 SCHEMA = "s2c2.optimum_authorization.v1"
@@ -198,33 +199,52 @@ def apply_optimum(strategies: list, program: dict, *, device: str = "D0", witnes
     )
 
 
-def _restore_usable(cand: dict) -> bool:
-    """An evict is eligible only when every restore is usable and invalidated.
+def _yn(flag: bool) -> str:
+    return "yes" if flag is True else "no"
 
-    This is not Decision.subject=sufficient. That decision stays
-    in the frozen evaluator and is not derived here.
+
+def _capacity_sufficiency(cand: dict, selected: str) -> dict:
+    """Ask the frozen sufficiency evaluator. Do not AND the predicates here.
+
+    capacity-legal is yes because this candidate is a member of an
+    enumerated, non-truncated F_capacity. The other three inputs are
+    the restore record's own flags.
     """
     evict = cand.get("evict")
     restores = cand.get("restores")
-    if not isinstance(evict, list) or not isinstance(restores, list):
-        return False
-    if not evict:
-        return not restores
-    if len(restores) != len(evict):
-        return False
-    for rec in restores:
-        if not isinstance(rec, dict):
-            return False
-        if rec.get("usable") is not True or rec.get("dest_invalidation") is not True:
-            return False
-    return True
+    shaped = isinstance(evict, list) and isinstance(restores, list) and (
+        (not evict and not restores) or (bool(evict) and len(restores) == len(evict))
+    )
+    if not shaped:
+        usable = ordering = dest = False
+    elif not evict:
+        usable = ordering = dest = True
+    else:
+        usable = all(
+            isinstance(rec, dict) and rec.get("usable") is True for rec in restores
+        )
+        ordering = all(
+            isinstance(rec, dict) and rec.get("restore_ordering") is True
+            for rec in restores
+        )
+        dest = all(
+            isinstance(rec, dict) and rec.get("dest_invalidation") is True
+            for rec in restores
+        )
+    inputs = [
+        suf._inp("usable", _yn(usable), selected=selected),
+        suf._inp("restore-ordering", _yn(ordering), selected=selected),
+        suf._inp("dest-invalidation", _yn(dest), selected=selected),
+        suf._inp("capacity-legal", "yes", selected=selected),
+    ]
+    return suf.evaluate_sufficiency(inputs, selected=selected, obj=auth.OBJECT_2)
 
 
 def strategies_from_capacity(plan: dict, costs: dict) -> list[dict]:
     """One strategy per F_capacity candidate. Costs outside F are ignored.
 
-    A candidate whose restore is not usable, or whose destination
-    was not invalidated, is legal=no. A lower cost cannot select it.
+    A candidate is legal only when the frozen sufficiency evaluator
+    returns yes. A lower cost cannot select a no.
     """
     if not isinstance(plan, dict) or not isinstance(costs, dict):
         return []
@@ -240,22 +260,23 @@ def strategies_from_capacity(plan: dict, costs: dict) -> list[dict]:
         ident = cand.get("identity")
         if not isinstance(ident, str) or ident == "":
             return []
-        usable = _restore_usable(cand)
+        decision = _capacity_sufficiency(cand, ident)
+        eligible = decision["decision"]["result"] == "yes"
         row = {
             "id": ident,
-            "legal": "yes" if usable else "no",
+            "legal": "yes" if eligible else "no",
             "selected": ident,
             "object": auth.OBJECT_2,
             "action": auth.ACTION_V01,
         }
-        if usable and ident in costs:
+        if eligible and ident in costs:
             row["cost"] = costs[ident]
         rows.append(row)
     return rows
 
 
 def authorize_capacity(plan: dict, costs: dict) -> dict:
-    """Unique minimum cost among restore-usable F_capacity candidates."""
+    """Unique minimum cost among F_capacity candidates the sufficiency evaluator accepts."""
     if not isinstance(plan, dict) or not isinstance(costs, dict):
         return _refuse("optimum.malformed")
     strategies = strategies_from_capacity(plan, costs)
@@ -472,6 +493,20 @@ def _validate_capacity() -> None:
         raise RuntimeError("capacity-rank")
     if chosen["strategy-id"] != auth.SELECTED_S0:
         raise RuntimeError("capacity-winner")
+    winner = next(c for c in plan["candidates"] if c["identity"] == chosen["strategy-id"])
+    sufficient = _capacity_sufficiency(winner, chosen["strategy-id"])
+    if sufficient["decision"]["result"] != "yes":
+        raise RuntimeError("capacity-sufficient")
+    if sufficient["decision"]["reasons"] != ["decision.sufficient-closed"]:
+        raise RuntimeError("capacity-sufficient-reason")
+    if sufficient["rewrite-license"] != "no" or sufficient["can-run-plan"] != "no":
+        raise RuntimeError("capacity-sufficient-boundary")
+    ordered_cand = ordered["candidates"][0]
+    ordered_suf = _capacity_sufficiency(ordered_cand, ordered_cand["identity"])
+    if ordered_suf["decision"]["result"] != "no":
+        raise RuntimeError("ordered-not-sufficient")
+    if "predicate.dest-invalidation-no" not in ordered_suf["decision"]["reasons"]:
+        raise RuntimeError("ordered-dest-reason")
     in_f = [costs[c["identity"]] for c in plan["candidates"]]
     if chosen["cost"] != min(in_f):
         raise RuntimeError("capacity-cost")
@@ -582,6 +617,8 @@ def print_optimum_authorization() -> int:
             for step in cap_chosen["rewrite"]["sequence"]
         )
     )
+    print("capacity-sufficient yes")
+    print("capacity-sufficient-ne-rewrite-license yes")
     print("capacity-matches-measured-rank yes")
     print("outside-f-ignored yes")
     print("capacity-tie no")
