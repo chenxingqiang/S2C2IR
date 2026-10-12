@@ -276,13 +276,51 @@ def strategies_from_capacity(plan: dict, costs: dict) -> list[dict]:
 
 
 def authorize_capacity(plan: dict, costs: dict) -> dict:
-    """Unique minimum cost among F_capacity candidates the sufficiency evaluator accepts."""
+    """Unique minimum cost among F_capacity candidates the sufficiency evaluator accepts.
+
+    The result carries that sufficiency envelope. The envelope's
+    rewrite-license stays no. This function does not apply.
+    """
     if not isinstance(plan, dict) or not isinstance(costs, dict):
         return _refuse("optimum.malformed")
     strategies = strategies_from_capacity(plan, costs)
     if not strategies:
         return _refuse("optimum.no-legal")
-    return authorize_optimum(strategies)
+    chosen = authorize_optimum(strategies)
+    if chosen["result"] != "yes":
+        return chosen
+    winner = next(
+        cand
+        for cand in plan["candidates"]
+        if cand.get("identity") == chosen["strategy-id"]
+    )
+    out = dict(chosen)
+    out["sufficiency"] = _capacity_sufficiency(winner, chosen["strategy-id"])
+    if out["sufficiency"]["decision"]["result"] != "yes":
+        return _refuse("optimum.no-legal")
+    if out["sufficiency"]["rewrite-license"] != "no":
+        return _refuse("optimum.malformed")
+    return out
+
+
+def apply_capacity(
+    plan: dict,
+    costs: dict,
+    program: dict,
+    *,
+    device: str = "D0",
+    witness=None,
+) -> dict:
+    """Apply the authorized plan only when the caller supplies a witness."""
+    chosen = authorize_capacity(plan, costs)
+    if chosen["result"] != "yes":
+        return _refused_apply(chosen["reasons"])
+    return apply.evaluate_apply(
+        [chosen["rewrite"]],
+        program,
+        device=device,
+        witness=witness,
+    )
 
 
 def costs_from_measured(table_path, profile: str, workload: str) -> dict:
@@ -501,6 +539,10 @@ def _validate_capacity() -> None:
         raise RuntimeError("capacity-sufficient-reason")
     if sufficient["rewrite-license"] != "no" or sufficient["can-run-plan"] != "no":
         raise RuntimeError("capacity-sufficient-boundary")
+    if chosen["sufficiency"]["decision"]["result"] != "yes":
+        raise RuntimeError("capacity-sufficiency-carried")
+    if chosen["sufficiency"]["rewrite-license"] != "no":
+        raise RuntimeError("capacity-sufficiency-license")
     ordered_cand = ordered["candidates"][0]
     ordered_suf = _capacity_sufficiency(ordered_cand, ordered_cand["identity"])
     if ordered_suf["decision"]["result"] != "no":
@@ -545,8 +587,16 @@ def _validate_capacity() -> None:
     if program is None:
         raise RuntimeError("capacity-program")
     before = copy.deepcopy(program)
-    applied = apply.evaluate_apply(
-        [chosen["rewrite"]],
+    missing = apply_capacity(
+        plan, costs, program, device=scenario.DEVICE, witness=None
+    )
+    if missing["applied"] != "no" or missing["can-run-plan"] != "no":
+        raise RuntimeError("capacity-witness-missing")
+    if program != before:
+        raise RuntimeError("capacity-witness-mutated")
+    applied = apply_capacity(
+        plan,
+        costs,
         program,
         device=scenario.DEVICE,
         witness=apply.bound_witness(program, device=scenario.DEVICE),
@@ -619,6 +669,16 @@ def print_optimum_authorization() -> int:
     )
     print("capacity-sufficient yes")
     print("capacity-sufficient-ne-rewrite-license yes")
+    print(
+        "capacity-witness-applied "
+        + apply_capacity(
+            load_capacity_plan(_CAPACITY_DEST),
+            cap_costs,
+            program_for_selection(cap_chosen["strategy-id"]),
+            device=scenario.DEVICE,
+            witness=None,
+        )["applied"]
+    )
     print("capacity-matches-measured-rank yes")
     print("outside-f-ignored yes")
     print("capacity-tie no")
