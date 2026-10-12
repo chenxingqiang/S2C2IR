@@ -210,7 +210,8 @@ the enumerated, non-truncated set. `sufficient=yes` does
 not set `rewrite-license`. The authorization result carries
 that envelope. Applying it still requires a caller-supplied
 witness. The plain spec and the
-restore-order spec are not authorized. The unique minimum
+restore-order spec are not authorized. An all-KEEP
+candidate is not authorized. The unique minimum
 of the dest-invalidation spec is that bound plan. The
 capacity printers still report `rewrite-license=no`.
 Concurrent sibling reorder stays a frozen transform
