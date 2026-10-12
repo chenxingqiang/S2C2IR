@@ -176,8 +176,10 @@ not authorized. The dest-invalidation spec is. Eligibility
 is the frozen sufficiency evaluator. The four inputs are
 the restore flags plus `capacity-legal=yes` for
 membership in the enumerated, non-truncated set. The
-evaluator's `yes` does not set `rewrite-license`. A tie is
-not authorized. An identity that is not in `F_capacity` is
+evaluator's `yes` does not set `rewrite-license`. The
+authorization result carries that envelope. `apply_capacity`
+does not invent a witness: a missing witness stays
+unapplied. A tie is not authorized. An identity that is not in `F_capacity` is
 ignored. This path does not change the capacity printers:
 they still report `selected=none` and `rewrite-license=no`.
 

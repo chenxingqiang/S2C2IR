@@ -207,7 +207,9 @@ step list. `evaluate_rewrite` is unchanged. The 4-tile
 table only among candidates the frozen sufficiency
 evaluator accepts. `capacity-legal=yes` is membership in
 the enumerated, non-truncated set. `sufficient=yes` does
-not set `rewrite-license`. The plain spec and the
+not set `rewrite-license`. The authorization result carries
+that envelope. Applying it still requires a caller-supplied
+witness. The plain spec and the
 restore-order spec are not authorized. The unique minimum
 of the dest-invalidation spec is that bound plan. The
 capacity printers still report `rewrite-license=no`.
