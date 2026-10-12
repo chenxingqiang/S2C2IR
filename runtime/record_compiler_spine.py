@@ -22,6 +22,7 @@ if str(_RUNTIME) not in sys.path:
 
 import record_apply_scenario as scenario
 import record_mlir_carrier as carrier
+import record_optimum_authorization as optimum
 import record_scenario_corpus as corpus
 import record_storage_apply as apply
 
@@ -70,6 +71,20 @@ def integrate(
         witness = apply.bound_witness(program, device=scenario.DEVICE)
     fn = apply.evaluate_apply if apply_fn is None else apply_fn
     return fn([envelope], program, device=scenario.DEVICE, witness=witness)
+
+
+def handoff_capacity(text: str, plan: dict, costs: dict, *, witness=None, opt_argv: tuple[str, ...] = ()) -> dict:
+    """Carrier text plus a capacity plan. The caller supplies the witness.
+
+    This does not use the acceptance fixture envelope and does not
+    build a witness. s2c2-opt is still not called.
+    """
+    program = project(text, opt_argv)
+    if len(apply.find_regions(program)) != 1:
+        raise SpineRefusal("no-region")
+    return optimum.apply_capacity(
+        plan, costs, program, device=scenario.DEVICE, witness=witness
+    )
 
 
 def check_caller_supplied() -> None:
@@ -375,6 +390,40 @@ def _validate() -> dict:
         raise RuntimeError("spine-mismatch-boundary")
     if apply.canonical_program(mismatch["program"]) != apply.canonical_program(renamed):
         raise RuntimeError("spine-mismatch-mutated")
+
+    text = carrier.render(scenario.source_program())
+    extracted = project(text)
+    costs = optimum.costs_from_measured(
+        optimum._CAPACITY_TABLE, optimum._CAPACITY_PROFILE, optimum._CAPACITY_WORKLOAD
+    )
+    dest = optimum.load_capacity_plan(optimum._CAPACITY_DEST)
+    try:
+        handoff_capacity(text, dest, costs, opt_argv=("--s2c2-lower",))
+    except SpineRefusal as refusal:
+        if refusal.code != "opt-bypass":
+            raise RuntimeError("capacity-handoff-opt") from refusal
+    else:
+        raise RuntimeError("capacity-handoff-opt")
+    witness = apply.bound_witness(extracted, device=scenario.DEVICE)
+    via = handoff_capacity(text, dest, costs, witness=witness)
+    if via["match"] != "yes" or via["applied"] != "yes":
+        raise RuntimeError("capacity-handoff")
+    if via["can-run-plan"] != "no":
+        raise RuntimeError("capacity-handoff-run")
+    if apply.canonical_program(via["program"]) != scenario.CANONICAL_P_PRIME:
+        raise RuntimeError("capacity-handoff-canonical")
+    if apply.canonical_program(via["program"]) != apply.canonical_program(bag["program"]):
+        raise RuntimeError("capacity-handoff-drift")
+    missing = handoff_capacity(text, dest, costs, witness=None)
+    if missing["applied"] != "no" or missing["can-run-plan"] != "no":
+        raise RuntimeError("capacity-handoff-witness")
+    if apply.canonical_program(extracted) != apply.canonical_program(
+        project(text)
+    ):
+        raise RuntimeError("capacity-handoff-source")
+    plain = handoff_capacity(text, optimum.load_capacity_plan(), costs, witness=witness)
+    if plain["applied"] != "no" or plain["can-run-plan"] != "no":
+        raise RuntimeError("capacity-handoff-plain")
     return {
         "match": bag["match"],
         "applied": bag["applied"],
@@ -421,6 +470,11 @@ def print_contract() -> int:
     print("caller-witness-illegal applied-no")
     print("caller-witness-wrong-device applied-no")
     print("caller-plan-closed match-no applied-no")
+    print("capacity-handoff same-canonical yes")
+    print("capacity-handoff-witness-missing applied-no")
+    print("capacity-handoff-plain applied-no")
+    print("capacity-handoff-opt refusal apply-not-called")
+    print("capacity-handoff-default-path unchanged")
     return 0
 
 
