@@ -166,16 +166,20 @@ Any other shape, including a non-empty rematerialize, is
 plan. `applied` stays `no`. `rewrite-path` stays `no`.
 
 The 4-tile `F_capacity` candidates are strategies of this
-shape only when every evict restore is usable. Costs are
-the usable rows of the existing measured fixture table.
-The unique minimum among those strategies is authorized
-and bound. A candidate whose restore is not usable stays
-out, even if its recorded time is lower. The plain 4-tile
-spec has no restore witness, so it is not authorized.
-The restore-order spec is. A tie is not authorized. An
-identity that is not in `F_capacity` is ignored. This
-path does not change the capacity printers: they still
-report `selected=none` and `rewrite-license=no`.
+shape only when every evict restore is usable and its
+destination was invalidated. Costs are the usable rows of
+the existing measured fixture table. The unique minimum
+among those strategies is authorized and bound. A lower
+cost does not select a candidate that fails either
+predicate. The plain spec and the restore-order spec are
+not authorized. The dest-invalidation spec is. Eligibility
+is the frozen sufficiency evaluator. The four inputs are
+the restore flags plus `capacity-legal=yes` for
+membership in the enumerated, non-truncated set. The
+evaluator's `yes` does not set `rewrite-license`. A tie is
+not authorized. An identity that is not in `F_capacity` is
+ignored. This path does not change the capacity printers:
+they still report `selected=none` and `rewrite-license=no`.
 
 ## Planner vs AuthorizationEvaluator
 
