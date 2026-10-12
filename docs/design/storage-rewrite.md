@@ -172,7 +172,10 @@ the existing measured fixture table. The unique minimum
 among those strategies is authorized and bound. A lower
 cost does not select a candidate that fails either
 predicate. The plain spec and the restore-order spec are
-not authorized. The dest-invalidation spec is. Eligibility
+not authorized. An all-KEEP candidate fits capacity, but
+its restore inputs are `n/a`, so the evaluator does not
+return yes and it is not authorized. The dest-invalidation
+spec is. Eligibility
 is the frozen sufficiency evaluator. The four inputs are
 the restore flags plus `capacity-legal=yes` for
 membership in the enumerated, non-truncated set. The

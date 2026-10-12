@@ -36,6 +36,9 @@ _CAPACITY_RESTORE = (
 _CAPACITY_DEST = (
     _ROOT / "docs/design/v3-dataset/storage-capacity-4tile-dest-invalidation.jsonl"
 )
+_CAPACITY_FIT = (
+    _ROOT / "docs/design/v3-dataset/storage-capacity-2tile-fit.jsonl"
+)
 _CAPACITY_TABLE = (
     _ROOT / "docs/design/v3-dataset/storage-capacity-measured-4tile.jsonl"
 )
@@ -199,16 +202,21 @@ def apply_optimum(strategies: list, program: dict, *, device: str = "D0", witnes
     )
 
 
-def _yn(flag: bool) -> str:
-    return "yes" if flag is True else "no"
+def _yn(flag: bool | None) -> str:
+    if flag is True:
+        return "yes"
+    if flag is None:
+        return "n/a"
+    return "no"
 
 
 def _capacity_sufficiency(cand: dict, selected: str) -> dict:
     """Ask the frozen sufficiency evaluator. Do not AND the predicates here.
 
     capacity-legal is yes because this candidate is a member of an
-    enumerated, non-truncated F_capacity. The other three inputs are
-    the restore record's own flags.
+    enumerated, non-truncated F_capacity. An all-KEEP candidate fits,
+    but it has no evict restore, so those three inputs are n/a and
+    the evaluator does not return yes.
     """
     evict = cand.get("evict")
     restores = cand.get("restores")
@@ -218,7 +226,7 @@ def _capacity_sufficiency(cand: dict, selected: str) -> dict:
     if not shaped:
         usable = ordering = dest = False
     elif not evict:
-        usable = ordering = dest = True
+        usable = ordering = dest = None
     else:
         usable = all(
             isinstance(rec, dict) and rec.get("usable") is True for rec in restores
@@ -514,6 +522,17 @@ def _validate_capacity() -> None:
     costs = costs_from_measured(_CAPACITY_TABLE, _CAPACITY_PROFILE, _CAPACITY_WORKLOAD)
     if authorize_capacity(plain, costs)["reasons"] != ["optimum.no-legal"]:
         raise RuntimeError("capacity-plain")
+    fit = load_capacity_plan(_CAPACITY_FIT)
+    fit_costs = {cand["identity"]: 1 for cand in fit["candidates"]}
+    if authorize_capacity(fit, fit_costs)["reasons"] != ["optimum.no-legal"]:
+        raise RuntimeError("capacity-all-keep")
+    fit_suf = _capacity_sufficiency(fit["candidates"][0], fit["candidates"][0]["identity"])
+    if fit_suf["decision"]["result"] != "no":
+        raise RuntimeError("capacity-all-keep-sufficient")
+    if "predicate.usable-n/a" not in fit_suf["decision"]["reasons"]:
+        raise RuntimeError("capacity-all-keep-reason")
+    if fit["selected"] != "none" or fit["rewrite_license"] != "no":
+        raise RuntimeError("capacity-all-keep-license")
     ordered = load_capacity_plan(_CAPACITY_RESTORE)
     if authorize_capacity(ordered, costs)["reasons"] != ["optimum.no-legal"]:
         raise RuntimeError("capacity-ordered")
@@ -658,6 +677,16 @@ def print_optimum_authorization() -> int:
     cap_chosen = authorize_capacity(load_capacity_plan(_CAPACITY_DEST), cap_costs)
     print(f"capacity-f {_CAPACITY_WORKLOAD}")
     print(f"capacity-plain {plain_chosen['result']}")
+    print(
+        "capacity-all-keep "
+        + authorize_capacity(
+            load_capacity_plan(_CAPACITY_FIT),
+            {
+                cand["identity"]: 1
+                for cand in load_capacity_plan(_CAPACITY_FIT)["candidates"]
+            },
+        )["result"]
+    )
     print(f"capacity-restore-order {ordered_chosen['result']}")
     print(f"capacity-selected {cap_chosen['strategy-id']}")
     print(
