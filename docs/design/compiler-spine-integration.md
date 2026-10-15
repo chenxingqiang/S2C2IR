@@ -97,6 +97,18 @@ each still a refusal: `applied=no`, `can-run-plan=no`, source
 unchanged. The driver does not replace a caller's refusal.
 The contract run checks all four.
 
+## Capacity handoff
+
+`handoff_capacity` is a separate entry. It reads the same carrier
+text, refuses an opt flag, then uses `apply_capacity`. The
+acceptance fixture envelope is not used, and the driver does not
+build a witness. A missing witness stays unapplied. The
+dest-invalidation 4-tile plan with the measured fixture costs
+and a witness for the extracted acceptance program yields the
+same canonical result as the default path. The plain 4-tile plan
+does not apply. `s2c2-opt` is still not called. This does not
+open a cut.
+
 ## Guard overlap
 
 The Scenario Corpus replay swaps process-global authorization

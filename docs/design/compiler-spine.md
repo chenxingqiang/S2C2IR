@@ -214,6 +214,10 @@ restore-order spec are not authorized. An all-KEEP
 candidate is not authorized. The unique minimum
 of the dest-invalidation spec is that bound plan. The
 capacity printers still report `rewrite-license=no`.
+`handoff_capacity` can apply that plan to the acceptance
+carrier text when the caller supplies a witness. It does
+not replace the default fixture path and does not call
+`s2c2-opt`.
 Concurrent sibling reorder stays a frozen transform
 witness; it is not this first product rewrite.
 
