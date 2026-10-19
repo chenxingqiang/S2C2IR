@@ -116,7 +116,14 @@ directory is set, each tile is read back with `O_DIRECT`
 during the timed prefetch. The log names the path, the
 mount source, and whether that source contains `nvme`.
 A buffered read is not substituted. Other timed paths keep
-`malloc`.
+`malloc`. `--analyze-storage-pipeline` reports
+`ssd-backend=file-odirect` when the log names that backend,
+and it does not also report `logical-ssd-ne-disk`. A log
+that names both is refused. A log that names neither reports
+`ssd-backend-unspecified` instead of inventing the default.
+The default 4090 and 5090 logs still report
+`logical-ssd-ne-disk`. The check is
+`test/Integration/storage-pipeline-ssd-backend.mlir`.
 
 ```text
 T_seq  sequential SSD→Host→HtoD then compute then flattened C||C

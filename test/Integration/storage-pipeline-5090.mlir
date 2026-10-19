@@ -2,8 +2,8 @@
 // The analyzer reports facts already in the log. It does not
 // add a ledger row, a Capability cell, or a Cost value.
 // Do not FileCheck microseconds.
-// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-storage-pipeline %S/../../docs/design/v3-dataset/storage-pipeline-5090.log | FileCheck %s --check-prefix=OBS --implicit-check-not=names-disk-path --implicit-check-not=seq= --implicit-check-not=evi= --implicit-check-not=par= --implicit-check-not="cost=changed"
-// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-storage-pipeline %S/../../docs/design/v3-dataset/storage-pipeline-4090.log | FileCheck %s --check-prefix=C4090 --implicit-check-not=not-rtx4090-contract --implicit-check-not=rtx5090 --implicit-check-not=host-wall-clock-ne-hb --implicit-check-not=names-no-disk-path
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-storage-pipeline %S/../../docs/design/v3-dataset/storage-pipeline-5090.log | FileCheck %s --check-prefix=OBS --implicit-check-not=names-disk-path --implicit-check-not=file-odirect --implicit-check-not=seq= --implicit-check-not=evi= --implicit-check-not=par= --implicit-check-not="cost=changed"
+// RUN: python3 %S/../../runtime/ascend/record_ascend.py --analyze-storage-pipeline %S/../../docs/design/v3-dataset/storage-pipeline-4090.log | FileCheck %s --check-prefix=C4090 --implicit-check-not=not-rtx4090-contract --implicit-check-not=rtx5090 --implicit-check-not=host-wall-clock-ne-hb --implicit-check-not=names-no-disk-path --implicit-check-not=file-odirect
 
 module {
 }
