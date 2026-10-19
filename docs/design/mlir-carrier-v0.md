@@ -268,6 +268,14 @@ C08 through C16 are host results already defined by the
 inhabitant. The carrier test only checks that extract
 handed the dict through unchanged.
 
+The same run also refuses, without calling `evaluate_apply`,
+an empty text and a second module (`not-one-module`), a fact
+or an hb edge outside a block, a fact missing `name` or `op`,
+an hb edge missing `from` or `to`, a missing working-set, a
+capacity or working-set that is not `i64`, a nested region,
+and a router attribute. Those are the refusal bullets above
+that C04 through C07 do not already name.
+
 The same check replays all 29 rows of `evaluate_apply`'s
 matrix. Each program is rendered to carrier text and
 extracted again. `induced-hb` is not in that text. The

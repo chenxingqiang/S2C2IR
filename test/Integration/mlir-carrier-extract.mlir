@@ -33,5 +33,16 @@ module {
 // CAR: C14 host match=yes applied=no induced-not-extracted
 // CAR: C15 host reasons=rewrite.identity-mismatch
 // CAR: C16 host match=yes applied=no
+// CAR: extract-refusal not-one-module apply-not-called
+// CAR: extract-refusal fact-outside-block apply-not-called
+// CAR: extract-refusal hb-outside-block apply-not-called
+// CAR: extract-refusal missing-name apply-not-called
+// CAR: extract-refusal missing-op apply-not-called
+// CAR: extract-refusal missing-hb-from apply-not-called
+// CAR: extract-refusal missing-hb-to apply-not-called
+// CAR: extract-refusal missing-working-set apply-not-called
+// CAR: extract-refusal not-i64 apply-not-called
+// CAR: extract-refusal nested-region apply-not-called
+// CAR: extract-refusal router-result closed-set apply-not-called
 // CAR: host-matrix-cases 29
 // CAR: host-matrix-through-carrier 29

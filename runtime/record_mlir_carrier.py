@@ -447,6 +447,57 @@ def _validate() -> dict[str, str]:
         _module(""),
         "zero-block",
     )
+    _expect_refusal("", "not-one-module")
+    _expect_refusal(
+        _module(_acceptance_body()) + " " + _module(""),
+        "not-one-module",
+    )
+    _expect_refusal(_module(_fact("0", "store", "id0")), "fact-outside-block")
+    _expect_refusal(
+        _module('carrier.hb { from = "id0", to = "id1" }'),
+        "hb-outside-block",
+    )
+    _expect_refusal(
+        _module(_acceptance_body().replace('name = "0", ', "", 1)),
+        "missing-name",
+    )
+    _expect_refusal(
+        _module(_acceptance_body().replace('op = "store", ', "", 1)),
+        "missing-op",
+    )
+    _expect_refusal(
+        _module('carrier.block { carrier.hb { to = "id1" } }'),
+        "missing-hb-from",
+    )
+    _expect_refusal(
+        _module('carrier.block { carrier.hb { from = "id0" } }'),
+        "missing-hb-to",
+    )
+    _expect_refusal(
+        "module attributes { s2c2.carrier.capacity = 2 : i64 } { "
+        + _acceptance_body()
+        + " }",
+        "missing-working-set",
+    )
+    _expect_refusal(
+        _module(_acceptance_body(), capacity="2 : i32"),
+        "not-i64",
+    )
+    _expect_refusal(
+        _module(_acceptance_body(), working_set="3 : i32"),
+        "not-i64",
+    )
+    _expect_refusal(
+        _module(
+            'carrier.block { carrier.fact { name = "0", op = "store", '
+            'op_id = "id0" } { } }'
+        ),
+        "nested-region",
+    )
+    _expect_refusal(
+        _module(_acceptance_body(), extra=', s2c2.carrier.router = "E"'),
+        "closed-set",
+    )
     if calls["apply"] != before:
         raise RuntimeError("refusal-called-apply")
 
@@ -589,6 +640,17 @@ def print_contract() -> int:
     print("C14 host match=yes applied=no induced-not-extracted")
     print("C15 host reasons=rewrite.identity-mismatch")
     print("C16 host match=yes applied=no")
+    print("extract-refusal not-one-module apply-not-called")
+    print("extract-refusal fact-outside-block apply-not-called")
+    print("extract-refusal hb-outside-block apply-not-called")
+    print("extract-refusal missing-name apply-not-called")
+    print("extract-refusal missing-op apply-not-called")
+    print("extract-refusal missing-hb-from apply-not-called")
+    print("extract-refusal missing-hb-to apply-not-called")
+    print("extract-refusal missing-working-set apply-not-called")
+    print("extract-refusal not-i64 apply-not-called")
+    print("extract-refusal nested-region apply-not-called")
+    print("extract-refusal router-result closed-set apply-not-called")
     print("host-matrix-cases " + summary["matrix"])
     print("host-matrix-through-carrier " + summary["matrix"])
     return 0
