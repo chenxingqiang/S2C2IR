@@ -2307,7 +2307,27 @@ def analyze_storage_pipeline(log: Path) -> int:
     print("note t-base-is-t-seq")
     print("note t-opt-is-t-evi")
     print("note catalog-untouched")
-    print("note logical-ssd-ne-disk")
+    # The default log says logical-ssd-ne-disk. --ssd-dir says
+    # file-odirect instead. Do not report both, and do not invent
+    # the default when the log names the file backend.
+    file_backend = "ssd-backend=file-odirect" in text
+    logical_ssd = "logical-ssd-ne-disk" in text
+    if file_backend and logical_ssd:
+        print(
+            "record_ascend: storage-pipeline names both file-odirect "
+            "and logical-ssd-ne-disk",
+            file=sys.stderr,
+        )
+        return 4
+    if file_backend:
+        print("storage-pipeline ssd-backend=file-odirect")
+        nvme = re.search(r"ssd-mount-has-nvme=(yes|no)\b", text)
+        if nvme:
+            print(f"storage-pipeline note ssd-mount-has-nvme={nvme.group(1)}")
+    elif logical_ssd:
+        print("note logical-ssd-ne-disk")
+    else:
+        print("storage-pipeline note ssd-backend-unspecified")
     print("note not-new-capability-grid")
     print("note not-cost-v04")
     # A 5090 observation is not the 4090 contract. These lines are

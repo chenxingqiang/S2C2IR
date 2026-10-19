@@ -11,6 +11,9 @@ or Apply.
 python3 runtime/record_mlir_carrier.py --print-carrier-extract
 ```
 
+`test/Integration/mlir-carrier-extract.mlir` FileChecks that printer.
+`can-run-plan` stays no.
+
 ```text
 Goal     name the syntax that projects onto the frozen host program
 Not      routing, a second device, a new HB rule, or a new contract

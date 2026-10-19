@@ -1,0 +1,4 @@
+s2c2-cuda-run storage-pipeline measured=yes
+s2c2-cuda-run storage-pipeline timing seq=1.0 evi=1.0 par=1.0 opt_over_base=1.000
+s2c2-cuda-run storage-pipeline note not-cost-v04
+s2c2-cuda-run storage-pipeline cost=unchanged semantics=unchanged v3=not-claimed

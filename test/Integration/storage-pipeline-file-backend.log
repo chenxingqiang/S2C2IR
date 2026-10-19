@@ -1,0 +1,11 @@
+s2c2-cuda-run storage-pipeline program-measurement=yes
+s2c2-cuda-run storage-pipeline note storage-prefetch||compute
+s2c2-cuda-run storage-pipeline measured=yes
+s2c2-cuda-run storage-pipeline timing seq=1.0 evi=1.0 par=1.0 opt_over_base=1.000
+s2c2-cuda-run storage-pipeline correctness=1
+s2c2-cuda-run storage-pipeline note catalog-untouched
+s2c2-cuda-run storage-pipeline ssd-backend=file-odirect
+s2c2-cuda-run storage-pipeline ssd-path=/fixture/tile0.bin
+s2c2-cuda-run storage-pipeline note ssd-mount-has-nvme=no
+s2c2-cuda-run storage-pipeline note not-cost-v04
+s2c2-cuda-run storage-pipeline cost=unchanged semantics=unchanged v3=not-claimed
