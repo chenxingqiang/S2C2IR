@@ -2310,6 +2310,29 @@ def analyze_storage_pipeline(log: Path) -> int:
     print("note logical-ssd-ne-disk")
     print("note not-new-capability-grid")
     print("note not-cost-v04")
+    # A 5090 observation is not the 4090 contract. These lines are
+    # absent from the 4090 log, so that analysis stays unchanged.
+    if re.search(r"not-rtx4090-contract", text):
+        print("storage-pipeline note not-rtx4090-contract")
+        print("storage-pipeline note does-not-replace-4090")
+        if re.search(r"host-wall-clock-ne-hb", text):
+            print("storage-pipeline note host-wall-clock-ne-hb")
+        hid = re.search(r"hardware_id=(\S+)", text)
+        if hid and "rtx5090" in hid.group(1):
+            print(f"storage-pipeline hardware_id={hid.group(1)}")
+        correct = re.search(r"storage-pipeline correctness=(\d+)", text)
+        print(
+            "storage-pipeline correctness="
+            + ("yes" if correct and correct.group(1) == "1" else "no")
+        )
+        names_disk = re.search(
+            r"ssd-path=|ssd-fd-path=|ssd-backend=file-odirect|--ssd-dir",
+            text,
+        )
+        print(
+            "storage-pipeline note "
+            + ("names-disk-path" if names_disk else "names-no-disk-path")
+        )
     if re.search(r"device-absent", text):
         print("note device-absent")
     print("r3-gate=scoped-evidence")

@@ -104,7 +104,10 @@ A later run on an RTX 5090 is
 `hardware_id=rtx5090:cuda`, `correctness=1`, and
 `not-rtx4090-contract`. It does not replace the 4090 log,
 does not name a disk path, and its host wall clock is not
-an HB edge.
+an HB edge. `--analyze-storage-pipeline` reports those
+facts for this log and does not report them for the 4090
+log. The check is `test/Integration/storage-pipeline-5090.mlir`.
+It is not a ledger row and not a new Capability cell.
 
 `--ssd-dir=DIR` is optional and only applies to
 `--storage-pipeline`. The default remains the pageable host
