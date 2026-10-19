@@ -14,10 +14,15 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <string>
+
+#include <fcntl.h>
+#include <unistd.h>
 #include <thread>
 #include <vector>
 
@@ -2187,14 +2192,191 @@ static std::string cudaGpuSlug() {
   return slug.empty() ? std::string("unknown") : slug;
 }
 
+// Optional file backing for the storage pipeline only. Default stays
+// malloc. O_DIRECT is required when a directory is set; a buffered
+// read is not reported as disk.
+struct SsdMount {
+  std::string path;
+  std::string fdPath;
+  std::string fstype;
+  std::string source;
+  bool nvme = false;
+};
+
+static std::string unescapeMount(const std::string &in) {
+  std::string out;
+  for (size_t i = 0; i < in.size(); ++i) {
+    if (in[i] == '\\' && i + 3 < in.size() &&
+        std::isdigit(static_cast<unsigned char>(in[i + 1])) &&
+        std::isdigit(static_cast<unsigned char>(in[i + 2])) &&
+        std::isdigit(static_cast<unsigned char>(in[i + 3]))) {
+      int v = (in[i + 1] - '0') * 64 + (in[i + 2] - '0') * 8 + (in[i + 3] - '0');
+      out.push_back(static_cast<char>(v));
+      i += 3;
+    } else {
+      out.push_back(in[i]);
+    }
+  }
+  return out;
+}
+
+static std::string mountOption(const std::string &super, const char *key) {
+  std::string needle = std::string(key) + "=";
+  auto pos = super.find(needle);
+  if (pos == std::string::npos)
+    return {};
+  auto start = pos + needle.size();
+  auto end = super.find(',', start);
+  return unescapeMount(super.substr(start, end == std::string::npos
+                                                 ? std::string::npos
+                                                 : end - start));
+}
+
+static bool mountCovers(const std::string &point, const std::string &path) {
+  if (point == "/")
+    return !path.empty() && path[0] == '/';
+  if (path == point)
+    return true;
+  return path.size() > point.size() &&
+         path.compare(0, point.size(), point) == 0 &&
+         path[point.size()] == '/';
+}
+
+static SsdMount describeDir(const std::string &dir, bool followOverlay = true) {
+  SsdMount info;
+  info.path = dir;
+  std::ifstream in("/proc/self/mountinfo");
+  std::string line;
+  size_t best = 0;
+  bool found = false;
+  std::string bestSuper;
+  while (std::getline(in, line)) {
+    auto sep = line.find(" - ");
+    if (sep == std::string::npos)
+      continue;
+    std::string left = line.substr(0, sep);
+    std::string right = line.substr(sep + 3);
+    std::string point;
+    {
+      std::string field;
+      int idx = 0;
+      for (size_t i = 0; i <= left.size(); ++i) {
+        if (i == left.size() || left[i] == ' ') {
+          if (idx == 4)
+            point = unescapeMount(field);
+          field.clear();
+          if (i != left.size())
+            ++idx;
+        } else {
+          field.push_back(left[i]);
+        }
+      }
+    }
+    if (!mountCovers(point, dir) || point.size() < best)
+      continue;
+    std::string fstype;
+    std::string source;
+    std::string super;
+    {
+      std::string field;
+      int idx = 0;
+      for (size_t i = 0; i <= right.size(); ++i) {
+        if (i == right.size() || right[i] == ' ') {
+          if (idx == 0)
+            fstype = field;
+          else if (idx == 1)
+            source = unescapeMount(field);
+          else if (idx == 2)
+            super = field;
+          field.clear();
+          if (i != right.size())
+            ++idx;
+        } else {
+          field.push_back(right[i]);
+        }
+      }
+    }
+    best = point.size();
+    found = true;
+    info.fstype = fstype;
+    info.source = source;
+    bestSuper = super;
+  }
+  if (!found) {
+    info.fstype = "unknown";
+    info.source = "unknown";
+  }
+  std::string probe = dir;
+  if (info.fstype == "overlay") {
+    std::string upper = mountOption(bestSuper, "upperdir");
+    if (!upper.empty()) {
+      std::string rel = dir;
+      if (!rel.empty() && rel[0] == '/')
+        rel.erase(rel.begin());
+      if (!upper.empty() && upper.back() != '/')
+        upper.push_back('/');
+      probe = upper + rel;
+      info.fdPath = probe;
+    }
+  }
+  if (info.source.find("nvme") != std::string::npos)
+    info.nvme = true;
+  if (followOverlay && !info.nvme && info.fstype == "overlay" && !probe.empty() &&
+      probe != dir) {
+    SsdMount under = describeDir(probe, false);
+    if (under.nvme || under.source.find("nvme") != std::string::npos) {
+      info.source = under.source;
+      info.fstype = under.fstype;
+      info.nvme = true;
+    }
+  }
+  return info;
+}
+
+static void dieSsd(const char *msg) {
+  std::fprintf(stderr, "s2c2-cuda-run: %s\n", msg);
+  std::exit(2);
+}
+
+static void transferAll(int fd, void *buf, size_t bytes, bool writing) {
+  auto *p = static_cast<unsigned char *>(buf);
+  size_t off = 0;
+  while (off < bytes) {
+    ssize_t n = writing ? pwrite(fd, p + off, bytes - off,
+                                  static_cast<off_t>(off))
+                        : pread(fd, p + off, bytes - off,
+                                static_cast<off_t>(off));
+    if (n < 0)
+      dieSsd(writing ? "ssd file write failed" : "ssd file read failed");
+    if (n == 0)
+      dieSsd("ssd file short transfer");
+    off += static_cast<size_t>(n);
+  }
+}
+
+static int openDirectFile(const std::string &path, size_t bytes) {
+  int fd = open(path.c_str(), O_RDWR | O_CREAT, 0644);
+  if (fd < 0)
+    return -1;
+  if (ftruncate(fd, static_cast<off_t>(bytes)) != 0) {
+    close(fd);
+    return -1;
+  }
+  close(fd);
+  return open(path.c_str(), O_RDWR | O_DIRECT);
+}
+
 // Two-tile storage-aware pipeline wall-clock. Logical SSD is a
-// pageable host buffer, not NVMe. T_evi keeps C||Storage overlap
-// and flattens licensed C||C. Not Cost v0.4.
+// pageable host buffer unless --ssd-dir is set. T_evi keeps
+// C||Storage overlap and flattens licensed C||C. Not Cost v0.4.
 struct PipeTile {
   float *ssd = nullptr;
   float *host = nullptr;
   float *dev = nullptr;
+  void *direct = nullptr;
   int n = 0;
+  int fd = -1;
+  std::string filePath;
 
   void alloc(int n_) {
     n = n_;
@@ -2208,16 +2390,59 @@ struct PipeTile {
     CUDA_OK(cudaMalloc(&dev, bytes));
   }
 
+  void attachFile(const std::string &path, const std::string &alt) {
+    size_t bytes = this->bytes();
+    if (bytes == 0 || bytes % 4096 != 0)
+      dieSsd("ssd file size must be a multiple of 4096");
+    if (posix_memalign(&direct, 4096, bytes) != 0)
+      dieSsd("ssd direct buffer failed");
+    fd = openDirectFile(path, bytes);
+    filePath = path;
+    if (fd < 0 && !alt.empty() && alt != path) {
+      fd = openDirectFile(alt, bytes);
+      if (fd >= 0) {
+        std::remove(path.c_str());
+        filePath = alt;
+      }
+    }
+    if (fd < 0) {
+      std::fprintf(stderr, "s2c2-cuda-run: O_DIRECT errno=%d\n", errno);
+      std::remove(path.c_str());
+      if (!alt.empty())
+        std::remove(alt.c_str());
+      dieSsd("O_DIRECT open failed");
+    }
+  }
+
+  void commitFile() {
+    if (fd < 0)
+      return;
+    std::memcpy(direct, ssd, bytes());
+    transferAll(fd, direct, bytes(), true);
+    if (fdatasync(fd) != 0)
+      dieSsd("ssd file sync failed");
+  }
+
   void freeAll() {
     cudaFree(dev);
     cudaFreeHost(host);
     std::free(ssd);
+    std::free(direct);
+    if (fd >= 0)
+      close(fd);
+    if (!filePath.empty())
+      std::remove(filePath.c_str());
   }
 
   size_t bytes() const { return sizeof(float) * static_cast<size_t>(n); }
 };
 
 static void ssdPrefetch(PipeTile &t) {
+  if (t.fd >= 0) {
+    transferAll(t.fd, t.direct, t.bytes(), false);
+    std::memcpy(t.host, t.direct, t.bytes());
+    return;
+  }
   std::memcpy(t.host, t.ssd, t.bytes());
 }
 
@@ -2301,6 +2526,8 @@ static double timeStoragePipeline(PipeTile &t0, PipeTile &t1, CapBuf &cc16,
   auto prep = [&](int seed) {
     fillHost(t0.ssd, t0.n, seed);
     fillHost(t1.ssd, t1.n, seed + 1);
+    t0.commitFile();
+    t1.commitFile();
     fillHost(cc16.host0, cc16.n, seed + 2);
     fillHost(cc16.host1, cc16.n, seed + 3);
     fillHost(cc128.host0, cc128.n, seed + 4);
@@ -2331,13 +2558,29 @@ static double timeStoragePipeline(PipeTile &t0, PipeTile &t1, CapBuf &cc16,
 }
 
 static int runStoragePipelineWallclock(int nTile, int nCc, int kRef, int warmup,
-                                       int reps) {
+                                       int reps, const char *ssdDir) {
   PipeTile t0;
   PipeTile t1;
   CapBuf cc16;
   CapBuf cc128;
   t0.alloc(nTile);
   t1.alloc(nTile);
+  SsdMount ssdMount;
+  bool ssdFile = ssdDir != nullptr && ssdDir[0] != '\0';
+  if (ssdFile) {
+    std::string dir = ssdDir;
+    if (dir.back() == '/')
+      dir.pop_back();
+    ssdMount = describeDir(dir);
+    std::string alt0;
+    std::string alt1;
+    if (!ssdMount.fdPath.empty()) {
+      alt0 = ssdMount.fdPath + "/tile0.bin";
+      alt1 = ssdMount.fdPath + "/tile1.bin";
+    }
+    t0.attachFile(dir + "/tile0.bin", alt0);
+    t1.attachFile(dir + "/tile1.bin", alt1);
+  }
   cc16.alloc(nTile, false);
   cc128.alloc(nCc, false);
   fillHost(t0.ssd, t0.n, 1);
@@ -2400,8 +2643,23 @@ static int runStoragePipelineWallclock(int nTile, int nCc, int kRef, int warmup,
                "serialize-licensed-C||C\n");
   std::fprintf(stderr,
                "s2c2-cuda-run storage-pipeline note catalog-untouched\n");
-  std::fprintf(stderr,
-               "s2c2-cuda-run storage-pipeline note logical-ssd-ne-disk\n");
+  if (ssdFile) {
+    std::fprintf(stderr, "s2c2-cuda-run storage-pipeline ssd-backend=file-odirect\n");
+    std::fprintf(stderr, "s2c2-cuda-run storage-pipeline ssd-path=%s\n",
+                 ssdMount.path.c_str());
+    std::fprintf(stderr, "s2c2-cuda-run storage-pipeline ssd-fd-path=%s\n",
+                 t0.filePath.c_str());
+    std::fprintf(stderr, "s2c2-cuda-run storage-pipeline ssd-mount-source=%s\n",
+                 ssdMount.source.c_str());
+    std::fprintf(stderr, "s2c2-cuda-run storage-pipeline ssd-mount-fstype=%s\n",
+                 ssdMount.fstype.c_str());
+    std::fprintf(stderr,
+                 "s2c2-cuda-run storage-pipeline note ssd-mount-has-nvme=%s\n",
+                 ssdMount.nvme ? "yes" : "no");
+  } else {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run storage-pipeline note logical-ssd-ne-disk\n");
+  }
   std::fprintf(stderr, "s2c2-cuda-run storage-pipeline note not-cost-v04\n");
   std::fprintf(stderr,
                "s2c2-cuda-run storage-pipeline cost=unchanged "
@@ -3114,6 +3372,7 @@ int main(int argc, char **argv) {
   bool storageHier = false;
   bool storageNtile = false;
   bool kSet = false;
+  const char *ssdDir = nullptr;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     if (a.rfind("--func=", 0) == 0)
@@ -3135,6 +3394,8 @@ int main(int argc, char **argv) {
       ssdMlp = true;
     else if (a == "--storage-pipeline")
       storagePipe = true;
+    else if (a.rfind("--ssd-dir=", 0) == 0)
+      ssdDir = argv[i] + 10;
     else if (a == "--storage-loop-wallclock")
       storageLoop = true;
     else if (a == "--storage-loop-measured")
@@ -3192,7 +3453,7 @@ int main(int argc, char **argv) {
                    "s2c2-cuda-run --ssd-mlp-wallclock [--n=N] [--n-cc=N] "
                    "--k=K --warmup=W --reps=R\n"
                    "s2c2-cuda-run --storage-pipeline [--n=N] [--n-cc=N] "
-                   "--k=K --warmup=W --reps=R\n"
+                   "--k=K --warmup=W --reps=R [--ssd-dir=DIR]\n"
                    "s2c2-cuda-run --storage-loop-wallclock [--n=N] "
                    "--k=K --warmup=W --reps=R\n"
                    "s2c2-cuda-run --storage-hierarchy-measured [--n=N] "
@@ -3279,6 +3540,11 @@ int main(int argc, char **argv) {
                  "--pipe/--phase/--cap/--matched\n");
     return 1;
   }
+  if (ssdDir != nullptr && !storagePipe) {
+    std::fprintf(stderr,
+                 "s2c2-cuda-run: --ssd-dir is only valid with --storage-pipeline\n");
+    return 1;
+  }
   if (ssdMlp) {
     if (matchedOn || !capArms.empty() || !phaseArms.empty() ||
         !pipeArms.empty() || !valArms.empty() || !valMemArms.empty() ||
@@ -3337,7 +3603,11 @@ int main(int argc, char **argv) {
       std::fprintf(stderr, "s2c2-cuda-run: no CUDA device\n");
       return 2;
     }
-    return runStoragePipelineWallclock(n, nCc, k, warmup, reps);
+    if (ssdDir != nullptr && ssdDir[0] == '\0') {
+      std::fprintf(stderr, "s2c2-cuda-run: --ssd-dir needs a directory\n");
+      return 1;
+    }
+    return runStoragePipelineWallclock(n, nCc, k, warmup, reps, ssdDir);
   }
   if (storageLoop) {
     if (ssdMlp || storagePipe || matchedOn || !capArms.empty() ||

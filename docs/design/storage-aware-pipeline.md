@@ -109,6 +109,15 @@ facts for this log and does not report them for the 4090
 log. The check is `test/Integration/storage-pipeline-5090.mlir`.
 It is not a ledger row and not a new Capability cell.
 
+`--ssd-dir=DIR` is optional and only applies to
+`--storage-pipeline`. The default remains the pageable host
+buffer and still prints `logical-ssd-ne-disk`. When the
+directory is set, each tile is read back with `O_DIRECT`
+during the timed prefetch. The log names the path, the
+mount source, and whether that source contains `nvme`.
+A buffered read is not substituted. Other timed paths keep
+`malloc`.
+
 ```text
 T_seq  sequential SSD→Host→HtoD then compute then flattened C||C
 T_evi  KEEP C||Storage (SSD prefetch || compute); flatten licensed C||C
