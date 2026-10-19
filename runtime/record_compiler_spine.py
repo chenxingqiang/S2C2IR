@@ -87,6 +87,77 @@ def handoff_capacity(text: str, plan: dict, costs: dict, *, witness=None, opt_ar
     )
 
 
+def check_capacity_corpus() -> dict:
+    """The capacity handoff on the existing corpus. Do not copy induced-hb.
+
+    S03 and S04 are refused before the host. S05's fixture stays
+    unapplied; its carrier text does not carry induced-hb, so that
+    text applies. S09's bad transformation is on the corpus envelope.
+    This handoff does not read that envelope.
+    """
+    costs = optimum.costs_from_measured(
+        optimum._CAPACITY_TABLE, optimum._CAPACITY_PROFILE, optimum._CAPACITY_WORKLOAD
+    )
+    dest = optimum.load_capacity_plan(optimum._CAPACITY_DEST)
+    refused = 0
+    host_no = 0
+    host_yes = 0
+    saw_s05 = False
+    for spec in corpus._specs():
+        text = carrier.render(spec["program"])
+        extracted = project(text)
+        if "induced-hb" in extracted:
+            raise RuntimeError("capacity-corpus-induced-" + spec["id"])
+        if spec["id"] == "S05":
+            saw_s05 = True
+            if "induced-hb" not in spec["program"]:
+                raise RuntimeError("capacity-corpus-s05-fixture-field")
+            fixture = corpus.observe(spec["program"], spec["mode"], spec["envelope"])
+            if fixture["match"] != "yes" or fixture["applied"] != "no":
+                raise RuntimeError("capacity-corpus-s05-fixture")
+        if len(apply.find_regions(extracted)) != 1:
+            try:
+                handoff_capacity(text, dest, costs, witness=None)
+            except SpineRefusal as refusal:
+                if refusal.code != "no-region":
+                    raise RuntimeError("capacity-corpus-refusal-" + spec["id"]) from refusal
+            else:
+                raise RuntimeError("capacity-corpus-refusal-" + spec["id"])
+            refused += 1
+            continue
+        if spec["mode"] == "missing":
+            witness = None
+        elif spec["mode"] == "wrong-device":
+            witness = apply.bound_witness(extracted, device="D2")
+        else:
+            witness = apply.bound_witness(extracted, device=scenario.DEVICE)
+        bag = handoff_capacity(text, dest, costs, witness=witness)
+        if bag["can-run-plan"] != "no":
+            raise RuntimeError("capacity-corpus-run-" + spec["id"])
+        if spec["id"] in ("S01", "S05", "S09"):
+            if bag["match"] != "yes" or bag["applied"] != "yes":
+                raise RuntimeError("capacity-corpus-" + spec["id"])
+            host_yes += 1
+            if spec["id"] == "S01":
+                if apply.canonical_program(bag["program"]) != scenario.CANONICAL_P_PRIME:
+                    raise RuntimeError("capacity-corpus-s01-canonical")
+            if spec["id"] == "S09":
+                direct = corpus.observe(spec["program"], spec["mode"], spec["envelope"])
+                if direct["match"] != "no" or direct["applied"] != "no":
+                    raise RuntimeError("capacity-corpus-s09-corpus")
+            continue
+        if bag["applied"] != "no":
+            raise RuntimeError("capacity-corpus-" + spec["id"])
+        host_no += 1
+        if spec["id"] == "S02" and bag["reasons"] != ["rewrite.identity-mismatch"]:
+            raise RuntimeError("capacity-corpus-s02-reason")
+        if spec["id"] in ("S06", "S07", "S08") and bag["match"] != "yes":
+            raise RuntimeError("capacity-corpus-match-" + spec["id"])
+    if not saw_s05 or refused != 2 or host_no != 4 or host_yes != 3:
+        raise RuntimeError(f"capacity-corpus-count {refused} {host_no} {host_yes}")
+    return {"refused": refused, "host_no": host_no, "host_yes": host_yes}
+
+
 def check_caller_supplied() -> None:
     """A caller's missing or illegal witness, or a closed plan, stays a refusal."""
     text = carrier.render(scenario.source_program())
@@ -424,11 +495,13 @@ def _validate() -> dict:
     plain = handoff_capacity(text, optimum.load_capacity_plan(), costs, witness=witness)
     if plain["applied"] != "no" or plain["can-run-plan"] != "no":
         raise RuntimeError("capacity-handoff-plain")
+    corpus_counts = check_capacity_corpus()
     return {
         "match": bag["match"],
         "applied": bag["applied"],
         "matrix": matrix,
         "corpus": scenes,
+        "capacity_corpus": corpus_counts,
     }
 
 
@@ -475,6 +548,14 @@ def print_contract() -> int:
     print("capacity-handoff-plain applied-no")
     print("capacity-handoff-opt refusal apply-not-called")
     print("capacity-handoff-default-path unchanged")
+    counts = summary["capacity_corpus"]
+    print("capacity-corpus refused-before-host " + str(counts["refused"]))
+    print("capacity-corpus host-no " + str(counts["host_no"]))
+    print("capacity-corpus host-yes " + str(counts["host_yes"]))
+    print("capacity-corpus s05-fixture applied-no")
+    print("capacity-corpus s05-text carrier-applies")
+    print("capacity-corpus induced-hb-copied no")
+    print("capacity-corpus s09-envelope-not-consumed yes")
     return 0
 
 

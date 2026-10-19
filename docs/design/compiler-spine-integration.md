@@ -109,6 +109,15 @@ same canonical result as the default path. The plain 4-tile plan
 does not apply. `s2c2-opt` is still not called. This does not
 open a cut.
 
+The same entry walks the scenario corpus. S03 and S04 are
+refused before the host. S02, S06, S07, and S08 stay
+unapplied. S01 applies. S05's fixture stays unapplied; its
+carrier text has no `induced-hb`, so that text applies, and
+the field is not pasted back. S09's bad transformation is
+on the corpus envelope. This handoff does not read that
+envelope, so the success program still applies. The corpus
+fingerprint is not claimed through this handoff.
+
 ## Guard overlap
 
 The Scenario Corpus replay swaps process-global authorization
