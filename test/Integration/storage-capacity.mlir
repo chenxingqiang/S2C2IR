@@ -1008,6 +1008,7 @@
 
 // DECC: evidence-decision gate=query
 // DECC: schema s2c2.evidence_kind.v1
+// DECC: evidence-db-schema s2c2.evidence.v1
 // DECC: decision-schema s2c2.decision.v1
 // DECC: hb-source-is-semantic-truth yes
 // DECC: realization-ne-hb-change yes
