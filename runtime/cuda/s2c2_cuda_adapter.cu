@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AdapterContract.h"
+#include "ssd_mount.h"
 
 #include <algorithm>
 #include <cctype>
@@ -19,7 +20,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <sstream>
 #include <string>
+#include <system_error>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -2194,144 +2197,7 @@ static std::string cudaGpuSlug() {
 
 // Optional file backing for the storage pipeline only. Default stays
 // malloc. O_DIRECT is required when a directory is set; a buffered
-// read is not reported as disk.
-struct SsdMount {
-  std::string path;
-  std::string fdPath;
-  std::string fstype;
-  std::string source;
-  bool nvme = false;
-};
-
-static std::string unescapeMount(const std::string &in) {
-  std::string out;
-  for (size_t i = 0; i < in.size(); ++i) {
-    if (in[i] == '\\' && i + 3 < in.size() &&
-        std::isdigit(static_cast<unsigned char>(in[i + 1])) &&
-        std::isdigit(static_cast<unsigned char>(in[i + 2])) &&
-        std::isdigit(static_cast<unsigned char>(in[i + 3]))) {
-      int v = (in[i + 1] - '0') * 64 + (in[i + 2] - '0') * 8 + (in[i + 3] - '0');
-      out.push_back(static_cast<char>(v));
-      i += 3;
-    } else {
-      out.push_back(in[i]);
-    }
-  }
-  return out;
-}
-
-static std::string mountOption(const std::string &super, const char *key) {
-  std::string needle = std::string(key) + "=";
-  auto pos = super.find(needle);
-  if (pos == std::string::npos)
-    return {};
-  auto start = pos + needle.size();
-  auto end = super.find(',', start);
-  return unescapeMount(super.substr(start, end == std::string::npos
-                                                 ? std::string::npos
-                                                 : end - start));
-}
-
-static bool mountCovers(const std::string &point, const std::string &path) {
-  if (point == "/")
-    return !path.empty() && path[0] == '/';
-  if (path == point)
-    return true;
-  return path.size() > point.size() &&
-         path.compare(0, point.size(), point) == 0 &&
-         path[point.size()] == '/';
-}
-
-static SsdMount describeDir(const std::string &dir, bool followOverlay = true) {
-  SsdMount info;
-  info.path = dir;
-  std::ifstream in("/proc/self/mountinfo");
-  std::string line;
-  size_t best = 0;
-  bool found = false;
-  std::string bestSuper;
-  while (std::getline(in, line)) {
-    auto sep = line.find(" - ");
-    if (sep == std::string::npos)
-      continue;
-    std::string left = line.substr(0, sep);
-    std::string right = line.substr(sep + 3);
-    std::string point;
-    {
-      std::string field;
-      int idx = 0;
-      for (size_t i = 0; i <= left.size(); ++i) {
-        if (i == left.size() || left[i] == ' ') {
-          if (idx == 4)
-            point = unescapeMount(field);
-          field.clear();
-          if (i != left.size())
-            ++idx;
-        } else {
-          field.push_back(left[i]);
-        }
-      }
-    }
-    if (!mountCovers(point, dir) || point.size() < best)
-      continue;
-    std::string fstype;
-    std::string source;
-    std::string super;
-    {
-      std::string field;
-      int idx = 0;
-      for (size_t i = 0; i <= right.size(); ++i) {
-        if (i == right.size() || right[i] == ' ') {
-          if (idx == 0)
-            fstype = field;
-          else if (idx == 1)
-            source = unescapeMount(field);
-          else if (idx == 2)
-            super = field;
-          field.clear();
-          if (i != right.size())
-            ++idx;
-        } else {
-          field.push_back(right[i]);
-        }
-      }
-    }
-    best = point.size();
-    found = true;
-    info.fstype = fstype;
-    info.source = source;
-    bestSuper = super;
-  }
-  if (!found) {
-    info.fstype = "unknown";
-    info.source = "unknown";
-  }
-  std::string probe = dir;
-  if (info.fstype == "overlay") {
-    std::string upper = mountOption(bestSuper, "upperdir");
-    if (!upper.empty()) {
-      std::string rel = dir;
-      if (!rel.empty() && rel[0] == '/')
-        rel.erase(rel.begin());
-      if (!upper.empty() && upper.back() != '/')
-        upper.push_back('/');
-      probe = upper + rel;
-      info.fdPath = probe;
-    }
-  }
-  if (info.source.find("nvme") != std::string::npos)
-    info.nvme = true;
-  if (followOverlay && !info.nvme && info.fstype == "overlay" && !probe.empty() &&
-      probe != dir) {
-    SsdMount under = describeDir(probe, false);
-    if (under.nvme || under.source.find("nvme") != std::string::npos) {
-      info.source = under.source;
-      info.fstype = under.fstype;
-      info.nvme = true;
-    }
-  }
-  return info;
-}
+// read is not reported as disk. Mount lookup lives in ssd_mount.h.
 
 static void dieSsd(const char *msg) {
   std::fprintf(stderr, "s2c2-cuda-run: %s\n", msg);
@@ -2568,10 +2434,13 @@ static int runStoragePipelineWallclock(int nTile, int nCc, int kRef, int warmup,
   SsdMount ssdMount;
   bool ssdFile = ssdDir != nullptr && ssdDir[0] != '\0';
   if (ssdFile) {
-    std::string dir = ssdDir;
-    if (dir.back() == '/')
-      dir.pop_back();
-    ssdMount = describeDir(dir);
+    std::error_code cwdEc;
+    auto cwd = std::filesystem::current_path(cwdEc);
+    std::string dir = normalizeSsdDir(ssdDir, cwdEc ? "/" : cwd.string());
+    std::ifstream mountinfo("/proc/self/mountinfo");
+    std::ostringstream mountText;
+    mountText << mountinfo.rdbuf();
+    ssdMount = describeDir(dir, mountText.str());
     std::string alt0;
     std::string alt1;
     if (!ssdMount.fdPath.empty()) {
