@@ -412,6 +412,55 @@ def _validate() -> dict[str, str]:
         raise RuntimeError("C01-canonical")
     if "induced-hb" in accepted:
         raise RuntimeError("C01-induced")
+    facts_fwd = extract(
+        _module(
+            "carrier.block { "
+            + _fact("0", "store", "id0")
+            + " "
+            + _fact("1", "store", "id1")
+            + " }"
+        )
+    )
+    facts_rev = extract(
+        _module(
+            "carrier.block { "
+            + _fact("1", "store", "id1")
+            + " "
+            + _fact("0", "store", "id0")
+            + " }"
+        )
+    )
+    if facts_fwd == facts_rev:
+        raise RuntimeError("fact-order")
+    if [op["op-id"] for op in facts_fwd["blocks"][0]["ops"]] != ["id0", "id1"]:
+        raise RuntimeError("fact-order-kept")
+    blocks_fwd = extract(
+        _module(
+            "carrier.block { "
+            + _fact("0", "store", "id0")
+            + " } carrier.block { "
+            + _fact("1", "store", "id1")
+            + " }"
+        )
+    )
+    blocks_rev = extract(
+        _module(
+            "carrier.block { "
+            + _fact("1", "store", "id1")
+            + " } carrier.block { "
+            + _fact("0", "store", "id0")
+            + " }"
+        )
+    )
+    if blocks_fwd == blocks_rev:
+        raise RuntimeError("block-order")
+    if [block["ops"][0]["op-id"] for block in blocks_fwd["blocks"]] != ["id0", "id1"]:
+        raise RuntimeError("block-order-kept")
+    if extract(_module(_acceptance_body()).replace("carrier.fact", "\n carrier.fact ")) != accepted:
+        raise RuntimeError("whitespace")
+    bare = extract(_module("carrier.block { " + _stores() + " }"))
+    if "hb" in bare or "induced-hb" in bare:
+        raise RuntimeError("absent-hb")
 
     envelope = scenario.rewrite_plan()
     source = scenario.source_program()
@@ -498,6 +547,15 @@ def _validate() -> dict[str, str]:
         _module(_acceptance_body(), extra=', s2c2.carrier.router = "E"'),
         "closed-set",
     )
+    _expect_refusal(
+        _module(_acceptance_body(), extra=', s2c2.carrier.collective = "allreduce"'),
+        "closed-set",
+    )
+    _expect_refusal(
+        _module(_acceptance_body(), capacity="1 : i1"),
+        "not-i64",
+    )
+    _expect_refusal(_module(_acceptance_body()) + " @", "syntax")
     if calls["apply"] != before:
         raise RuntimeError("refusal-called-apply")
 
@@ -651,6 +709,13 @@ def print_contract() -> int:
     print("extract-refusal not-i64 apply-not-called")
     print("extract-refusal nested-region apply-not-called")
     print("extract-refusal router-result closed-set apply-not-called")
+    print("fact-order significant")
+    print("block-order significant")
+    print("whitespace same-dict")
+    print("absent-hb key-omitted")
+    print("extract-refusal collective-kind closed-set apply-not-called")
+    print("extract-refusal i1 not-i64 apply-not-called")
+    print("extract-refusal syntax apply-not-called")
     print("host-matrix-cases " + summary["matrix"])
     print("host-matrix-through-carrier " + summary["matrix"])
     return 0
