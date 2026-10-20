@@ -640,6 +640,34 @@ def _validate() -> dict[str, str]:
 
     cap4 = extract(_module(_acceptance_body(), capacity="4 : i64", working_set="5 : i64"))
     _expect_host(host_once(cap4, envelope, witness=None), match="no", reasons=[])
+    # working-set 2 and a forbidden op are well-formed carrier text.
+    # extract keeps them. The host, not extract, returns match=no.
+    ws2 = extract(_module(_acceptance_body(), working_set="2 : i64"))
+    if ws2["working-set"] != 2:
+        raise RuntimeError("working-set-two")
+    ws2_host = host_once(ws2, envelope, witness=None)
+    _expect_host(ws2_host, match="no", reasons=[])
+    if apply.canonical_program(ws2_host["program"]) != apply.canonical_program(ws2):
+        raise RuntimeError("working-set-two-mutated")
+    forbidden_text = _module(
+        "carrier.block { "
+        + _fact("0", "store", "id0")
+        + " "
+        + _fact("x", "prefetch", "px")
+        + " "
+        + _fact("1", "store", "id1")
+        + " "
+        + _fact("2", "store", "id2")
+        + " }"
+    )
+    forbidden = extract(forbidden_text)
+    kinds = [op["op"] for op in forbidden["blocks"][0]["ops"]]
+    if kinds != ["store", "prefetch", "store", "store"]:
+        raise RuntimeError("forbidden-op-kept")
+    forbidden_host = host_once(forbidden, envelope, witness=None)
+    _expect_host(forbidden_host, match="no", reasons=[])
+    if apply.canonical_program(forbidden_host["program"]) != apply.canonical_program(forbidden):
+        raise RuntimeError("forbidden-op-mutated")
     two = extract(
         _module(
             "carrier.block { "
@@ -776,6 +804,8 @@ def print_contract() -> int:
     print("C08 host match=no applied=no")
     print("C09 host match=no applied=no")
     print("C10 host match=no applied=no blocks-not-merged")
+    print("working-set-two extract-ok host-match-no")
+    print("forbidden-op extract-ok host-match-no")
     print("C11 host reasons=rewrite.sequence-mismatch")
     print("C12 host match=yes applied=no")
     print("C13 host match=yes applied=no")
