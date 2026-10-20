@@ -21,6 +21,7 @@ func.func @dummy() {
 // APP: search no
 // APP: can-run-plan no
 // APP: apply-repeat same-result
+// APP: apply-matrix-repeat same-result
 // APP: match-yes-applied-no allowed
 // APP: match-no-applied-yes forbidden
 // APP: decision-subject-rewrite-applicable no
@@ -56,5 +57,6 @@ func.func @dummy() {
 // APPM: app-case collide-restore
 // APPM: app-applied no
 // APPM: can-run-plan no
+// APPM: apply-matrix-repeat same-result
 // APPM: enum-f no
 // APPM-NOT: can-run-plan=yes
