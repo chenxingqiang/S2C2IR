@@ -78,8 +78,9 @@ python3 runtime/record_apply_scenario.py --print-apply-scenario
 Same source `P`, same envelope, same witness must yield
 the same `canonical(P')` and the same `ApplyResult`.
 The contract run calls `evaluate_apply` twice on the
-acceptance program and requires that. The source program
-stays unchanged. `can-run-plan` stays no.
+acceptance program and on every matrix row. Each pair of
+results matches, including `canonical(P')`. The source
+program stays unchanged. `can-run-plan` stays no.
 Evidence scope is contract-level and host-level.
 `compiler-e2e` stays no. Not `s2c2-opt`. Not hardware
 execution. Not a performance claim. Not a new semantic

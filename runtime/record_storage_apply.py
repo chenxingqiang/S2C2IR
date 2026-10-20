@@ -881,6 +881,15 @@ def _validate() -> None:
         bag = evaluate_apply(envelopes, program, **kwargs)
         if program != before or envelopes != before_env:
             raise RuntimeError(f"mutated {name}")
+        repeated = evaluate_apply(
+            copy.deepcopy(envelopes),
+            copy.deepcopy(program),
+            **copy.deepcopy(kwargs),
+        )
+        if repeated != bag:
+            raise RuntimeError(f"apply-repeat {name}")
+        if canonical_program(repeated["program"]) != canonical_program(bag["program"]):
+            raise RuntimeError(f"apply-repeat-canonical {name}")
         if bag["schema"] != APPLY_SCHEMA or bag["source-schema"] != REWRITE_SCHEMA:
             raise RuntimeError(name)
         if bag["can-run-plan"] != "no":
@@ -983,6 +992,7 @@ def print_contract() -> int:
     print("authorization-reopened no")
     print("can-run-plan no")
     print("apply-repeat same-result")
+    print("apply-matrix-repeat same-result")
     print("rewrite-path-mirrors-applied yes")
     print("match-yes-applied-no allowed")
     print("match-no-applied-yes forbidden")
@@ -1018,6 +1028,7 @@ def print_matrix() -> int:
         print(f"app-can-run-plan {bag['can-run-plan']}")
         print(f"app-reasons {reasons}")
     print("can-run-plan no")
+    print("apply-matrix-repeat same-result")
     print("enum-f no")
     print("cost=unchanged")
     return 0
