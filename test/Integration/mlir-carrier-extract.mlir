@@ -53,6 +53,8 @@ module {
 // CAR: block-order significant
 // CAR: whitespace same-dict
 // CAR: absent-hb key-omitted
+// CAR: duplicate-hb kept
+// CAR: extract-refusal non-string-attr syntax apply-not-called
 // CAR: extract-refusal collective-kind closed-set apply-not-called
 // CAR: extract-refusal i1 not-i64 apply-not-called
 // CAR: extract-refusal syntax apply-not-called

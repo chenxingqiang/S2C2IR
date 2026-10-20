@@ -212,7 +212,9 @@ Witness schema stays `s2c2.apply_legality_witness.v1`.
 
 Sorting hb pairs matches `canonical_program`, which sorts
 edges. The multiset is unchanged. Duplicate pairs stay
-duplicate.
+duplicate. The contract run keeps two copies of `id0→id1`
+beside `id1→id2`. A fact `name` or an hb `from` written as
+`i64` is `syntax`, because those attributes are strings.
 
 The acceptance source in `record_apply_scenario.py` is
 three stores named `0`, `1`, `2`, op-ids `id0`, `id1`,

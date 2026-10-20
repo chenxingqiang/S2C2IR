@@ -516,6 +516,19 @@ def _validate() -> dict[str, str]:
     bare = extract(_module("carrier.block { " + _stores() + " }"))
     if "hb" in bare or "induced-hb" in bare:
         raise RuntimeError("absent-hb")
+    duplicated = extract(
+        _module(
+            "carrier.block { "
+            + _stores()
+            + " "
+            + _hb([("id0", "id1"), ("id1", "id2"), ("id0", "id1")])
+            + " }"
+        )
+    )
+    if duplicated.get("hb") != [["id0", "id1"], ["id0", "id1"], ["id1", "id2"]]:
+        raise RuntimeError("duplicate-hb")
+    if "induced-hb" in duplicated:
+        raise RuntimeError("duplicate-hb-induced")
 
     envelope = scenario.rewrite_plan()
     source = scenario.source_program()
@@ -611,6 +624,17 @@ def _validate() -> dict[str, str]:
         "not-i64",
     )
     _expect_refusal(_module(_acceptance_body()) + " @", "syntax")
+    _expect_refusal(
+        _module(
+            'carrier.block { carrier.fact { name = 0 : i64, op = "store", '
+            'op_id = "id0" } }'
+        ),
+        "syntax",
+    )
+    _expect_refusal(
+        _module('carrier.block { carrier.hb { from = 0 : i64, to = "id1" } }'),
+        "syntax",
+    )
     if calls["apply"] != before:
         raise RuntimeError("refusal-called-apply")
 
@@ -773,6 +797,8 @@ def print_contract() -> int:
     print("block-order significant")
     print("whitespace same-dict")
     print("absent-hb key-omitted")
+    print("duplicate-hb kept")
+    print("extract-refusal non-string-attr syntax apply-not-called")
     print("extract-refusal collective-kind closed-set apply-not-called")
     print("extract-refusal i1 not-i64 apply-not-called")
     print("extract-refusal syntax apply-not-called")
