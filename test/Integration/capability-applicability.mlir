@@ -15,6 +15,9 @@ func.func @dummy() {
 // CAPA: applicable-ne-sufficient yes
 // CAPA: capability-ne-authorization yes
 // CAPA: capability-ne-rewrite yes
+// CAPA: occupancy-report-schema s2c2.occupancy_capability_report.v1
+// CAPA: cap-schema-ne-occupancy-schema yes
+// CAPA: v3-cap-schema-version 1
 // CAPA: v3-catalog-ne-applicability-record yes
 // CAPA: capability-schedule-ne-god-object yes
 // CAPA: identity-cardinality 0-or-1

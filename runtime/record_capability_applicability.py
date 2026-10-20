@@ -357,8 +357,47 @@ def _validate() -> None:
         raise RuntimeError(f"capability matrix drift: {got}")
 
 
+def _foreign_schemas() -> tuple[str, str]:
+    """Catalog schema_version and the occupancy report schema.
+
+    Applicability must not reuse either identity.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent
+
+    def load(rel: str, name: str):
+        spec = importlib.util.spec_from_file_location(name, root / rel)
+        if spec is None or spec.loader is None:
+            raise RuntimeError("schema-load " + rel)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    cuda = load("cuda/record_v3.py", "s2c2_cuda_v3_schema")
+    ascend = load("ascend/record_ascend.py", "s2c2_ascend_v3_schema")
+    occupancy = load("record_occupancy_capability.py", "s2c2_occupancy_schema")
+    if cuda.CAP_SCHEMA_VERSION != ascend.CAP_SCHEMA_VERSION:
+        raise RuntimeError("v3-cap-schema-version-drift")
+    if "schema" in cuda.CAP_SCHEMA_FIELDS or "schema" in ascend.CAP_SCHEMA_FIELDS:
+        raise RuntimeError("v3-catalog-schema-field")
+    version = cuda.CAP_SCHEMA_VERSION
+    report = occupancy.REPORT_SCHEMA
+    if SCHEMA in (version, report):
+        raise RuntimeError("applicability-schema-shared")
+    return version, report
+
+
 def print_contract() -> int:
     _validate()
+    try:
+        catalog_version, occupancy_schema = _foreign_schemas()
+    except RuntimeError as exc:
+        print("v3-catalog-ne-applicability-record no")
+        print("cap-schema-ne-occupancy-schema no")
+        print(str(exc))
+        return 1
     print("capability-applicability gate=query")
     print("schema s2c2.capability_applicability.v1")
     print("decision-schema s2c2.decision.v1")
@@ -369,6 +408,9 @@ def print_contract() -> int:
     print("capability-ne-rewrite yes")
     print("er-identity-ne-6b-identity yes")
     print("cap-identity-ne-occupancy-identity yes")
+    print("occupancy-report-schema " + occupancy_schema)
+    print("cap-schema-ne-occupancy-schema yes")
+    print("v3-cap-schema-version " + catalog_version)
     print("v3-catalog-ne-applicability-record yes")
     print("capability-schedule-ne-god-object yes")
     print("identity-cardinality 0-or-1")

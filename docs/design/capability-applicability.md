@@ -85,6 +85,9 @@ pair catalog cell                ≠  evidence-backed applicable Decision
 S2C2CapabilitySchedule.cpp       ≠  this module
 ```
 
+The contract run compares the applicability schema with the
+catalog `schema_version` and with the occupancy report schema.
+
 ## Identity (aligned with derivation)
 
 ```text
