@@ -123,7 +123,9 @@ license-kind v0.1      = storage-capacity-rewrite
 
 Later `schedule-rewrite` / `device-placement` get their
 own action identities. They must not share a bare
-`authorized=yes`.
+`authorized=yes`. The contract run claims
+`device-placement` against `storage-rewrite` and requires
+`authorized=no` with `authorization.action-mismatch`.
 
 ## Policy v0.1
 
