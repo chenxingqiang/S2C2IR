@@ -20,6 +20,7 @@ func.func @dummy() {
 // APP: enum-f no
 // APP: search no
 // APP: can-run-plan no
+// APP: apply-repeat same-result
 // APP: match-yes-applied-no allowed
 // APP: match-no-applied-yes forbidden
 // APP: decision-subject-rewrite-applicable no
