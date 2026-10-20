@@ -115,6 +115,8 @@ buffer and still prints `logical-ssd-ne-disk`. When the
 directory is set, each tile is read back with `O_DIRECT`
 during the timed prefetch. The log names the path, the
 mount source, and whether that source contains `nvme`.
+A relative directory is resolved from the working directory
+before that lookup, and the root `/` stays the root.
 A buffered read is not substituted. Other timed paths keep
 `malloc`. `--analyze-storage-pipeline` reports
 `ssd-backend=file-odirect` when the log names that backend,
