@@ -34,6 +34,8 @@ module {
 // CAR: C10 host match=no applied=no blocks-not-merged
 // CAR: working-set-two extract-ok host-match-no
 // CAR: forbidden-op extract-ok host-match-no
+// CAR: window-op compute kept host-applied
+// CAR: window-op load kept host-applied
 // CAR: C11 host reasons=rewrite.sequence-mismatch
 // CAR: C12 host match=yes applied=no
 // CAR: C13 host match=yes applied=no

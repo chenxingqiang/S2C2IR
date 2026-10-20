@@ -668,6 +668,44 @@ def _validate() -> dict[str, str]:
     _expect_host(forbidden_host, match="no", reasons=[])
     if apply.canonical_program(forbidden_host["program"]) != apply.canonical_program(forbidden):
         raise RuntimeError("forbidden-op-mutated")
+
+    def kept_window(kind: str, name: str, op_id: str) -> None:
+        extracted = extract(
+            _module(
+                "carrier.block { "
+                + _fact("0", "store", "id0")
+                + " "
+                + _fact(name, kind, op_id)
+                + " "
+                + _fact("1", "store", "id1")
+                + " "
+                + _fact("2", "store", "id2")
+                + " "
+                + _hb([("id0", op_id), (op_id, "id1"), ("id1", "id2")])
+                + " }"
+            )
+        )
+        ops = extracted["blocks"][0]["ops"]
+        if [op["op"] for op in ops] != ["store", kind, "store", "store"]:
+            raise RuntimeError("window-op-" + kind)
+        before = apply.canonical_program(extracted)
+        bag = host_once(
+            extracted,
+            envelope,
+            witness=apply.bound_witness(extracted, device=scenario.DEVICE),
+        )
+        if bag["match"] != "yes" or bag["applied"] != "yes":
+            raise RuntimeError("window-op-host-" + kind)
+        if bag["can-run-plan"] != "no" or bag["reasons"] != []:
+            raise RuntimeError("window-op-boundary-" + kind)
+        if apply.canonical_program(extracted) != before:
+            raise RuntimeError("window-op-source-" + kind)
+        out = [op["op"] for block in bag["program"]["blocks"] for op in block["ops"]]
+        if out != ["store", kind, "store", "evict", "transfer", "restore"]:
+            raise RuntimeError("window-op-result-" + kind)
+
+    kept_window("compute", "c", "cx")
+    kept_window("load", "l", "lx")
     two = extract(
         _module(
             "carrier.block { "
@@ -806,6 +844,8 @@ def print_contract() -> int:
     print("C10 host match=no applied=no blocks-not-merged")
     print("working-set-two extract-ok host-match-no")
     print("forbidden-op extract-ok host-match-no")
+    print("window-op compute kept host-applied")
+    print("window-op load kept host-applied")
     print("C11 host reasons=rewrite.sequence-mismatch")
     print("C12 host match=yes applied=no")
     print("C13 host match=yes applied=no")
