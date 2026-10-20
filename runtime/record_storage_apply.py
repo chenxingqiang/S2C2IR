@@ -836,6 +836,18 @@ def _validate() -> None:
     again = construct_candidate(happy, region)
     if canonical_program(again) != canonical_program(construct_candidate(happy, region)):
         raise RuntimeError("not deterministic")
+    witness = bound_witness(happy)
+    source_before = canonical_program(happy)
+    first = evaluate_apply([_plan()], happy, witness=witness)
+    second = evaluate_apply([_plan()], happy, witness=witness)
+    if first != second:
+        raise RuntimeError("apply-repeat")
+    if canonical_program(first["program"]) != canonical_program(second["program"]):
+        raise RuntimeError("apply-repeat-canonical")
+    if first["applied"] != "yes" or first["can-run-plan"] != "no":
+        raise RuntimeError("apply-repeat-boundary")
+    if canonical_program(happy) != source_before:
+        raise RuntimeError("apply-repeat-source")
     if programs_equal(happy, again):
         raise RuntimeError("identity transform")
     if not programs_equal(happy, copy.deepcopy(happy)):
@@ -970,6 +982,7 @@ def print_contract() -> int:
     print("search no")
     print("authorization-reopened no")
     print("can-run-plan no")
+    print("apply-repeat same-result")
     print("rewrite-path-mirrors-applied yes")
     print("match-yes-applied-no allowed")
     print("match-no-applied-yes forbidden")
