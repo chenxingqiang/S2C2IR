@@ -17,6 +17,11 @@ module {
 // CAR: can-run-plan no
 // CAR: semantic-cut no
 // CAR: next-cut no
+// CAR: extract-calls-authorization no
+// CAR: extract-calls-evaluate-apply no
+// CAR: extract-builds-envelope no
+// CAR: extract-binds-witness no
+// CAR: extract-computes-candidate-id no
 // CAR: C01 canonical-p
 // CAR: C02 same-dict
 // CAR: C03 yes/yes

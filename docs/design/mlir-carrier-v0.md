@@ -190,9 +190,11 @@ Those stay inside `evaluate_apply`.
 extract does not call `evaluate_authorization`. It does
 not build the 7B envelope. It does not bind the witness.
 It does not compute `CandidateId`. It does not run
-`IsLegal`. Device `D` stays the existing
-`evaluate_apply` argument. Witness schema stays
-`s2c2.apply_legality_witness.v1`.
+`IsLegal`. The contract run counts zero calls to
+`evaluate_authorization`, `evaluate_apply`, `rewrite_plan`,
+`bound_witness`, and `candidate_id_for` during one extract.
+Device `D` stays the existing `evaluate_apply` argument.
+Witness schema stays `s2c2.apply_legality_witness.v1`.
 
 ## Identity mapping
 
