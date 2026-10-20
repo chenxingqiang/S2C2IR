@@ -10,6 +10,7 @@ func.func @dummy() {
 
 // OCRC: occupancy-capability-report gate=query
 // OCRC: schema s2c2.occupancy_capability_report.v1
+// OCRC: decision-schema s2c2.decision.v1
 // OCRC: report-ne-decision yes
 // OCRC: usable-identity-ne-applicable-identity yes
 // OCRC: conjunction-ne-sufficient yes
@@ -40,6 +41,7 @@ func.func @dummy() {
 // OCRC-NOT: decision-subject sufficient
 
 // OCRM: occupancy-capability-report-matrix gate=query
+// OCRM: decision-schema s2c2.decision.v1
 // OCRM: report-ne-decision yes
 // OCRM: conjunction-ne-sufficient yes
 // OCRM: both-yes-ne-sufficient yes
