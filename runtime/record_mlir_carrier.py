@@ -393,7 +393,62 @@ def _host(program: dict, envelope: dict, *, witness, device: str = "D0") -> dict
     return bag
 
 
+def _extract_skips_host() -> None:
+    """One extract does not enter authorization, apply, or the 7B helpers."""
+    import record_authorization as auth
+
+    counters = {
+        "authorization": 0,
+        "apply": 0,
+        "envelope": 0,
+        "witness": 0,
+        "candidate": 0,
+    }
+    saved = {
+        "authorization": auth.evaluate_authorization,
+        "apply": apply.evaluate_apply,
+        "envelope": scenario.rewrite_plan,
+        "witness": apply.bound_witness,
+        "candidate": apply.candidate_id_for,
+    }
+
+    def wrap(key: str, fn):
+        def wrapped(*args, **kwargs):
+            counters[key] += 1
+            if kwargs.get("_probe"):
+                return None
+            return fn(*args, **kwargs)
+
+        return wrapped
+
+    auth.evaluate_authorization = wrap("authorization", saved["authorization"])
+    apply.evaluate_apply = wrap("apply", saved["apply"])
+    scenario.rewrite_plan = wrap("envelope", saved["envelope"])
+    apply.bound_witness = wrap("witness", saved["witness"])
+    apply.candidate_id_for = wrap("candidate", saved["candidate"])
+    try:
+        for key in counters:
+            counters[key] = 0
+        apply.evaluate_apply(_probe=True)
+        if counters["apply"] != 1:
+            raise RuntimeError("extract-probe")
+        for key in counters:
+            counters[key] = 0
+        extracted = extract(_module(_acceptance_body()))
+    finally:
+        auth.evaluate_authorization = saved["authorization"]
+        apply.evaluate_apply = saved["apply"]
+        scenario.rewrite_plan = saved["envelope"]
+        apply.bound_witness = saved["witness"]
+        apply.candidate_id_for = saved["candidate"]
+    if any(counters.values()):
+        raise RuntimeError("extract-called-host")
+    if "induced-hb" in extracted:
+        raise RuntimeError("extract-induced")
+
+
 def _validate() -> dict[str, str]:
+    _extract_skips_host()
     calls = {"apply": 0}
 
     def host_once(program: dict, envelope: dict, *, witness, device: str = "D0") -> dict:
@@ -706,6 +761,11 @@ def print_contract() -> int:
     print("can-run-plan no")
     print("semantic-cut no")
     print("next-cut no")
+    print("extract-calls-authorization no")
+    print("extract-calls-evaluate-apply no")
+    print("extract-builds-envelope no")
+    print("extract-binds-witness no")
+    print("extract-computes-candidate-id no")
     print("C01 " + summary["C01"])
     print("C02 same-dict")
     print("C03 " + summary["C03"])
