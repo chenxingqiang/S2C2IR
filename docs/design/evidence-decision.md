@@ -136,6 +136,8 @@ s2c2.evidence.v1              ≠  s2c2.evidence_kind.v1
 measured cost record          ≠  occupancy witness
 ```
 
+The contract run compares the two schema constants.
+
 ## Evidence record
 
 Schema `s2c2.evidence_kind.v1` (defined, not ingested this

@@ -25,6 +25,7 @@ func.func @dummy() {
 // SUF: cross-scope-identity-mismatch yes
 // SUF: duplicate-required-safe-no yes
 // SUF: ignored-extra-duplicate-ne-result yes
+// SUF: extra-first-seen-order yes
 // SUF: inputs-canonical-order yes
 // SUF: sufficient-ne-authorized yes
 // SUF: sufficient-ne-rewrite-license yes

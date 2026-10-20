@@ -404,6 +404,27 @@ def _validate() -> None:
                 raise RuntimeError(name)
             if decision["reasons"] != ["decision.unknown-reason"]:
                 raise RuntimeError(name)
+    for first, second in (
+        ("applicable", "authorized"),
+        ("authorized", "applicable"),
+    ):
+        bag = evaluate_sufficiency(
+            _all_yes()
+            + [
+                _inp(first, "no", scoped=False),
+                _inp(second, "yes", scoped=False),
+            ]
+        )
+        if bag["decision"]["result"] != "yes":
+            raise RuntimeError("extra-order-result")
+        if bag["can-run-plan"] != "no" or bag["rewrite-license"] != "no":
+            raise RuntimeError("extra-order-boundary")
+        extras = [item for item in bag["inputs"] if item["subject"] not in REQUIRED]
+        if extras != [
+            {"subject": first, "result": "no"},
+            {"subject": second, "result": "yes"},
+        ]:
+            raise RuntimeError("extra-order")
 
 
 def print_contract() -> int:
@@ -423,6 +444,7 @@ def print_contract() -> int:
     print("cross-scope-identity-mismatch yes")
     print("duplicate-required-safe-no yes")
     print("ignored-extra-duplicate-ne-result yes")
+    print("extra-first-seen-order yes")
     print("inputs-canonical-order yes")
     print("sufficient-ne-authorized yes")
     print("sufficient-ne-rewrite-license yes")
@@ -487,6 +509,7 @@ def print_matrix() -> int:
     print("dest-invalidation-ne-sufficient yes")
     print("cross-scope-identity-mismatch yes")
     print("ignored-extra-duplicate-ne-result yes")
+    print("extra-first-seen-order yes")
     print("inputs-canonical-order yes")
     print("sufficient-ne-authorized yes")
     print("sufficiency-matrix-cases 16")

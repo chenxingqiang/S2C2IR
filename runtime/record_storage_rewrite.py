@@ -628,6 +628,19 @@ def _validate_binding() -> None:
         raise RuntimeError("rematerialize-input")
     if bind_rewrite_plan("nope")["rewrite-plan"]["reasons"] != ["rewrite.sequence-mismatch"]:
         raise RuntimeError("binding-malformed")
+    placement = evaluate_rewrite([_licensed()], action="device-placement")
+    if placement["rewrite-plan"]["result"] != "no":
+        raise RuntimeError("device-placement-plan")
+    if placement["rewrite-plan"]["reasons"] != ["rewrite.identity-mismatch"]:
+        raise RuntimeError("device-placement-reason")
+    if placement["sequence"] != "n/a" or placement["transformation"] != "n/a":
+        raise RuntimeError("device-placement-sequence")
+    if placement["applied"] != "no" or placement["rewrite-path"] != "no":
+        raise RuntimeError("device-placement-boundary")
+    if placement["can-run-plan"] != "no":
+        raise RuntimeError("device-placement-run")
+    if placement["identity"]["action"] != "device-placement":
+        raise RuntimeError("device-placement-action")
 
 
 def print_contract() -> int:
@@ -647,6 +660,8 @@ def print_contract() -> int:
     print("rewrite-plan-yes-ne-can-run-plan yes")
     print("sequence-input-not-ignored-extra yes")
     print("duplicate-sequence-safe-no yes")
+    print("device-placement plan=no")
+    print("device-placement sequence=n/a")
     print("duplicate-envelope-safe-no yes")
     print("envelope-decision-contract yes")
     print("source-schema-consumed s2c2.decision.v1")
