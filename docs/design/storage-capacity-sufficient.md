@@ -154,6 +154,11 @@ rewrite-license         no
 rewrite-path            no
 ```
 
+The contract run checks both extra orders. `applicable`
+then `authorized` stays that order. `authorized` then
+`applicable` stays that order. Neither order changes
+`sufficient=yes`.
+
 ```text
 sufficiency-evaluation = evaluated   ≠  can-run-plan=yes
 Decision.result=yes                  ≠  rewrite-license=yes
