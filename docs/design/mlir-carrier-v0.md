@@ -274,7 +274,13 @@ or an hb edge outside a block, a fact missing `name` or `op`,
 an hb edge missing `from` or `to`, a missing working-set, a
 capacity or working-set that is not `i64`, a nested region,
 and a router attribute. Those are the refusal bullets above
-that C04 through C07 do not already name.
+that C04 through C07 do not already name. A collective
+attribute and an `i1` capacity take the same refusal.
+A token the grammar does not spell is `syntax`.
+
+Fact order and block order change the extracted dict.
+Whitespace does not. A block with no `carrier.hb` omits
+the `hb` key and does not invent `induced-hb`.
 
 The same check replays all 29 rows of `evaluate_apply`'s
 matrix. Each program is rendered to carrier text and

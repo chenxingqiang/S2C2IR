@@ -44,5 +44,12 @@ module {
 // CAR: extract-refusal not-i64 apply-not-called
 // CAR: extract-refusal nested-region apply-not-called
 // CAR: extract-refusal router-result closed-set apply-not-called
+// CAR: fact-order significant
+// CAR: block-order significant
+// CAR: whitespace same-dict
+// CAR: absent-hb key-omitted
+// CAR: extract-refusal collective-kind closed-set apply-not-called
+// CAR: extract-refusal i1 not-i64 apply-not-called
+// CAR: extract-refusal syntax apply-not-called
 // CAR: host-matrix-cases 29
 // CAR: host-matrix-through-carrier 29
