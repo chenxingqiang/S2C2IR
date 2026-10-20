@@ -106,7 +106,10 @@ sequence        = KEEP → EVICT → TRANSFER → RESTORE
 ```
 
 Later `schedule-rewrite` / `device-placement` get their
-own plans. They must not share this sequence.
+own plans. They must not share this sequence. The
+contract run asks for a `device-placement` plan from the
+storage-rewrite license and requires `plan=no` with
+`sequence=n/a`.
 
 This is **not** \(F_{\mathrm{storage\_schedule}}\). That
 family is prefetch × depth × residency × capacity and

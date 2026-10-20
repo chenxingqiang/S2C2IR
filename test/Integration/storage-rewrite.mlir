@@ -25,6 +25,8 @@ func.func @dummy() {
 // REW: rewrite-plan-yes-ne-can-run-plan yes
 // REW: sequence-input-not-ignored-extra yes
 // REW: duplicate-sequence-safe-no yes
+// REW: device-placement plan=no
+// REW: device-placement sequence=n/a
 // REW: duplicate-envelope-safe-no yes
 // REW: envelope-decision-contract yes
 // REW: source-schema-consumed s2c2.decision.v1
