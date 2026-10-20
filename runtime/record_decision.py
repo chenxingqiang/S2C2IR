@@ -16,8 +16,15 @@ import sys
 
 
 def print_evidence_decision_contract() -> int:
+    import record_evidence as evidence
+
+    kind_schema = "s2c2.evidence_kind.v1"
+    if evidence.SCHEMA == kind_schema:
+        print("evidence-kind-ne-6b-identity no")
+        return 1
     print("evidence-decision gate=query")
-    print("schema s2c2.evidence_kind.v1")
+    print("schema " + kind_schema)
+    print("evidence-db-schema " + evidence.SCHEMA)
     print("decision-schema s2c2.decision.v1")
     print("hb-source-is-semantic-truth yes")
     print("realization-ne-hb-change yes")
