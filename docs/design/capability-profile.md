@@ -63,6 +63,8 @@ implicit scheduler.
 ## Schema `s2c2.capability_profile.v1`
 
 All fields required. Query-only. Not ingested by `s2c2-opt`.
+The contract run compares this schema with
+`s2c2.capability_applicability.v1`.
 
 ```text
 schema

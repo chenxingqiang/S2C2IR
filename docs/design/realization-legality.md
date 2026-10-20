@@ -64,7 +64,9 @@ Do not invent a parallel result enum.
 
 Input: `s2c2.capability_profile.v1` only. Do not re-read
 occupancy EvidenceRecords. Do not re-run
-`derive_applicable_decision`.
+`derive_applicable_decision`. The contract run compares
+this schema with the profile schema and with
+`s2c2.capability_applicability.v1`.
 
 Envelope (one profile):
 

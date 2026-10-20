@@ -242,11 +242,16 @@ def _validate() -> None:
 
 def print_contract() -> int:
     _validate()
+    if LEGALITY_SCHEMA in (prof.PROFILE_SCHEMA, capa.SCHEMA):
+        print("legality-ne-profile no")
+        print("legality-ne-applicable no")
+        return 1
     print("realization-legality gate=query")
     print(f"schema {LEGALITY_SCHEMA}")
     print(f"source-schema {prof.PROFILE_SCHEMA}")
     print("legality-identity target-device-kind")
     print("constraint-copied yes")
+    print(f"applicable-schema {capa.SCHEMA}")
     print("legality-ne-applicable yes")
     print("legality-ne-profile yes")
     print("legality-ne-sufficient yes")
