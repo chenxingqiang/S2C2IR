@@ -705,6 +705,24 @@ def _validate() -> None:
         raise RuntimeError("success path reopened decision.rewrite-license-closed")
     if "decision.identity-mismatch" in emitted:
         raise RuntimeError("7A must not widen decision.identity-mismatch")
+    claimed = _action(result="no", claimed="device-placement")
+    if claimed["action"] != "device-placement":
+        raise RuntimeError("device-placement-claimed")
+    if claimed["identity"]["action"] != ACTION_V01:
+        raise RuntimeError("device-placement-identity")
+    placement = evaluate_authorization(
+        [_sufficient(), _policy(), _provenance(), claimed]
+    )
+    if placement["authorized"]["result"] != "no":
+        raise RuntimeError("device-placement-authorized")
+    if placement["authorized"]["reasons"] != ["authorization.action-mismatch"]:
+        raise RuntimeError("device-placement-reason")
+    if placement["rewrite-license"]["result"] != "no":
+        raise RuntimeError("device-placement-license")
+    if placement["can-run-plan"] != "no" or placement["rewrite-path"] != "no":
+        raise RuntimeError("device-placement-boundary")
+    if placement["identity"]["action"] != ACTION_V01:
+        raise RuntimeError("device-placement-target")
 
 
 def print_contract() -> int:
@@ -730,6 +748,7 @@ def print_contract() -> int:
     print("duplicate-license-safe-no yes")
     print("license-input-not-ignored-extra yes")
     print("claimed-action-ne-identity-action yes")
+    print("device-placement authorized=no")
     print("authorization-namespace v0.1")
     print("ea-1-authorization-tokens none")
     print("host-side-decision-contract yes")

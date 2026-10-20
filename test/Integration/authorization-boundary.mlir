@@ -30,6 +30,7 @@ func.func @dummy() {
 // AUTH: duplicate-license-safe-no yes
 // AUTH: license-input-not-ignored-extra yes
 // AUTH: claimed-action-ne-identity-action yes
+// AUTH: device-placement authorized=no
 // AUTH: authorization-namespace v0.1
 // AUTH: ea-1-authorization-tokens none
 // AUTH: host-side-decision-contract yes
