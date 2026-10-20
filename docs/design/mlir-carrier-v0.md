@@ -189,6 +189,9 @@ Those stay inside `evaluate_apply`. The contract run
 extracts working-set `2` and a `prefetch` op between the
 stores. Both extracts succeed, the op string is kept, and
 the host returns `match=no` without editing the program.
+`compute` and `load` sit in the window the host allows.
+extract keeps them, and with a witness the host applies.
+`can-run-plan` stays no.
 
 extract does not call `evaluate_authorization`. It does
 not build the 7B envelope. It does not bind the witness.
