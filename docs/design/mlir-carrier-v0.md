@@ -199,6 +199,7 @@ It does not compute `CandidateId`. It does not run
 `IsLegal`. The contract run counts zero calls to
 `evaluate_authorization`, `evaluate_apply`, `rewrite_plan`,
 `bound_witness`, and `candidate_id_for` during one extract.
+The contract run checks that extract does not name the authorization or apply host.
 Device `D` stays the existing `evaluate_apply` argument.
 Witness schema stays `s2c2.apply_legality_witness.v1`.
 
