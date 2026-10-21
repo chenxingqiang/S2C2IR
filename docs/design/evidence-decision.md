@@ -322,3 +322,5 @@ Query-only. `Decision.subject=usable`.
 `sufficiency-evaluation=n/a`. `rewrite-license=no`.
 `rewrite-path=no`. Diagnostic `--capacity` does not print
 this prefix.
+
+The contract run binds the decision schema to the authorization, rewrite, and sufficiency decision constants, and compares the evidence and kind schemas with the authorization schema.
