@@ -18,7 +18,9 @@ _RUNTIME = Path(__file__).resolve().parent
 if str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
+import record_authorization as auth
 import record_capability_applicability as capa
+import record_sufficiency as suf
 
 PROFILE_SCHEMA = "s2c2.capability_profile.v1"
 CONSTRAINT_STATUSES = ("allowed", "forbidden", "not-applicable", "unproven")
@@ -225,7 +227,9 @@ def _validate() -> None:
         profile = derive_capability_profile(records, target, device)
         if profile["schema"] != PROFILE_SCHEMA:
             raise RuntimeError(name)
-        if profile["schema"] == "s2c2.decision.v1":
+        if profile["schema"] == auth.DECISION_SCHEMA:
+            raise RuntimeError(name)
+        if profile["schema"] == suf.SUFFICIENCY_SCHEMA:
             raise RuntimeError(name)
         if profile["identity"] != {"target": target, "device": device}:
             raise RuntimeError(name)
@@ -331,6 +335,15 @@ def print_contract() -> int:
     print("profile-identity target-device")
     print(f"applicable-schema {capa.SCHEMA}")
     print("profile-ne-applicable yes")
+    if (
+        PROFILE_SCHEMA == suf.SUFFICIENCY_SCHEMA
+        or PROFILE_SCHEMA == auth.DECISION_SCHEMA
+    ):
+        print("profile-schemas-distinct no")
+        return 1
+    print(f"sufficiency-schema {suf.SUFFICIENCY_SCHEMA}")
+    print(f"decision-schema {auth.DECISION_SCHEMA}")
+    print("profile-schemas-distinct yes")
     print("profile-ne-usable yes")
     print("profile-ne-sufficient yes")
     print("profile-ne-decision yes")
