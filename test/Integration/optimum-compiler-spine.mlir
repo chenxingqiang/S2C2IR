@@ -12,6 +12,8 @@ func.func @dummy() {
 
 // OPT: optimum-authorization v1
 // OPT: schema s2c2.optimum_authorization.v1
+// OPT: authorization-schema s2c2.authorization.v1
+// OPT: optimum-ne-authorization-schema yes
 // OPT: rule unique-minimum-cost
 // OPT: selected-id capacity-optimum
 // OPT: cost 4

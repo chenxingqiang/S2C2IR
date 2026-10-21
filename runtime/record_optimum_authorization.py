@@ -631,6 +631,9 @@ def _validate_capacity() -> None:
 
 
 def print_optimum_authorization() -> int:
+    if SCHEMA == auth.AUTH_SCHEMA:
+        print("optimum-ne-authorization-schema no")
+        return 1
     _validate()
     chosen = authorize_optimum(acceptance_strategies())
     program = scenario.source_program()
@@ -645,6 +648,8 @@ def print_optimum_authorization() -> int:
     )
     print("optimum-authorization v1")
     print(f"schema {SCHEMA}")
+    print(f"authorization-schema {auth.AUTH_SCHEMA}")
+    print("optimum-ne-authorization-schema yes")
     print(f"rule {RULE}")
     print(f"selected-id {chosen['strategy-id']}")
     print(f"cost {chosen['cost']}")
