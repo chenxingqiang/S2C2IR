@@ -528,6 +528,10 @@ def print_contract() -> int:
     print("no-region refusal apply-not-called")
     print("other-program match no")
     print("other-program applied no")
+    if apply.evaluate_apply.__module__ != "record_storage_apply":
+        print("apply-called no")
+        return 1
+    print("spine-host apply record_storage_apply")
     print("apply-called yes")
     print("host-matrix-through-spine " + str(summary["matrix"]))
     print("induced-hb-copied no")

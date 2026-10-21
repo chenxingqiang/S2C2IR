@@ -14,6 +14,7 @@ module {
 // GOAL: sched-ops 7
 // GOAL: sketch-ops absent
 // GOAL: can-run-plan no
+// GOAL: carrier-file runtime/record_mlir_carrier.py
 // GOAL: carrier-separate yes
 // GOAL: host W0-3/2
 // GOAL: next-cut NOT-OPENED
