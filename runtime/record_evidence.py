@@ -380,13 +380,27 @@ def check_db(db_path: Path) -> int:
 
 
 def print_contract() -> int:
+    import record_decision
+    import record_capacity
+
     if SCHEMA == V1_SCHEMA:
         print("evidence-db-ne-measured-v1 no")
+        return 1
+    if (
+        SCHEMA == record_decision.EVIDENCE_RECORD_SCHEMA
+        or SCHEMA == record_decision.EVIDENCE_KIND_SCHEMA
+        or SCHEMA == record_capacity.MEAS_CAP_SCHEMA
+    ):
+        print("evidence-schemas-distinct no")
         return 1
     print("evidence-db compiler-facing=yes")
     print("schema " + SCHEMA)
     print("measured-v1-schema " + V1_SCHEMA)
     print("evidence-db-ne-measured-v1 yes")
+    print("evidence-record-schema " + record_decision.EVIDENCE_RECORD_SCHEMA)
+    print("evidence-kind-schema " + record_decision.EVIDENCE_KIND_SCHEMA)
+    print("measured-capacity-schema " + record_capacity.MEAS_CAP_SCHEMA)
+    print("evidence-schemas-distinct yes")
     print("identity E=(profile,workload,candidate,measurement_revision)")
     print("status measured|inferred|fixture|pending|invalid")
     print("note ranking-status-measured-only")

@@ -13,6 +13,9 @@ func.func @dummy() {
 // XID: semantic-expansion none
 // XID: xid-chain evidence-profile-legality-claim-checking
 // XID: xid-schemas-distinct yes
+// XID: xid-host profile record_capability_profile
+// XID: xid-host legality record_realization_legality
+// XID: xid-host checking record_realization_checking
 // XID: xid-uses-frozen-hosts yes
 // XID: xid-reimplements-mapping no
 // XID: xid-eq-check-v0 yes
