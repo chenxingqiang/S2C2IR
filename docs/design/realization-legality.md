@@ -81,6 +81,8 @@ rewrite-license         no
 rewrite-path            no
 ```
 
+The contract run also compares this schema with the sufficiency schema and the authorization schema.
+
 Each fact:
 
 ```text
