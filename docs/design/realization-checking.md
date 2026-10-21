@@ -124,6 +124,8 @@ identity-mismatch | unknown-kind | malformed-legality | invalid-schema
 `L` missing a frozen kind is `malformed-legality`, not `unproven`.
 Absent `r.claimed-kinds` is `invalid-schema`, not empty claim.
 
+The contract run compares the three schema constants.
+
 ## Negative fixture matrix
 
 17 cases locked in derive. The original 13 plus input

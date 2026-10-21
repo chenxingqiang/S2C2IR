@@ -479,6 +479,14 @@ def print_contract() -> int:
     print(f"schema {CHECKING_SCHEMA}")
     print(f"claim-schema {CLAIM_SCHEMA}")
     print(f"source-schema {legal.LEGALITY_SCHEMA}")
+    if (
+        CHECKING_SCHEMA == CLAIM_SCHEMA
+        or CHECKING_SCHEMA == legal.LEGALITY_SCHEMA
+        or CLAIM_SCHEMA == legal.LEGALITY_SCHEMA
+    ):
+        print("checking-schemas-distinct no")
+        return 1
+    print("checking-schemas-distinct yes")
     print("checking-identity target-device")
     print("claimed-kinds-canonical yes")
     print("missing-claimed-kinds-ne-empty yes")
