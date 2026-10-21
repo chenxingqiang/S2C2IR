@@ -428,10 +428,20 @@ def _validate() -> None:
 
 
 def print_contract() -> int:
+    import record_authorization as auth
+
     _validate()
     print("sufficiency-evaluator gate=query")
     print(f"schema {SUFFICIENCY_SCHEMA}")
     print(f"decision-schema {DECISION_SCHEMA}")
+    if (
+        SUFFICIENCY_SCHEMA == DECISION_SCHEMA
+        or SUFFICIENCY_SCHEMA == auth.AUTH_SCHEMA
+    ):
+        print("sufficiency-schemas-distinct no")
+        return 1
+    print(f"authorization-schema {auth.AUTH_SCHEMA}")
+    print("sufficiency-schemas-distinct yes")
     print("decision-subject sufficient")
     print("decision-has-subject yes")
     print("evaluator-scope selected-object")
