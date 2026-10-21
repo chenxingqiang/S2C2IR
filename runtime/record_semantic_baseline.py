@@ -191,13 +191,36 @@ def print_contract() -> int:
     print("producer authorization authorized")
     print("producer authorization rewrite-license")
     print("producer rewrite-planner rewrite-plan")
-    print("schema-usable s2c2.decision.v1")
-    print("schema-sufficient s2c2.sufficiency.v1")
-    print("schema-authorized s2c2.authorization.v1")
-    print("schema-rewrite-plan s2c2.storage_rewrite.v1")
-    print("source-schema-sufficient s2c2.decision.v1")
-    print("source-schema-authorization s2c2.decision.v1")
-    print("source-schema-rewrite s2c2.authorization.v1")
+    decision_schema = auth.DECISION_SCHEMA
+    authorization_schema = auth.AUTH_SCHEMA
+    envelopes = (
+        decision_schema,
+        suf.SUFFICIENCY_SCHEMA,
+        authorization_schema,
+        rew.REWRITE_SCHEMA,
+    )
+    decision_schemas_equal = (
+        suf.DECISION_SCHEMA == decision_schema == rew.DECISION_SCHEMA
+    )
+    source_rewrite_is_authorization = rew.AUTH_SCHEMA == authorization_schema
+    envelopes_distinct = len(set(envelopes)) == len(envelopes)
+    sufficiency_source_is_decision = suf.DECISION_SCHEMA == decision_schema
+    if not (
+        decision_schemas_equal
+        and source_rewrite_is_authorization
+        and envelopes_distinct
+        and sufficiency_source_is_decision
+    ):
+        print("baseline-schemas-distinct no")
+        return 1
+    print(f"schema-usable {auth.DECISION_SCHEMA}")
+    print(f"schema-sufficient {suf.SUFFICIENCY_SCHEMA}")
+    print(f"schema-authorized {auth.AUTH_SCHEMA}")
+    print(f"schema-rewrite-plan {rew.REWRITE_SCHEMA}")
+    print(f"source-schema-sufficient {suf.DECISION_SCHEMA}")
+    print(f"source-schema-authorization {auth.DECISION_SCHEMA}")
+    print(f"source-schema-rewrite {rew.AUTH_SCHEMA}")
+    print("baseline-schemas-distinct yes")
     print("identity-usable selected-object")
     print("identity-sufficient selected-object")
     print("identity-authorized selected-object-action")
