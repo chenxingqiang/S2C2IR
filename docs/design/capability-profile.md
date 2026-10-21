@@ -77,6 +77,8 @@ rewrite-license         no
 rewrite-path            no
 ```
 
+The contract run also compares this schema with the sufficiency schema and the decision schema.
+
 Each `capabilities[]` entry:
 
 ```text
