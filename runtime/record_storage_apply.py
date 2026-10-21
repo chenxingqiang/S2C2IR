@@ -990,7 +990,10 @@ def print_contract() -> int:
     print(f"decision-schema {DECISION_SCHEMA}")
     print("apply-schemas-distinct yes")
     print("pattern W0-3/2")
-    print("object-canonical 2")
+    if OBJECT_2 == "O2" or OBJECT_2 != "2":
+        print("prose-O2-ne-object no")
+        return 1
+    print(f"object-canonical {OBJECT_2}")
     print("prose-O2-ne-object yes")
     print("candidate-id canonical-text")
     print("hash-is-candidate-id no")

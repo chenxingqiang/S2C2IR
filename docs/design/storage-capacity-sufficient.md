@@ -156,6 +156,7 @@ rewrite-path            no
 
 The contract run compares the sufficiency schema with
 the decision schema and the authorization schema.
+The contract run prints the sufficiency matrix count from the case list and compares the sufficiency schema with the rewrite schema.
 
 The contract run checks both extra orders. `applicable`
 then `authorized` stays that order. `authorized` then

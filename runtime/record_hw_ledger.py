@@ -80,8 +80,14 @@ def print_contract() -> int:
     if not rows:
         print("hw-ledger batch-check=no")
         return 1
+    hardware = {row["hardware"] for row in rows}
+    if hardware != set(LEDGER_HARDWARE) or "rtx5090" in hardware:
+        print("hw-ledger batch-check=no")
+        return 1
     print("hw-ledger batch-check=yes")
     print(f"hw-ledger records={len(rows)}")
+    names = sorted(hardware, key=LEDGER_HARDWARE.index)
+    print(f"hw-ledger hardware {','.join(names)}")
     print("hw-ledger note keep-original-path")
     print("hw-ledger note not-cap-schema-v1")
     print("hw-ledger note catalog-untouched")

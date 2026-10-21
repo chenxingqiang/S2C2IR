@@ -217,8 +217,25 @@ def print_contract() -> int:
     print("scenario-rewrite-path " + success["rewrite-path"])
     print("scenario-can-run-plan " + success["can-run-plan"])
     print("candidate-id-is-canonical yes")
+    if not success["source-unchanged"] or not success["envelope-unchanged"]:
+        print("source-unchanged no")
+        return 1
     print("source-unchanged yes")
     print("envelope-unchanged yes")
+    schemas = (
+        apply.APPLY_SCHEMA,
+        rew.REWRITE_SCHEMA,
+        auth.AUTH_SCHEMA,
+        auth.DECISION_SCHEMA,
+    )
+    if len(set(schemas)) != 4 or not all(isinstance(item, str) for item in schemas):
+        print("scenario-schemas-distinct no")
+        return 1
+    print(f"apply-schema {apply.APPLY_SCHEMA}")
+    print(f"rewrite-schema {rew.REWRITE_SCHEMA}")
+    print(f"authorization-schema {auth.AUTH_SCHEMA}")
+    print(f"decision-schema {auth.DECISION_SCHEMA}")
+    print("scenario-schemas-distinct yes")
     print("canonical-p-sha256 " + _sha256(CANONICAL_P))
     print("canonical-p-prime-sha256 " + _sha256(CANONICAL_P_PRIME))
     for name in (

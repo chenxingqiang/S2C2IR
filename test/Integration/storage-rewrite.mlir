@@ -15,6 +15,9 @@ func.func @dummy() {
 // REW: decision-schema s2c2.decision.v1
 // REW: authorization-schema s2c2.authorization.v1
 // REW: rewrite-schemas-distinct yes
+// REW: apply-schema s2c2.storage_apply.v1
+// REW: witness-schema s2c2.apply_legality_witness.v1
+// REW: rewrite-ne-apply-schema yes
 // REW: decision-subject rewrite-plan
 // REW: rewrite-identity selected-object-action-license-kind
 // REW: action storage-rewrite
