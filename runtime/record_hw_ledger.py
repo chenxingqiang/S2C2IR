@@ -72,7 +72,16 @@ ASCEND_ANALYZE = {
 
 
 def print_contract() -> int:
+    try:
+        rows = load_ledger(_LEDGER_PATH)
+    except (OSError, ValueError, json.JSONDecodeError):
+        print("hw-ledger batch-check=no")
+        return 1
+    if not rows:
+        print("hw-ledger batch-check=no")
+        return 1
     print("hw-ledger batch-check=yes")
+    print(f"hw-ledger records={len(rows)}")
     print("hw-ledger note keep-original-path")
     print("hw-ledger note not-cap-schema-v1")
     print("hw-ledger note catalog-untouched")
