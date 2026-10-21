@@ -55,6 +55,8 @@
 
 // CONTRACT: evidence-db compiler-facing=yes
 // CONTRACT: schema s2c2.evidence.v1
+// CONTRACT: measured-v1-schema s2c2.measured_storage_cost.v1
+// CONTRACT: evidence-db-ne-measured-v1 yes
 // CONTRACT: identity E=(profile,workload,candidate,measurement_revision)
 // CONTRACT: status measured|inferred|fixture|pending|invalid
 // CONTRACT: note ranking-status-measured-only

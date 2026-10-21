@@ -150,6 +150,7 @@ python3 runtime/record_evidence.py --export-measured-v1 \
 `--export-measured-v1` requires `--measurement-revision`.
 `--query-evidence` may omit it to inspect history.
 `--ingest-measured-v1` accepts only `s2c2.measured_storage_cost.v1`.
+The contract run compares that schema with `s2c2.evidence.v1`.
 Unknown JSON keys are dropped. Hardware-ledger rows are skipped.
 
 ## Out of scope
