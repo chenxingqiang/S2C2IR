@@ -391,3 +391,4 @@ Query-only. Host-side Decision contract, not compiler E2E.
 `can-run-plan=no`. `rewrite-path=no`. `applied=no`.
 The contract run compares the rewrite, decision, and
 authorization schema constants.
+The contract run prints the rewrite matrix count from the case list and compares the rewrite schema with the apply and witness schemas.
