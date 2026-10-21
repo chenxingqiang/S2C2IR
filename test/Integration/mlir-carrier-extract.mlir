@@ -8,6 +8,8 @@ module {
 
 // CAR: mlir-carrier gate=extract-v0
 // CAR: carrier syntax-only
+// CAR: carrier-skips evaluate_apply
+// CAR: carrier-skips evaluate_authorization
 // CAR: carrier-ne-semantic-model yes
 // CAR: tablegen no
 // CAR: lowering no
