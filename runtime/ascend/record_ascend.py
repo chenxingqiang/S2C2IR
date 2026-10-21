@@ -64,13 +64,40 @@ FORBIDDEN_KEYS = (
 
 
 def print_cap_schema_v1() -> int:
-    print("cap-schema v1")
-    print(
+    import importlib.util
+
+    cuda_path = Path(__file__).resolve().parents[1] / "cuda" / "record_v3.py"
+    spec = importlib.util.spec_from_file_location(
+        "s2c2_cuda_cap_schema_fields", cuda_path
+    )
+    if spec is None or spec.loader is None:
+        print("cap-schema-fields-bound no")
+        return 1
+    cuda = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cuda)
+    if (
+        CAP_SCHEMA_FIELDS != cuda.CAP_SCHEMA_FIELDS
+        or CAP_SCHEMA_VERSION != cuda.CAP_SCHEMA_VERSION
+    ):
+        print("cap-schema-fields-bound no")
+        return 1
+    field_line = (
         "field compute_domain transfer_domain direction "
         "source_memory_class destination_memory_class pair_relation "
         "size_range regime synchronization pipeline_depth_evidence "
         "observed_constraint confidence"
     )
+    field_tokens = field_line.split()
+    if (
+        not field_tokens
+        or field_tokens[0] != "field"
+        or not field_tokens[1:]
+        or any(token not in CAP_SCHEMA_FIELDS for token in field_tokens[1:])
+    ):
+        print("cap-schema-fields-bound no")
+        return 1
+    print("cap-schema v1")
+    print(field_line)
     print(
         "transfer_domain copy_engine dma on_chip_bus host_to_device "
         "device_to_host device_to_device device_to_local device_to_array none"
@@ -95,6 +122,7 @@ def print_cap_schema_v1() -> int:
     print("semantics unchanged")
     print("score3 not-applicable")
     print("v3=not-claimed")
+    print("cap-schema-fields-bound yes")
     print("cost=unchanged")
     return 0
 
