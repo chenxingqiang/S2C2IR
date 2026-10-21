@@ -88,6 +88,7 @@ python3 runtime/record_hw_ledger.py --check-hw-ledger
 ```
 
 The contract run loads the ledger and prints the record count.
+The contract run checks that the loaded ledger hardware set is rtx4090 and ascend910b.
 
 The checker:
 

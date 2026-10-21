@@ -941,6 +941,8 @@ Diagnostic `--capacity` does not print it.
 
 The contract run compares these capacity schemas.
 
+The contract run compares the measured-capacity schema with the measured-storage schema and the evidence schema.
+
 ## Out of scope
 
 ```text

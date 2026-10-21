@@ -67,6 +67,13 @@ int main() {
   expect(space.fstype == "ext4", "escaped mount point");
   expect(space.source == "/dev/vdc", "escaped mount source");
 
+  const char *myDir =
+      "20 1 259:2 / /tmp/my\\040dir rw - ext4 /dev/nvme0n1p2 rw\n";
+  SsdMount mine = describeDir("/tmp/my dir/ssd", myDir);
+  expect(mine.nvme, "escaped nvme flag");
+  expect(mine.fstype == "ext4", "escaped nvme fstype");
+  expect(mine.source == "/dev/nvme0n1p2", "escaped nvme source");
+
   SsdMount missing = describeDir("/tmp", "");
   expect(missing.fstype == "unknown" && missing.source == "unknown", "empty");
   expect(!missing.nvme, "empty not nvme");

@@ -54,6 +54,7 @@ module {
 // SCHEMA: no-extra-key acl_davinci
 // SCHEMA: semantics unchanged
 // SCHEMA: v3=not-claimed
+// SCHEMA: cap-schema-fields-bound yes
 // SCHEMA: cost=unchanged
 
 // ID: schema-identity v1 fields=21 additionalProperties=false
