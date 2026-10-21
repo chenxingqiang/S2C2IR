@@ -22,6 +22,13 @@ func.func @dummy() {
 // SCN: scenario-rewrite-path yes
 // SCN: scenario-can-run-plan no
 // SCN: candidate-id-is-canonical yes
+// SCN: source-unchanged yes
+// SCN: envelope-unchanged yes
+// SCN: apply-schema s2c2.storage_apply.v1
+// SCN: rewrite-schema s2c2.storage_rewrite.v1
+// SCN: authorization-schema s2c2.authorization.v1
+// SCN: decision-schema s2c2.decision.v1
+// SCN: scenario-schemas-distinct yes
 // SCN: canonical-p-sha256 53dd047f769895f90a692d5ed4879f9474744bfa93c1b96f81ff598f42d73328
 // SCN: canonical-p-prime-sha256 7e5293b0780b584c23b0320a25d9b96b0917cc220137a8ec8fd2571121a3d5e7
 // SCN: failure identity-mismatch match=no applied=no reasons=rewrite.identity-mismatch
