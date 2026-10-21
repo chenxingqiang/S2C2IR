@@ -41,6 +41,7 @@ STOP
 contain `allowed → satisfy`.
 
 The contract run compares the evidence, profile, legality, claim, and checking schema constants.
+The contract run checks that the e2e path calls the frozen profile, legality, and checking hosts.
 
 ## Cases
 
