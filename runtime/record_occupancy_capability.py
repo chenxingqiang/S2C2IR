@@ -346,10 +346,39 @@ def _validate() -> None:
         raise RuntimeError(f"occupancy-capability report drift: {got}")
 
 
+def _shared_decision_schema() -> str:
+    """The Decision schema used by sufficiency, authorization, and rewrite.
+
+    The occupancy report must not reuse it.
+    """
+    import record_authorization as auth
+    import record_storage_rewrite as rewrite
+    import record_sufficiency as sufficiency
+
+    schemas = {
+        auth.DECISION_SCHEMA,
+        rewrite.DECISION_SCHEMA,
+        sufficiency.DECISION_SCHEMA,
+    }
+    if len(schemas) != 1:
+        raise RuntimeError("decision-schema-drift")
+    decision_schema = schemas.pop()
+    if decision_schema == REPORT_SCHEMA:
+        raise RuntimeError("report-schema-shared")
+    return decision_schema
+
+
 def print_contract() -> int:
     _validate()
+    try:
+        decision_schema = _shared_decision_schema()
+    except RuntimeError as exc:
+        print("report-ne-decision no")
+        print(str(exc))
+        return 1
     print("occupancy-capability-report gate=query")
     print(f"schema {REPORT_SCHEMA}")
+    print("decision-schema " + decision_schema)
     print("report-ne-decision yes")
     print("usable-identity-ne-applicable-identity yes")
     print("conjunction-ne-sufficient yes")
@@ -395,7 +424,14 @@ def print_contract() -> int:
 
 def print_matrix() -> int:
     _validate()
+    try:
+        decision_schema = _shared_decision_schema()
+    except RuntimeError as exc:
+        print("report-ne-decision no")
+        print(str(exc))
+        return 1
     print("occupancy-capability-report-matrix gate=query")
+    print("decision-schema " + decision_schema)
     print("report-ne-decision yes")
     print("conjunction-ne-sufficient yes")
     print("both-yes-ne-sufficient yes")

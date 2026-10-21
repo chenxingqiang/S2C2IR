@@ -58,6 +58,10 @@ rewrite-license                      no
 rewrite-path                         no
 ```
 
+The contract run compares the report schema with the
+Decision schema used by sufficiency, authorization, and
+rewrite.
+
 ## Identities stay distinct
 
 ```text
