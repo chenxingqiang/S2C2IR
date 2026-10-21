@@ -89,6 +89,7 @@ The contract run compares the applicability schema with the
 catalog `schema_version` and with the occupancy report schema.
 The contract run also compares this schema with the decision
 schema, the authorization schema, and the rewrite schema.
+The contract run compares the applicability schema with the evidence-record, evidence-kind, and evidence schemas.
 
 ## Identity (aligned with derivation)
 

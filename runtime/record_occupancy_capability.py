@@ -380,6 +380,21 @@ def print_contract() -> int:
     print(f"schema {REPORT_SCHEMA}")
     print("decision-schema " + decision_schema)
     print("report-ne-decision yes")
+    import record_capability_applicability as capa
+    import record_capability_profile as prof
+    import record_realization_legality as legal
+
+    if REPORT_SCHEMA in (
+        capa.SCHEMA,
+        prof.PROFILE_SCHEMA,
+        legal.LEGALITY_SCHEMA,
+    ):
+        print("report-ne-capability-schemas no")
+        return 1
+    print(f"applicability-schema {capa.SCHEMA}")
+    print(f"profile-schema {prof.PROFILE_SCHEMA}")
+    print(f"legality-schema {legal.LEGALITY_SCHEMA}")
+    print("report-ne-capability-schemas yes")
     print("usable-identity-ne-applicable-identity yes")
     print("conjunction-ne-sufficient yes")
     print("both-yes-ne-sufficient yes")

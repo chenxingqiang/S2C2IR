@@ -243,10 +243,35 @@ def print_contract() -> int:
         print("xid-schemas-distinct no")
         return 1
     print("xid-schemas-distinct yes")
+    host_names = run_xid.__code__.co_names
+    profile_host = prof.derive_capability_profile.__module__
+    legality_host = legal.derive_realization_legality.__module__
+    checking_host = chk.check_realization.__module__
+    if (
+        "derive_capability_profile" not in host_names
+        or "derive_realization_legality" not in host_names
+        or "check_realization" not in host_names
+        or profile_host != "record_capability_profile"
+        or legality_host != "record_realization_legality"
+        or checking_host != "record_realization_checking"
+    ):
+        print("xid-uses-frozen-hosts no")
+        return 1
+    print(f"xid-host profile {profile_host}")
+    print(f"xid-host legality {legality_host}")
+    print(f"xid-host checking {checking_host}")
     print("xid-uses-frozen-hosts yes")
     print("xid-reimplements-mapping no")
     print("xid-eq-check-v0 yes")
     print("xid-identities cuda,ascend,cpu")
+    targets = {target for _name, _records, target, _device, _claim in _cases()}
+    if (
+        "npu" in targets
+        or "cim" in targets
+        or targets != {"cuda", "ascend", "cpu"}
+    ):
+        print("xid-invents-npu-cim found")
+        return 1
     print("xid-invents-npu-cim no")
     print("unclaimed-kind-ne-violation yes")
     print("contract-error-ne-result yes")
