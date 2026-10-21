@@ -13,6 +13,8 @@ func.func @dummy() {
 // REW: rewrite-planner gate=query
 // REW: schema s2c2.storage_rewrite.v1
 // REW: decision-schema s2c2.decision.v1
+// REW: authorization-schema s2c2.authorization.v1
+// REW: rewrite-schemas-distinct yes
 // REW: decision-subject rewrite-plan
 // REW: rewrite-identity selected-object-action-license-kind
 // REW: action storage-rewrite
