@@ -175,6 +175,9 @@
 
 // CONTRACT: storage-capacity compiler-driven=yes
 // CONTRACT: cap-schemas-distinct yes
+// CONTRACT: measured-storage-schema s2c2.measured_storage_cost.v1
+// CONTRACT: evidence-db-schema s2c2.evidence.v1
+// CONTRACT: cap-ne-measured-storage yes
 // CONTRACT: action KEEP|EVICT|REMATERIALIZE
 // CONTRACT: restore-legal TRANSFER|REMATERIALIZE
 // CONTRACT: note f-capacity-ne-f-program
