@@ -12,6 +12,10 @@ func.func @dummy() {
 // OCRC: schema s2c2.occupancy_capability_report.v1
 // OCRC: decision-schema s2c2.decision.v1
 // OCRC: report-ne-decision yes
+// OCRC: applicability-schema s2c2.capability_applicability.v1
+// OCRC: profile-schema s2c2.capability_profile.v1
+// OCRC: legality-schema s2c2.realization_legality.v1
+// OCRC: report-ne-capability-schemas yes
 // OCRC: usable-identity-ne-applicable-identity yes
 // OCRC: conjunction-ne-sufficient yes
 // OCRC: both-yes-ne-sufficient yes

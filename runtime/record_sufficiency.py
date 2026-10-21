@@ -442,6 +442,13 @@ def print_contract() -> int:
         return 1
     print(f"authorization-schema {auth.AUTH_SCHEMA}")
     print("sufficiency-schemas-distinct yes")
+    import record_storage_rewrite as rew
+
+    if SUFFICIENCY_SCHEMA == rew.REWRITE_SCHEMA:
+        print("sufficiency-ne-rewrite-schema no")
+        return 1
+    print(f"rewrite-schema {rew.REWRITE_SCHEMA}")
+    print("sufficiency-ne-rewrite-schema yes")
     print("decision-subject sufficient")
     print("decision-has-subject yes")
     print("evaluator-scope selected-object")
@@ -471,7 +478,11 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("sufficiency-matrix-cases 16")
+    count = len(_cases())
+    if count != 16:
+        print("sufficiency-matrix-cases no")
+        return 1
+    print(f"sufficiency-matrix-cases {count}")
     for req in REQUIRED:
         print(f"required-predicate {req}")
     for extra in IGNORED_EXTRA:
@@ -522,7 +533,11 @@ def print_matrix() -> int:
     print("extra-first-seen-order yes")
     print("inputs-canonical-order yes")
     print("sufficient-ne-authorized yes")
-    print("sufficiency-matrix-cases 16")
+    count = len(_cases())
+    if count != 16:
+        print("sufficiency-matrix-cases no")
+        return 1
+    print(f"sufficiency-matrix-cases {count}")
     for name, inputs in _cases():
         bag = evaluate_sufficiency(inputs)
         decision = bag["decision"]

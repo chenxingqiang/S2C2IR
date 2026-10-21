@@ -34,6 +34,13 @@ def _bound_decision_schema() -> str | None:
     return None
 
 
+def _require_decision_schema() -> str:
+    bound = _bound_decision_schema()
+    if bound is None:
+        raise RuntimeError("decision schema is not bound")
+    return bound
+
+
 def print_evidence_decision_contract() -> int:
     import record_authorization as auth
     import record_evidence as evidence
@@ -172,7 +179,7 @@ def print_evidence_reason_vocab() -> int:
         print("decision-schemas-bound no")
         return 1
     print("evidence-reason-vocab gate=query")
-    print("schema s2c2.evidence_kind.v1")
+    print("schema " + EVIDENCE_KIND_SCHEMA)
     print("decision-schema " + decision_schema)
     print("decision-schemas-bound yes")
     print("reason-grammar namespace.local")
@@ -299,7 +306,7 @@ def evidence_record(
 
 def _usable_no(reason: str) -> dict:
     return {
-        "schema": "s2c2.decision.v1",
+        "schema": _require_decision_schema(),
         "subject": "usable",
         "result": "no",
         "reasons": [reason],
@@ -318,6 +325,7 @@ def derive_usable_decision(
     ignored for the predicate, but still counted for uniqueness.
     identity.kind must equal the payload kind.
     """
+    schema = _require_decision_schema()
     scoped = [
         r
         for r in records
@@ -341,21 +349,21 @@ def derive_usable_decision(
     ro = by_kind.get("restore-ordering")
     if sd is None or ro is None:
         return {
-            "schema": "s2c2.decision.v1",
+            "schema": schema,
             "subject": "usable",
             "result": "no",
             "reasons": ["predicate.missing-input"],
         }
     if sd["applicability"] == "n/a" and ro["applicability"] == "n/a":
         return {
-            "schema": "s2c2.decision.v1",
+            "schema": schema,
             "subject": "usable",
             "result": "n/a",
             "reasons": [],
         }
     if sd["applicability"] == "yes" and ro["applicability"] == "yes":
         return {
-            "schema": "s2c2.decision.v1",
+            "schema": schema,
             "subject": "usable",
             "result": "yes",
             "reasons": [
@@ -373,7 +381,7 @@ def derive_usable_decision(
     if not reasons:
         reasons = ["predicate.missing-input"]
     return {
-        "schema": "s2c2.decision.v1",
+        "schema": schema,
         "subject": "usable",
         "result": "no",
         "reasons": reasons,
