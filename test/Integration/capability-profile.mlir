@@ -11,6 +11,7 @@ func.func @dummy() {
 // PROF: capability-profile gate=query
 // PROF: schema s2c2.capability_profile.v1
 // PROF: profile-identity target-device
+// PROF: applicable-schema s2c2.capability_applicability.v1
 // PROF: profile-ne-applicable yes
 // PROF: profile-ne-usable yes
 // PROF: profile-ne-sufficient yes
