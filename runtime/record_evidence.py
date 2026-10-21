@@ -380,8 +380,13 @@ def check_db(db_path: Path) -> int:
 
 
 def print_contract() -> int:
+    if SCHEMA == V1_SCHEMA:
+        print("evidence-db-ne-measured-v1 no")
+        return 1
     print("evidence-db compiler-facing=yes")
-    print("schema s2c2.evidence.v1")
+    print("schema " + SCHEMA)
+    print("measured-v1-schema " + V1_SCHEMA)
+    print("evidence-db-ne-measured-v1 yes")
     print("identity E=(profile,workload,candidate,measurement_revision)")
     print("status measured|inferred|fixture|pending|invalid")
     print("note ranking-status-measured-only")
