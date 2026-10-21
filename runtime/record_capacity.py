@@ -17,6 +17,13 @@ from typing import Any
 
 SCHEMA = "s2c2.capacity.v1"
 PLAN_SCHEMA = "s2c2.capacity_plan.v1"
+MEAS_CAP_SCHEMA = "s2c2.measured_capacity_cost.v1"
+LICENSE_SCHEMA = "s2c2.capacity_license.v1"
+RESTORE_SCHEMA = "s2c2.capacity_restore.v1"
+PREDICATE_SCHEMA = "s2c2.capacity_predicate.v1"
+SOURCEDATA_SCHEMA = "s2c2.capacity_sourcedata.v1"
+ORDERING_SCHEMA = "s2c2.capacity_ordering.v1"
+INVALIDATION_SCHEMA = "s2c2.capacity_invalidation.v1"
 RESTORE_LEGAL = "TRANSFER,REMATERIALIZE"
 
 SPEC_FIELDS = (
@@ -56,8 +63,27 @@ RES_FIELDS = (
 )
 
 
+def cap_schemas_distinct() -> bool:
+    schemas = (
+        SCHEMA,
+        PLAN_SCHEMA,
+        MEAS_CAP_SCHEMA,
+        LICENSE_SCHEMA,
+        RESTORE_SCHEMA,
+        PREDICATE_SCHEMA,
+        SOURCEDATA_SCHEMA,
+        ORDERING_SCHEMA,
+        INVALIDATION_SCHEMA,
+    )
+    return len(set(schemas)) == len(schemas)
+
+
 def print_contract() -> int:
+    if not cap_schemas_distinct():
+        print("cap-schemas-distinct no")
+        return 1
     print("storage-capacity compiler-driven=yes")
+    print("cap-schemas-distinct yes")
     print("action KEEP|EVICT|REMATERIALIZE")
     print("restore-legal TRANSFER|REMATERIALIZE")
     print("note f-capacity-ne-f-program")
@@ -163,7 +189,7 @@ def print_policy_contract() -> int:
 
 def print_measured_capacity_contract() -> int:
     print("measured-capacity-v1 ranking-only=yes")
-    print("schema s2c2.measured_capacity_cost.v1")
+    print(f"schema {MEAS_CAP_SCHEMA}")
     print("match profile,workload_class,candidate_identity")
     print("argmin scoped-measured-intersect-F")
     print("rewrite-license no")
@@ -194,7 +220,7 @@ def print_measured_capacity_contract() -> int:
 
 def print_license_contract() -> int:
     print("capacity-license gate=query")
-    print("schema s2c2.capacity_license.v1")
+    print(f"schema {LICENSE_SCHEMA}")
     print("rewrite-license no")
     print("restore-legal TRANSFER|REMATERIALIZE")
     print("restore unspecified")
@@ -227,7 +253,7 @@ def _license_restore(selected: str) -> tuple[str, str]:
 
 def print_capacity_license(plan: dict[str, Any]) -> None:
     restore, closed = _license_restore(str(plan.get("selected") or "none"))
-    print("capacity-license schema=s2c2.capacity_license.v1")
+    print(f"capacity-license schema={LICENSE_SCHEMA}")
     print(
         f"capacity-license selected={plan['selected']} rewrite-license=no"
     )
@@ -249,7 +275,7 @@ def print_capacity_license(plan: dict[str, Any]) -> None:
 
 def print_restore_contract() -> int:
     print("capacity-restore candidate-semantics=yes")
-    print("schema s2c2.capacity_restore.v1")
+    print(f"schema {RESTORE_SCHEMA}")
     print("kind TRANSFER")
     print("restore-legal TRANSFER|REMATERIALIZE")
     print("rewrite-license no")
@@ -287,7 +313,7 @@ def print_capacity_restore(plan: dict[str, Any]) -> None:
         for r in restores:
             all_valid = all_valid and bool(r.get("valid"))
         closed = "yes" if all_valid else "no"
-    print("capacity-restore schema=s2c2.capacity_restore.v1")
+    print(f"capacity-restore schema={RESTORE_SCHEMA}")
     print(f"capacity-restore selected={selected} closed={closed}")
     if sel is not None and not evict:
         print("capacity-restore restore=unused")
@@ -311,7 +337,7 @@ def print_capacity_restore(plan: dict[str, Any]) -> None:
 
 def print_predicate_contract() -> int:
     print("capacity-predicate gate=query")
-    print("schema s2c2.capacity_predicate.v1")
+    print(f"schema {PREDICATE_SCHEMA}")
     print("necessary selected-in-f,enumerated,capacity-proof,evict-closed,restore-kind")
     print("sufficient source-data,restore-ordering,dest-invalidation,rewrite-path")
     print("rewrite-license no")
@@ -387,7 +413,7 @@ def print_capacity_predicate(plan: dict[str, Any]) -> None:
         necessary = "yes"
     else:
         necessary = "no"
-    print("capacity-predicate schema=s2c2.capacity_predicate.v1")
+    print(f"capacity-predicate schema={PREDICATE_SCHEMA}")
     print(
         f"capacity-predicate selected={selected} necessary={necessary} "
         "sufficient=no rewrite-license=no"
@@ -417,7 +443,7 @@ def print_capacity_predicate(plan: dict[str, Any]) -> None:
 
 def print_sourcedata_contract() -> int:
     print("capacity-sourcedata gate=query")
-    print("schema s2c2.capacity_sourcedata.v1")
+    print(f"schema {SOURCEDATA_SCHEMA}")
     print("source-declaration-ne-data-validity yes")
     print("replica-exists-ne-data-validity yes")
     print("source-data-ne-usable yes")
@@ -517,7 +543,7 @@ def print_capacity_sourcedata(plan: dict[str, Any]) -> None:
     status = _source_data_status(sel)
     evict = list(sel.get("evict") or []) if sel else []
     restores = list(sel.get("restores") or []) if sel else []
-    print("capacity-sourcedata schema=s2c2.capacity_sourcedata.v1")
+    print(f"capacity-sourcedata schema={SOURCEDATA_SCHEMA}")
     print(
         f"capacity-sourcedata selected={selected} source-data={status} "
         f"replica-exists={_replica_exists_status(sel)} "
@@ -557,7 +583,7 @@ def print_capacity_sourcedata(plan: dict[str, Any]) -> None:
 
 def print_ordering_contract() -> int:
     print("capacity-ordering gate=query")
-    print("schema s2c2.capacity_ordering.v1")
+    print(f"schema {ORDERING_SCHEMA}")
     print("source-data-ne-ordering yes")
     print("source-valid-ne-restore-at-point yes")
     print("restore-ordering-ne-usable yes")
@@ -592,7 +618,7 @@ def print_capacity_ordering(plan: dict[str, Any]) -> None:
                 break
     evict = list(sel.get("evict") or []) if sel else []
     restores = list(sel.get("restores") or []) if sel else []
-    print("capacity-ordering schema=s2c2.capacity_ordering.v1")
+    print(f"capacity-ordering schema={ORDERING_SCHEMA}")
     print(
         f"capacity-ordering selected={selected} "
         f"restore-ordering={_restore_ordering_status(sel)} "
@@ -628,7 +654,7 @@ def print_capacity_ordering(plan: dict[str, Any]) -> None:
 
 def print_invalidation_contract() -> int:
     print("capacity-invalidation gate=query")
-    print("schema s2c2.capacity_invalidation.v1")
+    print(f"schema {INVALIDATION_SCHEMA}")
     print("usable-ne-dest-invalidation yes")
     print("dest-invalidation-ne-sufficient yes")
     print("dest-invalidation-ne-rewrite-path yes")
@@ -663,7 +689,7 @@ def print_capacity_invalidation(plan: dict[str, Any]) -> None:
                 break
     evict = list(sel.get("evict") or []) if sel else []
     restores = list(sel.get("restores") or []) if sel else []
-    print("capacity-invalidation schema=s2c2.capacity_invalidation.v1")
+    print(f"capacity-invalidation schema={INVALIDATION_SCHEMA}")
     print(
         f"capacity-invalidation selected={selected} "
         f"dest-invalidation={_dest_invalidation_status(sel)} "
@@ -1273,7 +1299,6 @@ def analyze_capacity_plan(path: Path) -> int:
     return 0
 
 
-MEAS_CAP_SCHEMA = "s2c2.measured_capacity_cost.v1"
 MEAS_CAP_FIELDS = (
     "schema",
     "profile",

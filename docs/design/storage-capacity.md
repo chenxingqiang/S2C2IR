@@ -939,6 +939,8 @@ analysis, `replace`/`erase`, or an inhabited
 The invalidation prefix prints only on the query consumer.
 Diagnostic `--capacity` does not print it.
 
+The contract run compares these capacity schemas.
+
 ## Out of scope
 
 ```text
