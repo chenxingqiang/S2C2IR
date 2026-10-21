@@ -87,6 +87,8 @@ python3 runtime/record_hw_ledger.py --print-hw-ledger-contract
 python3 runtime/record_hw_ledger.py --check-hw-ledger
 ```
 
+The contract run loads the ledger and prints the record count.
+
 The checker:
 
 1. Loads the ledger. Extra Schema v1 / vendor keys are rejected.
