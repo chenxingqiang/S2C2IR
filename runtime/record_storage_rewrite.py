@@ -654,6 +654,18 @@ def print_contract() -> int:
         return 1
     print(f"authorization-schema {auth.AUTH_SCHEMA}")
     print("rewrite-schemas-distinct yes")
+    import record_storage_apply as apply
+
+    if (
+        REWRITE_SCHEMA == apply.APPLY_SCHEMA
+        or REWRITE_SCHEMA == apply.WITNESS_SCHEMA
+        or apply.APPLY_SCHEMA == apply.WITNESS_SCHEMA
+    ):
+        print("rewrite-ne-apply-schema no")
+        return 1
+    print(f"apply-schema {apply.APPLY_SCHEMA}")
+    print(f"witness-schema {apply.WITNESS_SCHEMA}")
+    print("rewrite-ne-apply-schema yes")
     print("decision-subject rewrite-plan")
     print("rewrite-identity selected-object-action-license-kind")
     print(f"action {ACTION_V01}")
@@ -683,7 +695,10 @@ def print_contract() -> int:
     print("capability-schedule-ne-god-object yes")
     print("f-storage-schedule-not-inhabited yes")
     print("generic-schema-validator n/a")
-    print("rewrite-matrix-cases 18")
+    if len(_cases()) != 18:
+        print("rewrite-matrix-cases no")
+        return 1
+    print(f"rewrite-matrix-cases {len(_cases())}")
     print("required-input authorization")
     print(f"sequence-input {SEQUENCE_SUBJECT}")
     for token in REWRITE_REASON_TOKENS:
@@ -706,7 +721,10 @@ def print_matrix() -> int:
     print("decision-subject rewrite-plan")
     print("rewrite-license-ne-rewrite-plan yes")
     print("rewrite-plan-ne-rewrite-path yes")
-    print("rewrite-matrix-cases 18")
+    if len(_cases()) != 18:
+        print("rewrite-matrix-cases no")
+        return 1
+    print(f"rewrite-matrix-cases {len(_cases())}")
     for name, inputs, kwargs in _cases():
         bag = evaluate_rewrite(inputs, **kwargs)
         plan = bag["rewrite-plan"]
