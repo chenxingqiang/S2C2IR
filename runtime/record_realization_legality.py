@@ -18,8 +18,10 @@ _RUNTIME = Path(__file__).resolve().parent
 if str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
+import record_authorization as auth
 import record_capability_applicability as capa
 import record_capability_profile as prof
+import record_sufficiency as suf
 
 LEGALITY_SCHEMA = "s2c2.realization_legality.v1"
 
@@ -242,9 +244,15 @@ def _validate() -> None:
 
 def print_contract() -> int:
     _validate()
-    if LEGALITY_SCHEMA in (prof.PROFILE_SCHEMA, capa.SCHEMA):
+    if LEGALITY_SCHEMA in (
+        prof.PROFILE_SCHEMA,
+        capa.SCHEMA,
+        suf.SUFFICIENCY_SCHEMA,
+        auth.AUTH_SCHEMA,
+    ):
         print("legality-ne-profile no")
         print("legality-ne-applicable no")
+        print("legality-schemas-distinct no")
         return 1
     print("realization-legality gate=query")
     print(f"schema {LEGALITY_SCHEMA}")
@@ -254,6 +262,9 @@ def print_contract() -> int:
     print(f"applicable-schema {capa.SCHEMA}")
     print("legality-ne-applicable yes")
     print("legality-ne-profile yes")
+    print(f"sufficiency-schema {suf.SUFFICIENCY_SCHEMA}")
+    print(f"authorization-schema {auth.AUTH_SCHEMA}")
+    print("legality-schemas-distinct yes")
     print("legality-ne-sufficient yes")
     print("unproven-ne-forbidden yes")
     print("allowed-ne-can-run-plan yes")
