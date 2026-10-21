@@ -20,6 +20,7 @@ _DOC = _ROOT / "docs" / "design" / "goal-alignment-v1.md"
 _README = _ROOT / "README.md"
 _STATUS = _ROOT / "docs" / "design" / "goal-alignment-v1-status.pptx"
 _INCLUDE = _ROOT / "include" / "s2c2"
+_CARRIER = _ROOT / "runtime" / "record_mlir_carrier.py"
 _A_T = "{http://schemas.openxmlformats.org/drawingml/2006/main}t"
 
 _DIALECT = {
@@ -257,6 +258,10 @@ def print_contract() -> int:
     print(f"sched-ops {counts['sched']}")
     print("sketch-ops absent")
     print("can-run-plan no")
+    if not _CARRIER.is_file() or "carrier" in td:
+        print("carrier-separate no")
+        return 1
+    print(f"carrier-file {_CARRIER.relative_to(_ROOT).as_posix()}")
     print("carrier-separate yes")
     print("host W0-3/2")
     print("next-cut NOT-OPENED")
