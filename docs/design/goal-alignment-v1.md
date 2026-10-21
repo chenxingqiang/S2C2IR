@@ -25,6 +25,9 @@ python3 runtime/record_goal_alignment.py --print-goal-alignment
 `test/Integration/goal-alignment.mlir` FileChecks that printer.
 `can-run-plan` stays no. `next_cut` stays `NOT OPENED`.
 
+The contract run checks that the carrier lives in its own
+Python file and not in the TableGen dialects.
+
 The command passes only when the op list below matches
 `include/s2c2`. It does not apply IR.
 

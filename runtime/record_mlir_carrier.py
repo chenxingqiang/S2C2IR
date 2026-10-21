@@ -818,6 +818,18 @@ def print_contract() -> int:
     summary = _validate()
     print("mlir-carrier gate=extract-v0")
     print("carrier syntax-only")
+    host_names = (
+        "evaluate_apply",
+        "evaluate_authorization",
+        "rewrite_plan",
+        "bound_witness",
+        "candidate_id_for",
+    )
+    if any(name in extract.__code__.co_names for name in host_names):
+        print("carrier-ne-semantic-model no")
+        return 1
+    print("carrier-skips evaluate_apply")
+    print("carrier-skips evaluate_authorization")
     print("carrier-ne-semantic-model yes")
     print("tablegen no")
     print("lowering no")
