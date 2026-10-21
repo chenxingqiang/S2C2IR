@@ -333,6 +333,13 @@ def _validate() -> tuple[list[str], str, str]:
 
 
 def print_contract() -> int:
+    import record_storage_apply as apply
+
+    # S01..S09 are the spec list. S10 is the immutability scene.
+    scene_count = len(_specs()) + 1
+    if scene_count != 10:
+        print("scene-count no")
+        return 1
     try:
         lines, digest, token = _validate()
     except RuntimeError as exc:
@@ -349,7 +356,14 @@ def print_contract() -> int:
     print("baseline " + BASELINE)
     print("corpus-id " + CORPUS_ID)
     print("anchor " + anchor.SCENARIO_ID)
+    if anchor.SCENARIO_ID != "w0-3-2-storage-capacity-001":
+        print("contract-changed yes")
+        return 1
     print("contract-changed no")
+    if apply.evaluate_apply.__module__ != "record_storage_apply":
+        print("inhabitant-host drift")
+        return 1
+    print("inhabitant-host record_storage_apply")
     print("inhabitant-changed no")
     print("compiler-e2e no")
     print("s2c2-opt no")
@@ -358,7 +372,7 @@ def print_contract() -> int:
     print("authorization-reopened " + token)
     print("semantic-cut no")
     print("can-run-plan no")
-    print("scene-count 10")
+    print("scene-count " + str(scene_count))
     for line in lines:
         print(line)
     print("fingerprint " + digest)

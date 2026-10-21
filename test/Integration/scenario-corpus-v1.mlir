@@ -11,6 +11,7 @@ func.func @dummy() {
 // SCN: corpus-id w0-3-2-scenario-corpus-v1
 // SCN: anchor w0-3-2-storage-capacity-001
 // SCN: contract-changed no
+// SCN: inhabitant-host record_storage_apply
 // SCN: inhabitant-changed no
 // SCN: compiler-e2e no
 // SCN: s2c2-opt no
