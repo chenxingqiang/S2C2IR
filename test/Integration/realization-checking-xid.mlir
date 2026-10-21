@@ -12,6 +12,7 @@ func.func @dummy() {
 // XID: xid-type integration-reproducibility
 // XID: semantic-expansion none
 // XID: xid-chain evidence-profile-legality-claim-checking
+// XID: xid-schemas-distinct yes
 // XID: xid-uses-frozen-hosts yes
 // XID: xid-reimplements-mapping no
 // XID: xid-eq-check-v0 yes
