@@ -159,6 +159,7 @@ python3 runtime/record_realization_legality.py --print-realization-legality-matr
 ```
 
 Query-only. `can-run-plan=no`. `rewrite-license=no`.
+The contract run prints the legality matrix count from the case list.
 
 Realization Checking (claimed-kinds vs frozen legality facts;
 not can-run-plan):
