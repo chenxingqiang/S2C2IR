@@ -23,6 +23,7 @@ _RUNTIME = Path(__file__).resolve().parent
 if str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
+import record_authorization as auth
 import record_storage_rewrite as rew
 
 APPLY_SCHEMA = "s2c2.storage_apply.v1"
@@ -980,12 +981,13 @@ def print_contract() -> int:
     print("apply-inhabitant gate=check")
     print(f"schema {APPLY_SCHEMA}")
     print(f"source-schema {REWRITE_SCHEMA}")
-    schemas = (APPLY_SCHEMA, REWRITE_SCHEMA, AUTH_SCHEMA, WITNESS_SCHEMA)
-    if len(set(schemas)) != len(schemas):
+    schemas = (APPLY_SCHEMA, REWRITE_SCHEMA, AUTH_SCHEMA, WITNESS_SCHEMA, DECISION_SCHEMA)
+    if len(set(schemas)) != len(schemas) or DECISION_SCHEMA != auth.DECISION_SCHEMA:
         print("apply-schemas-distinct no")
         return 1
     print(f"witness-schema {WITNESS_SCHEMA}")
     print(f"authorization-schema {AUTH_SCHEMA}")
+    print(f"decision-schema {DECISION_SCHEMA}")
     print("apply-schemas-distinct yes")
     print("pattern W0-3/2")
     print("object-canonical 2")
