@@ -12,6 +12,7 @@ func.func @dummy() {
 // E2E: e2e-type integration-reproducibility
 // E2E: semantic-expansion none
 // E2E: e2e-chain evidence-profile-legality-claim-checking
+// E2E: e2e-schemas-distinct yes
 // E2E: e2e-uses-frozen-hosts yes
 // E2E: e2e-reimplements-mapping no
 // E2E: e2e-eq-check-v0 yes
