@@ -10,6 +10,10 @@ func.func @dummy() {
 
 // CAPA: capability-applicability gate=query
 // CAPA: schema s2c2.capability_applicability.v1
+// CAPA: decision-schema s2c2.decision.v1
+// CAPA: authorization-schema s2c2.authorization.v1
+// CAPA: rewrite-schema s2c2.storage_rewrite.v1
+// CAPA: capability-schemas-distinct yes
 // CAPA: decision-subject applicable
 // CAPA: applicable-ne-usable yes
 // CAPA: applicable-ne-sufficient yes
