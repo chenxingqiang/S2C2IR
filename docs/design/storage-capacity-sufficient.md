@@ -154,6 +154,9 @@ rewrite-license         no
 rewrite-path            no
 ```
 
+The contract run compares the sufficiency schema with
+the decision schema and the authorization schema.
+
 The contract run checks both extra orders. `applicable`
 then `authorized` stays that order. `authorized` then
 `applicable` stays that order. Neither order changes
