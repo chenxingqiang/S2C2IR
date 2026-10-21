@@ -13,6 +13,9 @@ func.func @dummy() {
 // PROF: profile-identity target-device
 // PROF: applicable-schema s2c2.capability_applicability.v1
 // PROF: profile-ne-applicable yes
+// PROF: sufficiency-schema s2c2.sufficiency.v1
+// PROF: decision-schema s2c2.decision.v1
+// PROF: profile-schemas-distinct yes
 // PROF: profile-ne-usable yes
 // PROF: profile-ne-sufficient yes
 // PROF: profile-ne-decision yes
