@@ -174,6 +174,7 @@
 // 5A-6B stay frozen. Do not FileCheck microseconds.
 
 // CONTRACT: storage-capacity compiler-driven=yes
+// CONTRACT: cap-schemas-distinct yes
 // CONTRACT: action KEEP|EVICT|REMATERIALIZE
 // CONTRACT: restore-legal TRANSFER|REMATERIALIZE
 // CONTRACT: note f-capacity-ne-f-program
