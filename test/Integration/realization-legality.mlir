@@ -16,6 +16,9 @@ func.func @dummy() {
 // LEG: applicable-schema s2c2.capability_applicability.v1
 // LEG: legality-ne-applicable yes
 // LEG: legality-ne-profile yes
+// LEG: sufficiency-schema s2c2.sufficiency.v1
+// LEG: authorization-schema s2c2.authorization.v1
+// LEG: legality-schemas-distinct yes
 // LEG: legality-ne-sufficient yes
 // LEG: unproven-ne-forbidden yes
 // LEG: allowed-ne-can-run-plan yes
