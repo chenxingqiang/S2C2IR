@@ -13,6 +13,9 @@ func.func @dummy() {
 // E2E: semantic-expansion none
 // E2E: e2e-chain evidence-profile-legality-claim-checking
 // E2E: e2e-schemas-distinct yes
+// E2E: e2e-host profile record_capability_profile
+// E2E: e2e-host legality record_realization_legality
+// E2E: e2e-host checking record_realization_checking
 // E2E: e2e-uses-frozen-hosts yes
 // E2E: e2e-reimplements-mapping no
 // E2E: e2e-eq-check-v0 yes

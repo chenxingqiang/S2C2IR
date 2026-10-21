@@ -189,6 +189,22 @@ def print_contract() -> int:
         print("e2e-schemas-distinct no")
         return 1
     print("e2e-schemas-distinct yes")
+    names = run_e2e.__code__.co_names
+    frozen = (
+        "derive_capability_profile" in names
+        and "derive_realization_legality" in names
+        and "check_realization" in names
+        and prof.derive_capability_profile.__module__ == "record_capability_profile"
+        and legal.derive_realization_legality.__module__
+        == "record_realization_legality"
+        and chk.check_realization.__module__ == "record_realization_checking"
+    )
+    if not frozen:
+        print("e2e-uses-frozen-hosts no")
+        return 1
+    print("e2e-host profile record_capability_profile")
+    print("e2e-host legality record_realization_legality")
+    print("e2e-host checking record_realization_checking")
     print("e2e-uses-frozen-hosts yes")
     print("e2e-reimplements-mapping no")
     print("e2e-eq-check-v0 yes")
