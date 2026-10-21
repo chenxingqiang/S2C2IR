@@ -1094,6 +1094,8 @@
 
 // ALG: evidence-algebra gate=query
 // ALG: schema s2c2.evidence_record.v1
+// ALG: evidence-db-schema s2c2.evidence.v1
+// ALG: evidence-kind-schema s2c2.evidence_kind.v1
 // ALG: er-identity-ne-6b-identity yes
 // ALG: canonical-ne-display yes
 // ALG: family-ne-canonical yes
