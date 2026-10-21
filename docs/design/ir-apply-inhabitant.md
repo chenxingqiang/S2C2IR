@@ -64,6 +64,7 @@ Schema `s2c2.storage_apply.v1`. Source schema
 `s2c2.storage_rewrite.v1`. Witness schema
 `s2c2.apply_legality_witness.v1`.
 The contract run compares these four schema constants.
+The contract run also compares the apply schema with the decision schema.
 
 ## Acceptance scenario
 
