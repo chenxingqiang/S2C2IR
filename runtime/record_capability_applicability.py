@@ -12,6 +12,10 @@ import argparse
 import json
 import sys
 
+import record_authorization as auth
+import record_storage_rewrite as rew
+import record_sufficiency as suf
+
 TARGETS = ("cpu", "cuda", "rocm", "sycl", "ascend", "npu", "cim")
 KINDS = ("concurrent-pair", "named-nonblocking", "staged-dma")
 APPLICABILITY_VALUES = ("yes", "no", "n/a")
@@ -32,7 +36,7 @@ SCHEMA = "s2c2.capability_applicability.v1"
 
 def _applicable_no(reason: str) -> dict:
     return {
-        "schema": "s2c2.decision.v1",
+        "schema": auth.DECISION_SCHEMA,
         "subject": "applicable",
         "result": "no",
         "reasons": [reason],
@@ -157,14 +161,14 @@ def derive_applicable_decision(
         return _applicable_no("capability.missing-evidence")
     if rec["applicability"] == "n/a":
         return {
-            "schema": "s2c2.decision.v1",
+            "schema": auth.DECISION_SCHEMA,
             "subject": "applicable",
             "result": "n/a",
             "reasons": [],
         }
     if rec["applicability"] == "yes":
         return {
-            "schema": "s2c2.decision.v1",
+            "schema": auth.DECISION_SCHEMA,
             "subject": "applicable",
             "result": "yes",
             "reasons": ["capability.present"],
@@ -398,9 +402,22 @@ def print_contract() -> int:
         print("cap-schema-ne-occupancy-schema no")
         print(str(exc))
         return 1
+    if (
+        auth.DECISION_SCHEMA != rew.DECISION_SCHEMA
+        or auth.DECISION_SCHEMA != suf.DECISION_SCHEMA
+    ):
+        print("capability-schemas-distinct no")
+        return 1
+    decision_schema = auth.DECISION_SCHEMA
+    if SCHEMA in (decision_schema, auth.AUTH_SCHEMA, rew.REWRITE_SCHEMA):
+        print("capability-schemas-distinct no")
+        return 1
     print("capability-applicability gate=query")
-    print("schema s2c2.capability_applicability.v1")
-    print("decision-schema s2c2.decision.v1")
+    print(f"schema {SCHEMA}")
+    print(f"decision-schema {decision_schema}")
+    print(f"authorization-schema {auth.AUTH_SCHEMA}")
+    print(f"rewrite-schema {rew.REWRITE_SCHEMA}")
+    print("capability-schemas-distinct yes")
     print("decision-subject applicable")
     print("applicable-ne-usable yes")
     print("applicable-ne-sufficient yes")
