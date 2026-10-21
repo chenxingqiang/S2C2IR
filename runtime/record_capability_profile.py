@@ -323,9 +323,13 @@ def _validate() -> None:
 
 def print_contract() -> int:
     _validate()
+    if PROFILE_SCHEMA == capa.SCHEMA:
+        print("profile-ne-applicable no")
+        return 1
     print("capability-profile gate=query")
     print(f"schema {PROFILE_SCHEMA}")
     print("profile-identity target-device")
+    print(f"applicable-schema {capa.SCHEMA}")
     print("profile-ne-applicable yes")
     print("profile-ne-usable yes")
     print("profile-ne-sufficient yes")

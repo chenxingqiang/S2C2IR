@@ -13,6 +13,7 @@ func.func @dummy() {
 // LEG: source-schema s2c2.capability_profile.v1
 // LEG: legality-identity target-device-kind
 // LEG: constraint-copied yes
+// LEG: applicable-schema s2c2.capability_applicability.v1
 // LEG: legality-ne-applicable yes
 // LEG: legality-ne-profile yes
 // LEG: legality-ne-sufficient yes
