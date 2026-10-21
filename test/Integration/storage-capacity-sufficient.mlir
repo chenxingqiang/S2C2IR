@@ -13,6 +13,8 @@ func.func @dummy() {
 // SUF: sufficiency-evaluator gate=query
 // SUF: schema s2c2.sufficiency.v1
 // SUF: decision-schema s2c2.decision.v1
+// SUF: authorization-schema s2c2.authorization.v1
+// SUF: sufficiency-schemas-distinct yes
 // SUF: decision-subject sufficient
 // SUF: decision-has-subject yes
 // SUF: evaluator-scope selected-object
