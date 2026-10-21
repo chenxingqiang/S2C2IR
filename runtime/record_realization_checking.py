@@ -521,7 +521,10 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("checking-matrix-cases 17")
+    if len(_cases()) != 17:
+        print("checking-matrix-cases no")
+        return 1
+    print(f"checking-matrix-cases {len(_cases())}")
     for result in RESULTS:
         print(f"result {result}")
     for err in ERROR_TOKENS:
@@ -552,7 +555,10 @@ def print_matrix() -> int:
     print("finding-keeps-constraint yes")
     print("unclaimed-kind-ne-violation yes")
     print("all-satisfy-ne-sufficient yes")
-    print("checking-matrix-cases 17")
+    if len(_cases()) != 17:
+        print("checking-matrix-cases no")
+        return 1
+    print(f"checking-matrix-cases {len(_cases())}")
     for name, legality, claim in _cases():
         bag = check_realization(claim, legality)
         print(f"chk-case {name}")

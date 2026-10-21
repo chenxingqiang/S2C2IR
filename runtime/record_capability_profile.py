@@ -358,7 +358,10 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("profile-matrix-cases 10")
+    if len(_cases()) != 10:
+        print("profile-matrix-cases no")
+        return 1
+    print(f"profile-matrix-cases {len(_cases())}")
     for k in capa.KINDS:
         print(f"kind {k}")
     for s in CONSTRAINT_STATUSES:
@@ -388,7 +391,10 @@ def print_matrix() -> int:
     print("profile-ne-sufficient yes")
     print("absence-ne-no yes")
     print("all-yes-ne-sufficient yes")
-    print("profile-matrix-cases 10")
+    if len(_cases()) != 10:
+        print("profile-matrix-cases no")
+        return 1
+    print(f"profile-matrix-cases {len(_cases())}")
     for name, records, target, device in _cases():
         profile = derive_capability_profile(records, target, device)
         print(f"prof-case {name}")

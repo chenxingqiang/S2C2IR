@@ -82,8 +82,19 @@ def print_contract() -> int:
     if not cap_schemas_distinct():
         print("cap-schemas-distinct no")
         return 1
+    import record_evidence as evidence
+
+    if (
+        MEAS_CAP_SCHEMA == evidence.V1_SCHEMA
+        or MEAS_CAP_SCHEMA == evidence.SCHEMA
+    ):
+        print("cap-ne-measured-storage no")
+        return 1
     print("storage-capacity compiler-driven=yes")
     print("cap-schemas-distinct yes")
+    print(f"measured-storage-schema {evidence.V1_SCHEMA}")
+    print(f"evidence-db-schema {evidence.SCHEMA}")
+    print("cap-ne-measured-storage yes")
     print("action KEEP|EVICT|REMATERIALIZE")
     print("restore-legal TRANSFER|REMATERIALIZE")
     print("note f-capacity-ne-f-program")
