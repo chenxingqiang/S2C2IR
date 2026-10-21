@@ -18,16 +18,46 @@ EVIDENCE_KIND_SCHEMA = "s2c2.evidence_kind.v1"
 EVIDENCE_RECORD_SCHEMA = "s2c2.evidence_record.v1"
 
 
+def _bound_decision_schema() -> str | None:
+    import record_authorization as auth
+    import record_storage_rewrite as rewrite
+    import record_sufficiency as sufficiency
+
+    schemas = (
+        auth.DECISION_SCHEMA,
+        rewrite.DECISION_SCHEMA,
+        sufficiency.DECISION_SCHEMA,
+    )
+    bound = schemas[0]
+    if isinstance(bound, str) and bound == schemas[1] == schemas[2]:
+        return bound
+    return None
+
+
 def print_evidence_decision_contract() -> int:
+    import record_authorization as auth
     import record_evidence as evidence
 
     if evidence.SCHEMA == EVIDENCE_KIND_SCHEMA:
         print("evidence-kind-ne-6b-identity no")
         return 1
+    decision_schema = _bound_decision_schema()
+    if (
+        decision_schema is None
+        or decision_schema == EVIDENCE_KIND_SCHEMA
+        or decision_schema == evidence.SCHEMA
+        or evidence.SCHEMA == auth.AUTH_SCHEMA
+        or EVIDENCE_KIND_SCHEMA == auth.AUTH_SCHEMA
+    ):
+        print("decision-schemas-bound no")
+        print("evidence-ne-authorization no")
+        return 1
     print("evidence-decision gate=query")
     print("schema " + EVIDENCE_KIND_SCHEMA)
     print("evidence-db-schema " + evidence.SCHEMA)
-    print("decision-schema s2c2.decision.v1")
+    print("decision-schema " + decision_schema)
+    print("authorization-schema " + auth.AUTH_SCHEMA)
+    print("decision-schemas-bound yes")
     print("hb-source-is-semantic-truth yes")
     print("realization-ne-hb-change yes")
     print("unknown-ne-rewrite yes")
@@ -137,9 +167,14 @@ def _validate_reason_vocab() -> None:
 
 def print_evidence_reason_vocab() -> int:
     _validate_reason_vocab()
+    decision_schema = _bound_decision_schema()
+    if decision_schema is None:
+        print("decision-schemas-bound no")
+        return 1
     print("evidence-reason-vocab gate=query")
     print("schema s2c2.evidence_kind.v1")
-    print("decision-schema s2c2.decision.v1")
+    print("decision-schema " + decision_schema)
+    print("decision-schemas-bound yes")
     print("reason-grammar namespace.local")
     print("reason-namespace evidence")
     print("reason-namespace predicate")
@@ -630,10 +665,20 @@ def print_evidence_algebra_contract() -> int:
         print("er-identity-ne-6b-identity no")
         return 1
     _validate_algebra()
+    decision_schema = _bound_decision_schema()
+    if (
+        decision_schema is None
+        or decision_schema == EVIDENCE_RECORD_SCHEMA
+        or decision_schema == EVIDENCE_KIND_SCHEMA
+        or decision_schema == evidence.SCHEMA
+    ):
+        print("decision-schemas-bound no")
+        return 1
     print("evidence-algebra gate=query")
     print("schema " + EVIDENCE_RECORD_SCHEMA)
     print("kind-schema " + EVIDENCE_KIND_SCHEMA)
-    print("decision-schema s2c2.decision.v1")
+    print("decision-schema " + decision_schema)
+    print("decision-schemas-bound yes")
     print("evidence-db-schema " + evidence.SCHEMA)
     print("evidence-kind-schema " + EVIDENCE_KIND_SCHEMA)
     print("er-identity-ne-6b-identity yes")
