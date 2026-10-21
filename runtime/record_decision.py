@@ -14,16 +14,18 @@ import argparse
 import json
 import sys
 
+EVIDENCE_KIND_SCHEMA = "s2c2.evidence_kind.v1"
+EVIDENCE_RECORD_SCHEMA = "s2c2.evidence_record.v1"
+
 
 def print_evidence_decision_contract() -> int:
     import record_evidence as evidence
 
-    kind_schema = "s2c2.evidence_kind.v1"
-    if evidence.SCHEMA == kind_schema:
+    if evidence.SCHEMA == EVIDENCE_KIND_SCHEMA:
         print("evidence-kind-ne-6b-identity no")
         return 1
     print("evidence-decision gate=query")
-    print("schema " + kind_schema)
+    print("schema " + EVIDENCE_KIND_SCHEMA)
     print("evidence-db-schema " + evidence.SCHEMA)
     print("decision-schema s2c2.decision.v1")
     print("hb-source-is-semantic-truth yes")
@@ -240,7 +242,7 @@ def evidence_record(
     if canonical == display:
         raise RuntimeError("canonical must differ from display")
     return {
-        "schema": "s2c2.evidence_record.v1",
+        "schema": EVIDENCE_RECORD_SCHEMA,
         "identity": {
             "selected": selected,
             "kind": kind,
@@ -619,11 +621,21 @@ def _validate_algebra() -> None:
 
 
 def print_evidence_algebra_contract() -> int:
+    import record_evidence as evidence
+
+    if (
+        EVIDENCE_RECORD_SCHEMA == evidence.SCHEMA
+        or EVIDENCE_RECORD_SCHEMA == EVIDENCE_KIND_SCHEMA
+    ):
+        print("er-identity-ne-6b-identity no")
+        return 1
     _validate_algebra()
     print("evidence-algebra gate=query")
-    print("schema s2c2.evidence_record.v1")
-    print("kind-schema s2c2.evidence_kind.v1")
+    print("schema " + EVIDENCE_RECORD_SCHEMA)
+    print("kind-schema " + EVIDENCE_KIND_SCHEMA)
     print("decision-schema s2c2.decision.v1")
+    print("evidence-db-schema " + evidence.SCHEMA)
+    print("evidence-kind-schema " + EVIDENCE_KIND_SCHEMA)
     print("er-identity-ne-6b-identity yes")
     print("canonical-ne-display yes")
     print("family-ne-canonical yes")
