@@ -82,3 +82,4 @@ python3 runtime/record_realization_checking_xid.py --print-realization-checking-
 ```
 
 Query-only. `can-run-plan=no`. `rewrite-license=no`.
+The contract run compares the evidence, profile, legality, claim, and checking schema constants.

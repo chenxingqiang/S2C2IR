@@ -23,6 +23,7 @@ if str(_RUNTIME) not in sys.path:
 
 import record_capability_applicability as capa
 import record_capability_profile as prof
+import record_evidence as evidence
 import record_realization_checking as chk
 import record_realization_legality as legal
 
@@ -231,6 +232,17 @@ def print_contract() -> int:
     print("xid-type integration-reproducibility")
     print("semantic-expansion none")
     print("xid-chain evidence-profile-legality-claim-checking")
+    chain_schemas = (
+        evidence.SCHEMA,
+        prof.PROFILE_SCHEMA,
+        legal.LEGALITY_SCHEMA,
+        chk.CLAIM_SCHEMA,
+        chk.CHECKING_SCHEMA,
+    )
+    if len(set(chain_schemas)) != len(chain_schemas):
+        print("xid-schemas-distinct no")
+        return 1
+    print("xid-schemas-distinct yes")
     print("xid-uses-frozen-hosts yes")
     print("xid-reimplements-mapping no")
     print("xid-eq-check-v0 yes")
