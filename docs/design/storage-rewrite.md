@@ -389,3 +389,5 @@ python3 runtime/record_storage_rewrite.py --print-rewrite-matrix
 
 Query-only. Host-side Decision contract, not compiler E2E.
 `can-run-plan=no`. `rewrite-path=no`. `applied=no`.
+The contract run compares the rewrite, decision, and
+authorization schema constants.

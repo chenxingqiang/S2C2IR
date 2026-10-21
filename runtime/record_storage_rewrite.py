@@ -648,6 +648,12 @@ def print_contract() -> int:
     print("rewrite-planner gate=query")
     print(f"schema {REWRITE_SCHEMA}")
     print(f"decision-schema {DECISION_SCHEMA}")
+    schemas = (REWRITE_SCHEMA, DECISION_SCHEMA, auth.AUTH_SCHEMA)
+    if len(set(schemas)) != len(schemas):
+        print("rewrite-schemas-distinct no")
+        return 1
+    print(f"authorization-schema {auth.AUTH_SCHEMA}")
+    print("rewrite-schemas-distinct yes")
     print("decision-subject rewrite-plan")
     print("rewrite-identity selected-object-action-license-kind")
     print(f"action {ACTION_V01}")
