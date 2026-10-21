@@ -48,6 +48,8 @@ the 7B envelope.
 python3 runtime/record_scenario_corpus.py --print-scenario-corpus
 ```
 
+The contract run prints the scene count from the spec list and checks the apply inhabitant module.
+
 Evidence scope stays contract-level and host-level.
 `compiler-e2e` stays no. A fingerprint change is drift of
 this host, not by itself a new semantic cut.
