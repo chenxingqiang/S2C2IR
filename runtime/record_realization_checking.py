@@ -21,9 +21,11 @@ _RUNTIME = Path(__file__).resolve().parent
 if str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
+import record_authorization as auth
 import record_capability_applicability as capa
 import record_capability_profile as prof
 import record_realization_legality as legal
+import record_storage_rewrite as rew
 
 CLAIM_SCHEMA = "s2c2.realization_claim.v1"
 CHECKING_SCHEMA = "s2c2.realization_checking.v1"
@@ -487,6 +489,15 @@ def print_contract() -> int:
         print("checking-schemas-distinct no")
         return 1
     print("checking-schemas-distinct yes")
+    foreign = (auth.AUTH_SCHEMA, rew.REWRITE_SCHEMA, auth.DECISION_SCHEMA)
+    local = (CHECKING_SCHEMA, CLAIM_SCHEMA, legal.LEGALITY_SCHEMA)
+    if any(schema in foreign for schema in local) or len(set(foreign)) != 3:
+        print("checking-foreign-schemas-distinct no")
+        return 1
+    print(f"authorization-schema {auth.AUTH_SCHEMA}")
+    print(f"rewrite-schema {rew.REWRITE_SCHEMA}")
+    print(f"decision-schema {auth.DECISION_SCHEMA}")
+    print("checking-foreign-schemas-distinct yes")
     print("checking-identity target-device")
     print("claimed-kinds-canonical yes")
     print("missing-claimed-kinds-ne-empty yes")
