@@ -40,6 +40,8 @@ STOP
 `Check_E2E(r, L) == Check_v0(r, L)`. The harness does not
 contain `allowed → satisfy`.
 
+The contract run compares the evidence, profile, legality, claim, and checking schema constants.
+
 ## Cases
 
 | Case | Records | Claim | Check |

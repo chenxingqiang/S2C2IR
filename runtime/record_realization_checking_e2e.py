@@ -21,6 +21,7 @@ if str(_RUNTIME) not in sys.path:
 
 import record_capability_applicability as capa
 import record_capability_profile as prof
+import record_evidence as evidence
 import record_realization_checking as chk
 import record_realization_legality as legal
 
@@ -177,6 +178,17 @@ def print_contract() -> int:
     print("e2e-type integration-reproducibility")
     print("semantic-expansion none")
     print("e2e-chain evidence-profile-legality-claim-checking")
+    chain_schemas = (
+        evidence.SCHEMA,
+        prof.PROFILE_SCHEMA,
+        legal.LEGALITY_SCHEMA,
+        chk.CLAIM_SCHEMA,
+        chk.CHECKING_SCHEMA,
+    )
+    if len(set(chain_schemas)) != len(chain_schemas):
+        print("e2e-schemas-distinct no")
+        return 1
+    print("e2e-schemas-distinct yes")
     print("e2e-uses-frozen-hosts yes")
     print("e2e-reimplements-mapping no")
     print("e2e-eq-check-v0 yes")
