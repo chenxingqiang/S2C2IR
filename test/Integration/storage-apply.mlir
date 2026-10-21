@@ -10,6 +10,9 @@ func.func @dummy() {
 // APP: apply-inhabitant gate=check
 // APP: schema s2c2.storage_apply.v1
 // APP: source-schema s2c2.storage_rewrite.v1
+// APP: witness-schema s2c2.apply_legality_witness.v1
+// APP: authorization-schema s2c2.authorization.v1
+// APP: apply-schemas-distinct yes
 // APP: pattern W0-3/2
 // APP: object-canonical 2
 // APP: prose-O2-ne-object yes

@@ -63,6 +63,7 @@ python3 runtime/record_storage_apply.py --print-apply-matrix
 Schema `s2c2.storage_apply.v1`. Source schema
 `s2c2.storage_rewrite.v1`. Witness schema
 `s2c2.apply_legality_witness.v1`.
+The contract run compares these four schema constants.
 
 ## Acceptance scenario
 
