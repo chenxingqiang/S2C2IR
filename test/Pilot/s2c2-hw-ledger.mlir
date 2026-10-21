@@ -10,6 +10,7 @@ module {
 }
 
 // CONTRACT: hw-ledger batch-check=yes
+// CONTRACT: hw-ledger records=31
 // CONTRACT: hw-ledger note keep-original-path
 // CONTRACT: hw-ledger note not-cap-schema-v1
 // CONTRACT: hw-ledger note catalog-untouched

@@ -13,6 +13,10 @@ func.func @dummy() {
 // CHK: claim-schema s2c2.realization_claim.v1
 // CHK: source-schema s2c2.realization_legality.v1
 // CHK: checking-schemas-distinct yes
+// CHK: authorization-schema s2c2.authorization.v1
+// CHK: rewrite-schema s2c2.storage_rewrite.v1
+// CHK: decision-schema s2c2.decision.v1
+// CHK: checking-foreign-schemas-distinct yes
 // CHK: checking-identity target-device
 // CHK: claimed-kinds-canonical yes
 // CHK: missing-claimed-kinds-ne-empty yes

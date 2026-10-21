@@ -39,6 +39,14 @@ func.func @dummy() {
 // BASE: producer authorization authorized
 // BASE: producer authorization rewrite-license
 // BASE: producer rewrite-planner rewrite-plan
+// BASE: schema-usable s2c2.decision.v1
+// BASE: schema-sufficient s2c2.sufficiency.v1
+// BASE: schema-authorized s2c2.authorization.v1
+// BASE: schema-rewrite-plan s2c2.storage_rewrite.v1
+// BASE: source-schema-sufficient s2c2.decision.v1
+// BASE: source-schema-authorization s2c2.decision.v1
+// BASE: source-schema-rewrite s2c2.authorization.v1
+// BASE: baseline-schemas-distinct yes
 // BASE: can-run-plan no
 // BASE: rewrite-path no
 // BASE: applied no
