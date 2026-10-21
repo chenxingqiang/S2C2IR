@@ -650,6 +650,11 @@ def print_optimum_authorization() -> int:
     print(f"schema {SCHEMA}")
     print(f"authorization-schema {auth.AUTH_SCHEMA}")
     print("optimum-ne-authorization-schema yes")
+    if SCHEMA == auth.DECISION_SCHEMA:
+        print("optimum-ne-decision-schema no")
+        return 1
+    print(f"decision-schema {auth.DECISION_SCHEMA}")
+    print("optimum-ne-decision-schema yes")
     print(f"rule {RULE}")
     print(f"selected-id {chosen['strategy-id']}")
     print(f"cost {chosen['cost']}")

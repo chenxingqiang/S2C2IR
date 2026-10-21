@@ -58,6 +58,7 @@ module {
 // SCHEMA: depth-star not-a-law
 // SCHEMA: semantics unchanged
 // SCHEMA: v3=not-claimed
+// SCHEMA: cap-schema-fields-bound yes
 // SCHEMA: cost=unchanged
 
 // AN: v3-cap-schema v1 records=2 hardware=unfilled,fixture-b

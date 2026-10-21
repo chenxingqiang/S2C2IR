@@ -394,6 +394,16 @@ def _foreign_schemas() -> tuple[str, str]:
 
 
 def print_contract() -> int:
+    import record_decision
+    import record_evidence
+
+    if SCHEMA in (
+        record_decision.EVIDENCE_RECORD_SCHEMA,
+        record_decision.EVIDENCE_KIND_SCHEMA,
+        record_evidence.SCHEMA,
+    ):
+        print("er-identity-ne-6b-identity no")
+        return 1
     _validate()
     try:
         catalog_version, occupancy_schema = _foreign_schemas()
@@ -423,6 +433,9 @@ def print_contract() -> int:
     print("applicable-ne-sufficient yes")
     print("capability-ne-authorization yes")
     print("capability-ne-rewrite yes")
+    print(f"evidence-record-schema {record_decision.EVIDENCE_RECORD_SCHEMA}")
+    print(f"evidence-kind-schema {record_decision.EVIDENCE_KIND_SCHEMA}")
+    print(f"evidence-db-schema {record_evidence.SCHEMA}")
     print("er-identity-ne-6b-identity yes")
     print("cap-identity-ne-occupancy-identity yes")
     print("occupancy-report-schema " + occupancy_schema)

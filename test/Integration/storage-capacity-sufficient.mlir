@@ -15,6 +15,8 @@ func.func @dummy() {
 // SUF: decision-schema s2c2.decision.v1
 // SUF: authorization-schema s2c2.authorization.v1
 // SUF: sufficiency-schemas-distinct yes
+// SUF: rewrite-schema s2c2.storage_rewrite.v1
+// SUF: sufficiency-ne-rewrite-schema yes
 // SUF: decision-subject sufficient
 // SUF: decision-has-subject yes
 // SUF: evaluator-scope selected-object

@@ -277,7 +277,10 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("legality-matrix-cases 8")
+    if len(_cases()) != 8:
+        print("legality-matrix-cases no")
+        return 1
+    print(f"legality-matrix-cases {len(_cases())}")
     for s in prof.CONSTRAINT_STATUSES:
         print(f"constraint {s}")
     print("note six-c-m-sufficient-parked")
@@ -305,7 +308,10 @@ def print_matrix() -> int:
     print("constraint-copied yes")
     print("all-allowed-ne-sufficient yes")
     print("unproven-ne-forbidden yes")
-    print("legality-matrix-cases 8")
+    if len(_cases()) != 8:
+        print("legality-matrix-cases no")
+        return 1
+    print(f"legality-matrix-cases {len(_cases())}")
     for name, profile in _cases():
         bag = derive_realization_legality(profile)
         print(f"leg-case {name}")
