@@ -253,7 +253,29 @@ _CORPUS_KEYS = (
 )
 
 
-def replay_corpus() -> int:
+def _s05_applied_outcomes() -> tuple[str, str]:
+    """Applied results for the S05 fixture and its carrier text.
+
+    Same observation the corpus replay uses: the fixture program
+    still carries induced-hb, and the extracted carrier text does
+    not. The two applied strings are returned even when they are
+    not the required no/yes pair.
+    """
+    for spec in corpus._specs():
+        if spec["id"] != "S05":
+            continue
+        extracted = project(carrier.render(spec["program"]))
+        if "induced-hb" in extracted:
+            raise RuntimeError("spine-corpus-induced-in-text-" + spec["id"])
+        fixture = corpus.observe(spec["program"], spec["mode"], spec["envelope"])
+        plain = corpus.observe(extracted, spec["mode"], spec["envelope"])
+        if plain["can-run-plan"] != "no" or "induced-hb" in plain:
+            raise RuntimeError("spine-s05-copied")
+        return fixture["applied"], plain["applied"]
+    return "", ""
+
+
+def replay_corpus() -> dict[str, str | int]:
     """Spellable corpus scenes only. Do not copy `induced-hb`.
 
     S05's fixture failure depends on that field. Carrier text does
@@ -264,6 +286,8 @@ def replay_corpus() -> int:
     specs = corpus._specs()
     spellable = 0
     saw_s05 = False
+    fixture_applied = ""
+    carrier_applied = ""
     for spec in specs:
         extracted = project(carrier.render(spec["program"]))
         if "induced-hb" in extracted:
@@ -280,6 +304,8 @@ def replay_corpus() -> int:
                 raise RuntimeError("spine-s05-carrier")
             if plain["can-run-plan"] != "no" or "induced-hb" in plain:
                 raise RuntimeError("spine-s05-copied")
+            fixture_applied = fixture["applied"]
+            carrier_applied = plain["applied"]
             continue
         direct = corpus.observe(spec["program"], spec["mode"], spec["envelope"])
         via = corpus.observe(extracted, spec["mode"], spec["envelope"])
@@ -298,7 +324,11 @@ def replay_corpus() -> int:
     for key in _CORPUS_KEYS:
         if second[key] != direct_second[key]:
             raise RuntimeError("spine-corpus-S10")
-    return spellable
+    return {
+        "spellable": spellable,
+        "fixture_applied": fixture_applied,
+        "carrier_applied": carrier_applied,
+    }
 
 
 def check_guard_overlap() -> None:
@@ -448,7 +478,8 @@ def _validate() -> dict:
     if calls:
         raise RuntimeError("opt-before-extract-called-apply")
     matrix = replay_matrix()
-    scenes = replay_corpus()
+    corpus_replay = replay_corpus()
+    scenes = corpus_replay["spellable"]
     check_guard_overlap()
     check_caller_supplied()
 
@@ -501,6 +532,8 @@ def _validate() -> dict:
         "applied": bag["applied"],
         "matrix": matrix,
         "corpus": scenes,
+        "s05_fixture_applied": corpus_replay["fixture_applied"],
+        "s05_carrier_applied": corpus_replay["carrier_applied"],
         "capacity_corpus": corpus_counts,
     }
 
@@ -537,6 +570,13 @@ def print_contract() -> int:
     print("induced-hb-copied no")
     print("scenario-corpus-spellable " + str(summary["corpus"]))
     print("S05-fixture applied no")
+    fixture_applied = summary.get("s05_fixture_applied")
+    carrier_applied = summary.get("s05_carrier_applied")
+    if fixture_applied is None or carrier_applied is None:
+        fixture_applied, carrier_applied = _s05_applied_outcomes()
+    if fixture_applied != "no" or carrier_applied != "yes":
+        print("S05-carrier-only applied no")
+        return 1
     print("S05-carrier-only applied yes")
     print("carrier-encodes-induced-hb no")
     print("authorization-guard-overlap restored")
