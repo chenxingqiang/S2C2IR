@@ -84,10 +84,17 @@ def print_contract() -> int:
     if hardware != set(LEDGER_HARDWARE) or "rtx5090" in hardware:
         print("hw-ledger batch-check=no")
         return 1
+    n_measured = sum(1 for row in rows if row["status"] == "measured")
+    n_absent = sum(1 for row in rows if row["status"] == "device-absent")
+    if n_measured + n_absent != len(rows):
+        print("hw-ledger batch-check=no")
+        return 1
     print("hw-ledger batch-check=yes")
     print(f"hw-ledger records={len(rows)}")
     names = sorted(hardware, key=LEDGER_HARDWARE.index)
     print(f"hw-ledger hardware {','.join(names)}")
+    print(f"hw-ledger measured={n_measured}")
+    print(f"hw-ledger device-absent={n_absent}")
     print("hw-ledger note keep-original-path")
     print("hw-ledger note not-cap-schema-v1")
     print("hw-ledger note catalog-untouched")

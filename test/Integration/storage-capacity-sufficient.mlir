@@ -17,6 +17,8 @@ func.func @dummy() {
 // SUF: sufficiency-schemas-distinct yes
 // SUF: rewrite-schema s2c2.storage_rewrite.v1
 // SUF: sufficiency-ne-rewrite-schema yes
+// SUF: report-schema s2c2.occupancy_capability_report.v1
+// SUF: sufficiency-ne-report-schema yes
 // SUF: decision-subject sufficient
 // SUF: decision-has-subject yes
 // SUF: evaluator-scope selected-object
