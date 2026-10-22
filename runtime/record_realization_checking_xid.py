@@ -262,6 +262,11 @@ def print_contract() -> int:
     print(f"xid-host checking {checking_host}")
     print("xid-uses-frozen-hosts yes")
     print("xid-reimplements-mapping no")
+    for _name, records, target, device, claim in _cases():
+        xid = run_xid(records, target, device, claim)
+        if xid["checking"] != chk.check_realization(claim, xid["legality"]):
+            print("xid-eq-check-v0 no")
+            return 1
     print("xid-eq-check-v0 yes")
     print("xid-identities cuda,ascend,cpu")
     targets = {target for _name, _records, target, _device, _claim in _cases()}
@@ -281,7 +286,10 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("xid-matrix-cases 4")
+    if len(_cases()) != 4:
+        print("xid-matrix-cases no")
+        return 1
+    print(f"xid-matrix-cases {len(_cases())}")
     print("note six-c-m-sufficient-parked")
     print("note sufficient-decision-not-emitted")
     print("note applicable-semantics-frozen")
@@ -313,7 +321,10 @@ def print_matrix() -> int:
     print("xid-eq-check-v0 yes")
     print("unclaimed-kind-ne-violation yes")
     print("xid-invents-npu-cim no")
-    print("xid-matrix-cases 4")
+    if len(_cases()) != 4:
+        print("xid-matrix-cases no")
+        return 1
+    print(f"xid-matrix-cases {len(_cases())}")
     for name, records, target, device, claim in _cases():
         bag = run_xid(records, target, device, claim)
         checking = bag["checking"]

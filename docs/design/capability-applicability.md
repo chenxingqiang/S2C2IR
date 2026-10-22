@@ -112,6 +112,8 @@ identity.target ≠ target
 `identity.*` must match the payload fields. Disagreement is
 host-path **safe no**, not a user-facing `RuntimeError`.
 
+The contract run checks that a capability record identity kind agrees with the kind argument.
+
 This identity is **not** 6B `E` and **not** occupancy
 `(selected, kind, object)`.
 
