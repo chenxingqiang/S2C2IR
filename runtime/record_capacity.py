@@ -174,10 +174,46 @@ def print_query_contract() -> int:
     return 0
 
 
+def _policy_example() -> dict[str, Any]:
+    """4-tile s0 and measured selections over one enumerated F_capacity."""
+    root = Path(__file__).resolve().parents[1]
+    dataset = root / "docs" / "design" / "v3-dataset"
+    spec = _load_spec(dataset / "storage-capacity-4tile.jsonl")
+    plan = _build_capacity_plan(spec)
+    workload = str(spec.get("workload_class") or "")
+    table = dataset / "storage-capacity-measured-4tile.jsonl"
+    chosen = (
+        apply_capacity_policy(plan, "s0"),
+        apply_capacity_policy(
+            plan, "measured-capacity-v1", table, "fixture", workload
+        ),
+    )
+    return {
+        "F_capacity": [cand["identity"] for cand in plan["candidates"]],
+        "selected": [row["selected"] for row in chosen],
+    }
+
+
 def print_policy_contract() -> int:
     print("capacity-policy consumer=query")
     print("policy none|s0|measured-capacity-v1")
     print("s0 first(F_capacity)")
+    try:
+        example = _policy_example()
+        f_capacity = set(example["F_capacity"])
+        selected_names = [
+            name
+            for name in example["selected"]
+            if isinstance(name, str) and name not in ("", "none")
+        ]
+    except (OSError, ValueError, KeyError, TypeError):
+        print("selected-in-f-capacity no")
+        return 1
+    if not selected_names or any(
+        name not in f_capacity for name in selected_names
+    ):
+        print("selected-in-f-capacity no")
+        return 1
     print("selected-in-f-capacity yes")
     print("rewrite-license no")
     print("note selection-ne-rewrite-license")
