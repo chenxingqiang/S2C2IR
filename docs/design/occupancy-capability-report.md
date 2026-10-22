@@ -62,6 +62,7 @@ The contract run compares the report schema with the
 Decision schema used by sufficiency, authorization, and
 rewrite.
 The contract run also compares the report schema with the applicability, profile, and legality schemas.
+The contract run prints the occupancy report matrix count from the case list.
 
 ## Identities stay distinct
 
