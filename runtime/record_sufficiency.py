@@ -449,6 +449,13 @@ def print_contract() -> int:
         return 1
     print(f"rewrite-schema {rew.REWRITE_SCHEMA}")
     print("sufficiency-ne-rewrite-schema yes")
+    import record_occupancy_capability as occ
+
+    if SUFFICIENCY_SCHEMA == occ.REPORT_SCHEMA:
+        print("sufficiency-ne-report-schema no")
+        return 1
+    print(f"report-schema {occ.REPORT_SCHEMA}")
+    print("sufficiency-ne-report-schema yes")
     print("decision-subject sufficient")
     print("decision-has-subject yes")
     print("evaluator-scope selected-object")
