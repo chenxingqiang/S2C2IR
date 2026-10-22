@@ -144,19 +144,25 @@ def _require(text: str, phrases: tuple[str, ...], code: str) -> None:
             raise AlignmentRefusal(code)
 
 
-def status_text(path: Path | None = None) -> str:
+def _status_slide_names(path: Path | None = None) -> list[str]:
     pptx = _STATUS if path is None else path
     if not pptx.is_file():
         raise AlignmentRefusal("missing-status-insert")
-    chunks: list[str] = []
     with zipfile.ZipFile(pptx) as package:
-        names = [
+        return [
             name
             for name in package.namelist()
             if re.fullmatch(r"ppt/slides/slide\d+\.xml", name)
         ]
-        if len(names) != 3:
-            raise AlignmentRefusal("status-slides")
+
+
+def status_text(path: Path | None = None) -> str:
+    pptx = _STATUS if path is None else path
+    names = _status_slide_names(path)
+    if len(names) != 3:
+        raise AlignmentRefusal("status-slides")
+    chunks: list[str] = []
+    with zipfile.ZipFile(pptx) as package:
         for name in sorted(names, key=lambda item: int(re.search(r"(\d+)", item).group(1))):
             root = ET.fromstring(package.read(name))
             chunks.extend(node.text or "" for node in root.iter(_A_T))
@@ -245,6 +251,10 @@ def _self_check(td: str, doc: str) -> None:
 
 
 def print_contract() -> int:
+    names = _status_slide_names()
+    if len(names) != 3:
+        print("status-slides no")
+        return 1
     td = _td_text()
     doc = _DOC.read_text(encoding="utf-8")
     _self_check(td, doc)
@@ -266,7 +276,7 @@ def print_contract() -> int:
     print("host W0-3/2")
     print("next-cut NOT-OPENED")
     print("readme linked")
-    print("status-slides 3")
+    print(f"status-slides {len(names)}")
     print("semantic-cut no")
     return 0
 
