@@ -207,6 +207,14 @@ def print_contract() -> int:
     print("e2e-host checking record_realization_checking")
     print("e2e-uses-frozen-hosts yes")
     print("e2e-reimplements-mapping no")
+    for _name, records, claim in _cases():
+        checking = run_e2e(records, claim)["checking"]
+        direct = chk.check_realization(
+            claim, run_e2e(records, claim)["legality"]
+        )
+        if checking != direct:
+            print("e2e-eq-check-v0 no")
+            return 1
     print("e2e-eq-check-v0 yes")
     print("unclaimed-kind-ne-violation yes")
     print("contract-error-ne-result yes")
@@ -216,7 +224,10 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("capability-schedule-ne-god-object yes")
     print("generic-schema-validator n/a")
-    print("e2e-matrix-cases 3")
+    if len(_cases()) != 3:
+        print("e2e-matrix-cases no")
+        return 1
+    print(f"e2e-matrix-cases {len(_cases())}")
     print("note six-c-m-sufficient-parked")
     print("note sufficient-decision-not-emitted")
     print("note applicable-semantics-frozen")
@@ -238,7 +249,10 @@ def print_matrix() -> int:
     print("realization-checking-e2e-matrix gate=query")
     print("e2e-eq-check-v0 yes")
     print("unclaimed-kind-ne-violation yes")
-    print("e2e-matrix-cases 3")
+    if len(_cases()) != 3:
+        print("e2e-matrix-cases no")
+        return 1
+    print(f"e2e-matrix-cases {len(_cases())}")
     for name, records, claim in _cases():
         bag = run_e2e(records, claim)
         checking = bag["checking"]
