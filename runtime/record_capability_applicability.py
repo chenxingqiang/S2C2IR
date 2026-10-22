@@ -445,6 +445,35 @@ def print_contract() -> int:
     print("capability-schedule-ne-god-object yes")
     print("identity-cardinality 0-or-1")
     print("duplicate-identity safe-no")
+    matched = capability_record(
+        target="cuda",
+        device=DEVICE_4090,
+        kind="concurrent-pair",
+        applicability="yes",
+        canonical="capability.present",
+        display="catalog-pair-present",
+        provenance="catalog",
+    )
+    ident = matched.get("identity")
+    changed = {
+        **matched,
+        "identity": {
+            **(ident if isinstance(ident, dict) else {}),
+            "kind": "named-nonblocking",
+        },
+    }
+    changed_ident = changed.get("identity")
+    changed_disagrees = (
+        isinstance(changed_ident, dict)
+        and changed_ident.get("kind") != changed.get("kind")
+    )
+    if not (
+        isinstance(ident, dict)
+        and ident.get("kind") == "concurrent-pair"
+        and (raw_record_error(changed) is not None or changed_disagrees)
+    ):
+        print("identity-kind-agrees no")
+        return 1
     print("identity-kind-agrees yes")
     print("identity-mismatch safe-no")
     print("unknown-provenance missing-evidence")

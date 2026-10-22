@@ -693,6 +693,11 @@ def print_contract() -> int:
     print("rewrite-path no")
     print("applied no")
     print("capability-schedule-ne-god-object yes")
+    acceptance = evaluate_rewrite([_licensed()])
+    dumped = json.dumps(acceptance, separators=(",", ":"), sort_keys=True)
+    if "f-storage-schedule" in dumped:
+        print("f-storage-schedule-not-inhabited no")
+        return 1
     print("f-storage-schedule-not-inhabited yes")
     print("generic-schema-validator n/a")
     if len(_cases()) != 18:

@@ -49,6 +49,7 @@ python3 runtime/record_scenario_corpus.py --print-scenario-corpus
 ```
 
 The contract run prints the scene count from the spec list and checks the apply inhabitant module.
+The contract run checks that the corpus scene ids are S01 through S10.
 
 Evidence scope stays contract-level and host-level.
 `compiler-e2e` stays no. A fingerprint change is drift of
