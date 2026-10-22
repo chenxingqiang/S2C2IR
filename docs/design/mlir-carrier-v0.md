@@ -301,6 +301,8 @@ test after extract. The envelope, witness, and device
 argument stay the ones the host case already used.
 `ApplyResult` must match the direct host call.
 
+The contract run checks that the carrier host-matrix count equals the apply matrix length.
+
 ## Not in this design
 
 ```text
