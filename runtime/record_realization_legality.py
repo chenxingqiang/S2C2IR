@@ -110,6 +110,16 @@ def _rec(*, kind: str, applicability: str, provenance: str = "catalog") -> dict:
     )
 
 
+def _all_yes_profile() -> dict:
+    return _profile(
+        [
+            _rec(kind="concurrent-pair", applicability="yes"),
+            _rec(kind="named-nonblocking", applicability="yes"),
+            _rec(kind="staged-dma", applicability="yes"),
+        ]
+    )
+
+
 def _cases() -> list[tuple[str, dict]]:
     pair_yes = _rec(kind="concurrent-pair", applicability="yes")
     nbl_yes = _rec(kind="named-nonblocking", applicability="yes")
@@ -258,6 +268,14 @@ def print_contract() -> int:
     print(f"schema {LEGALITY_SCHEMA}")
     print(f"source-schema {prof.PROFILE_SCHEMA}")
     print("legality-identity target-device-kind")
+    profile = _all_yes_profile()
+    bag = derive_realization_legality(profile)
+    caps = {entry["kind"]: entry["constraint"] for entry in profile["capabilities"]}
+    for fact in bag["facts"]:
+        kind = fact["identity"]["kind"]
+        if kind not in caps or fact["constraint"] != caps[kind]:
+            print("constraint-copied no")
+            return 1
     print("constraint-copied yes")
     print(f"applicable-schema {capa.SCHEMA}")
     print("legality-ne-applicable yes")
@@ -289,15 +307,7 @@ def print_contract() -> int:
     print("note kinds-closed")
     print("note rewrite=no")
     print("cost=unchanged")
-    example = derive_realization_legality(
-        _profile(
-            [
-                _rec(kind="concurrent-pair", applicability="yes"),
-                _rec(kind="named-nonblocking", applicability="yes"),
-                _rec(kind="staged-dma", applicability="yes"),
-            ]
-        )
-    )
+    example = derive_realization_legality(_all_yes_profile())
     print("example " + json.dumps(example, separators=(",", ":"), sort_keys=True))
     return 0
 
@@ -305,6 +315,14 @@ def print_contract() -> int:
 def print_matrix() -> int:
     _validate()
     print("realization-legality-matrix gate=query")
+    profile = _all_yes_profile()
+    bag = derive_realization_legality(profile)
+    caps = {entry["kind"]: entry["constraint"] for entry in profile["capabilities"]}
+    for fact in bag["facts"]:
+        kind = fact["identity"]["kind"]
+        if kind not in caps or fact["constraint"] != caps[kind]:
+            print("constraint-copied no")
+            return 1
     print("constraint-copied yes")
     print("all-allowed-ne-sufficient yes")
     print("unproven-ne-forbidden yes")

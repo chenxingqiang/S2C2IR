@@ -127,6 +127,7 @@ Absent `r.claimed-kinds` is `invalid-schema`, not empty claim.
 The contract run compares the three schema constants.
 The contract run also compares the checking, claim, and legality schemas with the authorization, rewrite, and decision schemas.
 The contract run prints the checking matrix count from the case list.
+The contract run checks that a full claimed-kinds list follows the closed kind order.
 
 ## Negative fixture matrix
 

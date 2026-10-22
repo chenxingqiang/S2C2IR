@@ -499,6 +499,11 @@ def print_contract() -> int:
     print(f"decision-schema {auth.DECISION_SCHEMA}")
     print("checking-foreign-schemas-distinct yes")
     print("checking-identity target-device")
+    example_claim = _r(list(capa.KINDS))
+    claimed_kinds = example_claim["claimed-kinds"]
+    if set(claimed_kinds) != set(capa.KINDS) or claimed_kinds != list(capa.KINDS):
+        print("claimed-kinds-canonical no")
+        return 1
     print("claimed-kinds-canonical yes")
     print("missing-claimed-kinds-ne-empty yes")
     print("fact-schema-required yes")
@@ -536,7 +541,7 @@ def print_contract() -> int:
     print("note rewrite=no")
     print("cost=unchanged")
     example = check_realization(
-        _r(list(capa.KINDS)),
+        example_claim,
         _L(
             [
                 _rec(kind="concurrent-pair", applicability="yes"),
