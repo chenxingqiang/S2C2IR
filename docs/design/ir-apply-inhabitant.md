@@ -66,6 +66,7 @@ Schema `s2c2.storage_apply.v1`. Source schema
 The contract run compares these four schema constants.
 The contract run also compares the apply schema with the decision schema.
 The contract run checks that the canonical object is 2 and is not the prose token O2.
+The contract run checks that two different programs have different canonical texts.
 
 ## Acceptance scenario
 

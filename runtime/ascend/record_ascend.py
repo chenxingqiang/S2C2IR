@@ -96,6 +96,16 @@ def print_cap_schema_v1() -> int:
     ):
         print("cap-schema-fields-bound no")
         return 1
+    relation_line = "pair_relation parallel serial mixed underdetermined"
+    relation_tokens = relation_line.split()
+    relation_after = (
+        relation_tokens[relation_tokens.index("pair_relation") + 1 :]
+        if "pair_relation" in relation_tokens
+        else []
+    )
+    if set(relation_after) != set(CAP_SCHEMA_RELATION):
+        print("cap-schema-relation-bound no")
+        return 1
     print("cap-schema v1")
     print(field_line)
     print(
@@ -110,7 +120,7 @@ def print_cap_schema_v1() -> int:
         "memory_class pinned_host pageable_host device_memory "
         "global_memory local_buffer dram cim_array none"
     )
-    print("pair_relation parallel serial mixed underdetermined")
+    print(relation_line)
     print(
         "observed_constraint none legacy_default resource_contention "
         "allocator_sync copy_engine_contention"
@@ -122,6 +132,7 @@ def print_cap_schema_v1() -> int:
     print("semantics unchanged")
     print("score3 not-applicable")
     print("v3=not-claimed")
+    print("cap-schema-relation-bound yes")
     print("cap-schema-fields-bound yes")
     print("cost=unchanged")
     return 0
