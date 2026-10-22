@@ -411,7 +411,10 @@ def print_contract() -> int:
     print("ignore-other-device yes")
     print("duplicate-identity safe-no")
     print("identity-schema-mismatch no-cross-talk")
-    print("report-matrix-cases 11")
+    if len(_cases()) != 11:
+        print("report-matrix-cases no")
+        return 1
+    print(f"report-matrix-cases {len(_cases())}")
     print("applicable-ne-usable yes")
     print("applicable-ne-sufficient yes")
     print("usable-ne-sufficient yes")
@@ -452,7 +455,10 @@ def print_matrix() -> int:
     print("both-yes-ne-sufficient yes")
     print("usable-identity-ne-applicable-identity yes")
     print("occupancy-usable-field-ne-usable-decision yes")
-    print("report-matrix-cases 11")
+    if len(_cases()) != 11:
+        print("report-matrix-cases no")
+        return 1
+    print(f"report-matrix-cases {len(_cases())}")
     selected, obj, target, device, kind = _query()
     for name, occ_recs, cap_recs in _cases():
         report = occupancy_capability_report(
