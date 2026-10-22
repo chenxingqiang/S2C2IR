@@ -31,6 +31,8 @@ int main() {
   expect(normalizeSsdDir("/tmp/", "/unused") == "/tmp", "strip slash");
   expect(normalizeSsdDir("/", "/unused") == "/", "keep root");
   expect(normalizeSsdDir("tiles", "/work") == "/work/tiles", "relative");
+  expect(normalizeSsdDir("", "/work") == "", "empty dir");
+  expect(normalizeSsdDir("tiles", "") == "", "empty cwd");
   expect(normalizeSsdDir("a/../b", "/work") == "/work/b", "dotdot");
   expect(normalizeSsdDir("../b", "/work/sub") == "/work/b", "parent");
 
