@@ -152,6 +152,7 @@ python3 runtime/record_evidence.py --export-measured-v1 \
 `--ingest-measured-v1` accepts only `s2c2.measured_storage_cost.v1`.
 The contract run compares that schema with `s2c2.evidence.v1`.
 The contract run also compares the evidence schema with the evidence-record schema, the evidence-kind schema, and the measured-capacity schema.
+The contract run compares the evidence schema with the decision schema.
 Unknown JSON keys are dropped. Hardware-ledger rows are skipped.
 
 ## Out of scope
