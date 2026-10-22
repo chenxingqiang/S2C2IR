@@ -216,6 +216,9 @@ def print_contract() -> int:
     print("scenario-applied " + success["applied"])
     print("scenario-rewrite-path " + success["rewrite-path"])
     print("scenario-can-run-plan " + success["can-run-plan"])
+    if apply.candidate_id_for(source_program()) != CANONICAL_P_PRIME:
+        print("candidate-id-is-canonical no")
+        return 1
     print("candidate-id-is-canonical yes")
     if not success["source-unchanged"] or not success["envelope-unchanged"]:
         print("source-unchanged no")

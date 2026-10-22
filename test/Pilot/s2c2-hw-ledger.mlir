@@ -12,6 +12,8 @@ module {
 // CONTRACT: hw-ledger batch-check=yes
 // CONTRACT: hw-ledger records=31
 // CONTRACT: hw-ledger hardware rtx4090,ascend910b
+// CONTRACT: hw-ledger measured=31
+// CONTRACT: hw-ledger device-absent=0
 // CONTRACT: hw-ledger note keep-original-path
 // CONTRACT: hw-ledger note not-cap-schema-v1
 // CONTRACT: hw-ledger note catalog-untouched
