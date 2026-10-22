@@ -401,6 +401,13 @@ def print_contract() -> int:
     print("evidence-kind-schema " + record_decision.EVIDENCE_KIND_SCHEMA)
     print("measured-capacity-schema " + record_capacity.MEAS_CAP_SCHEMA)
     print("evidence-schemas-distinct yes")
+    import record_authorization as auth
+
+    if SCHEMA == auth.DECISION_SCHEMA:
+        print("evidence-ne-decision-schema no")
+        return 1
+    print(f"decision-schema {auth.DECISION_SCHEMA}")
+    print("evidence-ne-decision-schema yes")
     print("identity E=(profile,workload,candidate,measurement_revision)")
     print("status measured|inferred|fixture|pending|invalid")
     print("note ranking-status-measured-only")
