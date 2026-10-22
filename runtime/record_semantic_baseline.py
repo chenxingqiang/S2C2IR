@@ -160,6 +160,13 @@ def _validate() -> dict:
 
 
 def print_contract() -> int:
+    if (
+        len(suf._cases()) != 16
+        or len(auth._cases()) != 20
+        or len(rew._cases()) != 18
+    ):
+        print("baseline-matrix-counts no")
+        return 1
     _validate()
     print("semantic-baseline-v1 gate=query")
     print("checkpoint verification-only")
@@ -177,9 +184,9 @@ def print_contract() -> int:
     print("decision-stack rewrite-plan")
     print("ea-1-subject usable")
     print("ea-1-still-usable-only yes")
-    print("sufficiency-matrix-cases 16")
-    print("authorization-matrix-cases 20")
-    print("rewrite-matrix-cases 18")
+    print(f"sufficiency-matrix-cases {len(suf._cases())}")
+    print(f"authorization-matrix-cases {len(auth._cases())}")
+    print(f"rewrite-matrix-cases {len(rew._cases())}")
     print("legacy-rce pass")
     print("legacy-xid pass")
     print("apply-contract merged")
