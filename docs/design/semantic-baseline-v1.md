@@ -148,3 +148,4 @@ python3 runtime/record_semantic_baseline.py --print-semantic-baseline-summary
 Query-only. Replays frozen `_validate` / EA-1 contract.
 `can-run-plan=no`. `rewrite-path=no`. `applied=no`.
 The contract run prints the usable, sufficiency, authorization, and rewrite schemas from their constants and checks that those four are distinct.
+The contract run prints the sufficiency, authorization, and rewrite matrix counts from their case lists.

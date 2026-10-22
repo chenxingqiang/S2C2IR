@@ -84,3 +84,4 @@ python3 runtime/record_realization_checking_xid.py --print-realization-checking-
 Query-only. `can-run-plan=no`. `rewrite-license=no`.
 The contract run compares the evidence, profile, legality, claim, and checking schema constants.
 The contract run checks the frozen profile, legality, and checking hosts, and checks that the xid targets are cuda, ascend, and cpu.
+The contract run prints the xid matrix count from the case list and checks each xid result against check_realization.
