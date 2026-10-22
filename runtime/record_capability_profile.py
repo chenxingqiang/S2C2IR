@@ -347,6 +347,12 @@ def print_contract() -> int:
     print("profile-ne-usable yes")
     print("profile-ne-sufficient yes")
     print("profile-ne-decision yes")
+    absent = derive_capability_profile([], "cuda", capa.DEVICE_4090)
+    absent_kinds = _by_kind(absent)
+    for kind in capa.KINDS:
+        if absent_kinds[kind]["constraint"] == "forbidden":
+            print("absence-ne-no no")
+            return 1
     print("absence-ne-no yes")
     print("missing-evidence-ne-forbidden yes")
     print("one-kind-no-ne-profile-collapse yes")
@@ -389,6 +395,12 @@ def print_matrix() -> int:
     _validate()
     print("capability-profile-matrix gate=query")
     print("profile-ne-sufficient yes")
+    absent = derive_capability_profile([], "cuda", capa.DEVICE_4090)
+    absent_kinds = _by_kind(absent)
+    for kind in capa.KINDS:
+        if absent_kinds[kind]["constraint"] == "forbidden":
+            print("absence-ne-no no")
+            return 1
     print("absence-ne-no yes")
     print("all-yes-ne-sufficient yes")
     if len(_cases()) != 10:

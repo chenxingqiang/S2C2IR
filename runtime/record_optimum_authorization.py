@@ -722,6 +722,9 @@ def print_optimum_authorization() -> int:
     print("outside-f-ignored yes")
     print("capacity-tie no")
     print("capacity-plan-rewrite-license no")
+    if frozen["authorized"]["result"] != "no":
+        print("seven-a-unchanged no")
+        return 1
     print("seven-a-unchanged yes")
     print("next-cut NOT-OPENED")
     print("result PASS")
