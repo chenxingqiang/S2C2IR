@@ -690,6 +690,25 @@ def print_evidence_algebra_contract() -> int:
     print("evidence-db-schema " + evidence.SCHEMA)
     print("evidence-kind-schema " + EVIDENCE_KIND_SCHEMA)
     print("er-identity-ne-6b-identity yes")
+    differs = False
+    try:
+        observed = evidence_record(
+            kind="source-data",
+            obj="2",
+            applicability="yes",
+            display="witnessed-unmutated-cover",
+            witness="spec-unmutated-cover",
+            scope="occupancy-live",
+            provenance="spec",
+        )
+        differs = (
+            observed["reason"]["canonical"] != observed["reason"]["display"]
+        )
+    except (RuntimeError, KeyError, TypeError):
+        differs = False
+    if not differs:
+        print("canonical-ne-display no")
+        return 1
     print("canonical-ne-display yes")
     print("family-ne-canonical yes")
     print("scope-mismatch-is-family yes")
