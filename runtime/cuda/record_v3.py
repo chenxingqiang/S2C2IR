@@ -1522,6 +1522,16 @@ CAP_SCHEMA_FIELDS = (
 
 
 def print_cap_schema_v1() -> int:
+    relation_line = "pair_relation parallel serial mixed underdetermined"
+    relation_tokens = relation_line.split()
+    if "pair_relation" not in relation_tokens:
+        print("cap-schema-relation-bound no")
+        return 1
+    if set(relation_tokens[relation_tokens.index("pair_relation") + 1 :]) != set(
+        CAP_SCHEMA_RELATION
+    ):
+        print("cap-schema-relation-bound no")
+        return 1
     import importlib.util
 
     ascend_path = Path(__file__).resolve().parents[1] / "ascend" / "record_ascend.py"
@@ -1567,7 +1577,7 @@ def print_cap_schema_v1() -> int:
         "memory_class pinned_host pageable_host device_memory "
         "global_memory local_buffer dram cim_array none"
     )
-    print("pair_relation parallel serial mixed underdetermined")
+    print(relation_line)
     print(
         "observed_constraint none legacy_default resource_contention "
         "allocator_sync copy_engine_contention"
@@ -1578,6 +1588,7 @@ def print_cap_schema_v1() -> int:
     print("semantics unchanged")
     print("score3 not-applicable")
     print("v3=not-claimed")
+    print("cap-schema-relation-bound yes")
     print("cap-schema-fields-bound yes")
     print("cost=unchanged")
     return 0
