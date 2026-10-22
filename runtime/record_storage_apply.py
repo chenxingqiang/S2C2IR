@@ -997,6 +997,11 @@ def print_contract() -> int:
     print("prose-O2-ne-object yes")
     print("candidate-id canonical-text")
     print("hash-is-candidate-id no")
+    happy_text = canonical_program(_happy_program())
+    collided_text = canonical_program(_collision_program("evict"))
+    if happy_text == collided_text:
+        print("pi-bijective no")
+        return 1
     print("pi-bijective yes")
     print("hb-star not-raw-edges yes")
     print("enum-f no")
