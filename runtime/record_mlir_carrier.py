@@ -884,6 +884,13 @@ def print_contract() -> int:
     print("extract-refusal collective-kind closed-set apply-not-called")
     print("extract-refusal i1 not-i64 apply-not-called")
     print("extract-refusal syntax apply-not-called")
+    import record_storage_apply as apply
+
+    count = int(summary["matrix"])
+    through = summary["matrix"]
+    if count != len(apply._cases()) or str(count) != through:
+        print("host-matrix-cases no")
+        return 1
     print("host-matrix-cases " + summary["matrix"])
     print("host-matrix-through-carrier " + summary["matrix"])
     return 0
