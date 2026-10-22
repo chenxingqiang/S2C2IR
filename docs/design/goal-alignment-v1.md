@@ -155,6 +155,8 @@ The insert does not replace the report and it does not
 add an op. The check above also reads the README and
 these three slides.
 
+The contract run prints the status slide count from the deck.
+
 ```text
 S²C²IR status on this tree
 
