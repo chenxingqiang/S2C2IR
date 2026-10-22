@@ -312,6 +312,15 @@ def _fingerprint(lines: list[str]) -> str:
     return _sha256("\n".join(lines))
 
 
+def _spec_ids_s01_through_s09(specs: list[dict]) -> bool:
+    expected = [f"S0{index}" for index in range(1, 10)]
+    return [spec["id"] for spec in specs] == expected
+
+
+def _has_s10_immutability_line(lines: list[str]) -> bool:
+    return any(line.startswith("S10 ") and "immutability" in line for line in lines)
+
+
 def _validate() -> tuple[list[str], str, str]:
     specs = _specs()
     rows = [
@@ -335,8 +344,12 @@ def _validate() -> tuple[list[str], str, str]:
 def print_contract() -> int:
     import record_storage_apply as apply
 
+    specs = _specs()
     # S01..S09 are the spec list. S10 is the immutability scene.
-    scene_count = len(_specs()) + 1
+    if not _spec_ids_s01_through_s09(specs):
+        print("scene-ids no")
+        return 1
+    scene_count = len(specs) + 1
     if scene_count != 10:
         print("scene-count no")
         return 1
@@ -372,6 +385,9 @@ def print_contract() -> int:
     print("authorization-reopened " + token)
     print("semantic-cut no")
     print("can-run-plan no")
+    if not _spec_ids_s01_through_s09(specs) or not _has_s10_immutability_line(lines):
+        print("scene-ids no")
+        return 1
     print("scene-count " + str(scene_count))
     for line in lines:
         print(line)

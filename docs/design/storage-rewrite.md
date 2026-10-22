@@ -392,3 +392,4 @@ Query-only. Host-side Decision contract, not compiler E2E.
 The contract run compares the rewrite, decision, and
 authorization schema constants.
 The contract run prints the rewrite matrix count from the case list and compares the rewrite schema with the apply and witness schemas.
+The contract run checks that the acceptance rewrite result does not contain f-storage-schedule.
