@@ -8,6 +8,7 @@ set(LIBS
         S2C2Compute
         S2C2Comm
         S2C2Schedule
+        S2C2Dist
         S2C2StorToMemref
         S2C2ExpandComposites
         S2C2ToLinalg

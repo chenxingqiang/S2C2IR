@@ -13,6 +13,8 @@
 #include "s2c2/Comm/CommOps.h"
 #include "s2c2/Compute/ComputeDialect.h"
 #include "s2c2/Compute/ComputeOps.h"
+#include "s2c2/Dist/DistDialect.h"
+#include "s2c2/Dist/DistOps.h"
 #include "s2c2/S2C2Passes.h"
 #include "s2c2/Schedule/ScheduleDialect.h"
 #include "s2c2/Schedule/ScheduleOps.h"

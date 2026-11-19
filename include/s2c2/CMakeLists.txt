@@ -2,6 +2,7 @@ add_subdirectory(Storage)
 add_subdirectory(Compute)
 add_subdirectory(Comm)
 add_subdirectory(Schedule)
+add_subdirectory(Dist)
 
 set(LLVM_TARGET_DEFINITIONS S2C2Passes.td)
 mlir_tablegen(S2C2Passes.h.inc --gen-pass-decls)

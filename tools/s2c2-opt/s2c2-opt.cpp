@@ -37,7 +37,8 @@ int main(int argc, char **argv) {
   registry.insert<mlir::s2c2::stor::StorageDialect,
                   mlir::s2c2::comp::ComputeDialect,
                   mlir::s2c2::comm::CommDialect,
-                  mlir::s2c2::sched::ScheduleDialect>();
+                  mlir::s2c2::sched::ScheduleDialect,
+                  mlir::s2c2::dist::DistDialect>();
 
   // --query-capacity-plan is a consumer API: inject the query pass
   // only. Do not pull in evidence-bounded-schedule. --capacity alone
