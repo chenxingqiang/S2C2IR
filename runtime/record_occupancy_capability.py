@@ -18,10 +18,11 @@ if str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
 import record_capability_applicability as capa
+import record_constants as const
 import record_decision as occ
 
 REPORT_SCHEMA = "s2c2.occupancy_capability_report.v1"
-OBJECT_2 = "2"
+OBJECT_2 = const.OBJECT_2
 
 
 def occupancy_capability_report(

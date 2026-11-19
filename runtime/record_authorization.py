@@ -20,20 +20,21 @@ _RUNTIME = Path(__file__).resolve().parent
 if str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
+import record_constants as const
 import record_sufficiency as suf
 
-DECISION_SCHEMA = "s2c2.decision.v1"
-AUTH_SCHEMA = "s2c2.authorization.v1"
+DECISION_SCHEMA = const.DECISION_SCHEMA
+AUTH_SCHEMA = const.AUTH_SCHEMA
 REQUIRED = (
     "sufficient",
     "policy-match",
     "provenance",
     "action-match",
 )
-POLICY_V01 = "authorization-policy-v0.1"
-ACTION_V01 = "storage-rewrite"
-LICENSE_KIND_V01 = "storage-capacity-rewrite"
-LICENSE_SUBJECT = "rewrite-license"
+POLICY_V01 = const.POLICY_V01
+ACTION_V01 = const.ACTION_V01
+LICENSE_KIND_V01 = const.LICENSE_KIND_V01
+LICENSE_SUBJECT = const.LICENSE_SUBJECT
 AUTHORIZATION_REASON_TOKENS = (
     "authorization.sufficient-no",
     "authorization.policy-mismatch",
@@ -51,7 +52,7 @@ AUTHORIZATION_REASON_TOKENS = (
 SELECTED_S0 = suf.SELECTED_S0
 SELECTED_S1 = suf.SELECTED_S1
 OBJECT_2 = suf.OBJECT_2
-OBJECT_3 = "3"
+OBJECT_3 = const.OBJECT_3
 
 
 def _decision(subject: str, result: str, reasons: list[str]) -> dict:

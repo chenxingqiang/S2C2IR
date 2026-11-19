@@ -23,13 +23,14 @@ if str(_RUNTIME) not in sys.path:
     sys.path.insert(0, str(_RUNTIME))
 
 import record_authorization as auth
+import record_constants as const
 
-DECISION_SCHEMA = "s2c2.decision.v1"
-REWRITE_SCHEMA = "s2c2.storage_rewrite.v1"
+DECISION_SCHEMA = const.DECISION_SCHEMA
+REWRITE_SCHEMA = const.REWRITE_SCHEMA
 AUTH_SCHEMA = auth.AUTH_SCHEMA
-SEQUENCE_SUBJECT = "rewrite-sequence"
-SEQUENCE_V01 = ("KEEP", "EVICT", "TRANSFER", "RESTORE")
-TRANSFORMATION_V01 = "keep-evict-transfer-restore"
+SEQUENCE_SUBJECT = const.SEQUENCE_SUBJECT
+SEQUENCE_V01 = const.SEQUENCE_V01
+TRANSFORMATION_V01 = const.TRANSFORMATION_V01
 ACTION_V01 = auth.ACTION_V01
 LICENSE_KIND_V01 = auth.LICENSE_KIND_V01
 REWRITE_REASON_TOKENS = (

@@ -15,8 +15,10 @@ import argparse
 import json
 import sys
 
-DECISION_SCHEMA = "s2c2.decision.v1"
-SUFFICIENCY_SCHEMA = "s2c2.sufficiency.v1"
+import record_constants as const
+
+DECISION_SCHEMA = const.DECISION_SCHEMA
+SUFFICIENCY_SCHEMA = const.SUFFICIENCY_SCHEMA
 REQUIRED = (
     "usable",
     "restore-ordering",
@@ -25,9 +27,9 @@ REQUIRED = (
 )
 IGNORED_EXTRA = ("applicable", "authorized")
 RESULTS = ("yes", "no", "n/a")
-SELECTED_S0 = "keep{0,1}|evict{2}|rematerialize{}"
-SELECTED_S1 = "keep{1,2}|evict{0}|rematerialize{}"
-OBJECT_2 = "2"
+SELECTED_S0 = const.SELECTED_S0
+SELECTED_S1 = const.SELECTED_S1
+OBJECT_2 = const.OBJECT_2
 
 
 def _decision(result: str, reasons: list[str]) -> dict:
