@@ -33,7 +33,9 @@ jobs:
           if-no-files-found: ignore
 
   check-s2c2:
-    name: check-s2c2 (LLVM/MLIR 22)
+    # The main ruleset requires this context string. The steps below
+    # still build and test against LLVM/MLIR 22, where shard lives.
+    name: check-s2c2 (LLVM/MLIR 20)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
