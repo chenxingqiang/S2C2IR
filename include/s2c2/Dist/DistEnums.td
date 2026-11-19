@@ -20,4 +20,12 @@ def Dist_Placement : I32EnumAttr<"Placement", "tensor placement", [
   let genSpecializedAttr = 0;
 }
 
+def Dist_TopologyKind : I32EnumAttr<"TopologyKind", "hardware topology", [
+    I32EnumAttrCase<"Line", 0, "line">,
+    I32EnumAttrCase<"Grid", 1, "grid">
+  ]> {
+  let cppNamespace = "::mlir::s2c2::dist";
+  let genSpecializedAttr = 0;
+}
+
 #endif // S2C2_DIST_ENUMS

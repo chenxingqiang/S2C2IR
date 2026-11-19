@@ -83,4 +83,67 @@ def Dist_DistributionType : Dist_Type<"Distribution", "distribution"> {
   let genVerifyDecl = 1;
 }
 
+def Dist_MeshType : Dist_Type<"Mesh", "mesh"> {
+  let summary = "Device mesh with named axes";
+  let description = [{
+    `!dist.mesh<[2, 2], ["row", "col"]>` is a logical grid of devices.
+    Each axis has a name. Coordinates on this mesh are not storage spaces.
+  }];
+  let parameters = (ins
+    "DenseI64ArrayAttr":$shape,
+    "ArrayAttr":$axes
+  );
+  let assemblyFormat = "`<` $shape `,` $axes `>`";
+  let genVerifyDecl = 1;
+}
+
+def Dist_DeviceType : Dist_Type<"Device", "device"> {
+  let summary = "One rank identified by a mesh coordinate";
+  let description = [{
+    `!dist.device<[2, 2], ["row", "col"], [0, 1], rank = 1>` names the
+    device at that coordinate. `rank` is the row-major index of the
+    coordinate, with the last axis changing fastest.
+  }];
+  let parameters = (ins
+    "DenseI64ArrayAttr":$shape,
+    "ArrayAttr":$axes,
+    "DenseI64ArrayAttr":$coord,
+    "int64_t":$rank
+  );
+  let assemblyFormat = [{
+    `<` $shape `,` $axes `,` $coord `,` `rank` `=` $rank `>`
+  }];
+  let genVerifyDecl = 1;
+}
+
+def Dist_TopologyType : Dist_Type<"Topology", "topology"> {
+  let summary = "Hardware topology, separate from logical shards";
+  let description = [{
+    `!dist.topology<line, [4]>` is a line of four devices.
+    `!dist.topology<grid, [2, 2]>` is a two-axis grid. The kind and the
+    shape are the hardware arrangement, not the tensor tiling.
+  }];
+  let parameters = (ins
+    "::mlir::s2c2::dist::TopologyKind":$kind,
+    "DenseI64ArrayAttr":$shape
+  );
+  let assemblyFormat = "`<` $kind `,` $shape `>`";
+  let genVerifyDecl = 1;
+}
+
+def Dist_MappingType : Dist_Type<"Mapping", "mapping"> {
+  let summary = "A legal placement of one logical distribution";
+  let description = [{
+    `!dist.mapping<grid, [2, 2]>` records which hardware topology a
+    logical distribution was placed on. It does not repeat shard offsets
+    or tiles.
+  }];
+  let parameters = (ins
+    "::mlir::s2c2::dist::TopologyKind":$kind,
+    "DenseI64ArrayAttr":$shape
+  );
+  let assemblyFormat = "`<` $kind `,` $shape `>`";
+  let genVerifyDecl = 1;
+}
+
 #endif // S2C2_DIST_TYPES

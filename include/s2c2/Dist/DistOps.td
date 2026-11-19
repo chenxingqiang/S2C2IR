@@ -100,4 +100,70 @@ def Dist_DistributionOp : Dist_Op<"distribution", []> {
   let hasVerifier = 1;
 }
 
+def Dist_MeshOp : Dist_Op<"mesh", []> {
+  let summary = "Name a device mesh";
+  let description = [{
+    A device mesh is a grid of ranks with one name per axis. Coordinates
+    on this mesh are device identity. A storage space is not a mesh.
+    Two `dist.mesh` operations stay distinct even when their types match.
+  }];
+  let arguments = (ins);
+  let results = (outs Dist_MeshType:$mesh);
+  let assemblyFormat = "attr-dict `:` qualified(type($mesh))";
+}
+
+def Dist_DeviceOp : Dist_Op<"device", []> {
+  let summary = "Name one rank on a device mesh";
+  let description = [{
+    The result type carries the mesh shape, axis names, coordinate, and
+    rank. The rank is the row-major index of that coordinate. Two devices
+    differ when their coordinates differ.
+  }];
+  let arguments = (ins Dist_MeshType:$mesh);
+  let results = (outs Dist_DeviceType:$device);
+  let assemblyFormat = [{
+    $mesh attr-dict `:` qualified(type($mesh)) `->` qualified(type($device))
+  }];
+  let hasVerifier = 1;
+}
+
+def Dist_TopologyOp : Dist_Op<"topology", []> {
+  let summary = "Name a hardware topology";
+  let description = [{
+    `line` is one axis. `grid` is two axes. The shape is the hardware
+    arrangement, separate from the logical shard distribution. Two
+    topologies stay distinct even when their types match.
+  }];
+  let arguments = (ins);
+  let results = (outs Dist_TopologyType:$topology);
+  let assemblyFormat = "attr-dict `:` qualified(type($topology))";
+}
+
+def Dist_PlaceOp : Dist_Op<"place", [SameVariadicOperandSize]> {
+  let summary = "Map one logical distribution onto one hardware topology";
+  let description = [{
+    Logical placement stays on `dist.distribution`: the same shards and
+    the same coverage. This op checks that those shards land on device
+    coordinates of `mesh`, and that the mesh shape is the hardware
+    topology. It does not change shard offsets or tiles.
+
+    A storage residency is not a device. Each shard of the distribution
+    is named once. Each device coordinate is used once.
+  }];
+  let arguments = (ins
+    Dist_DistributionType:$distribution,
+    Dist_TopologyType:$topology,
+    Dist_MeshType:$mesh,
+    Variadic<AnyType>:$devices,
+    Variadic<Dist_ShardType>:$shards
+  );
+  let results = (outs Dist_MappingType:$mapping);
+  let assemblyFormat = [{
+    $distribution `,` $topology `,` $mesh
+      `devices` `(` $devices `)` `shards` `(` $shards `)` attr-dict
+      `:` functional-type(operands, results)
+  }];
+  let hasVerifier = 1;
+}
+
 #endif // S2C2_DIST_OPS

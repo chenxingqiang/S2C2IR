@@ -171,3 +171,64 @@ LogicalResult DistributionOp::verify() {
   }
   return verifyShardedCoverage(getOperation(), global.getDimSize(axis), ranges);
 }
+
+LogicalResult DeviceOp::verify() {
+  auto meshTy = llvm::cast<MeshType>(getMesh().getType());
+  auto deviceTy = llvm::cast<DeviceType>(getDevice().getType());
+  if (deviceTy.getShape() != meshTy.getShape() ||
+      deviceTy.getAxes() != meshTy.getAxes())
+    return emitOpError("device is not on this mesh");
+  return success();
+}
+
+LogicalResult PlaceOp::verify() {
+  auto distOp = getDistribution().getDefiningOp<DistributionOp>();
+  if (!distOp)
+    return emitOpError("logical placement must be a dist.distribution");
+
+  auto topoTy = llvm::cast<TopologyType>(getTopology().getType());
+  auto meshTy = llvm::cast<MeshType>(getMesh().getType());
+  auto mapTy = llvm::cast<MappingType>(getMapping().getType());
+  if (topoTy.getKind() != mapTy.getKind() || topoTy.getShape() != mapTy.getShape())
+    return emitOpError("mapping topology must match the hardware topology");
+  if (topoTy.getKind() == TopologyKind::Line && meshTy.getShape().size() != 1)
+    return emitOpError("topology does not match the device mesh");
+  if (topoTy.getKind() == TopologyKind::Grid && meshTy.getShape().size() != 2)
+    return emitOpError("topology does not match the device mesh");
+  if (topoTy.getShape() != meshTy.getShape())
+    return emitOpError("topology does not match the device mesh");
+
+  auto expected = distOp.getShards();
+  if (getShards().size() != expected.size() ||
+      getDevices().size() != expected.size())
+    return emitOpError(
+        "placement must name each shard of the distribution once");
+  llvm::SmallDenseSet<Value, 8> want;
+  for (Value shard : expected)
+    want.insert(shard);
+  llvm::SmallDenseSet<Value, 8> seenShards;
+  for (Value shard : getShards()) {
+    if (!want.contains(shard) || !seenShards.insert(shard).second)
+      return emitOpError(
+          "placement must name each shard of the distribution once");
+  }
+
+  llvm::SmallDenseSet<Value, 8> seenDevices;
+  llvm::SmallDenseSet<Attribute, 8> coords;
+  for (Value device : getDevices()) {
+    auto deviceTy = llvm::dyn_cast<DeviceType>(device.getType());
+    if (!deviceTy)
+      return emitOpError(
+          "storage residency is not a device; a device has mesh coordinates");
+    if (!seenDevices.insert(device).second)
+      return emitOpError("placement lists the same device more than once");
+    auto deviceOp = device.getDefiningOp<DeviceOp>();
+    if (!deviceOp || deviceOp.getMesh() != getMesh() ||
+        deviceTy.getShape() != meshTy.getShape() ||
+        deviceTy.getAxes() != meshTy.getAxes())
+      return emitOpError("device is not on this mesh");
+    if (!coords.insert(deviceTy.getCoord()).second)
+      return emitOpError("placement maps two shards to one device coordinate");
+  }
+  return success();
+}
