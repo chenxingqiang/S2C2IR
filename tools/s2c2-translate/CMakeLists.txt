@@ -22,6 +22,7 @@ target_link_libraries(s2c2-translate
   S2C2Compute
   S2C2Comm
   S2C2Schedule
+  S2C2Dist
   )
 
 mlir_check_link_libraries(s2c2-translate)
