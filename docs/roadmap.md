@@ -400,10 +400,17 @@ for `7C` exists and is not opened:
 is an orchestrator outside `s2c2-opt`, so the boundary above
 holds. The owner chose the reading in which the orchestrator
 derives the host program from the IR (A2). Defining that
-mapping is a contract, so 7C would be a semantic cut. It does
-not meet the opening condition below. The owner also set the
-authorization rule for that cut: the most efficient optimal
-strategy is the authorization.
+mapping is a contract, so 7C would be a semantic cut. The
+owner also set the authorization rule for that cut: the most
+efficient optimal strategy is the authorization. On
+2026-11-19 the owner answered the two open decisions: the
+legality witness stays external (3A), and one connectivity
+amendment (5A) covers only the mapping from IR to the W0-3/2
+host program. Recording that amendment does not open the cut.
+`next_cut` stays `NOT OPENED`. A missing witness stays
+`applied=no`. The orchestrator does not manufacture a witness.
+No new dialect op is added. The carrier stays unregistered in
+`s2c2-opt`. `can-run-plan` stays `no`.
 `runtime/record_optimum_authorization.py` implements that rule.
 The frozen 7A evaluator does not derive authorization from a
 selection. Opening a cut is an

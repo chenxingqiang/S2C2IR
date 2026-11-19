@@ -1,20 +1,26 @@
 # Cut Proposal: 7C End-to-End Executable Optimization
 
-**Status:** PROPOSAL. Review not done. `next_cut` stays
-`NOT OPENED`. Merging this page does not open the cut.
-This page adds no dialect op, no contract, no code, and
-does not move the semantic baseline
+**Status:** PROPOSAL. Decisions 1 through 5 are answered.
+`next_cut` stays `NOT OPENED`. Recording the decisions
+below does not open the cut. This page adds no dialect op.
+It does not move the semantic baseline
 `36fd6fd931c109c6849cc366bd91b5abdfcab4b1`.
 
 **Recorded (2026-10-10):** the owner chose option A, then
 reading A2 (the orchestrator derives the program from the IR).
-That makes 7C a **semantic cut**, and it does not meet the
-written opening condition. The owner also set the decision
-rule: selection is the most efficient optimal strategy, and
-that strategy is the authorization. These are decisions 1, 2,
-and 4. They are not a go-ahead. Decisions 3 and 5 are open.
-Implementation waits for those, a review, a freeze, and a
-separate verbal go.
+That makes 7C a **semantic cut**. The owner also set the
+decision rule: selection is the most efficient optimal
+strategy, and that strategy is the authorization. These are
+decisions 1, 2, and 4.
+
+**Recorded (2026-11-19):** the owner chose decision 3 as 3A
+and decision 5 as 5A. The witness stays external. A missing
+witness stays `applied=no`. The orchestrator does not
+manufacture a witness. The opening condition is amended only
+for one connectivity cut: the mapping from IR to the W0-3/2
+host program. Recording this amendment does not open the cut.
+Implementation of that mapping still waits for a review, a
+freeze, and a separate verbal go.
 
 ```text
 Goal     one IR file takes the whole path to an ApplyResult
@@ -25,8 +31,8 @@ Rewrite  W0-3/2 only; evaluate_apply unchanged
 How a cut opens is already written down: propose, review,
 freeze, then verbal go
 ([`storage-schedule-family.md`](storage-schedule-family.md)).
-This is the propose step. Decisions 1, 2, and 4 are answered.
-Decisions 3 and 5 are not.
+This is the propose step. Decisions 1 through 5 are answered.
+The cut stays closed.
 
 ## Is 7C a semantic cut?
 
@@ -56,7 +62,7 @@ was too early. It is withdrawn.
 | `evaluate_apply` | unchanged |
 | Semantic baseline `36fd6fd` | unchanged **only if** the mapping adds no contract |
 | The carrier text and `s2c2-opt` stay separate | holds under option A |
-| `next_cut` is `NOT OPENED` | would move to this one named slice |
+| `next_cut` is `NOT OPENED` | stays `NOT OPENED`; the recorded amendment does not move it |
 
 ## What exists today
 
@@ -147,8 +153,9 @@ they differ on the mapping:
   emits `rewrite.identity-mismatch` on a mismatch. The
   orchestrator invents no mapping. Under the owner rule,
   authorization is the selected optimum, not a file. The
-  legality witness is still an open input (decision 3). This
-  reading adds no contract.
+  legality witness is an external input (decision 3, 3A). This
+  reading adds no contract. The orchestrator does not
+  manufacture a witness.
 - **A2. Orchestrator derives the program from the IR.
   Chosen (2026-10-10).** It must define the mapping. That is
   a contract (see above).
@@ -190,7 +197,7 @@ meaning" ([`mlir-carrier-v0.md`](mlir-carrier-v0.md)). The
 `store` question above is the same kind of question. A2 is
 where that meaning gets decided.
 
-## A2: the opening condition is not met
+## A2: the opening condition was not met
 
 The written condition for a semantic cut asks for a real scene
 that `stor`, `comp`, `comm`, `sched` cannot express
@@ -199,21 +206,20 @@ A2 does not fit it. Its problem is that the mapping is
 unwritten, not that a relation is inexpressible. The IR above
 already expresses the scene.
 
-So A2 cannot open under the rule as written. There are three
-paths, and this page does not pick one:
+So A2 cannot open under the rule as it stood on 2026-10-10.
+Three paths were open then:
 
 1. **The owner records an amendment.** A connectivity cut,
-   limited to this mapping, may open without the
+   limited to this mapping, may be proposed without the
    inexpressibility condition. It must be written in a merged
    page, not implied.
 2. **Go back to A1.** No amendment is needed.
 3. **Find a real scene** the four dialects cannot express. A2
    was not motivated by one.
 
-The condition is the owner's rule, so only the owner can
-amend it. The rule recorded below is about authorization.
-It does not amend this opening condition, and it does not
-answer decision 5.
+**Answered (2026-11-19): path 1, decision 5 = 5A.** The
+amendment is the next section. It is narrow. Recording this
+amendment does not open the cut.
 
 ## Owner rule: the optimum is the authorization
 
@@ -237,7 +243,9 @@ Until then the running hosts keep the old doors.
 
 Legality stays a filter in front of the selection: a
 candidate that is not legal is not a strategy. The witness
-that attests legality is decision 3 and is still open.
+that attests legality stays external (decision 3, 3A). The
+orchestrator does not manufacture a witness. A missing
+witness stays `applied=no`.
 
 ## Acceptance, if opened
 
@@ -246,7 +254,7 @@ Common to both readings:
 ```text
 one IR file in test/ → capacity plan → hosts → ApplyResult
 authorization is the selected optimum; no authorization file
-witness source stays decision 3; a missing witness stays applied=no
+witness source is external (3A); a missing witness stays applied=no
 a missing or refused input stays applied=no, source unchanged
 can-run-plan stays no
 scripts/check-host.sh PASS 53 FAIL 0
@@ -268,18 +276,47 @@ whether the semantic baseline moves is decided by the owner;
   it is not assumed unchanged
 ```
 
+## Connectivity amendment (decision 5, 5A)
+
+Recorded 2026-11-19. This is the only amendment to the
+opening condition. It covers one pure function: the mapping
+from IR to the W0-3/2 host program. The same IR yields the
+same program.
+
+```text
+no new dialect op
+no new HB rule
+carrier stays unregistered in s2c2-opt
+the optimizer still does not call evaluate_apply
+can-run-plan stays no
+a missing witness stays applied=no
+7D, 7E, 7F, and 8A stay NOT OPENED
+the semantic baseline does not move because of this record
+the mapping page is reviewed and frozen before any mapping code
+an IR shape the mapping does not cover is refused before the host
+that refusal is not match=no
+```
+
+Recording this amendment does not open the cut. `next_cut`
+stays `NOT OPENED` until a review, a freeze, and a separate
+verbal go.
+
 ## Decisions
 
 1. Option. **Answered: A.**
 2. Authorization source. **Answered:** the optimal strategy
    is the authorization. No caller-supplied authorization file.
-3. Legality witness source. Needs the owner to confirm.
-4. A1 or A2. **Answered: A2.** That makes this a semantic cut.
-5. How A2 gets past the opening condition: amend it, return
-   to A1, or produce a scene. Open.
+3. Legality witness source. **Answered: 3A.** The witness
+   stays external. The orchestrator does not manufacture a
+   witness. A missing witness stays `applied=no`.
+4. A1 or A2. **Answered: A2.** That makes the mapping a
+   semantic cut once the cut is opened. It is not opened here.
+5. How A2 gets past the opening condition. **Answered: 5A.**
+   The connectivity amendment above. Recording it does not
+   open the cut.
 
-Until 3 and 5 are answered and a review passes, this page
-does not open the cut.
+Decisions 3 and 5 are answered. This page still does not
+open the cut.
 
 ## Host for decision 2
 
