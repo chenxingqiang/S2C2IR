@@ -91,6 +91,18 @@ real scene
     → then propose a new contract
 ```
 
+On 2026-11-19 the owner recorded one amendment, and only one.
+A connectivity cut for the mapping from IR to the W0-3/2
+host program may be proposed without the inexpressibility
+condition above. The witness stays external. A missing
+witness stays `applied=no`. The orchestrator does not
+manufacture a witness. No new dialect op is added. The
+carrier stays unregistered in `s2c2-opt`. `can-run-plan`
+stays `no`. 7D, 7E, 7F, and 8A stay `NOT OPENED`.
+Recording this amendment does not open the cut. `next_cut` stays `NOT OPENED`.
+The general rule above is otherwise
+unchanged. See [`cut-7c-proposal.md`](cut-7c-proposal.md).
+
 These are not reasons to open a cut:
 
 ```text

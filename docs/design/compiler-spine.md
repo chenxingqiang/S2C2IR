@@ -121,9 +121,17 @@ unregistered in `s2c2-opt` and the optimizer still does not
 call `evaluate_apply`. The owner chose the reading in which the
 orchestrator derives the host program from an IR file (A2).
 Defining that mapping is a contract, so 7C would be a semantic
-cut. It does not meet the written opening condition. The owner
-also set the authorization rule for that cut: the most
-efficient optimal strategy is the authorization.
+cut. The owner also set the authorization rule for that cut:
+the most efficient optimal strategy is the authorization.
+On 2026-11-19 the owner answered decision 3 as 3A and
+decision 5 as 5A. The witness stays external. The orchestrator
+does not manufacture a witness. A missing witness stays
+`applied=no`. The opening condition is amended only for the
+mapping from IR to the W0-3/2 host program. Recording this
+amendment does not open the cut. `next_cut` stays `NOT OPENED`.
+No new dialect op is added. The carrier stays
+unregistered in `s2c2-opt`. `can-run-plan` stays `no`.
+7D, 7E, 7F, and 8A stay `NOT OPENED`.
 `runtime/record_optimum_authorization.py` implements that rule.
 The frozen 7A evaluator does not derive authorization from a
 selection.
@@ -258,7 +266,10 @@ move it. Dialect, IR, and Apply are unchanged. Inside the
 tested range, no `semantic_gap=true` was found.
 OUTSIDE-CONTRACT is an inhabitant scope boundary.
 The next cut stays closed until `stor`, `comp`, `comm`,
-and `sched` cannot express a necessary relation.
+and `sched` cannot express a necessary relation, except for
+the one recorded connectivity amendment in
+[`cut-7c-proposal.md`](cut-7c-proposal.md). That amendment
+does not open `next_cut`.
 The storage-pipeline audit
 ([`expressibility-audit-v1.md`](expressibility-audit-v1.md))
 reads `@ssd_pipeline_two_tiles` against the 4090 and 910B

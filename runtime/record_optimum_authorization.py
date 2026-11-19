@@ -4,8 +4,11 @@
 Among legal strategies, the unique minimum cost is the
 authorization and the rewrite license. This is the owner rule
 for cut 7C. It does not change evaluate_authorization.
-It does not map IR to a host program. A missing witness does
-not apply. can-run-plan stays no.
+It does not map IR to a host program. Decision 3 is 3A:
+the witness stays external, and a missing witness does
+not apply. Decision 5 is 5A: the connectivity amendment
+is recorded and does not open the cut. can-run-plan stays no.
+next_cut stays NOT OPENED.
 """
 
 from __future__ import annotations
