@@ -30,6 +30,35 @@ def Stor_ObjectOp : Stor_Op<"object", [Pure]> {
   let assemblyFormat = "attr-dict `:` qualified(type($object))";
 }
 
+def Stor_LocalizeOp : Stor_Op<"localize", [Pure]> {
+  let summary = "Name one rank's local object of a global object";
+  let description = [{
+    Links a global `stor.object` to the local object held by `rank` under
+    one upstream `shard.sharding`. The result payload is that rank's tile,
+    so the global shape and the local shape may differ. This op is not a
+    residency and does not establish validity.
+
+    A mesh participant is a rank of `shard.grid`. Two `stor.materialize`
+    results of one object stay two residencies.
+
+    Example:
+
+    ```mlir
+    %local = stor.localize %global to %sharding rank = 0
+        : !stor.object<tensor<4x8xf32>>, !shard.sharding
+       -> !stor.object<tensor<2x8xf32>>
+    ```
+  }];
+  let arguments = (ins
+    Stor_ObjectType:$global,
+    AnyType:$sharding,
+    I64Attr:$rank
+  );
+  let results = (outs Stor_ObjectType:$local);
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
 def Stor_MaterializeOp : Stor_Op<"materialize", [
     MemoryEffects<[MemAlloc]>,
     StorageResource

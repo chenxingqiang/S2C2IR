@@ -159,8 +159,8 @@ struct ConvertPack : OpConversionPattern<PackOp> {
         getTypeConverter()->convertType(bufTy));
     if (!memrefTy)
       return rewriter.notifyMatchFailure(op, "could not convert buffer type");
-    Value tmp = rewriter.create<bufferization::ToMemrefOp>(
-        op.getLoc(), memrefTy, adaptor.getValue());
+    Value tmp = rewriter.create<bufferization::ToBufferOp>(
+        op.getLoc(), memrefTy, adaptor.getValue(), /*read_only=*/false);
     rewriter.create<memref::CopyOp>(op.getLoc(), tmp, adaptor.getBuffer());
     rewriter.eraseOp(op);
     return success();

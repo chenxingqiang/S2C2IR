@@ -1,4 +1,5 @@
 add_mlir_dialect_library(S2C2Storage
+  DistributionCoverage.cpp
   StorageDialect.cpp
   StorageOps.cpp
   StorageTypes.cpp
@@ -13,6 +14,7 @@ add_mlir_dialect_library(S2C2Storage
 
   LINK_LIBS PUBLIC
   MLIRIR
+  MLIRShardDialect
   MLIRSideEffectInterfaces
   MLIRTensorDialect
 )

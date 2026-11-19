@@ -8,6 +8,7 @@
 
 #include "s2c2/S2C2.h"
 
+#include "mlir/Dialect/Shard/IR/ShardDialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllPasses.h"
@@ -38,7 +39,8 @@ int main(int argc, char **argv) {
                   mlir::s2c2::comp::ComputeDialect,
                   mlir::s2c2::comm::CommDialect,
                   mlir::s2c2::sched::ScheduleDialect,
-                  mlir::s2c2::dist::DistDialect>();
+                  mlir::s2c2::dist::DistDialect,
+                  mlir::shard::ShardDialect>();
 
   // --query-capacity-plan is a consumer API: inject the query pass
   // only. Do not pull in evidence-bounded-schedule. --capacity alone

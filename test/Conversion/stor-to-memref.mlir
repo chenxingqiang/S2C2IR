@@ -41,7 +41,7 @@ module {
   // CHECK-LABEL: func.func @pack_unpack
   func.func @pack_unpack(%t: tensor<2x4xf32>) -> tensor<2x4xf32> {
     %buf = stor.alloc : !stor.buffer<tensor<2x4xf32>, hbm>
-    // CHECK: bufferization.to_memref
+    // CHECK: bufferization.to_buffer
     // CHECK: memref.copy
     stor.pack %t into %buf : tensor<2x4xf32>, !stor.buffer<tensor<2x4xf32>, hbm>
     // CHECK: bufferization.to_tensor

@@ -1,3 +1,4 @@
 add_subdirectory(CheckS2C2Execution)
+add_subdirectory(CheckS2C2Distribution)
 add_subdirectory(S2C2Realization)
 add_subdirectory(S2C2Capability)
