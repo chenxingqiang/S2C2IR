@@ -145,18 +145,31 @@ verifyTopologyShape(function_ref<InFlightDiagnostic()> emitError,
   return success();
 }
 
+// True when a slower axis than `axis` has a non-zero coordinate. The full
+// mesh product is not needed to name a device whose slower axes are zero.
+static bool higherCoordinateUsed(ArrayRef<int64_t> coord, int axis) {
+  for (int j = axis - 1; j >= 0; --j)
+    if (coord[j] != 0)
+      return true;
+  return false;
+}
+
+// Row-major rank, last axis fastest. A coordinate whose rank fits in int64
+// is accepted even when the product of the mesh extents does not.
 static LogicalResult linearRank(ArrayRef<int64_t> shape, ArrayRef<int64_t> coord,
                                 int64_t &rank) {
+  const int64_t kMax = std::numeric_limits<int64_t>::max();
   int64_t value = 0;
   int64_t stride = 1;
   for (int i = static_cast<int>(shape.size()) - 1; i >= 0; --i) {
-    if (stride > (std::numeric_limits<int64_t>::max() / shape[i]))
-      return failure();
-    int64_t nextStride = stride * shape[i];
-    if (coord[i] > (std::numeric_limits<int64_t>::max() - value) / stride)
+    if (stride <= 0 || coord[i] > (kMax - value) / stride)
       return failure();
     value += coord[i] * stride;
-    stride = nextStride;
+    if (!higherCoordinateUsed(coord, i))
+      break;
+    if (shape[i] <= 0 || stride > kMax / shape[i])
+      return failure();
+    stride *= shape[i];
   }
   rank = value;
   return success();

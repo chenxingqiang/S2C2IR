@@ -54,4 +54,19 @@ module {
     %lmap = dist.place %d, %ltopo, %line devices(%n0, %n1, %n2, %n3) shards(%s0, %s1, %s2, %s3) : (!dist.distribution<tensor<4xf32>, sharded, axis = 0>, !dist.topology<line, [4]>, !dist.mesh<[4], ["node"]>, !dist.device<[4], ["node"], [0], rank = 0>, !dist.device<[4], ["node"], [1], rank = 1>, !dist.device<[4], ["node"], [2], rank = 2>, !dist.device<[4], ["node"], [3], rank = 3>, !dist.shard<tensor<1xf32>, sharded, axis = 0, offset = [0], tile = [1]>, !dist.shard<tensor<1xf32>, sharded, axis = 0, offset = [1], tile = [1]>, !dist.shard<tensor<1xf32>, sharded, axis = 0, offset = [2], tile = [1]>, !dist.shard<tensor<1xf32>, sharded, axis = 0, offset = [3], tile = [1]>) -> !dist.mapping<line, [4]>
     return %y : tensor<1xf32>
   }
+
+  // 3 * 2^62 does not fit in int64. The origin and the device one step
+  // along the slow axis still have representable ranks.
+  // CHECK-LABEL: func.func @rank_fits_when_mesh_product_overflows
+  func.func @rank_fits_when_mesh_product_overflows() {
+    // CHECK: %[[M:.*]] = dist.mesh : !dist.mesh<[3, 4611686018427387904], ["row", "col"]>
+    %m = dist.mesh : !dist.mesh<[3, 4611686018427387904], ["row", "col"]>
+    // CHECK: dist.device %[[M]] : !dist.mesh<[3, 4611686018427387904], ["row", "col"]> -> !dist.device<[3, 4611686018427387904], ["row", "col"], [0, 0], rank = 0>
+    %origin = dist.device %m : !dist.mesh<[3, 4611686018427387904], ["row", "col"]> -> !dist.device<[3, 4611686018427387904], ["row", "col"], [0, 0], rank = 0>
+    // CHECK: dist.device %[[M]] : !dist.mesh<[3, 4611686018427387904], ["row", "col"]> -> !dist.device<[3, 4611686018427387904], ["row", "col"], [0, 1], rank = 1>
+    %fast = dist.device %m : !dist.mesh<[3, 4611686018427387904], ["row", "col"]> -> !dist.device<[3, 4611686018427387904], ["row", "col"], [0, 1], rank = 1>
+    // CHECK: dist.device %[[M]] : !dist.mesh<[3, 4611686018427387904], ["row", "col"]> -> !dist.device<[3, 4611686018427387904], ["row", "col"], [1, 0], rank = 4611686018427387904>
+    %slow = dist.device %m : !dist.mesh<[3, 4611686018427387904], ["row", "col"]> -> !dist.device<[3, 4611686018427387904], ["row", "col"], [1, 0], rank = 4611686018427387904>
+    return
+  }
 }

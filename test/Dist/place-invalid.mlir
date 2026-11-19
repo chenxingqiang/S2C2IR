@@ -93,6 +93,15 @@ func.func @device_from_another_mesh() {
 
 // -----
 
+func.func @rank_does_not_fit_in_int64() {
+  %mesh = dist.mesh : !dist.mesh<[3, 4611686018427387904], ["row", "col"]>
+  // expected-error@+1 {{device rank does not match its mesh coordinate}}
+  %dev = dist.device %mesh : !dist.mesh<[3, 4611686018427387904], ["row", "col"]> -> !dist.device<[3, 4611686018427387904], ["row", "col"], [2, 0], rank = 0>
+  return
+}
+
+// -----
+
 func.func @placement_drops_a_shard() {
   %g = dist.global : !dist.global<tensor<2xf32>>
   %s0 = dist.shard %g : !dist.global<tensor<2xf32>> -> !dist.shard<tensor<1xf32>, sharded, axis = 0, offset = [0], tile = [1]>
