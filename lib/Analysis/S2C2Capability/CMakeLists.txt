@@ -1,5 +1,8 @@
 add_mlir_library(S2C2Capability
   S2C2CapabilitySchedule.cpp
+  S2C2CapabilityCatalog.cpp
+  S2C2HierarchySchedule.cpp
+  S2C2CapacityPlan.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/s2c2
