@@ -209,6 +209,50 @@ def CheckS2C2HbD : Pass<"check-s2c2-hb-d", "::mlir::ModuleOp"> {
   }];
 }
 
+def LowerS2C2HbD : Pass<"lower-s2c2-hb-d", "::mlir::ModuleOp"> {
+  let summary = "Async task or sync linear extension of rank-indexed HB";
+  let description = [{
+    Distributed event-validity v0 lowering. Does not call a device library
+    and does not replace shard.all_reduce, shard.all_gather, or
+    shard.reduce_scatter.
+
+    mode=async wraps a collective on a mesh larger than one rank in
+    sched.task and yields its tensor, so later result packs stay after
+    that completion. MeshSize 1 stays on the existing single-device path:
+    no task is added and no cross-rank edge is added. Token-to-async is
+    not run here.
+
+    mode=sync orders the function body into a linear extension of HB_D.
+    Extra order among actions HB_D leaves unordered is allowed. MeshSize 1
+    is a linear extension of the single-device happens-before.
+
+    Records the source relation for --check-s2c2-hb-d-fidelity.
+  }];
+  let dependentDialects = ["mlir::s2c2::sched::ScheduleDialect"];
+  let options = [
+    Option<"mode", "mode", "std::string", /*default=*/"\"async\"",
+           "async keeps HB_source in HB_target; sync is a linear extension">
+  ];
+}
+
+def CheckS2C2HbDFidelity : Pass<"check-s2c2-hb-d-fidelity", "::mlir::ModuleOp"> {
+  let summary = "HB_source is kept by async or sync collective lowering";
+  let description = [{
+    Compares the relation recorded by --lower-s2c2-hb-d with the module
+    after that pass. mode=async requires HB_source ⊆ HB_target.
+    mode=sync requires every source edge to point forward. Dropping a
+    rank emits `collective drops a participant`. Dropping a source edge
+    emits `missing cross-rank happens-before`.
+
+    A module with no recorded source relation is treated as an already
+    lowered shape and checked for those two faults directly.
+  }];
+  let options = [
+    Option<"mode", "mode", "std::string", /*default=*/"\"async\"",
+           "async or sync, matching --lower-s2c2-hb-d">
+  ];
+}
+
 def ExpandCompComposites : Pass<"expand-comp-composites", "::mlir::ModuleOp"> {
   let summary = "Expand composite compute ops using their decomposition contract";
   let description = [{

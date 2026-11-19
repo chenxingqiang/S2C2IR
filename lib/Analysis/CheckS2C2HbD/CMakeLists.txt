@@ -1,5 +1,6 @@
 add_mlir_library(S2C2CheckHbD
   CheckS2C2HbD.cpp
+  LowerS2C2HbD.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${PROJECT_SOURCE_DIR}/include/s2c2
