@@ -70,7 +70,7 @@ This cut is finished when these five statements stay true.
 ### Ops that exist
 
 ```text
-stor     object, materialize, transfer, alloc, dealloc, pack, unpack
+stor     object, localize, materialize, transfer, alloc, dealloc, pack, unpack
          spaces: register, sram, dram, hbm, ssd, cim, host
 comp     matmul, elemwise, gated_mlp
          optional unit: cpu, gpu, npu, cim

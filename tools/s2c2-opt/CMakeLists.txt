@@ -15,6 +15,7 @@ set(LIBS
         S2C2SequentializeSchedule
         S2C2Lower
         S2C2CheckExecution
+        S2C2CheckDistribution
         S2C2Cost
         S2C2Capability
         S2C2ToAsync

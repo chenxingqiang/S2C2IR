@@ -26,6 +26,11 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     message(FATAL_ERROR "S2C2IR requires LLVM/MLIR >= 20, found ${LLVM_PACKAGE_VERSION}")
   endif()
 
+  if(NOT TARGET MLIRShardDialect)
+    message(FATAL_ERROR
+      "S2C2IR distributed event-validity v0 requires upstream MLIR shard (LLVM >= 22).")
+  endif()
+
   set(LLVM_RUNTIME_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/bin)
   set(LLVM_LIBRARY_OUTPUT_INTDIR ${CMAKE_BINARY_DIR}/lib)
   set(MLIR_BINARY_DIR ${CMAKE_BINARY_DIR})

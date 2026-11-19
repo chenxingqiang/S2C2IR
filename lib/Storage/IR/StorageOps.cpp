@@ -8,6 +8,9 @@
 
 #include "s2c2/Storage/StorageOps.h"
 #include "s2c2/Storage/StorageDialect.h"
+#include "s2c2/DistributionCoverage.h"
+
+#include "mlir/IR/OpImplementation.h"
 
 #include "s2c2/Storage/StorageInterfaces.cpp.inc"
 
@@ -26,6 +29,56 @@ Value mlir::s2c2::stor::getLogicalObject(Value buffer) {
   if (auto transfer = dyn_cast<TransferOp>(def))
     return getLogicalObject(transfer.getSource());
   return {};
+}
+
+ParseResult LocalizeOp::parse(OpAsmParser &parser, OperationState &result) {
+  OpAsmParser::UnresolvedOperand global;
+  OpAsmParser::UnresolvedOperand sharding;
+  int64_t rank = 0;
+  Type globalType;
+  Type shardingType;
+  Type localType;
+  if (parser.parseOperand(global) || parser.parseKeyword("to") ||
+      parser.parseOperand(sharding) || parser.parseKeyword("rank") ||
+      parser.parseEqual() || parser.parseInteger(rank) ||
+      parser.parseOptionalAttrDict(result.attributes) || parser.parseColon() ||
+      parser.parseType(globalType) || parser.parseComma() ||
+      parser.parseType(shardingType) || parser.parseArrow() ||
+      parser.parseType(localType) ||
+      parser.resolveOperand(global, globalType, result.operands) ||
+      parser.resolveOperand(sharding, shardingType, result.operands))
+    return failure();
+  result.addAttribute("rank", parser.getBuilder().getI64IntegerAttr(rank));
+  result.addTypes(localType);
+  return success();
+}
+
+void LocalizeOp::print(OpAsmPrinter &p) {
+  p << ' ' << getGlobal() << " to " << getSharding() << " rank = " << getRank();
+  p.printOptionalAttrDict((*this)->getAttrs(), {"rank"});
+  p << " : ";
+  p.printType(getGlobal().getType());
+  p << ", ";
+  p.printType(getSharding().getType());
+  p << " -> ";
+  p.printType(getLocal().getType());
+}
+
+LogicalResult LocalizeOp::verify() {
+  auto globalType = dyn_cast<RankedTensorType>(
+      llvm::cast<ObjectType>(getGlobal().getType()).getPayloadType());
+  if (!globalType)
+    return emitOpError("local shape is not the shard tile");
+  FailureOr<LocalShard> tile =
+      localShardFor(getOperation(), getSharding(), globalType, getRank());
+  if (failed(tile))
+    return failure();
+  auto got = dyn_cast<RankedTensorType>(
+      llvm::cast<ObjectType>(getLocal().getType()).getPayloadType());
+  auto expect = RankedTensorType::get(tile->shape, globalType.getElementType());
+  if (got != expect)
+    return emitOpError("local shape is not the shard tile");
+  return success();
 }
 
 LogicalResult MaterializeOp::verify() {

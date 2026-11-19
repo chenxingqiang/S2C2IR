@@ -713,7 +713,7 @@ AUDITS = (
       ("R2", "C||C", "compute", "compute"),
       ("R3", "HtoD||DtoH", "htod", "dtoh"))),
     ("td-stor-ops", "tg_ops", "include/s2c2/Storage/StorageOps.td", "Stor",
-     ("object", "materialize", "transfer", "alloc", "dealloc", "pack", "unpack")),
+     ("object", "localize", "materialize", "transfer", "alloc", "dealloc", "pack", "unpack")),
     ("td-comp-ops", "tg_ops", "include/s2c2/Compute/ComputeOps.td", "Comp",
      ("matmul", "elemwise", "gated_mlp")),
     ("td-comm-ops", "tg_ops", "include/s2c2/Comm/CommOps.td", "Comm",
@@ -722,7 +722,7 @@ AUDITS = (
      ("yield", "wait", "task", "concurrent", "overlap", "pipeline", "stage")),
     ("td-sketch-ops-absent", "tg_absent", 8),
     ("td-count-goal-agree", "tg_agree",
-     (("stor", 7), ("comp", 3), ("comm", 3), ("sched", 7))),
+     (("stor", 8), ("comp", 3), ("comm", 3), ("sched", 7))),
 
 )
 

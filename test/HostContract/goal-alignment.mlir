@@ -8,7 +8,7 @@ module {
 // GOAL: goal-alignment PASS
 // GOAL: source include/s2c2
 // GOAL: page docs/design/goal-alignment-v1.md
-// GOAL: stor-ops 7
+// GOAL: stor-ops 8
 // GOAL: comp-ops 3
 // GOAL: comm-ops 3
 // GOAL: sched-ops 7

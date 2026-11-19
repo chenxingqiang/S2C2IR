@@ -114,7 +114,7 @@ This replays the 53 host contract and matrix printers plus the Ascend schema ide
 
 ### CI
 
-`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`. The `host contract and matrix printers` job runs the script above. The `check-s2c2 (LLVM/MLIR 20)` job builds `s2c2-opt` against Ubuntu LLVM/MLIR 20.1.2 and runs `check-s2c2`. It pins lit to 18.1.8, because lit 23 rejects this tree's `lit.cfg.py`. A green run is a check result. It is not a review approval and not a merge authorization.
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`. The `host contract and matrix printers` job runs the script above. The `check-s2c2 (LLVM/MLIR 20)` job builds `s2c2-opt` against LLVM/MLIR 22, which is the upstream `shard` dialect, and runs `check-s2c2`. The check name stays unchanged because the main ruleset requires that context. It pins lit to 18.1.8, because lit 23 rejects this tree's `lit.cfg.py`. A green run is a check result. It is not a review approval and not a merge authorization.
 
 ## What this repository will not do for you
 

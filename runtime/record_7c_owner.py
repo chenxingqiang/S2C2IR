@@ -136,8 +136,10 @@ def _ops_unchanged() -> bool:
         sys.path.insert(0, str(_RUNTIME))
     import record_goal_alignment as goal
 
+    # Same inventory as goal-alignment. stor.localize is the v0 local object.
+    # The 7c amendment itself still added no op.
     counts = goal.check()
-    return counts == {"stor": 7, "comp": 3, "comm": 3, "sched": 7}
+    return counts == {"stor": 8, "comp": 3, "comm": 3, "sched": 7}
 
 
 def print_7c_owner() -> int:

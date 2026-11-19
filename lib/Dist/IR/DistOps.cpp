@@ -9,6 +9,7 @@
 #include "s2c2/Dist/DistOps.h"
 #include "s2c2/Dist/DistDialect.h"
 
+#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"

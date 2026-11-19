@@ -8,6 +8,7 @@
 
 #include "s2c2/S2C2.h"
 
+#include "mlir/Dialect/Shard/IR/ShardDialect.h"
 #include "mlir/IR/DialectRegistry.h"
 #include "mlir/InitAllTranslations.h"
 #include "mlir/Tools/mlir-translate/MlirTranslateMain.h"
@@ -28,7 +29,8 @@ int main(int argc, char **argv) {
                         mlir::s2c2::comp::ComputeDialect,
                         mlir::s2c2::comm::CommDialect,
                         mlir::s2c2::sched::ScheduleDialect,
-                        mlir::s2c2::dist::DistDialect>();
+                        mlir::s2c2::dist::DistDialect,
+                        mlir::shard::ShardDialect>();
       });
 
   return failed(

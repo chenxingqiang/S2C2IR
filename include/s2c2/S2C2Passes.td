@@ -183,6 +183,21 @@ def CheckS2C2Execution : Pass<"check-s2c2-execution", "::mlir::ModuleOp"> {
   }];
 }
 
+def CheckS2C2Distribution : Pass<"check-s2c2-distribution", "::mlir::ModuleOp"> {
+  let summary = "Decide shard coverage and separate residencies from mesh ranks";
+  let description = [{
+    Distributed event-validity v0, distribution half. Connects upstream
+    `shard.sharding` and existing `dist.distribution` tiles to
+    `stor.localize` / `stor.materialize`. Global and local shapes may
+    differ. Two HBM materializations are residencies, not ranks.
+    MeshSize 1 keeps the local shape equal to the global shape.
+
+    Single-axis coverage uses the same order as `dist.distribution`:
+    out of bounds, then overlap, then a gap. This pass does not check
+    rank-indexed happens-before and does not emit a collective.
+  }];
+}
+
 def ExpandCompComposites : Pass<"expand-comp-composites", "::mlir::ModuleOp"> {
   let summary = "Expand composite compute ops using their decomposition contract";
   let description = [{
