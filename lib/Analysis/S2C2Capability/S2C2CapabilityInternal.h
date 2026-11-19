@@ -26,6 +26,8 @@
 
 namespace mlir::s2c2 {
 
+using stor::Space;
+
 // Command-line options are defined in S2C2CapabilitySchedule.cpp.
 extern llvm::cl::opt<std::string> clS2C2Profile;
 extern llvm::cl::opt<std::string> clS2C2Evidence;
@@ -247,7 +249,7 @@ std::optional<Space> parseSpaceName(StringRef name);
 
 StringRef hierarchyActionStr(HierarchyAction action);
 
-std::string joinActions(ArrayRef<HierarchyAction> acts, char sep);
+std::string joinActions(ArrayRef<HierarchyAction> acts, char sep = ',');
 
 std::string joinGlobal(ArrayRef<ChainAssignment> asns);
 
