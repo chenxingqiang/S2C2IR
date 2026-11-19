@@ -33,6 +33,34 @@ int main(int argc, char **argv) {
   mlir::registerAllPasses();
   mlir::s2c2::registerPasses();
 
+  // The v0 spelling is --lower-s2c2-hb-d=async|sync. The pass option is
+  // mode=, so rewrite that one flag before the generic parser sees it.
+  std::vector<std::string> rewrittenArgs;
+  std::vector<char *> rewrittenPtrs;
+  bool rewriteLower = false;
+  for (int i = 1; i < argc; ++i) {
+    llvm::StringRef a(argv[i]);
+    if (a == "--lower-s2c2-hb-d=async" || a == "--lower-s2c2-hb-d=sync")
+      rewriteLower = true;
+  }
+  if (rewriteLower) {
+    rewrittenArgs.reserve(argc);
+    for (int i = 0; i < argc; ++i) {
+      llvm::StringRef a(argv[i]);
+      if (a == "--lower-s2c2-hb-d=async")
+        rewrittenArgs.emplace_back("--lower-s2c2-hb-d=mode=async");
+      else if (a == "--lower-s2c2-hb-d=sync")
+        rewrittenArgs.emplace_back("--lower-s2c2-hb-d=mode=sync");
+      else
+        rewrittenArgs.emplace_back(argv[i]);
+    }
+    rewrittenPtrs.reserve(rewrittenArgs.size());
+    for (std::string &s : rewrittenArgs)
+      rewrittenPtrs.push_back(s.data());
+    argc = static_cast<int>(rewrittenPtrs.size());
+    argv = rewrittenPtrs.data();
+  }
+
   mlir::DialectRegistry registry;
   mlir::registerAllDialects(registry);
   registry.insert<mlir::s2c2::stor::StorageDialect,
