@@ -185,10 +185,20 @@ func.func @distribution_global_mismatch() {
 
 // -----
 
+func.func @replicated_same_shard_listed_twice() {
+  %g = dist.global : !dist.global<tensor<4xf32>>
+  %s0 = dist.shard %g : !dist.global<tensor<4xf32>> -> !dist.shard<tensor<4xf32>, replicated, axis = -1, offset = [0], tile = [4]>
+  // expected-error@+1 {{distribution lists the same shard more than once}}
+  %d = dist.distribution %g shards(%s0, %s0) : (!dist.global<tensor<4xf32>>, !dist.shard<tensor<4xf32>, replicated, axis = -1, offset = [0], tile = [4]>, !dist.shard<tensor<4xf32>, replicated, axis = -1, offset = [0], tile = [4]>) -> !dist.distribution<tensor<4xf32>, replicated, axis = -1>
+  return
+}
+
+// -----
+
 func.func @same_shard_listed_twice() {
   %g = dist.global : !dist.global<tensor<4xf32>>
   %s0 = dist.shard %g : !dist.global<tensor<4xf32>> -> !dist.shard<tensor<2xf32>, sharded, axis = 0, offset = [0], tile = [2]>
-  // expected-error@+1 {{shards overlap}}
+  // expected-error@+1 {{distribution lists the same shard more than once}}
   %d = dist.distribution %g shards(%s0, %s0) : (!dist.global<tensor<4xf32>>, !dist.shard<tensor<2xf32>, sharded, axis = 0, offset = [0], tile = [2]>, !dist.shard<tensor<2xf32>, sharded, axis = 0, offset = [0], tile = [2]>) -> !dist.distribution<tensor<4xf32>, sharded, axis = 0>
   return
 }

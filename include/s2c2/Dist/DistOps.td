@@ -12,11 +12,13 @@
 include "s2c2/Dist/DistTypes.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 
-def Dist_GlobalOp : Dist_Op<"global", [Pure]> {
+def Dist_GlobalOp : Dist_Op<"global", []> {
   let summary = "Name a global tensor";
   let description = [{
     Introduces the SSA identity of a global tensor. Shards of this value
-    are created with `dist.shard`.
+    are created with `dist.shard`. Two `dist.global` operations are
+    different tensors even when their types match, and are not folded
+    together.
 
     Example:
 
@@ -29,11 +31,13 @@ def Dist_GlobalOp : Dist_Op<"global", [Pure]> {
   let assemblyFormat = "attr-dict `:` qualified(type($global))";
 }
 
-def Dist_ShardOp : Dist_Op<"shard", [Pure]> {
+def Dist_ShardOp : Dist_Op<"shard", []> {
   let summary = "Cut one shard out of a global tensor";
   let description = [{
     Associates `global` with one local tensor. The result type carries the
-    placement, partition axis, offset, and tile shape.
+    placement, partition axis, offset, and tile shape. Two `dist.shard`
+    operations are different shards even when their types match, including
+    two full replicas of one global tensor. They are not folded together.
 
     A sharded shard must stay inside the global tensor. Off the partition
     axis it must cover the whole extent. A replicated shard must have
@@ -64,22 +68,25 @@ def Dist_LocalOp : Dist_Op<"local", [Pure]> {
   let hasVerifier = 1;
 }
 
-def Dist_DistributionOp : Dist_Op<"distribution", [Pure]> {
+def Dist_DistributionOp : Dist_Op<"distribution", []> {
   let summary = "Group the shards of one global tensor";
   let description = [{
-    Every shard operand must be a `dist.shard` of `global`. The result
-    placement and partition axis must match those shards.
+    Every shard operand must be a `dist.shard` of `global`, and the same
+    SSA value cannot be listed twice. The result placement and partition
+    axis must match those shards.
 
     For `sharded`, ranges are half-open intervals on the partition axis.
-    The verifier reports the first failure in this order:
+    After sorting those intervals, the verifier reports the first failure
+    in this order:
 
     * a shard range that leaves the global tensor is out of bounds;
     * two intervals that intersect overlap;
     * a union other than the whole axis does not cover the global tensor.
 
     Touching endpoints do not overlap: `[0, 2)` and `[2, 4)` cover a
-    length-4 axis. For `replicated`, each shard is a full copy, so shared
-    index space is not overlap and is not a coverage gap.
+    length-4 axis. For `replicated`, distinct shards may be full copies of
+    the same index space. That is not overlap and is not a coverage gap.
+    Naming one replicated shard twice is still one shard.
   }];
   let arguments = (ins
     Dist_GlobalType:$global,

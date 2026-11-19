@@ -10,6 +10,7 @@
 #include "s2c2/Dist/DistDialect.h"
 
 #include "mlir/IR/BuiltinTypes.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -80,30 +81,34 @@ static LogicalResult checkShardFits(Operation *op, GlobalType globalTy,
   return success();
 }
 
-static bool rangesOverlap(AxisRange lhs, AxisRange rhs) {
-  return lhs.first < rhs.second && rhs.first < lhs.second;
-}
-
+// Sort by start, then walk once. An interval that begins before the
+// covered end overlaps; a hole or a short union does not cover. Overlap
+// is reported even when a hole is also present.
 static LogicalResult verifyShardedCoverage(Operation *op, int64_t extent,
                                            ArrayRef<AxisRange> ranges) {
-  for (size_t i = 0; i < ranges.size(); ++i) {
-    for (size_t j = i + 1; j < ranges.size(); ++j) {
-      if (rangesOverlap(ranges[i], ranges[j]))
-        return op->emitOpError("shards overlap");
-    }
-  }
-
   SmallVector<AxisRange> ordered(ranges.begin(), ranges.end());
-  llvm::sort(ordered);
-  if (ordered.empty() || ordered.front().first != 0)
-    return op->emitOpError("shards do not cover the global tensor");
-  int64_t covered = ordered.front().second;
-  for (size_t i = 1; i < ordered.size(); ++i) {
-    if (ordered[i].first != covered)
-      return op->emitOpError("shards do not cover the global tensor");
-    covered = ordered[i].second;
+  llvm::sort(ordered, [](AxisRange lhs, AxisRange rhs) {
+    if (lhs.first != rhs.first)
+      return lhs.first < rhs.first;
+    return lhs.second < rhs.second;
+  });
+
+  bool overlap = false;
+  bool hole = false;
+  int64_t covered = 0;
+  for (AxisRange range : ordered) {
+    if (range.first < covered)
+      overlap = true;
+    else if (range.first > covered)
+      hole = true;
+    if (range.second > covered)
+      covered = range.second;
   }
   if (covered != extent)
+    hole = true;
+  if (overlap)
+    return op->emitOpError("shards overlap");
+  if (hole || ordered.empty())
     return op->emitOpError("shards do not cover the global tensor");
   return success();
 }
@@ -134,8 +139,11 @@ LogicalResult DistributionOp::verify() {
 
   auto global = llvm::cast<RankedTensorType>(globalTy.getGlobalType());
   SmallVector<ShardType> shardTypes;
+  llvm::SmallDenseSet<Value, 8> seen;
   shardTypes.reserve(getShards().size());
   for (Value shard : getShards()) {
+    if (!seen.insert(shard).second)
+      return emitOpError("distribution lists the same shard more than once");
     auto shardOp = shard.getDefiningOp<ShardOp>();
     if (!shardOp || shardOp.getGlobal() != getGlobal())
       return emitOpError("shard is not part of this global tensor");
