@@ -110,7 +110,7 @@ Semantic baseline remains `36fd6fd931c109c6849cc366bd91b5abdfcab4b1`. Later docu
 scripts/check-host.sh
 ```
 
-This replays the 53 host contract and matrix printers plus the Ascend schema identity check and the CUDA schema printer. Expect `PASS 53 FAIL 0`; any failure makes it exit 1. `--log DIR` keeps each command's output. It needs Python 3 only. It does not include `check-s2c2`, and a pass does not change the semantic baseline, `can-run-plan`, or `next_cut`.
+This replays the 53 host contract and matrix printers plus the Ascend schema identity check and the CUDA schema printer. Expect `PASS 53 FAIL 0`; any failure makes it exit 1. The script itself validates the count documented here, so adding or removing a check requires updating this line in the same change. `--log DIR` keeps each command's output. It needs Python 3 only. It does not include `check-s2c2`, and a pass does not change the semantic baseline, `can-run-plan`, or `next_cut`.
 
 ### CI
 

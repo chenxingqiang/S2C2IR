@@ -107,6 +107,16 @@ run cuda-schema "${PY}" runtime/cuda/record_v3.py --print-schema
 
 echo "----"
 echo "PASS ${pass} FAIL ${fail}"
+# The README documents the expected count. Keep them in sync or fail.
+documented="$(grep -oE 'PASS [0-9]+ FAIL 0' README.md | head -1)"
+if [[ -z "${documented}" ]]; then
+  echo "README does not document a 'PASS <n> FAIL 0' count for check-host."
+  exit 1
+fi
+if [[ "${documented}" != "PASS ${pass} FAIL 0" ]]; then
+  echo "check-host count drifted from README: README says '${documented}', script ran ${pass}."
+  exit 1
+fi
 if (( fail > 0 )); then
   printf 'failed: %s\n' "${failed[*]}"
   exit 1
