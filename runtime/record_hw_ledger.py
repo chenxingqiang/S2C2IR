@@ -19,6 +19,8 @@ _CATALOG_69 = _REPO_ROOT / "docs/design/v3-dataset/ascend910b/capability.jsonl"
 _ASCEND = _REPO_ROOT / "runtime/ascend/record_ascend.py"
 _CUDA = _REPO_ROOT / "runtime/cuda/record_v3.py"
 
+import record_constants as const
+
 LEDGER_FIELDS = (
     "id",
     "hardware",
@@ -32,10 +34,10 @@ LEDGER_FIELDS = (
     "cost",
     "semantics",
 )
-LEDGER_HARDWARE = ("rtx4090", "ascend910b")
-LEDGER_KIND = ("catalog", "overlay", "campaign", "program")
-LEDGER_STATUS = ("measured", "device-absent")
-LEDGER_TOOL = ("cuda", "ascend", "none")
+LEDGER_HARDWARE = const.LEDGER_HARDWARE
+LEDGER_KIND = const.LEDGER_KIND
+LEDGER_STATUS = const.LEDGER_STATUS
+LEDGER_TOOL = const.LEDGER_TOOL
 LEDGER_ROLE = (
     "catalog-69",
     "overlay",

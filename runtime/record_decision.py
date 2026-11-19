@@ -14,6 +14,8 @@ import argparse
 import json
 import sys
 
+import record_constants as const
+
 EVIDENCE_KIND_SCHEMA = "s2c2.evidence_kind.v1"
 EVIDENCE_RECORD_SCHEMA = "s2c2.evidence_record.v1"
 
@@ -233,8 +235,8 @@ def print_evidence_reason_vocab() -> int:
     return 0
 
 
-SELECTED_S0 = "keep{0,1}|evict{2}|rematerialize{}"
-SELECTED_S1 = "keep{1,2}|evict{0}|rematerialize{}"
+SELECTED_S0 = const.SELECTED_S0
+SELECTED_S1 = const.SELECTED_S1
 USABLE_KINDS = ("source-data", "restore-ordering")
 
 CANONICAL_FROM_DISPLAY = {
