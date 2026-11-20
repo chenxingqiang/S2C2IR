@@ -23,11 +23,12 @@ module {
     stor.pack %partial into %in1 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
     %u0 = stor.unpack %in0 : !stor.buffer<tensor<4x8xf32>, hbm> -> tensor<4x8xf32>
     %u1 = stor.unpack %in1 : !stor.buffer<tensor<4x8xf32>, hbm> -> tensor<4x8xf32>
-    %c = shard.all_reduce %u0 on @tp grid_axes = [0] : tensor<4x8xf32> -> tensor<4x8xf32>
+    %c0 = shard.all_reduce %u0 on @tp grid_axes = [0] : tensor<4x8xf32> -> tensor<4x8xf32>
+    %c1 = shard.all_reduce %u1 on @tp grid_axes = [0] : tensor<4x8xf32> -> tensor<4x8xf32>
     %out0 = stor.materialize %l0 : !stor.object<tensor<4x8xf32>> -> !stor.buffer<tensor<4x8xf32>, hbm>
     %out1 = stor.materialize %l1 : !stor.object<tensor<4x8xf32>> -> !stor.buffer<tensor<4x8xf32>, hbm>
-    stor.pack %c into %out0 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
-    stor.pack %c into %out1 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
+    stor.pack %c0 into %out0 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
+    stor.pack %c1 into %out1 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
     %reduced = stor.unpack %out0 : !stor.buffer<tensor<4x8xf32>, hbm> -> tensor<4x8xf32>
     %y = comp.matmul %reduced, %rhs : tensor<4x8xf32>, tensor<8x4xf32> -> tensor<4x4xf32>
     return %y : tensor<4x4xf32>
@@ -58,11 +59,12 @@ module {
     stor.pack %partial into %in1 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
     %u0 = stor.unpack %in0 : !stor.buffer<tensor<4x8xf32>, hbm> -> tensor<4x8xf32>
     %u1 = stor.unpack %in1 : !stor.buffer<tensor<4x8xf32>, hbm> -> tensor<4x8xf32>
-    %c = shard.all_reduce %u0 on @tp grid_axes = [0] : tensor<4x8xf32> -> tensor<4x8xf32>
+    %c0 = shard.all_reduce %u0 on @tp grid_axes = [0] : tensor<4x8xf32> -> tensor<4x8xf32>
+    %c1 = shard.all_reduce %u1 on @tp grid_axes = [0] : tensor<4x8xf32> -> tensor<4x8xf32>
     %out0 = stor.materialize %l0 : !stor.object<tensor<4x8xf32>> -> !stor.buffer<tensor<4x8xf32>, hbm>
     %out1 = stor.materialize %l1 : !stor.object<tensor<4x8xf32>> -> !stor.buffer<tensor<4x8xf32>, hbm>
-    stor.pack %c into %out0 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
-    stor.pack %c into %out1 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
+    stor.pack %c0 into %out0 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
+    stor.pack %c1 into %out1 : tensor<4x8xf32>, !stor.buffer<tensor<4x8xf32>, hbm>
     %reduced = stor.unpack %out0 : !stor.buffer<tensor<4x8xf32>, hbm> -> tensor<4x8xf32>
     %y = comp.matmul %reduced, %rhs : tensor<4x8xf32>, tensor<8x4xf32> -> tensor<4x4xf32>
     return %y : tensor<4x4xf32>

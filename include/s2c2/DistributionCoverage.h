@@ -38,6 +38,11 @@ FailureOr<LocalShard> localShardFor(Operation *emitOn, Value sharding,
 LogicalResult diagnosePartition(Operation *emitOn, Value sharding,
                                 RankedTensorType global, LocalShard &summary);
 
+/// Group `stor.localize` by (global object, sharding, mesh). One global
+/// cannot be placed on two meshes. Each group must name every rank of its
+/// mesh once. Coverage stays in `diagnosePartition`.
+LogicalResult checkLocalizeGroups(Operation *scope);
+
 } // namespace stor
 } // namespace s2c2
 } // namespace mlir

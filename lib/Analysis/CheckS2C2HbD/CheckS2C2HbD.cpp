@@ -486,6 +486,269 @@ static bool shapesMatchCollective(Operation *op, int64_t meshSize) {
   return inDim == outDim * meshSize;
 }
 
+// Rank-indexed HB_D. Intra-rank program order stays inside one rank.
+// Textual order across ranks and the numeric rank id are not edges.
+// Cross-rank edges are collective dependencies (C_q^in → C_complete_r)
+// or an explicit wait / barrier.
+struct RankGraph {
+  llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> succ;
+
+  void addEdge(Operation *from, Operation *to) {
+    if (!from || !to || from == to)
+      return;
+    auto &list = succ[from];
+    if (!llvm::is_contained(list, to))
+      list.push_back(to);
+  }
+
+  void addEdges(ArrayRef<Operation *> froms, Operation *to) {
+    for (Operation *from : froms)
+      addEdge(from, to);
+  }
+
+  bool reaches(Operation *from, Operation *to) const {
+    if (!from || !to || from == to)
+      return false;
+    SmallPtrSet<Operation *, 16> seen;
+    SmallVector<Operation *, 16> stack({from});
+    while (!stack.empty()) {
+      Operation *cur = stack.pop_back_val();
+      auto it = succ.find(cur);
+      if (it == succ.end())
+        continue;
+      for (Operation *next : it->second) {
+        if (next == to)
+          return true;
+        if (seen.insert(next).second)
+          stack.push_back(next);
+      }
+    }
+    return false;
+  }
+};
+
+using RankFrontier = llvm::DenseMap<int64_t, SmallVector<Operation *, 2>>;
+
+static std::optional<int64_t> rankOf(Operation *op);
+
+static void walkRankSeq(Block &block, RankFrontier &front, RankGraph &g);
+
+static bool isDirectConcurrentChild(Operation *op) {
+  return isa<ConcurrentOp>(op->getParentOp());
+}
+
+static void walkRankOp(Operation *op, RankFrontier &front, RankGraph &g) {
+  if (auto task = dyn_cast<TaskOp>(op)) {
+    if (task.getBody().empty())
+      return;
+    if (isDirectConcurrentChild(op)) {
+      RankFrontier copy = front;
+      walkRankSeq(task.getBody().front(), copy, g);
+    } else {
+      walkRankSeq(task.getBody().front(), front, g);
+    }
+    return;
+  }
+  if (auto conc = dyn_cast<ConcurrentOp>(op)) {
+    if (conc.getBody().empty())
+      return;
+    for (Operation &child : conc.getBody().front().without_terminator()) {
+      RankFrontier copy = front;
+      walkRankOp(&child, copy, g);
+    }
+    return;
+  }
+  if (auto pipe = dyn_cast<PipelineOp>(op)) {
+    if (pipe.getBody().empty())
+      return;
+    for (StageOp stage : pipe.getBody().front().getOps<StageOp>()) {
+      if (!stage.getBody().empty())
+        walkRankSeq(stage.getBody().front(), front, g);
+    }
+    return;
+  }
+  if (auto overlap = dyn_cast<OverlapOp>(op)) {
+    RankFrontier compute = front;
+    RankFrontier communicate = front;
+    if (!overlap.getCompute().empty())
+      walkRankSeq(overlap.getCompute().front(), compute, g);
+    if (!overlap.getCommunicate().empty())
+      walkRankSeq(overlap.getCommunicate().front(), communicate, g);
+    return;
+  }
+  if (auto forOp = dyn_cast<scf::ForOp>(op)) {
+    if (!forOp.getBodyRegion().empty()) {
+      RankFrontier copy = front;
+      walkRankSeq(*forOp.getBody(), copy, g);
+    }
+    return;
+  }
+  if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
+    if (Block *thenB = ifOp.thenBlock()) {
+      RankFrontier copy = front;
+      walkRankSeq(*thenB, copy, g);
+    }
+    if (Block *elseB = ifOp.elseBlock()) {
+      RankFrontier copy = front;
+      walkRankSeq(*elseB, copy, g);
+    }
+    return;
+  }
+  if (auto sw = dyn_cast<scf::IndexSwitchOp>(op)) {
+    for (Region &region : sw->getRegions()) {
+      if (region.empty())
+        continue;
+      RankFrontier copy = front;
+      walkRankSeq(region.front(), copy, g);
+    }
+    return;
+  }
+
+  std::optional<int64_t> rank = rankOf(op);
+  if (!rank) {
+    if (isa<WaitOp, BarrierOp>(op)) {
+      for (Value token : op->getOperands())
+        if (Operation *def = token.getDefiningOp())
+          g.addEdge(def, op);
+    }
+    return;
+  }
+  g.addEdges(front[*rank], op);
+  if (isa<WaitOp, BarrierOp>(op)) {
+    for (Value token : op->getOperands())
+      if (Operation *def = token.getDefiningOp())
+        g.addEdge(def, op);
+  }
+  front[*rank].assign({op});
+}
+
+static void walkRankSeq(Block &block, RankFrontier &front, RankGraph &g) {
+  for (Operation &op : block.without_terminator())
+    walkRankOp(&op, front, g);
+}
+
+static std::optional<int64_t> rankOf(Operation *op) {
+  if (auto localize = dyn_cast<LocalizeOp>(op))
+    return static_cast<int64_t>(localize.getRank());
+  if (auto materialize = dyn_cast<MaterializeOp>(op))
+    return ownerRank(materialize.getBuffer());
+  if (auto pack = dyn_cast<PackOp>(op))
+    return ownerRank(pack.getBuffer());
+  if (auto unpack = dyn_cast<UnpackOp>(op))
+    return ownerRank(unpack.getBuffer());
+  if (auto stream = dyn_cast<StreamOp>(op))
+    return ownerRank(stream.getSrc());
+  if (auto copy = dyn_cast<CopyOp>(op))
+    return ownerRank(copy.getSrc());
+  if (auto transfer = dyn_cast<TransferOp>(op))
+    return ownerRank(transfer.getBuffer());
+  if (isa<WaitOp, BarrierOp>(op)) {
+    for (Value token : op->getOperands()) {
+      if (Operation *def = token.getDefiningOp())
+        if (auto rank = rankOf(def))
+          return rank;
+    }
+  }
+  if (isV0Collective(op)) {
+    if (auto unpack = op->getOperand(0).getDefiningOp<UnpackOp>())
+      return ownerRank(unpack.getBuffer());
+  }
+  if (op->getName().getStringRef().starts_with("comp.")) {
+    for (Value value : op->getOperands()) {
+      if (auto unpack = value.getDefiningOp<UnpackOp>())
+        if (auto rank = ownerRank(unpack.getBuffer()))
+          return rank;
+    }
+  }
+  return std::nullopt;
+}
+
+static bool isCollectiveResult(Value value, ArrayRef<Operation *> collectives) {
+  for (Operation *collective : collectives)
+    if (value == collective->getResult(0))
+      return true;
+  return false;
+}
+
+static void addCollectiveDeps(func::FuncOp func, RankGraph &g) {
+  struct Inst {
+    Operation *collective = nullptr;
+    Operation *input = nullptr;
+    int64_t rank = 0;
+    SmallVector<Operation *> resultPacks;
+  };
+  llvm::DenseMap<StringRef, llvm::DenseMap<StringRef, SmallVector<Inst>>> grouped;
+  SmallVector<Operation *> collectives;
+  func.walk([&](Operation *op) {
+    if (isV0Collective(op))
+      collectives.push_back(op);
+  });
+  for (Operation *op : collectives) {
+    auto unpack = op->getOperand(0).getDefiningOp<UnpackOp>();
+    if (!unpack)
+      continue;
+    auto rank = ownerRank(unpack.getBuffer());
+    if (!rank)
+      continue;
+    Inst inst;
+    inst.collective = op;
+    inst.input = unpack;
+    inst.rank = *rank;
+    func.walk([&](PackOp pack) {
+      if (pack.getValue() != op->getResult(0))
+        return;
+      auto owner = ownerRank(pack.getBuffer());
+      if (owner && *owner == *rank)
+        inst.resultPacks.push_back(pack);
+    });
+    shard::GridOp grid = gridOf(op);
+    StringRef gridName = grid ? grid.getSymName() : "";
+    grouped[gridName][op->getName().getStringRef()].push_back(std::move(inst));
+  }
+  for (auto &byName : grouped) {
+    for (auto &entry : byName.second) {
+      SmallVector<Inst> &insts = entry.second;
+      for (Inst &self : insts) {
+        // C_r^in → C_complete_r → C_r^out
+        g.addEdge(self.input, self.collective);
+        for (Operation *out : self.resultPacks)
+          g.addEdge(self.collective, out);
+        for (Inst &other : insts) {
+          if (other.rank == self.rank)
+            continue;
+          // CDEP from the other rank's input. Rank order is not an edge.
+          g.addEdge(other.input, self.collective);
+          for (Operation *out : self.resultPacks)
+            g.addEdge(other.collective, out);
+        }
+      }
+    }
+  }
+}
+
+static void buildRankGraph(func::FuncOp func, RankGraph &g) {
+  if (func.getBody().empty())
+    return;
+  RankFrontier front;
+  walkRankSeq(func.getBody().front(), front, g);
+  addCollectiveDeps(func, g);
+}
+
+static std::optional<bool> shardingReplicated(Operation *emitOn, Value buffer) {
+  Value obj = getLogicalObject(buffer);
+  if (!obj)
+    return std::nullopt;
+  auto localize = obj.getDefiningOp<LocalizeOp>();
+  if (!localize)
+    return std::nullopt;
+  RankedTensorType globalTy = payloadOf(localize.getGlobal());
+  FailureOr<stor::LocalShard> tile = stor::localShardFor(
+      emitOn, localize.getSharding(), globalTy, localize.getRank());
+  if (failed(tile))
+    return std::nullopt;
+  return tile->replicated;
+}
+
 static LogicalResult checkFunction(func::FuncOp func, const HBGraph &g) {
   SmallVector<Operation *> collectives;
   bool sawToAll = false;
@@ -530,13 +793,17 @@ static LogicalResult checkFunction(func::FuncOp func, const HBGraph &g) {
       return collective->emitOpError("rank is outside the mesh");
   }
 
+  if (failed(stor::checkLocalizeGroups(func)))
+    return failure();
+
   SmallVector<LocalizeOp> localizes;
   func.walk([&](LocalizeOp localize) { localizes.push_back(localize); });
-  SmallVector<Value> shardings;
+  SmallVector<std::pair<Value, Value>> shardGroups;
   for (LocalizeOp localize : localizes) {
-    if (llvm::is_contained(shardings, localize.getSharding()))
+    std::pair<Value, Value> key{localize.getGlobal(), localize.getSharding()};
+    if (llvm::is_contained(shardGroups, key))
       continue;
-    shardings.push_back(localize.getSharding());
+    shardGroups.push_back(key);
     RankedTensorType globalTy = payloadOf(localize.getGlobal());
     stor::LocalShard summary;
     if (failed(stor::diagnosePartition(func, localize.getSharding(), globalTy,
@@ -611,22 +878,94 @@ static LogicalResult checkFunction(func::FuncOp func, const HBGraph &g) {
   if (pairFault)
     return *pairFault;
 
+  RankGraph rankGraph;
+  buildRankGraph(func, rankGraph);
+
+  // ParticipantExists is not ParticipantContributes. The operand has to be
+  // this rank's unpack, and every rank's input pack has to be that operand.
+  for (Operation *collective : collectives) {
+    auto unpack = collective->getOperand(0).getDefiningOp<UnpackOp>();
+    if (!unpack || !ownerRank(unpack.getBuffer()))
+      return collective->emitOpError(
+          "collective operand is not this rank's local tensor");
+  }
+  if (!collectives.empty()) {
+    for (LocalizeOp localize : localizes) {
+      int64_t rank = static_cast<int64_t>(localize.getRank());
+      bool hasInputPack = false;
+      bool entered = false;
+      func.walk([&](PackOp pack) {
+        auto owner = ownerRank(pack.getBuffer());
+        if (!owner || *owner != rank)
+          return;
+        if (!isCollectiveResult(pack.getValue(), collectives))
+          hasInputPack = true;
+      });
+      for (Operation *collective : collectives) {
+        auto unpack = collective->getOperand(0).getDefiningOp<UnpackOp>();
+        auto owner = unpack ? ownerRank(unpack.getBuffer()) : std::nullopt;
+        if (owner && *owner == rank)
+          entered = true;
+      }
+      if (hasInputPack && !entered)
+        return collectives.front()->emitOpError(
+            "rank pack does not enter the collective");
+    }
+  }
+
+  for (Operation *collective : collectives) {
+    auto unpack = collective->getOperand(0).getDefiningOp<UnpackOp>();
+    if (!unpack)
+      continue;
+    std::optional<bool> inputReplicated =
+        shardingReplicated(collective, unpack.getBuffer());
+    std::optional<bool> resultReplicated;
+    func.walk([&](PackOp pack) {
+      if (pack.getValue() != collective->getResult(0))
+        return;
+      resultReplicated = shardingReplicated(collective, pack.getBuffer());
+    });
+    StringRef name = collective->getName().getStringRef();
+    if (name == "shard.all_reduce") {
+      if (inputReplicated && !*inputReplicated)
+        return collective->emitOpError("all-reduce operands are not replicated");
+      if (resultReplicated && !*resultReplicated)
+        return collective->emitOpError("all-reduce result is not replicated");
+    } else if (name == "shard.all_gather") {
+      if (inputReplicated && *inputReplicated)
+        return collective->emitOpError("all-gather input is not sharded");
+      if (resultReplicated && !*resultReplicated)
+        return collective->emitOpError("all-gather result is not replicated");
+    } else if (name == "shard.reduce_scatter") {
+      if (inputReplicated && !*inputReplicated)
+        return collective->emitOpError(
+            "reduce-scatter input is not replicated");
+      if (resultReplicated && *resultReplicated)
+        return collective->emitOpError("reduce-scatter result is not sharded");
+    }
+  }
+
   for (Operation *collective : collectives) {
     func.walk([&](UnpackOp unpack) {
       if (pairFault)
         return;
-      if (!g.reaches(collective, unpack))
+      if (!rankGraph.reaches(collective, unpack))
         return;
+      bool output = false;
       bool packedResult = false;
       for (Operation *user : unpack.getBuffer().getUsers()) {
         auto pack = dyn_cast<PackOp>(user);
         if (!pack || pack.getBuffer() != unpack.getBuffer())
           continue;
-        if (pack.getValue() == collective->getResult(0) &&
-            g.reaches(pack, unpack))
+        if (pack.getValue() != collective->getResult(0))
+          continue;
+        output = true;
+        if (rankGraph.reaches(pack, unpack))
           packedResult = true;
       }
-      if (!packedResult)
+      // An input residency stays valid across the collective. Only a
+      // residency that is packed with this collective's result is an output.
+      if (output && !packedResult)
         pairFault = unpack.emitOpError("collective result is not valid");
     });
   }
@@ -638,66 +977,58 @@ static LogicalResult checkFunction(func::FuncOp func, const HBGraph &g) {
     int64_t mesh = *meshSizeOf(grid);
     if (!shapesMatchCollective(collective, mesh))
       return collective->emitOpError("local shape is not the shard tile");
-    for (int64_t rank = 0; rank < mesh; ++rank) {
-      bool hasLocalize = false;
-      bool hasInputPack = false;
-      bool hasResultPack = false;
-      auto inputType = collective->getOperand(0).getType();
-      for (LocalizeOp localize : localizes)
-        if (static_cast<int64_t>(localize.getRank()) == rank)
-          hasLocalize = true;
-      func.walk([&](PackOp pack) {
-        auto owner = ownerRank(pack.getBuffer());
-        if (!owner || *owner != rank)
-          return;
-        if (pack.getValue().getType() == inputType &&
-            pack.getValue() != collective->getResult(0))
-          hasInputPack = true;
-        if (pack.getValue() == collective->getResult(0))
-          hasResultPack = true;
-      });
-      if (!hasLocalize || !hasInputPack || !hasResultPack)
-        return collective->emitOpError("collective drops a participant");
-    }
+    auto consumed = collective->getOperand(0).getDefiningOp<UnpackOp>();
+    auto rank = consumed ? ownerRank(consumed.getBuffer()) : std::nullopt;
+    if (!rank)
+      continue;
+    bool hasResultPack = false;
+    func.walk([&](PackOp pack) {
+      auto owner = ownerRank(pack.getBuffer());
+      if (!owner || *owner != *rank)
+        return;
+      if (pack.getValue() == collective->getResult(0))
+        hasResultPack = true;
+    });
+    if (!hasResultPack)
+      return collective->emitOpError("collective drops a participant");
   }
 
   for (Operation *collective : collectives) {
-    shard::GridOp grid = gridOf(collective);
-    int64_t mesh = *meshSizeOf(grid);
-    auto inputType = collective->getOperand(0).getType();
-    for (int64_t rank = 0; rank < mesh; ++rank) {
-      bool packBefore = false;
-      bool sawPack = false;
-      func.walk([&](PackOp pack) {
-        auto owner = ownerRank(pack.getBuffer());
-        if (!owner || *owner != rank)
-          return;
-        if (pack.getValue().getType() != inputType ||
-            pack.getValue() == collective->getResult(0))
-          return;
-        sawPack = true;
-        if (g.reaches(pack, collective))
-          packBefore = true;
-      });
-      if (sawPack && !packBefore)
-        return collective->emitOpError("missing cross-rank happens-before");
-      func.walk([&](UnpackOp unpack) {
-        if (pairFault)
-          return;
-        auto owner = ownerRank(unpack.getBuffer());
-        if (!owner || *owner != rank)
-          return;
-        bool resultBuffer = false;
-        for (Operation *user : unpack.getBuffer().getUsers()) {
-          auto pack = dyn_cast<PackOp>(user);
-          if (pack && pack.getValue() == collective->getResult(0))
-            resultBuffer = true;
-        }
-        if (resultBuffer && !g.reaches(collective, unpack))
-          pairFault = collective->emitOpError(
-              "missing cross-rank happens-before");
-      });
-    }
+    auto consumed = collective->getOperand(0).getDefiningOp<UnpackOp>();
+    if (!consumed)
+      continue;
+    auto rank = ownerRank(consumed.getBuffer());
+    if (!rank)
+      continue;
+    bool sawPack = false;
+    bool packBefore = false;
+    func.walk([&](PackOp pack) {
+      if (pack.getBuffer() != consumed.getBuffer())
+        return;
+      auto owner = ownerRank(pack.getBuffer());
+      if (!owner || *owner != *rank)
+        return;
+      if (pack.getValue() == collective->getResult(0))
+        return;
+      sawPack = true;
+      if (rankGraph.reaches(pack, collective))
+        packBefore = true;
+    });
+    if (sawPack && !packBefore)
+      return collective->emitOpError("missing cross-rank happens-before");
+    func.walk([&](UnpackOp unpack) {
+      if (pairFault)
+        return;
+      bool resultBuffer = false;
+      for (Operation *user : unpack.getBuffer().getUsers()) {
+        auto pack = dyn_cast<PackOp>(user);
+        if (pack && pack.getValue() == collective->getResult(0))
+          resultBuffer = true;
+      }
+      if (resultBuffer && !rankGraph.reaches(collective, unpack))
+        pairFault =
+            collective->emitOpError("missing cross-rank happens-before");
+    });
   }
   if (pairFault)
     return *pairFault;
