@@ -12,11 +12,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "s2c2/ExecutionModel/HBGraph.h"
 #include "s2c2/S2C2Family.h"
 #include "s2c2/S2C2Legality.h"
 #include "s2c2/S2C2Passes.h"
 
-#include "s2c2/Comm/CommOps.h"
 #include "s2c2/Schedule/ScheduleOps.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -35,142 +35,22 @@ namespace mlir::s2c2 {
 #define GEN_PASS_DEF_S2C2XFORM
 #include "s2c2/S2C2Passes.h.inc"
 
-using comm::BarrierOp;
 using sched::ConcurrentOp;
-using sched::OverlapOp;
-using sched::PipelineOp;
-using sched::StageOp;
 using sched::TaskOp;
-using sched::WaitOp;
 
 namespace {
-struct HBGraph {
-  llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> succ;
-
-  void addEdge(Operation *from, Operation *to) {
-    if (!from || !to || from == to)
-      return;
-    auto &list = succ[from];
-    if (!llvm::is_contained(list, to))
-      list.push_back(to);
-  }
-
-  void addEdges(ArrayRef<Operation *> froms, Operation *to) {
-    for (Operation *from : froms)
-      addEdge(from, to);
-  }
-
-  bool reaches(Operation *from, Operation *to) const {
-    if (!from || !to || from == to)
-      return false;
-    SmallPtrSet<Operation *, 16> seen;
-    SmallVector<Operation *, 16> stack({from});
-    while (!stack.empty()) {
-      Operation *cur = stack.pop_back_val();
-      auto it = succ.find(cur);
-      if (it == succ.end())
-        continue;
-      for (Operation *next : it->second) {
-        if (next == to)
-          return true;
-        if (seen.insert(next).second)
-          stack.push_back(next);
-      }
-    }
-    return false;
-  }
-};
-
-void walkHBOp(Operation *op, ArrayRef<Operation *> incoming,
-              SmallVectorImpl<Operation *> &outgoing, HBGraph &g);
-void walkHBSeq(Block &block, ArrayRef<Operation *> incoming,
-               SmallVectorImpl<Operation *> &outgoing, HBGraph &g);
-
-void walkHBSeq(Block &block, ArrayRef<Operation *> incoming,
-               SmallVectorImpl<Operation *> &outgoing, HBGraph &g) {
-  SmallVector<Operation *> frontier(incoming.begin(), incoming.end());
-  for (Operation &op : block.without_terminator()) {
-    SmallVector<Operation *> next;
-    walkHBOp(&op, frontier, next, g);
-    frontier = std::move(next);
-  }
-  if (Operation *term = block.getTerminator()) {
-    g.addEdges(frontier, term);
-    outgoing.assign({term});
-    return;
-  }
-  outgoing = std::move(frontier);
-}
-
-void walkHBOp(Operation *op, ArrayRef<Operation *> incoming,
-              SmallVectorImpl<Operation *> &outgoing, HBGraph &g) {
-  if (auto task = dyn_cast<TaskOp>(op)) {
-    SmallVector<Operation *> bodyOut;
-    walkHBSeq(task.getBody().front(), incoming, bodyOut, g);
-    g.addEdges(bodyOut, op);
-    outgoing.assign(bodyOut.begin(), bodyOut.end());
-    outgoing.push_back(op);
-    return;
-  }
-  if (auto conc = dyn_cast<ConcurrentOp>(op)) {
-    SmallVector<Operation *> join;
-    for (TaskOp task : conc.getBody().front().getOps<TaskOp>()) {
-      SmallVector<Operation *> taskOut;
-      walkHBOp(task, incoming, taskOut, g);
-      join.append(taskOut.begin(), taskOut.end());
-    }
-    g.addEdges(join, op);
-    outgoing = std::move(join);
-    outgoing.push_back(op);
-    return;
-  }
-  if (auto pipe = dyn_cast<PipelineOp>(op)) {
-    SmallVector<Operation *> cur(incoming.begin(), incoming.end());
-    for (StageOp stage : pipe.getBody().front().getOps<StageOp>()) {
-      SmallVector<Operation *> stageOut;
-      walkHBSeq(stage.getBody().front(), cur, stageOut, g);
-      g.addEdges(stageOut, stage);
-      cur = std::move(stageOut);
-      cur.push_back(stage);
-    }
-    g.addEdges(cur, op);
-    outgoing = std::move(cur);
-    outgoing.push_back(op);
-    return;
-  }
-  if (auto overlap = dyn_cast<OverlapOp>(op)) {
-    SmallVector<Operation *> computeOut, commOut;
-    walkHBSeq(overlap.getCompute().front(), incoming, computeOut, g);
-    walkHBSeq(overlap.getCommunicate().front(), incoming, commOut, g);
-    SmallVector<Operation *> join(computeOut.begin(), computeOut.end());
-    join.append(commOut.begin(), commOut.end());
-    g.addEdges(join, op);
-    outgoing = std::move(join);
-    outgoing.push_back(op);
-    return;
-  }
-  g.addEdges(incoming, op);
-  if (isa<WaitOp, BarrierOp>(op)) {
-    for (Value token : op->getOperands())
-      if (Operation *def = token.getDefiningOp())
-        g.addEdge(def, op);
-  }
-  outgoing.assign({op});
-}
+using HBGraph = exec::HBGraph;
 
 void buildHB(func::FuncOp func, HBGraph &g) {
   g = HBGraph();
-  if (func.getBody().empty())
-    return;
-  SmallVector<Operation *> unused;
-  walkHBSeq(func.getBody().front(), {}, unused, g);
+  exec::buildProgramOrder(func, g);
 }
 
 using HBEdge = std::pair<Operation *, Operation *>;
 
 SmallVector<HBEdge> edgeSet(const HBGraph &g) {
   SmallVector<HBEdge> edges;
-  for (const auto &kv : g.succ)
+  for (const auto &kv : g.successors())
     for (Operation *to : kv.second)
       edges.emplace_back(kv.first, to);
   llvm::sort(edges);

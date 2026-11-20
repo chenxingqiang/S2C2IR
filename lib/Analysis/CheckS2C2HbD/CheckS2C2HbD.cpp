@@ -12,6 +12,10 @@
 
 #include "s2c2/Comm/CommOps.h"
 #include "s2c2/DistributionCoverage.h"
+#include "s2c2/ExecutionModel/CollectiveDependency.h"
+#include "s2c2/ExecutionModel/HBGraph.h"
+#include "s2c2/ExecutionModel/RankContext.h"
+#include "s2c2/ExecutionModel/ValidityAnalysis.h"
 #include "s2c2/S2C2Passes.h"
 #include "s2c2/Schedule/ScheduleOps.h"
 #include "s2c2/Storage/StorageOps.h"
@@ -53,312 +57,6 @@ using stor::UnpackOp;
 using stor::getLogicalObject;
 
 namespace {
-struct HBGraph {
-  llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> succ;
-
-  void addEdge(Operation *from, Operation *to) {
-    if (!from || !to || from == to)
-      return;
-    auto &list = succ[from];
-    if (!llvm::is_contained(list, to))
-      list.push_back(to);
-  }
-
-  void addEdges(ArrayRef<Operation *> froms, Operation *to) {
-    for (Operation *from : froms)
-      addEdge(from, to);
-  }
-
-  bool reaches(Operation *from, Operation *to) const {
-    if (!from || !to || from == to)
-      return false;
-    SmallPtrSet<Operation *, 16> seen;
-    SmallVector<Operation *, 16> stack({from});
-    while (!stack.empty()) {
-      Operation *cur = stack.pop_back_val();
-      auto it = succ.find(cur);
-      if (it == succ.end())
-        continue;
-      for (Operation *next : it->second) {
-        if (next == to)
-          return true;
-        if (seen.insert(next).second)
-          stack.push_back(next);
-      }
-    }
-    return false;
-  }
-};
-
-static void walkSeq(Block &block, ArrayRef<Operation *> incoming,
-                    SmallVectorImpl<Operation *> &outgoing, HBGraph &g);
-
-static void walkOp(Operation *op, ArrayRef<Operation *> incoming,
-                   SmallVectorImpl<Operation *> &outgoing, HBGraph &g) {
-  if (auto task = dyn_cast<TaskOp>(op)) {
-    SmallVector<Operation *> bodyOut;
-    walkSeq(task.getBody().front(), incoming, bodyOut, g);
-    g.addEdges(bodyOut, op);
-    outgoing.assign(bodyOut.begin(), bodyOut.end());
-    outgoing.push_back(op);
-    return;
-  }
-
-  if (auto conc = dyn_cast<ConcurrentOp>(op)) {
-    SmallVector<Operation *> join;
-    for (TaskOp task : conc.getBody().front().getOps<TaskOp>()) {
-      SmallVector<Operation *> taskOut;
-      walkOp(task, incoming, taskOut, g);
-      join.append(taskOut.begin(), taskOut.end());
-    }
-    g.addEdges(join, op);
-    outgoing = std::move(join);
-    outgoing.push_back(op);
-    return;
-  }
-
-  if (auto pipe = dyn_cast<PipelineOp>(op)) {
-    SmallVector<Operation *> cur(incoming.begin(), incoming.end());
-    for (StageOp stage : pipe.getBody().front().getOps<StageOp>()) {
-      SmallVector<Operation *> stageOut;
-      walkSeq(stage.getBody().front(), cur, stageOut, g);
-      g.addEdges(stageOut, stage);
-      cur = std::move(stageOut);
-      cur.push_back(stage);
-    }
-    g.addEdges(cur, op);
-    outgoing = std::move(cur);
-    outgoing.push_back(op);
-    return;
-  }
-
-  if (auto overlap = dyn_cast<OverlapOp>(op)) {
-    SmallVector<Operation *> computeOut, commOut;
-    walkSeq(overlap.getCompute().front(), incoming, computeOut, g);
-    walkSeq(overlap.getCommunicate().front(), incoming, commOut, g);
-    SmallVector<Operation *> join(computeOut.begin(), computeOut.end());
-    join.append(commOut.begin(), commOut.end());
-    g.addEdges(join, op);
-    outgoing = std::move(join);
-    outgoing.push_back(op);
-    return;
-  }
-
-  if (auto forOp = dyn_cast<scf::ForOp>(op)) {
-    if (forOp.getBodyRegion().empty()) {
-      g.addEdges(incoming, op);
-      outgoing.assign({op});
-      return;
-    }
-    SmallVector<Operation *> bodyOut;
-    walkSeq(*forOp.getBody(), incoming, bodyOut, g);
-    g.addEdges(bodyOut, op);
-    outgoing = std::move(bodyOut);
-    outgoing.push_back(op);
-    return;
-  }
-
-  if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
-    SmallVector<Operation *> join;
-    if (Block *thenB = ifOp.thenBlock()) {
-      SmallVector<Operation *> out;
-      walkSeq(*thenB, incoming, out, g);
-      join.append(out.begin(), out.end());
-    }
-    if (Block *elseB = ifOp.elseBlock()) {
-      SmallVector<Operation *> out;
-      walkSeq(*elseB, incoming, out, g);
-      join.append(out.begin(), out.end());
-    }
-    g.addEdges(join, op);
-    outgoing = std::move(join);
-    outgoing.push_back(op);
-    return;
-  }
-
-  if (auto sw = dyn_cast<scf::IndexSwitchOp>(op)) {
-    SmallVector<Operation *> join;
-    for (Region &region : sw->getRegions()) {
-      if (region.empty())
-        continue;
-      SmallVector<Operation *> out;
-      walkSeq(region.front(), incoming, out, g);
-      join.append(out.begin(), out.end());
-    }
-    g.addEdges(join, op);
-    outgoing = std::move(join);
-    outgoing.push_back(op);
-    return;
-  }
-
-  g.addEdges(incoming, op);
-  if (isa<WaitOp, BarrierOp>(op)) {
-    for (Value token : op->getOperands()) {
-      if (Operation *def = token.getDefiningOp())
-        g.addEdge(def, op);
-    }
-  }
-  outgoing.assign({op});
-}
-
-static void walkSeq(Block &block, ArrayRef<Operation *> incoming,
-                    SmallVectorImpl<Operation *> &outgoing, HBGraph &g) {
-  SmallVector<Operation *> frontier(incoming.begin(), incoming.end());
-  for (Operation &op : block.without_terminator()) {
-    SmallVector<Operation *> next;
-    walkOp(&op, frontier, next, g);
-    frontier = std::move(next);
-  }
-  if (Operation *term = block.getTerminator()) {
-    g.addEdges(frontier, term);
-    outgoing.assign({term});
-    return;
-  }
-  outgoing = std::move(frontier);
-}
-
-static bool consumesToken(Operation *op, Value token) {
-  return isa<WaitOp, BarrierOp>(op) && llvm::is_contained(op->getOperands(), token);
-}
-
-static bool eventVisible(Value token, Operation *read, const HBGraph &g) {
-  for (OpOperand &use : token.getUses()) {
-    Operation *user = use.getOwner();
-    if (consumesToken(user, token) && g.reaches(user, read))
-      return true;
-  }
-  return false;
-}
-
-static bool checkFrozenExecution(ModuleOp module, const HBGraph &g) {
-  SmallVector<std::pair<Operation *, Value>> reads;
-  llvm::DenseMap<Value, SmallVector<Operation *>> syncWrites;
-  SmallVector<std::pair<Value, Value>> eventWrites;
-
-  module.walk([&](Operation *op) {
-    if (auto pack = dyn_cast<PackOp>(op))
-      syncWrites[pack.getBuffer()].push_back(op);
-    else if (auto xfer = dyn_cast<TransferOp>(op)) {
-      syncWrites[xfer.getBuffer()].push_back(op);
-      reads.push_back({op, xfer.getSource()});
-    } else if (auto copy = dyn_cast<CopyOp>(op)) {
-      reads.push_back({op, copy.getSrc()});
-      if (copy.getNumResults() == 0)
-        syncWrites[copy.getDst()].push_back(op);
-      else {
-        eventWrites.push_back({copy.getToken(), copy.getDst()});
-        if (auto task = op->getParentOfType<TaskOp>())
-          eventWrites.push_back({task.getToken(), copy.getDst()});
-      }
-    } else if (auto stream = dyn_cast<StreamOp>(op)) {
-      reads.push_back({op, stream.getSrc()});
-      eventWrites.push_back({stream.getToken(), stream.getDst()});
-      if (auto task = op->getParentOfType<TaskOp>())
-        eventWrites.push_back({task.getToken(), stream.getDst()});
-    } else if (auto unpack = dyn_cast<UnpackOp>(op)) {
-      reads.push_back({op, unpack.getBuffer()});
-    }
-  });
-
-  bool aliased = true;
-  while (aliased) {
-    aliased = false;
-    module.walk([&](Operation *op) {
-      auto copyWrites = [&](Value from, Value to) {
-        if (from == to)
-          return;
-        for (Operation *write : syncWrites.lookup(from)) {
-          auto &dst = syncWrites[to];
-          if (!llvm::is_contained(dst, write)) {
-            dst.push_back(write);
-            aliased = true;
-          }
-        }
-      };
-      if (auto task = dyn_cast<TaskOp>(op)) {
-        if (task.getBody().empty())
-          return;
-        auto yield = dyn_cast<YieldOp>(task.getBody().front().getTerminator());
-        if (!yield)
-          return;
-        for (auto [from, to] : llvm::zip(yield.getOperands(), task.getValues()))
-          copyWrites(from, to);
-      } else if (auto conc = dyn_cast<ConcurrentOp>(op)) {
-        if (conc.getBody().empty())
-          return;
-        auto yield = dyn_cast<YieldOp>(conc.getBody().front().getTerminator());
-        if (!yield)
-          return;
-        for (auto [from, to] :
-             llvm::zip(yield.getOperands(), conc.getResults()))
-          copyWrites(from, to);
-      } else if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
-        for (Region &region : ifOp->getRegions()) {
-          if (region.empty())
-            continue;
-          auto yield = dyn_cast<scf::YieldOp>(region.front().getTerminator());
-          if (!yield)
-            continue;
-          for (auto [from, to] :
-               llvm::zip(yield.getOperands(), ifOp.getResults()))
-            copyWrites(from, to);
-        }
-      } else if (auto sw = dyn_cast<scf::IndexSwitchOp>(op)) {
-        for (Region &region : sw->getRegions()) {
-          if (region.empty())
-            continue;
-          auto yield = dyn_cast<scf::YieldOp>(region.front().getTerminator());
-          if (!yield)
-            continue;
-          for (auto [from, to] :
-               llvm::zip(yield.getOperands(), sw.getResults()))
-            copyWrites(from, to);
-        }
-      } else if (auto forOp = dyn_cast<scf::ForOp>(op)) {
-        if (forOp.getBodyRegion().empty())
-          return;
-        auto yield = dyn_cast<scf::YieldOp>(forOp.getBody()->getTerminator());
-        if (!yield)
-          return;
-        for (auto [from, to] :
-             llvm::zip(yield.getOperands(), forOp.getResults()))
-          copyWrites(from, to);
-        for (auto [from, to] :
-             llvm::zip(yield.getOperands(), forOp.getRegionIterArgs()))
-          copyWrites(from, to);
-        for (auto [from, to] :
-             llvm::zip(forOp.getInitArgs(), forOp.getRegionIterArgs()))
-          copyWrites(from, to);
-      }
-    });
-  }
-
-  bool failed = false;
-  for (auto [readOp, residency] : reads) {
-    bool defined = false;
-    for (Operation *write : syncWrites.lookup(residency)) {
-      if (g.reaches(write, readOp)) {
-        defined = true;
-        break;
-      }
-    }
-    if (!defined) {
-      for (auto [token, dest] : eventWrites) {
-        if (dest == residency && eventVisible(token, readOp, g)) {
-          defined = true;
-          break;
-        }
-      }
-    }
-    if (!defined) {
-      readOp->emitOpError("read of residency is undefined: no happens-before "
-                          "from a validity-establishing write");
-      failed = true;
-    }
-  }
-  return failed;
-}
-
 static bool isAllToAll(Operation *op) {
   return op->getName().getStringRef() == "shard.all_to_all";
 }
@@ -486,254 +184,6 @@ static bool shapesMatchCollective(Operation *op, int64_t meshSize) {
   return inDim == outDim * meshSize;
 }
 
-// Rank-indexed HB_D. Intra-rank program order stays inside one rank.
-// Textual order across ranks and the numeric rank id are not edges.
-// Cross-rank edges are collective dependencies (C_q^in → C_complete_r)
-// or an explicit wait / barrier.
-struct RankGraph {
-  llvm::DenseMap<Operation *, SmallVector<Operation *, 2>> succ;
-
-  void addEdge(Operation *from, Operation *to) {
-    if (!from || !to || from == to)
-      return;
-    auto &list = succ[from];
-    if (!llvm::is_contained(list, to))
-      list.push_back(to);
-  }
-
-  void addEdges(ArrayRef<Operation *> froms, Operation *to) {
-    for (Operation *from : froms)
-      addEdge(from, to);
-  }
-
-  bool reaches(Operation *from, Operation *to) const {
-    if (!from || !to || from == to)
-      return false;
-    SmallPtrSet<Operation *, 16> seen;
-    SmallVector<Operation *, 16> stack({from});
-    while (!stack.empty()) {
-      Operation *cur = stack.pop_back_val();
-      auto it = succ.find(cur);
-      if (it == succ.end())
-        continue;
-      for (Operation *next : it->second) {
-        if (next == to)
-          return true;
-        if (seen.insert(next).second)
-          stack.push_back(next);
-      }
-    }
-    return false;
-  }
-};
-
-using RankFrontier = llvm::DenseMap<int64_t, SmallVector<Operation *, 2>>;
-
-static std::optional<int64_t> rankOf(Operation *op);
-
-static void walkRankSeq(Block &block, RankFrontier &front, RankGraph &g);
-
-static bool isDirectConcurrentChild(Operation *op) {
-  return isa<ConcurrentOp>(op->getParentOp());
-}
-
-static void walkRankOp(Operation *op, RankFrontier &front, RankGraph &g) {
-  if (auto task = dyn_cast<TaskOp>(op)) {
-    if (task.getBody().empty())
-      return;
-    if (isDirectConcurrentChild(op)) {
-      RankFrontier copy = front;
-      walkRankSeq(task.getBody().front(), copy, g);
-    } else {
-      walkRankSeq(task.getBody().front(), front, g);
-    }
-    return;
-  }
-  if (auto conc = dyn_cast<ConcurrentOp>(op)) {
-    if (conc.getBody().empty())
-      return;
-    for (Operation &child : conc.getBody().front().without_terminator()) {
-      RankFrontier copy = front;
-      walkRankOp(&child, copy, g);
-    }
-    return;
-  }
-  if (auto pipe = dyn_cast<PipelineOp>(op)) {
-    if (pipe.getBody().empty())
-      return;
-    for (StageOp stage : pipe.getBody().front().getOps<StageOp>()) {
-      if (!stage.getBody().empty())
-        walkRankSeq(stage.getBody().front(), front, g);
-    }
-    return;
-  }
-  if (auto overlap = dyn_cast<OverlapOp>(op)) {
-    RankFrontier compute = front;
-    RankFrontier communicate = front;
-    if (!overlap.getCompute().empty())
-      walkRankSeq(overlap.getCompute().front(), compute, g);
-    if (!overlap.getCommunicate().empty())
-      walkRankSeq(overlap.getCommunicate().front(), communicate, g);
-    return;
-  }
-  if (auto forOp = dyn_cast<scf::ForOp>(op)) {
-    if (!forOp.getBodyRegion().empty()) {
-      RankFrontier copy = front;
-      walkRankSeq(*forOp.getBody(), copy, g);
-    }
-    return;
-  }
-  if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
-    if (Block *thenB = ifOp.thenBlock()) {
-      RankFrontier copy = front;
-      walkRankSeq(*thenB, copy, g);
-    }
-    if (Block *elseB = ifOp.elseBlock()) {
-      RankFrontier copy = front;
-      walkRankSeq(*elseB, copy, g);
-    }
-    return;
-  }
-  if (auto sw = dyn_cast<scf::IndexSwitchOp>(op)) {
-    for (Region &region : sw->getRegions()) {
-      if (region.empty())
-        continue;
-      RankFrontier copy = front;
-      walkRankSeq(region.front(), copy, g);
-    }
-    return;
-  }
-
-  std::optional<int64_t> rank = rankOf(op);
-  if (!rank) {
-    if (isa<WaitOp, BarrierOp>(op)) {
-      for (Value token : op->getOperands())
-        if (Operation *def = token.getDefiningOp())
-          g.addEdge(def, op);
-    }
-    return;
-  }
-  g.addEdges(front[*rank], op);
-  if (isa<WaitOp, BarrierOp>(op)) {
-    for (Value token : op->getOperands())
-      if (Operation *def = token.getDefiningOp())
-        g.addEdge(def, op);
-  }
-  front[*rank].assign({op});
-}
-
-static void walkRankSeq(Block &block, RankFrontier &front, RankGraph &g) {
-  for (Operation &op : block.without_terminator())
-    walkRankOp(&op, front, g);
-}
-
-static std::optional<int64_t> rankOf(Operation *op) {
-  if (auto localize = dyn_cast<LocalizeOp>(op))
-    return static_cast<int64_t>(localize.getRank());
-  if (auto materialize = dyn_cast<MaterializeOp>(op))
-    return ownerRank(materialize.getBuffer());
-  if (auto pack = dyn_cast<PackOp>(op))
-    return ownerRank(pack.getBuffer());
-  if (auto unpack = dyn_cast<UnpackOp>(op))
-    return ownerRank(unpack.getBuffer());
-  if (auto stream = dyn_cast<StreamOp>(op))
-    return ownerRank(stream.getSrc());
-  if (auto copy = dyn_cast<CopyOp>(op))
-    return ownerRank(copy.getSrc());
-  if (auto transfer = dyn_cast<TransferOp>(op))
-    return ownerRank(transfer.getBuffer());
-  if (isa<WaitOp, BarrierOp>(op)) {
-    for (Value token : op->getOperands()) {
-      if (Operation *def = token.getDefiningOp())
-        if (auto rank = rankOf(def))
-          return rank;
-    }
-  }
-  if (isV0Collective(op)) {
-    if (auto unpack = op->getOperand(0).getDefiningOp<UnpackOp>())
-      return ownerRank(unpack.getBuffer());
-  }
-  if (op->getName().getStringRef().starts_with("comp.")) {
-    for (Value value : op->getOperands()) {
-      if (auto unpack = value.getDefiningOp<UnpackOp>())
-        if (auto rank = ownerRank(unpack.getBuffer()))
-          return rank;
-    }
-  }
-  return std::nullopt;
-}
-
-static bool isCollectiveResult(Value value, ArrayRef<Operation *> collectives) {
-  for (Operation *collective : collectives)
-    if (value == collective->getResult(0))
-      return true;
-  return false;
-}
-
-static void addCollectiveDeps(func::FuncOp func, RankGraph &g) {
-  struct Inst {
-    Operation *collective = nullptr;
-    Operation *input = nullptr;
-    int64_t rank = 0;
-    SmallVector<Operation *> resultPacks;
-  };
-  llvm::DenseMap<StringRef, llvm::DenseMap<StringRef, SmallVector<Inst>>> grouped;
-  SmallVector<Operation *> collectives;
-  func.walk([&](Operation *op) {
-    if (isV0Collective(op))
-      collectives.push_back(op);
-  });
-  for (Operation *op : collectives) {
-    auto unpack = op->getOperand(0).getDefiningOp<UnpackOp>();
-    if (!unpack)
-      continue;
-    auto rank = ownerRank(unpack.getBuffer());
-    if (!rank)
-      continue;
-    Inst inst;
-    inst.collective = op;
-    inst.input = unpack;
-    inst.rank = *rank;
-    func.walk([&](PackOp pack) {
-      if (pack.getValue() != op->getResult(0))
-        return;
-      auto owner = ownerRank(pack.getBuffer());
-      if (owner && *owner == *rank)
-        inst.resultPacks.push_back(pack);
-    });
-    shard::GridOp grid = gridOf(op);
-    StringRef gridName = grid ? grid.getSymName() : "";
-    grouped[gridName][op->getName().getStringRef()].push_back(std::move(inst));
-  }
-  for (auto &byName : grouped) {
-    for (auto &entry : byName.second) {
-      SmallVector<Inst> &insts = entry.second;
-      for (Inst &self : insts) {
-        // C_r^in → C_complete_r → C_r^out
-        g.addEdge(self.input, self.collective);
-        for (Operation *out : self.resultPacks)
-          g.addEdge(self.collective, out);
-        for (Inst &other : insts) {
-          if (other.rank == self.rank)
-            continue;
-          // CDEP from the other rank's input. Rank order is not an edge.
-          g.addEdge(other.input, self.collective);
-          for (Operation *out : self.resultPacks)
-            g.addEdge(other.collective, out);
-        }
-      }
-    }
-  }
-}
-
-static void buildRankGraph(func::FuncOp func, RankGraph &g) {
-  if (func.getBody().empty())
-    return;
-  RankFrontier front;
-  walkRankSeq(func.getBody().front(), front, g);
-  addCollectiveDeps(func, g);
-}
-
 static std::optional<bool> shardingReplicated(Operation *emitOn, Value buffer) {
   Value obj = getLogicalObject(buffer);
   if (!obj)
@@ -749,7 +199,7 @@ static std::optional<bool> shardingReplicated(Operation *emitOn, Value buffer) {
   return tile->replicated;
 }
 
-static LogicalResult checkFunction(func::FuncOp func, const HBGraph &g) {
+static LogicalResult checkFunction(func::FuncOp func) {
   SmallVector<Operation *> collectives;
   bool sawToAll = false;
   Operation *toAll = nullptr;
@@ -878,8 +328,15 @@ static LogicalResult checkFunction(func::FuncOp func, const HBGraph &g) {
   if (pairFault)
     return *pairFault;
 
-  RankGraph rankGraph;
-  buildRankGraph(func, rankGraph);
+  auto isCollectiveResult = [&](Value value) {
+    for (Operation *collective : collectives)
+      if (value == collective->getResult(0))
+        return true;
+    return false;
+  };
+
+  exec::HBGraph rankGraph;
+  exec::buildHbD(func, rankGraph);
 
   // ParticipantExists is not ParticipantContributes. The operand has to be
   // this rank's unpack, and every rank's input pack has to be that operand.
@@ -898,7 +355,7 @@ static LogicalResult checkFunction(func::FuncOp func, const HBGraph &g) {
         auto owner = ownerRank(pack.getBuffer());
         if (!owner || *owner != rank)
           return;
-        if (!isCollectiveResult(pack.getValue(), collectives))
+        if (!isCollectiveResult(pack.getValue()))
           hasInputPack = true;
       });
       for (Operation *collective : collectives) {
@@ -1040,14 +497,9 @@ struct CheckS2C2HbD : impl::CheckS2C2HbDBase<CheckS2C2HbD> {
 
   void runOnOperation() override {
     ModuleOp module = getOperation();
-    HBGraph g;
-    for (func::FuncOp func : module.getOps<func::FuncOp>()) {
-      if (func.getBody().empty())
-        continue;
-      SmallVector<Operation *> unused;
-      walkSeq(func.getBody().front(), {}, unused, g);
-    }
-    if (checkFrozenExecution(module, g)) {
+    exec::HBGraph graph;
+    exec::buildProgramOrder(module, graph);
+    if (exec::checkResidencyValidity(module, graph)) {
       signalPassFailure();
       return;
     }
@@ -1063,7 +515,7 @@ struct CheckS2C2HbD : impl::CheckS2C2HbDBase<CheckS2C2HbD> {
 
     bool sawFault = false;
     for (func::FuncOp func : module.getOps<func::FuncOp>()) {
-      if (mlir::failed(checkFunction(func, g)))
+      if (mlir::failed(checkFunction(func)))
         sawFault = true;
     }
     if (sawFault)

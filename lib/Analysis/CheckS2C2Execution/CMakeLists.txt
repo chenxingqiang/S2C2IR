@@ -8,6 +8,7 @@ add_mlir_library(S2C2CheckExecution
   S2C2ConversionPassIncGen
 
   LINK_LIBS PUBLIC
+  S2C2ExecutionModel
   S2C2Comm
   S2C2Schedule
   S2C2Storage
