@@ -48,7 +48,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             ninja-build libstdc++-14-dev \
-            clang-22 llvm-22-dev llvm-22-tools libmlir-22-dev mlir-22-tools
+            clang-22 llvm-22-dev llvm-22-tools libmlir-22-dev mlir-22-tools \
+            libopenmpi-dev openmpi-bin
       - name: Install lit
         # lit 23 rejects this tree's lit.cfg.py. Match the LLVM 18 line.
         run: |
