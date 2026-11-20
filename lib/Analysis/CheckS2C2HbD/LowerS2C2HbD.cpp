@@ -18,11 +18,13 @@
 #include "s2c2/ExecutionModel/EventDependency.h"
 #include "s2c2/ExecutionModel/HBGraph.h"
 #include "s2c2/ExecutionModel/RankContext.h"
+#include "s2c2/ExecutionModel/ValidityAnalysis.h"
 #include "s2c2/S2C2Passes.h"
 #include "s2c2/Schedule/ScheduleOps.h"
 #include "s2c2/Storage/StorageOps.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Shard/IR/ShardOps.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -41,6 +43,7 @@ namespace mlir::s2c2 {
 #include "s2c2/S2C2Passes.h.inc"
 
 using sched::ConcurrentOp;
+using sched::OverlapOp;
 using sched::TaskOp;
 using sched::TokenType;
 using sched::WaitOp;
@@ -244,16 +247,66 @@ static void collectActions(Operation *op, SmallVectorImpl<Operation *> &actions)
       collectActions(&inner, actions);
     return;
   }
+  // Schedule wrappers inside scf.for / scf.if / index_switch are part of
+  // the linear extension. Leaving the region opaque drops them on erase.
+  if (isa<scf::ForOp, scf::IfOp, scf::IndexSwitchOp, OverlapOp>(op)) {
+    for (Region &region : op->getRegions()) {
+      if (region.empty())
+        continue;
+      for (Operation &inner : region.front().without_terminator())
+        collectActions(&inner, actions);
+    }
+    // The region op stays in the linear extension so its operands are
+    // still ordered before it after the body has been lifted out.
+    actions.push_back(op);
+    return;
+  }
   actions.push_back(op);
+}
+
+static void dropToken(WaitOp wait, Value token) {
+  SmallVector<Value> kept;
+  for (Value operand : wait.getTokens())
+    if (operand != token)
+      kept.push_back(operand);
+  wait.getOperation()->setOperands(kept);
+}
+
+static LogicalResult checkSyncHoist(func::FuncOp func,
+                                    ArrayRef<Operation *> actions) {
+  for (Operation *op : actions) {
+    Region *region = op->getParentRegion();
+    if (!region || isa<func::FuncOp>(region->getParentOp()))
+      continue;
+    for (Value value : op->getOperands()) {
+      auto arg = dyn_cast<BlockArgument>(value);
+      if (!arg)
+        continue;
+      Operation *owner = arg.getParentRegion()->getParentOp();
+      if (owner && !isa<func::FuncOp>(owner))
+        return op->emitOpError("sync lowering does not lift a region argument");
+    }
+  }
+  WalkResult waits = func.walk([&](TaskOp task) -> WalkResult {
+    for (Operation *user : task.getToken().getUsers()) {
+      auto wait = dyn_cast<WaitOp>(user);
+      if (!wait || !exec::textuallyBefore(task.getOperation(), wait))
+        return task.emitOpError("sync lowering cannot order a task token wait");
+    }
+    return WalkResult::advance();
+  });
+  return waits.wasInterrupted() ? failure() : success();
 }
 
 static LogicalResult flattenSchedules(func::FuncOp func, const exec::HBGraph &source) {
   if (func.getBody().empty() || !llvm::hasSingleElement(func.getBody()))
     return success();
-  forwardYields(func);
   SmallVector<Operation *> actions;
   for (Operation &op : func.getBody().front().without_terminator())
     collectActions(&op, actions);
+  if (failed(checkSyncHoist(func, actions)))
+    return failure();
+  forwardYields(func);
   exec::HBGraph order = source;
   llvm::DenseSet<Operation *> actionSet;
   for (Operation *op : actions)
@@ -271,6 +324,17 @@ static LogicalResult flattenSchedules(func::FuncOp func, const exec::HBGraph &so
   Operation *term = func.getBody().front().getTerminator();
   for (Operation *op : ordered)
     op->moveBefore(term);
+
+  SmallVector<TaskOp> tasks;
+  func.walk([&](TaskOp task) { tasks.push_back(task); });
+  for (TaskOp task : tasks) {
+    SmallVector<WaitOp> waits;
+    for (Operation *user : task.getToken().getUsers())
+      if (auto wait = dyn_cast<WaitOp>(user))
+        waits.push_back(wait);
+    for (WaitOp wait : waits)
+      dropToken(wait, task.getToken());
+  }
 
   SmallVector<Operation *> wrappers;
   func.walk<WalkOrder::PostOrder>([&](Operation *op) {
@@ -322,22 +386,9 @@ static LogicalResult checkContribution(func::FuncOp func, bool sync,
     if (!unpack || !rank)
       return collective->emitOpError(
           "collective operand is not this rank's local tensor");
-    bool sawPack = false;
-    bool packBefore = false;
-    func.walk([&](PackOp pack) {
-      if (pack.getBuffer() != unpack.getBuffer())
-        return;
-      if (exec::isCollectiveImage(pack.getValue(), collective))
-        return;
-      auto owner = exec::ownerRank(pack.getBuffer());
-      if (!owner || *owner != *rank)
-        return;
-      sawPack = true;
-      if (ordered(pack, collective))
-        packBefore = true;
-    });
-    if (sawPack && !packBefore)
-      return collective->emitOpError("rank pack does not enter the collective");
+    if (!exec::inputPackIsMustValid(unpack))
+      return collective->emitOpError(
+          "collective input is not valid on every path");
 
     bool sawResult = false;
     std::optional<LogicalResult> fault;
@@ -436,6 +487,10 @@ static LogicalResult checkLoweredShape(func::FuncOp func, const exec::HBGraph &g
     auto mesh = meshSizeOf(gridOf(collective));
     if (!mesh)
       continue;
+    auto consumed = collective->getOperand(0).getDefiningOp<UnpackOp>();
+    if (consumed && !exec::inputPackIsMustValid(consumed))
+      return collective->emitOpError(
+          "collective input is not valid on every path");
     for (int64_t rank = 0; rank < *mesh; ++rank) {
       bool hasLocalize = false;
       bool hasInput = false;

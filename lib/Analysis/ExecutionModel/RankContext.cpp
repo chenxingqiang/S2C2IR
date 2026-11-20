@@ -14,6 +14,7 @@
 #include "s2c2/Storage/StorageOps.h"
 
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
@@ -154,15 +155,15 @@ RankFrontier unionFrontiers(ArrayRef<RankFrontier> branches) {
   return joined;
 }
 
-// A child copied the incoming frontier, so ranks it did not touch still hold
-// the old ops. Publishing those would erase a sibling's update.
-void overlayChanged(RankFrontier &dst, const RankFrontier &before,
-                    const RankFrontier &after) {
-  for (const auto &entry : after) {
-    auto it = before.find(entry.first);
-    if (it == before.end() || it->second != entry.second)
-      dst[entry.first] = entry.second;
-  }
+// A lane copied the incoming frontier. Only ranks it changed contribute
+// exits; untouched ranks still hold the pre-overlap ops.
+bool rankChanged(const RankFrontier &before, const RankFrontier &after,
+                 int64_t rank) {
+  auto afterIt = after.find(rank);
+  if (afterIt == after.end())
+    return false;
+  auto beforeIt = before.find(rank);
+  return beforeIt == before.end() || beforeIt->second != afterIt->second;
 }
 
 void walkOp(Operation *op, RankFrontier &front, HBGraph &graph) {
@@ -212,6 +213,7 @@ void walkOp(Operation *op, RankFrontier &front, HBGraph &graph) {
     return;
   }
   if (auto overlap = dyn_cast<OverlapOp>(op)) {
+    // Both lanes run. A changed rank keeps every changed lane's exit.
     RankFrontier before = front;
     RankFrontier compute = before;
     RankFrontier communicate = before;
@@ -219,8 +221,21 @@ void walkOp(Operation *op, RankFrontier &front, HBGraph &graph) {
       walkSeq(overlap.getCompute().front(), compute, graph);
     if (!overlap.getCommunicate().empty())
       walkSeq(overlap.getCommunicate().front(), communicate, graph);
-    overlayChanged(front, before, compute);
-    overlayChanged(front, before, communicate);
+    llvm::SmallDenseSet<int64_t, 4> ranks;
+    for (const RankFrontier &lane : {compute, communicate})
+      for (const auto &entry : lane)
+        ranks.insert(entry.first);
+    for (int64_t rank : ranks) {
+      bool computeChanged = rankChanged(before, compute, rank);
+      bool communicateChanged = rankChanged(before, communicate, rank);
+      if (!computeChanged && !communicateChanged)
+        continue;
+      front[rank].clear();
+      if (computeChanged)
+        unionInto(front[rank], compute.find(rank)->second);
+      if (communicateChanged)
+        unionInto(front[rank], communicate.find(rank)->second);
+    }
     return;
   }
   if (auto forOp = dyn_cast<scf::ForOp>(op)) {
