@@ -17,6 +17,7 @@ add_mlir_library(S2C2Cost
   S2C2ConversionPassIncGen
 
   LINK_LIBS PUBLIC
+  S2C2ExecutionModel
   S2C2Comm
   S2C2Compute
   S2C2Schedule
