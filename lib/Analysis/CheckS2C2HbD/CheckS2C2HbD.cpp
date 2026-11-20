@@ -371,6 +371,16 @@ static LogicalResult checkFunction(func::FuncOp func) {
             "rank pack does not enter the collective");
     }
   }
+  for (Operation *collective : collectives) {
+    auto unpack = collective->getOperand(0).getDefiningOp<UnpackOp>();
+    if (!unpack)
+      continue;
+    // One reaching pack is not a write on every feasible path, and a pack
+    // after this unpack does not feed the value the collective already read.
+    if (!exec::inputPackIsMustValid(unpack))
+      return collective->emitOpError(
+          "collective input is not valid on every path");
+  }
 
   for (Operation *collective : collectives) {
     auto unpack = collective->getOperand(0).getDefiningOp<UnpackOp>();
