@@ -201,10 +201,11 @@ def CheckS2C2Distribution : Pass<"check-s2c2-distribution", "::mlir::ModuleOp"> 
 def CheckS2C2HbD : Pass<"check-s2c2-hb-d", "::mlir::ModuleOp"> {
   let summary = "Rank-indexed happens-before for distributed event-validity v0";
   let description = [{
-    Builds HB_D: intra-rank happens-before is the frozen relation, and a
-    well-formed shard.all_reduce, shard.all_gather, or shard.reduce_scatter
-    orders every rank's input pack before the collective and the collective
-    before every rank's result pack. MeshSize 1 adds no cross-rank edge.
+    Builds HB_D: intra-rank happens-before is the frozen relation, and each
+    matched shard.all_reduce, shard.all_gather, or shard.reduce_scatter
+    callsite orders that instance's input packs before the collective and
+    the collective before that instance's result packs. The participant key
+    is (mesh, callsite, rank). MeshSize 1 adds no cross-rank edge.
     Does not lower tokens and does not call a runtime.
   }];
 }

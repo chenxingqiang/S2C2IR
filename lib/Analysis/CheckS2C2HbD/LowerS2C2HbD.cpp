@@ -123,8 +123,15 @@ static void recordEdges(func::FuncOp func, const exec::HBGraph &graph,
     if (anchorId(op) > 0)
       anchors.push_back(op);
   });
+  auto scheduleWrapper = [](Operation *op) {
+    return isa<TaskOp, ConcurrentOp, YieldOp>(op);
+  };
   for (Operation *from : anchors) {
+    if (scheduleWrapper(from))
+      continue;
     for (Operation *to : anchors) {
+      if (scheduleWrapper(to))
+        continue;
       if (graph.reaches(from, to)) {
         rel.edges.push_back(anchorId(from));
         rel.edges.push_back(anchorId(to));

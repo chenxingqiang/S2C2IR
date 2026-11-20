@@ -1,4 +1,5 @@
 // The mesh has two ranks. One rank enters. MPI is not called.
+// REQUIRES: mpi
 // RUN: not mpirun --allow-run-as-root --bind-to none -n 2 s2c2-dist-runtime %s 2>&1 | FileCheck %s
 
 // CHECK: error: runtime participants do not match the mesh

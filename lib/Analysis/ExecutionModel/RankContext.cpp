@@ -14,6 +14,7 @@
 #include "s2c2/Storage/StorageOps.h"
 
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
 using namespace mlir::s2c2;
@@ -43,6 +44,47 @@ std::optional<int64_t> mlir::s2c2::exec::ownerRank(Value buffer) {
   return std::nullopt;
 }
 
+namespace {
+
+std::optional<int64_t> taskRank(TaskOp task) {
+  std::optional<int64_t> found;
+  task.walk([&](Operation *op) {
+    if (op == task.getOperation() || found)
+      return;
+    if (auto pack = dyn_cast<PackOp>(op))
+      found = ownerRank(pack.getBuffer());
+    else if (auto unpack = dyn_cast<UnpackOp>(op))
+      found = ownerRank(unpack.getBuffer());
+    else if (isV0Collective(op)) {
+      if (auto consumed = op->getOperand(0).getDefiningOp<UnpackOp>())
+        found = ownerRank(consumed.getBuffer());
+    }
+  });
+  return found;
+}
+
+// Every ranked operand must agree. The first operand does not own the op.
+std::optional<int64_t> compRank(Operation *op) {
+  std::optional<int64_t> seen;
+  for (Value value : op->getOperands()) {
+    std::optional<int64_t> rank;
+    if (auto unpack = value.getDefiningOp<UnpackOp>())
+      rank = ownerRank(unpack.getBuffer());
+    else if (Operation *def = value.getDefiningOp())
+      if (def->getName().getStringRef().starts_with("comp."))
+        rank = compRank(def);
+    if (!rank)
+      continue;
+    if (!seen)
+      seen = rank;
+    else if (*seen != *rank)
+      return std::nullopt;
+  }
+  return seen;
+}
+
+} // namespace
+
 std::optional<int64_t> mlir::s2c2::exec::rankOf(Operation *op) {
   if (!op)
     return std::nullopt;
@@ -60,8 +102,13 @@ std::optional<int64_t> mlir::s2c2::exec::rankOf(Operation *op) {
     return ownerRank(copy.getSrc());
   if (auto transfer = dyn_cast<TransferOp>(op))
     return ownerRank(transfer.getBuffer());
+  if (auto task = dyn_cast<TaskOp>(op))
+    return taskRank(task);
   if (isa<WaitOp, BarrierOp>(op)) {
     for (Value token : op->getOperands()) {
+      if (auto task = token.getDefiningOp<TaskOp>())
+        if (auto rank = taskRank(task))
+          return rank;
       if (Operation *def = token.getDefiningOp())
         if (auto rank = rankOf(def))
           return rank;
@@ -71,13 +118,8 @@ std::optional<int64_t> mlir::s2c2::exec::rankOf(Operation *op) {
     if (auto unpack = op->getOperand(0).getDefiningOp<UnpackOp>())
       return ownerRank(unpack.getBuffer());
   }
-  if (op->getName().getStringRef().starts_with("comp.")) {
-    for (Value value : op->getOperands()) {
-      if (auto unpack = value.getDefiningOp<UnpackOp>())
-        if (auto rank = ownerRank(unpack.getBuffer()))
-          return rank;
-    }
-  }
+  if (op->getName().getStringRef().starts_with("comp."))
+    return compRank(op);
   return std::nullopt;
 }
 
@@ -87,9 +129,29 @@ using RankFrontier = llvm::DenseMap<int64_t, SmallVector<Operation *, 2>>;
 
 void walkSeq(Block &block, RankFrontier &front, HBGraph &graph);
 
-void overlay(RankFrontier &dst, const RankFrontier &src) {
-  for (const auto &entry : src)
-    dst[entry.first] = entry.second;
+void unionInto(SmallVector<Operation *, 2> &dst, ArrayRef<Operation *> src) {
+  for (Operation *op : src)
+    if (!llvm::is_contained(dst, op))
+      dst.push_back(op);
+}
+
+RankFrontier unionFrontiers(ArrayRef<RankFrontier> branches) {
+  RankFrontier joined;
+  SmallVector<int64_t> ranks;
+  for (const RankFrontier &branch : branches) {
+    for (const auto &entry : branch)
+      if (!llvm::is_contained(ranks, entry.first))
+        ranks.push_back(entry.first);
+  }
+  for (int64_t rank : ranks) {
+    auto &dst = joined[rank];
+    for (const RankFrontier &branch : branches) {
+      auto it = branch.find(rank);
+      if (it != branch.end())
+        unionInto(dst, it->second);
+    }
+  }
+  return joined;
 }
 
 // A child copied the incoming frontier, so ranks it did not touch still hold
@@ -105,20 +167,39 @@ void overlayChanged(RankFrontier &dst, const RankFrontier &before,
 
 void walkOp(Operation *op, RankFrontier &front, HBGraph &graph) {
   if (auto task = dyn_cast<TaskOp>(op)) {
+    // The task token is the completion event. The last body op is not.
+    RankFrontier before = front;
     if (!task.getBody().empty())
       walkSeq(task.getBody().front(), front, graph);
+    SmallVector<std::pair<int64_t, SmallVector<Operation *, 2>>> changed;
+    for (const auto &entry : front) {
+      auto it = before.find(entry.first);
+      if (it != before.end() && it->second == entry.second)
+        continue;
+      changed.push_back({entry.first, entry.second});
+    }
+    for (auto &entry : changed) {
+      graph.addEdges(entry.second, task);
+      front[entry.first].assign({task.getOperation()});
+    }
     return;
   }
   if (auto conc = dyn_cast<ConcurrentOp>(op)) {
     if (conc.getBody().empty())
       return;
-    RankFrontier joined = front;
+    llvm::DenseMap<int64_t, SmallVector<Operation *, 2>> exits;
     for (Operation &child : conc.getBody().front().without_terminator()) {
       RankFrontier copy = front;
       walkOp(&child, copy, graph);
-      overlayChanged(joined, front, copy);
+      for (const auto &entry : copy) {
+        auto it = front.find(entry.first);
+        if (it != front.end() && it->second == entry.second)
+          continue;
+        unionInto(exits[entry.first], entry.second);
+      }
     }
-    front = std::move(joined);
+    for (const auto &entry : exits)
+      front[entry.first] = entry.second;
     return;
   }
   if (auto pipe = dyn_cast<PipelineOp>(op)) {
@@ -143,37 +224,43 @@ void walkOp(Operation *op, RankFrontier &front, HBGraph &graph) {
     return;
   }
   if (auto forOp = dyn_cast<scf::ForOp>(op)) {
-    if (!forOp.getBodyRegion().empty()) {
-      RankFrontier copy = front;
-      walkSeq(*forOp.getBody(), copy, graph);
-    }
+    if (forOp.getBodyRegion().empty())
+      return;
+    RankFrontier copy = front;
+    walkSeq(*forOp.getBody(), copy, graph);
+    for (const auto &entry : copy)
+      unionInto(front[entry.first], entry.second);
     return;
   }
   if (auto ifOp = dyn_cast<scf::IfOp>(op)) {
-    RankFrontier joined = front;
+    SmallVector<RankFrontier, 2> branches;
     if (Block *thenB = ifOp.thenBlock()) {
       RankFrontier copy = front;
       walkSeq(*thenB, copy, graph);
-      overlay(joined, copy);
+      branches.push_back(std::move(copy));
     }
     if (Block *elseB = ifOp.elseBlock()) {
       RankFrontier copy = front;
       walkSeq(*elseB, copy, graph);
-      overlay(joined, copy);
+      branches.push_back(std::move(copy));
+    } else {
+      branches.push_back(front);
     }
-    front = std::move(joined);
+    if (!branches.empty())
+      front = unionFrontiers(branches);
     return;
   }
   if (auto sw = dyn_cast<scf::IndexSwitchOp>(op)) {
-    RankFrontier joined = front;
+    SmallVector<RankFrontier, 4> branches;
     for (Region &region : sw->getRegions()) {
       if (region.empty())
         continue;
       RankFrontier copy = front;
       walkSeq(region.front(), copy, graph);
-      overlay(joined, copy);
+      branches.push_back(std::move(copy));
     }
-    front = std::move(joined);
+    if (!branches.empty())
+      front = unionFrontiers(branches);
     return;
   }
 

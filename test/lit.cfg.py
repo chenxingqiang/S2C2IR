@@ -19,6 +19,8 @@ llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
 llvm_config.use_default_substitutions()
 
 config.excludes = ["Inputs", "CMakeLists.txt", "README.txt", "LICENSE.txt"]
+if getattr(config, "s2c2_enable_mpi_runtime", False):
+    config.available_features.add("mpi")
 
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 

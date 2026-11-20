@@ -1,5 +1,6 @@
 // Host MPI, not a device. No GPU and no NPU. Completion is !sched.token.
 // A trace timestamp is not the witness. RUN uses two host ranks.
+// REQUIRES: mpi
 // RUN: mpirun --allow-run-as-root --bind-to none -n 2 s2c2-dist-runtime %s | FileCheck %s
 
 // CHECK: runtime mpi

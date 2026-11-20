@@ -28,7 +28,6 @@
 #include "mlir/Dialect/Shard/IR/ShardOps.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/SymbolTable.h"
 #include "mlir/Parser/Parser.h"
 
 #include "llvm/Support/MemoryBuffer.h"
@@ -37,7 +36,6 @@
 
 #include <mpi.h>
 
-#include <algorithm>
 #include <optional>
 #include <string>
 #include <vector>
@@ -88,26 +86,6 @@ bool eventSatisfies(const RuntimeEvent &event, const Requirement &req) {
   (void)event.mpiOk;
   (void)req;
   return true;
-}
-
-int64_t meshSizeOf(shard::GridOp grid) {
-  if (!grid || grid.getShape().empty())
-    return 0;
-  int64_t n = 1;
-  for (int64_t extent : grid.getShape()) {
-    if (extent <= 0)
-      return 0;
-    n *= extent;
-  }
-  return n;
-}
-
-shard::GridOp gridOf(Operation *op) {
-  auto sym = op->getAttrOfType<FlatSymbolRefAttr>("grid");
-  if (!sym)
-    return {};
-  return dyn_cast_or_null<shard::GridOp>(
-      SymbolTable::lookupNearestSymbolFrom(op, sym));
 }
 
 bool tokenIsSched(Operation *collective) {
@@ -164,23 +142,49 @@ bool hbHolds(func::FuncOp func, Operation *collective, int64_t rank,
   return inputBefore && sawResult && resultAfter && readsAfter;
 }
 
-int runCollective(StringRef name) {
+struct WitnessValue {
+  int rc = 1;
+  bool valuesOk = false;
+  std::string note;
+};
+
+int witnessSum(int world) { return world * (world + 1) / 2; }
+
+// Host scalars, one MPI call per (mesh, callsite). Not a tensor runtime.
+WitnessValue runWitness(StringRef name, int world) {
   int in = gRank + 1;
-  int world = 0;
-  MPI_Comm_size(MPI_COMM_WORLD, &world);
+  int expect = witnessSum(world);
+  WitnessValue result;
   if (name == "shard.all_reduce") {
     int out = 0;
-    return MPI_Allreduce(&in, &out, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    result.rc = MPI_Allreduce(&in, &out, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    result.valuesOk = result.rc == MPI_SUCCESS && out == expect;
+    result.note = "allreduce-sum=" + std::to_string(out);
+    return result;
   }
   if (name == "shard.all_gather") {
-    std::vector<int> gathered(world, 0);
-    return MPI_Allgather(&in, 1, MPI_INT, gathered.data(), 1, MPI_INT,
-                         MPI_COMM_WORLD);
+    std::vector<int> gathered(static_cast<size_t>(world), 0);
+    result.rc = MPI_Allgather(&in, 1, MPI_INT, gathered.data(), 1, MPI_INT,
+                              MPI_COMM_WORLD);
+    result.valuesOk = result.rc == MPI_SUCCESS;
+    std::string order;
+    for (int slot = 0; slot < world; ++slot) {
+      if (gathered[static_cast<size_t>(slot)] != slot + 1)
+        result.valuesOk = false;
+      if (!order.empty())
+        order.push_back(',');
+      order += std::to_string(gathered[static_cast<size_t>(slot)]);
+    }
+    result.note = "allgather-order=" + order;
+    return result;
   }
-  std::vector<int> send(world, in);
+  std::vector<int> send(static_cast<size_t>(world), in);
   int recv = 0;
-  return MPI_Reduce_scatter_block(send.data(), &recv, 1, MPI_INT, MPI_SUM,
-                                  MPI_COMM_WORLD);
+  result.rc = MPI_Reduce_scatter_block(send.data(), &recv, 1, MPI_INT, MPI_SUM,
+                                       MPI_COMM_WORLD);
+  result.valuesOk = result.rc == MPI_SUCCESS && recv == expect;
+  result.note = "reducescatter-shard=" + std::to_string(recv);
+  return result;
 }
 
 int runModule(ModuleOp module) {
@@ -192,38 +196,30 @@ int runModule(ModuleOp module) {
   for (func::FuncOp func : module.getOps<func::FuncOp>()) {
     s2c2::exec::HBGraph graph;
     s2c2::exec::buildHbD(func, graph);
-    SmallVector<StringRef> kinds = {"shard.all_reduce", "shard.all_gather",
-                                    "shard.reduce_scatter"};
-    for (StringRef kind : kinds) {
-      SmallVector<Operation *> ops;
-      func.walk([&](Operation *op) {
-        if (op->getName().getStringRef() == kind)
-          ops.push_back(op);
-      });
-      if (ops.empty())
-        continue;
-      any = true;
-      shard::GridOp grid = gridOf(ops.front());
-      int64_t mesh = meshSizeOf(grid);
+    bool sawOp = false;
+    func.walk([&](Operation *op) {
+      if (s2c2::exec::isV0Collective(op))
+        sawOp = true;
+    });
+    if (!sawOp)
+      continue;
+    any = true;
+    s2c2::exec::CollectiveMatch matched =
+        s2c2::exec::matchCollectiveInstances(func);
+    if (matched.faultOp || matched.instances.empty()) {
+      say(llvm::errs(), "error: runtime participants do not match the mesh");
+      return 1;
+    }
+    for (const s2c2::exec::CollectiveInstance &instance : matched.instances) {
+      int64_t mesh = static_cast<int64_t>(instance.participants.size());
       if (mesh <= 0 || world != mesh) {
         say(llvm::errs(), "error: runtime world does not match the mesh");
         return 1;
       }
       std::vector<int64_t> participants;
-      for (Operation *op : ops) {
-        auto unpack = op->getOperand(0).getDefiningOp<UnpackOp>();
-        auto rank = unpack ? s2c2::exec::ownerRank(unpack.getBuffer())
-                           : std::nullopt;
-        if (!rank) {
-          say(llvm::errs(),
-              "error: runtime participants do not match the mesh");
-          return 1;
-        }
-        participants.push_back(*rank);
-      }
+      for (const auto &participant : instance.participants)
+        participants.push_back(participant.rank);
       llvm::sort(participants);
-      participants.erase(std::unique(participants.begin(), participants.end()),
-                         participants.end());
       std::vector<int64_t> expect(mesh);
       for (int64_t i = 0; i < mesh; ++i)
         expect[i] = i;
@@ -235,7 +231,7 @@ int runModule(ModuleOp module) {
 
       Requirement req;
       req.func = func.getSymName().str();
-      req.collective = kind.str();
+      req.collective = instance.kind.str();
       req.participants = participants;
       req.tokenIsSched = true;
       req.inputBefore = true;
@@ -246,17 +242,16 @@ int runModule(ModuleOp module) {
       bool resultAfter = true;
       bool readsAfter = true;
       bool tokens = true;
-      for (Operation *op : ops) {
-        auto unpack = op->getOperand(0).getDefiningOp<UnpackOp>();
-        int64_t rank = *s2c2::exec::ownerRank(unpack.getBuffer());
+      for (const auto &participant : instance.participants) {
         bool in = false, result = false, reads = false;
-        if (!tokenIsSched(op) ||
-            !hbHolds(func, op, rank, graph, in, result, reads)) {
-          tokens = tokens && tokenIsSched(op);
+        if (!tokenIsSched(participant.collective) ||
+            !hbHolds(func, participant.collective, participant.rank, graph, in,
+                     result, reads)) {
+          tokens = tokens && tokenIsSched(participant.collective);
           inputBefore = inputBefore && in;
           resultAfter = resultAfter && result;
           readsAfter = readsAfter && reads;
-          if (!tokenIsSched(op)) {
+          if (!tokenIsSched(participant.collective)) {
             say(llvm::errs(),
                 "error: runtime completion is not a sched.token");
             return 1;
@@ -284,15 +279,19 @@ int runModule(ModuleOp module) {
         rejectedApiOnly = true;
       }
 
-      int rc = runCollective(kind);
+      WitnessValue witness = runWitness(instance.kind, static_cast<int>(world));
       RuntimeEvent event;
       event.participants = participants;
       event.tokenIsSched = tokens;
       event.inputBefore = inputBefore;
       event.resultAfter = resultAfter;
       event.readsAfter = readsAfter;
-      event.mpiOk = rc == MPI_SUCCESS;
-      if (rc != MPI_SUCCESS || !eventSatisfies(event, req)) {
+      event.mpiOk = witness.rc == MPI_SUCCESS && witness.valuesOk;
+      if (!witness.valuesOk) {
+        say(llvm::errs(), "error: runtime witness value mismatch");
+        return 1;
+      }
+      if (witness.rc != MPI_SUCCESS || !eventSatisfies(event, req)) {
         say(llvm::errs(), "error: runtime event breaks HB_D");
         return 1;
       }
@@ -303,9 +302,13 @@ int runModule(ModuleOp module) {
           ranks.push_back(',');
         ranks += std::to_string(rank);
       }
-      say(llvm::outs(), "func @" + req.func + " collective " + req.collective +
-                            " participants=" + ranks +
-                            " token=!sched.token hb-d=satisfied mpi=ok");
+      say(llvm::outs(),
+          "func @" + req.func + " collective " + req.collective +
+              " participants=" + ranks +
+              " token=!sched.token hb-d=satisfied mpi=ok instance mesh=@" +
+              instance.mesh.str() +
+              " callsite=" + std::to_string(instance.callsite) + " " +
+              witness.note);
     }
   }
   if (!any) {
@@ -330,6 +333,7 @@ int main(int argc, char **argv) {
     say(llvm::outs(),
         "device-note host MPI has no GPU or NPU; completion is not a trace timestamp");
     say(llvm::outs(), "hb-source ir-hb-d");
+    say(llvm::outs(), "tensor-runtime no");
 
     MLIRContext context;
     DialectRegistry registry;
