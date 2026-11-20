@@ -9,8 +9,10 @@
 // --lower-s2c2-hb-d=async keeps HB_D^source inside HB_D^target. Each
 // multi-rank collective stays a participant, wrapped in sched.task when it
 // is not already in one. MeshSize 1 is unchanged.
-// --lower-s2c2-hb-d=sync recursively inlines nested sched.concurrent and
-// sched.task. The resulting block is a linear extension of HB_D.
+// --lower-s2c2-hb-d=sync inlines sched.concurrent and sched.task into the
+// block that contained them. SCF regions stay in place, so a dynamic branch
+// or a loop is not rewritten into one unconditional execution. Each block
+// is then a linear extension of HB_D.
 // Fidelity checks the recorded inclusion, input contribution, and output
 // validity. No device library and no runtime.
 
@@ -208,62 +210,6 @@ static void repairAsync(func::FuncOp func) {
   }
 }
 
-static void forwardYields(func::FuncOp func) {
-  auto forward = [](ValueRange inners, ValueRange outers) {
-    for (auto [inner, outer] : llvm::zip(inners, outers)) {
-      if (inner != outer)
-        outer.replaceAllUsesWith(inner);
-    }
-  };
-  func.walk([&](Operation *op) {
-    if (auto task = dyn_cast<TaskOp>(op)) {
-      if (task.getBody().empty())
-        return;
-      auto yield = dyn_cast<YieldOp>(task.getBody().front().getTerminator());
-      if (yield)
-        forward(yield.getOperands(), task.getValues());
-    } else if (auto conc = dyn_cast<ConcurrentOp>(op)) {
-      if (conc.getBody().empty())
-        return;
-      auto yield = dyn_cast<YieldOp>(conc.getBody().front().getTerminator());
-      if (yield)
-        forward(yield.getOperands(), conc.getResults());
-    }
-  });
-}
-
-static void collectActions(Operation *op, SmallVectorImpl<Operation *> &actions) {
-  if (auto task = dyn_cast<TaskOp>(op)) {
-    if (task.getBody().empty())
-      return;
-    for (Operation &inner : task.getBody().front().without_terminator())
-      collectActions(&inner, actions);
-    return;
-  }
-  if (auto conc = dyn_cast<ConcurrentOp>(op)) {
-    if (conc.getBody().empty())
-      return;
-    for (Operation &inner : conc.getBody().front().without_terminator())
-      collectActions(&inner, actions);
-    return;
-  }
-  // Schedule wrappers inside scf.for / scf.if / index_switch are part of
-  // the linear extension. Leaving the region opaque drops them on erase.
-  if (isa<scf::ForOp, scf::IfOp, scf::IndexSwitchOp, OverlapOp>(op)) {
-    for (Region &region : op->getRegions()) {
-      if (region.empty())
-        continue;
-      for (Operation &inner : region.front().without_terminator())
-        collectActions(&inner, actions);
-    }
-    // The region op stays in the linear extension so its operands are
-    // still ordered before it after the body has been lifted out.
-    actions.push_back(op);
-    return;
-  }
-  actions.push_back(op);
-}
-
 static void dropToken(WaitOp wait, Value token) {
   SmallVector<Value> kept;
   for (Value operand : wait.getTokens())
@@ -272,21 +218,7 @@ static void dropToken(WaitOp wait, Value token) {
   wait.getOperation()->setOperands(kept);
 }
 
-static LogicalResult checkSyncHoist(func::FuncOp func,
-                                    ArrayRef<Operation *> actions) {
-  for (Operation *op : actions) {
-    Region *region = op->getParentRegion();
-    if (!region || isa<func::FuncOp>(region->getParentOp()))
-      continue;
-    for (Value value : op->getOperands()) {
-      auto arg = dyn_cast<BlockArgument>(value);
-      if (!arg)
-        continue;
-      Operation *owner = arg.getParentRegion()->getParentOp();
-      if (owner && !isa<func::FuncOp>(owner))
-        return op->emitOpError("sync lowering does not lift a region argument");
-    }
-  }
+static LogicalResult checkTaskWaits(func::FuncOp func) {
   WalkResult waits = func.walk([&](TaskOp task) -> WalkResult {
     for (Operation *user : task.getToken().getUsers()) {
       auto wait = dyn_cast<WaitOp>(user);
@@ -298,19 +230,70 @@ static LogicalResult checkSyncHoist(func::FuncOp func,
   return waits.wasInterrupted() ? failure() : success();
 }
 
-static LogicalResult flattenSchedules(func::FuncOp func, const exec::HBGraph &source) {
-  if (func.getBody().empty() || !llvm::hasSingleElement(func.getBody()))
-    return success();
+static void forwardWrapper(Operation *wrapper) {
+  auto forward = [](ValueRange inners, ValueRange outers) {
+    for (auto [inner, outer] : llvm::zip(inners, outers)) {
+      if (inner != outer)
+        outer.replaceAllUsesWith(inner);
+    }
+  };
+  Block *body = nullptr;
+  ValueRange outers;
+  if (auto task = dyn_cast<TaskOp>(wrapper)) {
+    if (task.getBody().empty())
+      return;
+    body = &task.getBody().front();
+    outers = task.getValues();
+  } else if (auto conc = dyn_cast<ConcurrentOp>(wrapper)) {
+    if (conc.getBody().empty())
+      return;
+    body = &conc.getBody().front();
+    outers = conc.getResults();
+  }
+  if (!body || body->empty())
+    return;
+  if (auto yield = dyn_cast<YieldOp>(body->getTerminator()))
+    forward(yield.getOperands(), outers);
+}
+
+// Move the wrapper body into the parent block, drop task-token waits, and
+// erase the wrapper. The body does not leave the parent region.
+static LogicalResult inlineWrapper(Operation *wrapper) {
+  forwardWrapper(wrapper);
+  Block *body = nullptr;
+  if (auto task = dyn_cast<TaskOp>(wrapper)) {
+    if (!task.getBody().empty())
+      body = &task.getBody().front();
+    SmallVector<WaitOp> waits;
+    for (Operation *user : task.getToken().getUsers())
+      if (auto wait = dyn_cast<WaitOp>(user))
+        waits.push_back(wait);
+    for (WaitOp wait : waits)
+      dropToken(wait, task.getToken());
+  } else if (auto conc = dyn_cast<ConcurrentOp>(wrapper)) {
+    if (!conc.getBody().empty())
+      body = &conc.getBody().front();
+  }
+  if (body && body->getTerminator()) {
+    Operation *term = body->getTerminator();
+    wrapper->getBlock()->getOperations().splice(
+        wrapper->getIterator(), body->getOperations(), body->begin(),
+        term->getIterator());
+  }
+  if (!wrapper->use_empty())
+    return wrapper->emitOpError("sync lowering left a schedule result");
+  wrapper->erase();
+  return success();
+}
+
+static LogicalResult orderBlock(Block &block, const exec::HBGraph &source) {
   SmallVector<Operation *> actions;
-  for (Operation &op : func.getBody().front().without_terminator())
-    collectActions(&op, actions);
-  if (failed(checkSyncHoist(func, actions)))
-    return failure();
-  forwardYields(func);
+  for (Operation &op : block.without_terminator())
+    actions.push_back(&op);
+  if (actions.empty())
+    return success();
   exec::HBGraph order = source;
-  llvm::DenseSet<Operation *> actionSet;
-  for (Operation *op : actions)
-    actionSet.insert(op);
+  llvm::DenseSet<Operation *> actionSet(actions.begin(), actions.end());
   for (Operation *op : actions) {
     for (Value value : op->getOperands()) {
       if (Operation *def = value.getDefiningOp())
@@ -320,32 +303,44 @@ static LogicalResult flattenSchedules(func::FuncOp func, const exec::HBGraph &so
   }
   SmallVector<Operation *> ordered;
   if (!exec::linearExtension(actions, order, ordered))
-    return func.emitOpError("sync lowering is not a linear extension");
-  Operation *term = func.getBody().front().getTerminator();
+    return block.getParentOp()->emitOpError(
+        "sync lowering is not a linear extension");
+  Operation *term = block.getTerminator();
   for (Operation *op : ordered)
     op->moveBefore(term);
+  return success();
+}
 
-  SmallVector<TaskOp> tasks;
-  func.walk([&](TaskOp task) { tasks.push_back(task); });
-  for (TaskOp task : tasks) {
-    SmallVector<WaitOp> waits;
-    for (Operation *user : task.getToken().getUsers())
-      if (auto wait = dyn_cast<WaitOp>(user))
-        waits.push_back(wait);
-    for (WaitOp wait : waits)
-      dropToken(wait, task.getToken());
+static LogicalResult flattenBlock(Block &block, const exec::HBGraph &source) {
+  SmallVector<Operation *> nested;
+  for (Operation &op : block.without_terminator())
+    nested.push_back(&op);
+  for (Operation *op : nested) {
+    for (Region &region : op->getRegions()) {
+      for (Block &inner : region)
+        if (failed(flattenBlock(inner, source)))
+          return failure();
+    }
   }
-
   SmallVector<Operation *> wrappers;
-  func.walk<WalkOrder::PostOrder>([&](Operation *op) {
+  for (Operation &op : block.without_terminator())
     if (isa<TaskOp, ConcurrentOp>(op))
-      wrappers.push_back(op);
-  });
-  for (Operation *op : wrappers) {
-    if (!op->use_empty())
-      return op->emitOpError("sync lowering left a schedule result");
-    op->erase();
-  }
+      wrappers.push_back(&op);
+  for (Operation *wrapper : wrappers)
+    if (failed(inlineWrapper(wrapper)))
+      return failure();
+  return orderBlock(block, source);
+}
+
+static LogicalResult flattenSchedules(func::FuncOp func, const exec::HBGraph &source) {
+  if (func.getBody().empty())
+    return success();
+  // Reject a wait that is not after its task before any region is rewritten.
+  if (failed(checkTaskWaits(func)))
+    return failure();
+  for (Block &block : func.getBody())
+    if (failed(flattenBlock(block, source)))
+      return failure();
   return success();
 }
 

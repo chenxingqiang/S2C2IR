@@ -1,5 +1,6 @@
-// Sync inlines schedule wrappers inside scf.for, and a task-token wait
-// becomes sequential order without dropping the collective.
+// Sync inlines schedule wrappers into the block that contains them.
+// A loop body stays inside scf.for. A task-token wait becomes sequential
+// order without dropping the collective.
 // RUN: s2c2-opt %s --lower-s2c2-hb-d=async --check-s2c2-hb-d-fidelity=mode=async -split-input-file | FileCheck %s --check-prefix=ASYNC
 // RUN: s2c2-opt %s --lower-s2c2-hb-d=sync --check-s2c2-hb-d-fidelity=mode=sync -split-input-file | FileCheck %s --check-prefix=SYNC
 // RUN: s2c2-opt %s --lower-s2c2-hb-d=async -split-input-file | s2c2-opt -split-input-file --lower-s2c2-hb-d=sync --check-s2c2-hb-d-fidelity=mode=sync | FileCheck %s --check-prefix=PIPE
@@ -8,13 +9,23 @@
 // ASYNC: shard.all_reduce
 // ASYNC: shard.all_reduce
 // SYNC-LABEL: func.func @id_sync_for_task
-// SYNC: shard.all_reduce
+// SYNC: scf.for
+// SYNC-NOT: sched.task
 // SYNC: shard.all_reduce
 // SYNC-NOT: sched.task
+// SYNC: shard.all_reduce
+// SYNC-NOT: sched.task
+// SYNC: }
+// SYNC-NEXT: return
 // PIPE-LABEL: func.func @id_sync_for_task
-// PIPE: shard.all_reduce
+// PIPE: scf.for
+// PIPE-NOT: sched.task
 // PIPE: shard.all_reduce
 // PIPE-NOT: sched.task
+// PIPE: shard.all_reduce
+// PIPE-NOT: sched.task
+// PIPE: }
+// PIPE-NEXT: return
 
 module {
   shard.grid @tp(shape = 2)
@@ -57,13 +68,23 @@ module {
 // ASYNC: sched.task
 // ASYNC: shard.all_reduce
 // SYNC-LABEL: func.func @id_sync_for_plain
-// SYNC: shard.all_reduce
+// SYNC: scf.for
+// SYNC-NOT: sched.task
 // SYNC: shard.all_reduce
 // SYNC-NOT: sched.task
+// SYNC: shard.all_reduce
+// SYNC-NOT: sched.task
+// SYNC: }
+// SYNC-NEXT: return
 // PIPE-LABEL: func.func @id_sync_for_plain
-// PIPE: shard.all_reduce
+// PIPE: scf.for
+// PIPE-NOT: sched.task
 // PIPE: shard.all_reduce
 // PIPE-NOT: sched.task
+// PIPE: shard.all_reduce
+// PIPE-NOT: sched.task
+// PIPE: }
+// PIPE-NEXT: return
 
 module {
   shard.grid @tp(shape = 2)
