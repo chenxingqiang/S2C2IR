@@ -12,9 +12,14 @@
 //   3. any other union does not cover the global tensor.
 
 #include "s2c2/DistributionCoverage.h"
+#include "s2c2/Storage/StorageOps.h"
 
 #include "mlir/Dialect/Shard/IR/ShardOps.h"
 #include "mlir/IR/SymbolTable.h"
+
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include <limits>
 #include <utility>
@@ -195,6 +200,24 @@ static LogicalResult diagnoseRanges(Operation *emitOn, int64_t extent,
     return emitOn->emitOpError("shards do not cover the global tensor");
   return success();
 }
+
+static FlatSymbolRefAttr shardingGrid(Value sharding) {
+  auto shardingOp = sharding.getDefiningOp<shard::ShardingOp>();
+  if (!shardingOp)
+    return {};
+  return shardingOp.getGridAttr();
+}
+
+static std::optional<int64_t> groupMeshSize(Operation *scope, Value sharding) {
+  FlatSymbolRefAttr sym = shardingGrid(sharding);
+  if (!sym)
+    return std::nullopt;
+  auto grid = dyn_cast_or_null<shard::GridOp>(
+      SymbolTable::lookupNearestSymbolFrom(scope, sym));
+  if (!grid)
+    return std::nullopt;
+  return meshProduct(grid.getShape());
+}
 } // namespace
 
 FailureOr<LocalShard> mlir::s2c2::stor::localShardFor(Operation *emitOn,
@@ -256,4 +279,56 @@ LogicalResult mlir::s2c2::stor::diagnosePartition(Operation *emitOn,
     ranges.push_back(range);
   }
   return diagnoseRanges(emitOn, global.getDimSize(summary.tensorAxis), ranges);
+}
+
+LogicalResult mlir::s2c2::stor::checkLocalizeGroups(Operation *scope) {
+  SmallVector<LocalizeOp> localizes;
+  scope->walk([&](LocalizeOp localize) { localizes.push_back(localize); });
+  if (localizes.empty())
+    return success();
+
+  DenseMap<Value, FlatSymbolRefAttr> meshOfGlobal;
+  for (LocalizeOp localize : localizes) {
+    FlatSymbolRefAttr mesh = shardingGrid(localize.getSharding());
+    if (!mesh)
+      continue;
+    auto found = meshOfGlobal.find(localize.getGlobal());
+    if (found == meshOfGlobal.end())
+      meshOfGlobal[localize.getGlobal()] = mesh;
+    else if (found->second.getValue() != mesh.getValue())
+      return localize.emitOpError("localize mesh does not match");
+  }
+
+  SmallVector<std::pair<Value, Value>> keys;
+  SmallVector<SmallVector<LocalizeOp>> groups;
+  for (LocalizeOp localize : localizes) {
+    std::pair<Value, Value> key{localize.getGlobal(), localize.getSharding()};
+    size_t index = 0;
+    for (; index < keys.size(); ++index)
+      if (keys[index] == key)
+        break;
+    if (index == keys.size()) {
+      keys.push_back(key);
+      groups.emplace_back();
+    }
+    groups[index].push_back(localize);
+  }
+
+  for (size_t index = 0; index < keys.size(); ++index) {
+    std::optional<int64_t> mesh = groupMeshSize(scope, keys[index].second);
+    if (!mesh)
+      continue;
+    SmallVector<int64_t> ranks;
+    for (LocalizeOp localize : groups[index]) {
+      int64_t rank = static_cast<int64_t>(localize.getRank());
+      if (llvm::is_contained(ranks, rank))
+        return localize.emitOpError("duplicate mesh rank");
+      ranks.push_back(rank);
+    }
+    for (int64_t rank = 0; rank < *mesh; ++rank) {
+      if (!llvm::is_contained(ranks, rank))
+        return scope->emitOpError("missing mesh rank");
+    }
+  }
+  return success();
 }

@@ -121,62 +121,80 @@ static LogicalResult checkFunction(func::FuncOp func, ModuleOp module) {
     return success();
   }
 
-  Value global = localizes.front().getGlobal();
-  Value sharding = localizes.front().getSharding();
-  for (stor::LocalizeOp localize : localizes) {
-    if (localize.getGlobal() != global || localize.getSharding() != sharding)
-      return func.emitOpError("distribution tiles do not match local shards");
-  }
-
-  auto globalType = dyn_cast<RankedTensorType>(
-      llvm::cast<stor::ObjectType>(global.getType()).getPayloadType());
-  if (!globalType)
-    return func.emitOpError("local shape is not the shard tile");
-
-  stor::LocalShard summary;
-  if (failed(stor::diagnosePartition(func, sharding, globalType, summary)))
+  // (global, sharding, mesh) is one group. Two globals in one function are
+  // two groups. dist.distribution is only a tile cross-check.
+  if (failed(stor::checkLocalizeGroups(func)))
     return failure();
 
-  SmallVector<TileKey> localTiles;
+  SmallVector<std::pair<Value, Value>> keys;
+  SmallVector<SmallVector<stor::LocalizeOp>> groups;
   for (stor::LocalizeOp localize : localizes) {
-    FailureOr<stor::LocalShard> tile = stor::localShardFor(
-        localize, sharding, globalType, localize.getRank());
-    if (failed(tile))
-      return failure();
-    localTiles.push_back(tileOf(*tile));
+    std::pair<Value, Value> key{localize.getGlobal(), localize.getSharding()};
+    size_t index = 0;
+    for (; index < keys.size(); ++index)
+      if (keys[index] == key)
+        break;
+    if (index == keys.size()) {
+      keys.push_back(key);
+      groups.emplace_back();
+    }
+    groups[index].push_back(localize);
   }
 
-  bool matchedDistribution = false;
-  bool tilesDiffer = false;
-  func.walk([&](dist::DistributionOp distOp) {
-    auto distGlobal = llvm::cast<dist::GlobalType>(distOp.getGlobal().getType())
-                          .getGlobalType();
-    if (distGlobal != globalType)
-      return;
-    SmallVector<TileKey> distKeys;
-    (void)distTiles(distOp, distKeys);
-    SmallVector<TileKey> left = localTiles;
-    SmallVector<TileKey> right = std::move(distKeys);
-    llvm::sort(left);
-    llvm::sort(right);
-    if (left == right)
-      matchedDistribution = true;
-    else
-      tilesDiffer = true;
-  });
-  if (tilesDiffer)
-    return func.emitOpError("distribution tiles do not match local shards");
+  for (size_t index = 0; index < keys.size(); ++index) {
+    Value global = keys[index].first;
+    Value sharding = keys[index].second;
+    auto globalType = dyn_cast<RankedTensorType>(
+        llvm::cast<stor::ObjectType>(global.getType()).getPayloadType());
+    if (!globalType)
+      return func.emitOpError("local shape is not the shard tile");
 
-  llvm::errs() << "distribution @" << func.getSymName() << " coverage=";
-  if (summary.replicated)
-    llvm::errs() << "replicated:covered";
-  else
-    llvm::errs() << "axis" << summary.tensorAxis << ":covered";
-  if (summary.meshSize == 1)
-    llvm::errs() << " mesh-size=1";
-  if (matchedDistribution)
-    llvm::errs() << " distribution-stor=match";
-  llvm::errs() << "\n";
+    stor::LocalShard summary;
+    if (failed(stor::diagnosePartition(func, sharding, globalType, summary)))
+      return failure();
+
+    SmallVector<TileKey> localTiles;
+    for (stor::LocalizeOp localize : groups[index]) {
+      FailureOr<stor::LocalShard> tile = stor::localShardFor(
+          localize, sharding, globalType, localize.getRank());
+      if (failed(tile))
+        return failure();
+      localTiles.push_back(tileOf(*tile));
+    }
+
+    bool matchedDistribution = false;
+    bool tilesDiffer = false;
+    func.walk([&](dist::DistributionOp distOp) {
+      auto distGlobal =
+          llvm::cast<dist::GlobalType>(distOp.getGlobal().getType())
+              .getGlobalType();
+      if (distGlobal != globalType)
+        return;
+      SmallVector<TileKey> distKeys;
+      (void)distTiles(distOp, distKeys);
+      SmallVector<TileKey> left = localTiles;
+      SmallVector<TileKey> right = std::move(distKeys);
+      llvm::sort(left);
+      llvm::sort(right);
+      if (left == right)
+        matchedDistribution = true;
+      else
+        tilesDiffer = true;
+    });
+    if (tilesDiffer)
+      return func.emitOpError("distribution tiles do not match local shards");
+
+    llvm::errs() << "distribution @" << func.getSymName() << " coverage=";
+    if (summary.replicated)
+      llvm::errs() << "replicated:covered";
+    else
+      llvm::errs() << "axis" << summary.tensorAxis << ":covered";
+    if (summary.meshSize == 1)
+      llvm::errs() << " mesh-size=1";
+    if (matchedDistribution)
+      llvm::errs() << " distribution-stor=match";
+    llvm::errs() << "\n";
+  }
   return success();
 }
 
