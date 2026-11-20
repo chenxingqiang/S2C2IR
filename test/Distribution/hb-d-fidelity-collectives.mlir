@@ -8,17 +8,21 @@
 // ASYNC: stor.localize {{.*}} rank = 0
 // ASYNC: stor.localize {{.*}} rank = 1
 // ASYNC: sched.task
-// ASYNC: shard.all_gather
+// ASYNC-NEXT: shard.all_gather {{.*}} on @tp grid_axes = {{\[0\]}} gather_axis = 0
 // ASYNC: sched.task
-// ASYNC: shard.all_gather
+// ASYNC-NEXT: shard.all_gather {{.*}} on @tp grid_axes = {{\[0\]}} gather_axis = 0
 // ASYNC: stor.pack
 // SYNC-LABEL: func.func @id_all_gather_fidelity
-// SYNC: stor.localize {{.*}} rank = 0
-// SYNC: stor.localize {{.*}} rank = 1
-// SYNC: shard.all_gather
-// SYNC: shard.all_gather
 // SYNC-NOT: sched.task
-// SYNC: stor.pack
+// SYNC: stor.localize {{.*}} rank = 0
+// SYNC-NOT: sched.task
+// SYNC: stor.localize {{.*}} rank = 1
+// SYNC-NOT: sched.task
+// SYNC: shard.all_gather {{.*}} on @tp grid_axes = {{\[0\]}} gather_axis = 0
+// SYNC-NOT: sched.task
+// SYNC: shard.all_gather {{.*}} on @tp grid_axes = {{\[0\]}} gather_axis = 0
+// SYNC-NOT: sched.task
+// SYNC: return
 
 module {
   shard.grid @tp(shape = 2)
@@ -55,17 +59,21 @@ module {
 // ASYNC: stor.localize {{.*}} rank = 0
 // ASYNC: stor.localize {{.*}} rank = 1
 // ASYNC: sched.task
-// ASYNC: shard.reduce_scatter
+// ASYNC-NEXT: shard.reduce_scatter {{.*}} on @tp grid_axes = {{\[0\]}} scatter_axis = 0
 // ASYNC: sched.task
-// ASYNC: shard.reduce_scatter
+// ASYNC-NEXT: shard.reduce_scatter {{.*}} on @tp grid_axes = {{\[0\]}} scatter_axis = 0
 // ASYNC: stor.pack
 // SYNC-LABEL: func.func @id_reduce_scatter_fidelity
-// SYNC: stor.localize {{.*}} rank = 0
-// SYNC: stor.localize {{.*}} rank = 1
-// SYNC: shard.reduce_scatter
-// SYNC: shard.reduce_scatter
 // SYNC-NOT: sched.task
-// SYNC: stor.pack
+// SYNC: stor.localize {{.*}} rank = 0
+// SYNC-NOT: sched.task
+// SYNC: stor.localize {{.*}} rank = 1
+// SYNC-NOT: sched.task
+// SYNC: shard.reduce_scatter {{.*}} on @tp grid_axes = {{\[0\]}} scatter_axis = 0
+// SYNC-NOT: sched.task
+// SYNC: shard.reduce_scatter {{.*}} on @tp grid_axes = {{\[0\]}} scatter_axis = 0
+// SYNC-NOT: sched.task
+// SYNC: return
 
 module {
   shard.grid @tp(shape = 2)
