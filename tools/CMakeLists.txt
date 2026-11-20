@@ -1,4 +1,6 @@
-add_subdirectory(s2c2-dist-runtime)
+if(S2C2_ENABLE_MPI_RUNTIME)
+  add_subdirectory(s2c2-dist-runtime)
+endif()
 add_subdirectory(s2c2-opt)
 add_subdirectory(s2c2-translate)
 add_subdirectory(s2c2-cuda-adapter)

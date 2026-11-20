@@ -49,6 +49,15 @@ else()
   set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
 endif()
 
+option(S2C2_ENABLE_MPI_RUNTIME
+  "Build the host OpenMPI collective witness. This is not a device runtime."
+  ON)
+if(S2C2_ENABLE_MPI_RUNTIME)
+  set(S2C2_ENABLE_MPI_RUNTIME_PY True)
+else()
+  set(S2C2_ENABLE_MPI_RUNTIME_PY False)
+endif()
+
 set(S2C2_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 set(S2C2_BINARY_DIR ${PROJECT_BINARY_DIR})
 

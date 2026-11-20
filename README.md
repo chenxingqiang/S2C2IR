@@ -128,7 +128,7 @@ The evidence page records that limit: [`docs/design/empirical-semantic-boundary-
 
 ## Build the compiler
 
-You need CMake ≥ 3.20, Ninja, LLVM/MLIR **20.1.x**, plus `FileCheck` and `lit` (`pip install lit`).
+You need CMake ≥ 3.20, Ninja, LLVM/MLIR **22**, plus `FileCheck` and `lit` (`pip install lit`). OpenMPI is needed only for the host witness.
 
 A source build that also installs the LLVM utils:
 
@@ -151,6 +151,8 @@ cmake --build build --target check-s2c2
 If LLVM is already installed, point `MLIR_DIR` at `<prefix>/lib/cmake/mlir`. Some prebuilt packages export `zstd::libzstd_static`; the top-level CMakeLists maps that to the system `libzstd` when needed.
 
 `s2c2-opt` parses and checks the four dialects. `--s2c2-lower` is a sequential, blocking lowering. It is not the semantic definition and not async lowering. `--check-s2c2-execution` checks the frozen execution contracts.
+
+`s2c2-dist-runtime` is a host OpenMPI witness for `shard.all_reduce`, `shard.all_gather`, and `shard.reduce_scatter`. It checks mesh participants, `!sched.token` completion, and HB_D, then checks witness scalars (an all-reduce sum, an all-gather order, a reduce-scatter shard). It is not a device execution, not an NCCL or HCCL backend, and not an end-to-end tensor runtime. CMake option `S2C2_ENABLE_MPI_RUNTIME` defaults to ON. OFF skips `find_package(MPI)` and still configures and builds `s2c2-opt`.
 
 ```sh
 ./build/bin/s2c2-opt test/Integration/gated_mlp_ssd_stream.mlir

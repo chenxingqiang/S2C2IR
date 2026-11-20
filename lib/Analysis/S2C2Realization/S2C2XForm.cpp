@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "s2c2/ExecutionModel/CollectiveDependency.h"
 #include "s2c2/ExecutionModel/HBGraph.h"
 #include "s2c2/S2C2Family.h"
 #include "s2c2/S2C2Legality.h"
@@ -43,7 +44,17 @@ using HBGraph = exec::HBGraph;
 
 void buildHB(func::FuncOp func, HBGraph &g) {
   g = HBGraph();
-  exec::buildProgramOrder(func, g);
+  bool sawCollective = false;
+  func.walk([&](Operation *op) {
+    if (exec::isV0Collective(op))
+      sawCollective = true;
+  });
+  // A collective program's reorder gate is HB_D. Program order alone
+  // drops the per-instance cross-rank edges.
+  if (sawCollective)
+    exec::buildHbD(func, g);
+  else
+    exec::buildProgramOrder(func, g);
 }
 
 using HBEdge = std::pair<Operation *, Operation *>;

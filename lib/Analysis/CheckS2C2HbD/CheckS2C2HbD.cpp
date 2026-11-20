@@ -13,6 +13,7 @@
 #include "s2c2/Comm/CommOps.h"
 #include "s2c2/DistributionCoverage.h"
 #include "s2c2/ExecutionModel/CollectiveDependency.h"
+#include "s2c2/ExecutionModel/EventDependency.h"
 #include "s2c2/ExecutionModel/HBGraph.h"
 #include "s2c2/ExecutionModel/RankContext.h"
 #include "s2c2/ExecutionModel/ValidityAnalysis.h"
@@ -30,6 +31,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <limits>
 #include <optional>
@@ -489,6 +491,97 @@ static LogicalResult checkFunction(func::FuncOp func) {
   }
   if (pairFault)
     return *pairFault;
+
+  std::optional<LogicalResult> compFault;
+  func.walk([&](Operation *op) {
+    if (compFault || !op->getName().getStringRef().starts_with("comp."))
+      return;
+    std::optional<int64_t> seen;
+    for (Value value : op->getOperands()) {
+      std::optional<int64_t> rank;
+      if (auto unpack = value.getDefiningOp<UnpackOp>())
+        rank = ownerRank(unpack.getBuffer());
+      else if (Operation *def = value.getDefiningOp())
+        if (def->getName().getStringRef().starts_with("comp."))
+          rank = exec::rankOf(def);
+      if (!rank)
+        continue;
+      if (!seen)
+        seen = rank;
+      else if (*seen != *rank)
+        compFault = op->emitOpError("compute operands are on different ranks");
+    }
+  });
+  if (compFault)
+    return *compFault;
+
+  if (collectives.empty())
+    return success();
+
+  exec::CollectiveMatch matched = exec::matchCollectiveInstances(func);
+  if (matched.faultOp)
+    return matched.faultOp->emitOpError(matched.message);
+
+  auto directlyLinked = [&](Operation *from, Operation *to) {
+    auto it = rankGraph.successors().find(from);
+    if (it == rankGraph.successors().end())
+      return false;
+    return llvm::is_contained(it->second, to);
+  };
+  unsigned cross = 0;
+  for (auto [leftIndex, left] : llvm::enumerate(matched.instances)) {
+    for (auto [rightIndex, right] : llvm::enumerate(matched.instances)) {
+      if (leftIndex == rightIndex)
+        continue;
+      for (const exec::CollectiveParticipant &src : left.participants) {
+        for (const exec::CollectiveParticipant &dst : right.participants) {
+          if (src.rank == dst.rank)
+            continue;
+          if (directlyLinked(src.input, dst.collective))
+            ++cross;
+          if (directlyLinked(src.collective, dst.collective))
+            ++cross;
+          for (Operation *out : dst.resultPacks)
+            if (directlyLinked(src.collective, out))
+              ++cross;
+        }
+      }
+    }
+  }
+  if (cross)
+    return func.emitOpError("collective instances are cross-linked");
+
+  func.walk([&](WaitOp wait) {
+    if (pairFault)
+      return;
+    for (Value token : wait.getTokens()) {
+      auto task = token.getDefiningOp<TaskOp>();
+      if (!task)
+        continue;
+      auto waited = exec::rankOf(task);
+      if (!waited)
+        continue;
+      for (Operation *collective : collectives) {
+        auto unpack = collective->getOperand(0).getDefiningOp<UnpackOp>();
+        auto owner = unpack ? ownerRank(unpack.getBuffer()) : std::nullopt;
+        if (!owner || *owner != *waited)
+          continue;
+        if (!exec::textuallyBefore(wait, collective))
+          continue;
+        if (!rankGraph.reaches(wait, collective))
+          pairFault = wait.emitOpError(
+              "task token is not HB-before the later collective");
+      }
+    }
+  });
+  if (pairFault)
+    return *pairFault;
+
+  if (matched.instances.size() >= 2) {
+    llvm::errs() << "hb-d @" << func.getSymName()
+                 << " instances=" << matched.instances.size()
+                 << " cross-instance-edges=0\n";
+  }
   return success();
 }
 

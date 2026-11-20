@@ -1,5 +1,6 @@
 // Both ranks enter. A result read is not HB_D-after the completion token.
 // MPI is not called. The failure is the event order, not an API status.
+// REQUIRES: mpi
 // RUN: not mpirun --allow-run-as-root --bind-to none -n 2 s2c2-dist-runtime %s 2>&1 | FileCheck %s
 
 // CHECK: error: runtime completion is not HB_D-before the result read
