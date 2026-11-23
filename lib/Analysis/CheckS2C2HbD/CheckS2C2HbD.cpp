@@ -561,6 +561,31 @@ static LogicalResult checkFunction(func::FuncOp func) {
   if (cross)
     return func.emitOpError("collective instances are cross-linked");
 
+  // Cross-rank collective edges connect every participant. They must not
+  // stand in for this rank's own frontier, or a wait that never joined rank
+  // S still looks HB-before S's collective.
+  auto reachesOnRank = [&](Operation *from, Operation *to, int64_t rank) {
+    if (!from || !to || from == to)
+      return false;
+    llvm::SmallPtrSet<Operation *, 16> seen;
+    SmallVector<Operation *, 16> stack({from});
+    while (!stack.empty()) {
+      Operation *cur = stack.pop_back_val();
+      auto it = rankGraph.successors().find(cur);
+      if (it == rankGraph.successors().end())
+        continue;
+      for (Operation *next : it->second) {
+        if (next == to)
+          return true;
+        std::optional<int64_t> nextRank = exec::rankOf(next);
+        if (nextRank && *nextRank != rank)
+          continue;
+        if (seen.insert(next).second)
+          stack.push_back(next);
+      }
+    }
+    return false;
+  };
   func.walk([&](WaitOp wait) {
     if (pairFault)
       return;
@@ -578,7 +603,7 @@ static LogicalResult checkFunction(func::FuncOp func) {
           continue;
         if (!exec::textuallyBefore(wait, collective))
           continue;
-        if (!rankGraph.reaches(wait, collective))
+        if (!reachesOnRank(wait, collective, *waited))
           pairFault = wait.emitOpError(
               "task token is not HB-before the later collective");
       }

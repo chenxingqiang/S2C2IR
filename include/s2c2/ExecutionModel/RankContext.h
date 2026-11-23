@@ -24,6 +24,7 @@ std::optional<int64_t> rankOf(Operation *op);
 
 /// One program order per rank. Textual order across ranks is not an edge.
 /// After `sched.concurrent`, each rank's frontier is the end of its own task.
+/// `sched.wait` joins only the ranks of the tokens it lists.
 void buildRankOrder(func::FuncOp func, HBGraph &graph);
 
 } // namespace mlir::s2c2::exec

@@ -105,7 +105,26 @@ std::optional<int64_t> mlir::s2c2::exec::rankOf(Operation *op) {
     return ownerRank(transfer.getBuffer());
   if (auto task = dyn_cast<TaskOp>(op))
     return taskRank(task);
-  if (isa<WaitOp, BarrierOp>(op)) {
+  if (auto wait = dyn_cast<WaitOp>(op)) {
+    // One rank only when every token agrees. A multi-rank wait is not
+    // owned by the first token.
+    std::optional<int64_t> seen;
+    for (Value token : wait.getTokens()) {
+      std::optional<int64_t> rank;
+      if (auto task = token.getDefiningOp<TaskOp>())
+        rank = taskRank(task);
+      else if (Operation *def = token.getDefiningOp())
+        rank = rankOf(def);
+      if (!rank)
+        continue;
+      if (!seen)
+        seen = rank;
+      else if (*seen != *rank)
+        return std::nullopt;
+    }
+    return seen;
+  }
+  if (isa<BarrierOp>(op)) {
     for (Value token : op->getOperands()) {
       if (auto task = token.getDefiningOp<TaskOp>())
         if (auto rank = taskRank(task))
@@ -279,9 +298,32 @@ void walkOp(Operation *op, RankFrontier &front, HBGraph &graph) {
     return;
   }
 
+  if (auto wait = dyn_cast<WaitOp>(op)) {
+    // Join only the ranks whose tokens this wait lists. Rank S stays put
+    // when the wait does not carry S's token, so S's pack is not completed
+    // by a wait for R. The last op inside a task is not this event.
+    llvm::SmallDenseSet<int64_t, 4> joined;
+    for (Value token : wait.getTokens()) {
+      Operation *def = token.getDefiningOp();
+      if (!def)
+        continue;
+      graph.addEdge(def, op);
+      std::optional<int64_t> rank;
+      if (auto task = dyn_cast<TaskOp>(def))
+        rank = taskRank(task);
+      else
+        rank = rankOf(def);
+      if (!rank || !joined.insert(*rank).second)
+        continue;
+      graph.addEdges(front.lookup(*rank), op);
+      front[*rank].assign({op});
+    }
+    return;
+  }
+
   std::optional<int64_t> rank = rankOf(op);
   if (!rank) {
-    if (isa<WaitOp, BarrierOp>(op)) {
+    if (isa<BarrierOp>(op)) {
       for (Value token : op->getOperands())
         if (Operation *def = token.getDefiningOp())
           graph.addEdge(def, op);
@@ -289,7 +331,7 @@ void walkOp(Operation *op, RankFrontier &front, HBGraph &graph) {
     return;
   }
   graph.addEdges(front.lookup(*rank), op);
-  if (isa<WaitOp, BarrierOp>(op)) {
+  if (isa<BarrierOp>(op)) {
     for (Value token : op->getOperands())
       if (Operation *def = token.getDefiningOp())
         graph.addEdge(def, op);
