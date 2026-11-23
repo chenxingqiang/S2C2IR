@@ -16,6 +16,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SetVector.h"
 
 using namespace mlir;
 using namespace mlir::s2c2;
@@ -47,21 +48,11 @@ std::optional<int64_t> mlir::s2c2::exec::ownerRank(Value buffer) {
 
 namespace {
 
+TaskBodyRank analyzeTaskBody(TaskOp task);
+
+// The whole body, not the first ranked op. Mixed ranks are not a rank.
 std::optional<int64_t> taskRank(TaskOp task) {
-  std::optional<int64_t> found;
-  task.walk([&](Operation *op) {
-    if (op == task.getOperation() || found)
-      return;
-    if (auto pack = dyn_cast<PackOp>(op))
-      found = ownerRank(pack.getBuffer());
-    else if (auto unpack = dyn_cast<UnpackOp>(op))
-      found = ownerRank(unpack.getBuffer());
-    else if (isV0Collective(op)) {
-      if (auto consumed = op->getOperand(0).getDefiningOp<UnpackOp>())
-        found = ownerRank(consumed.getBuffer());
-    }
-  });
-  return found;
+  return analyzeTaskBody(task).rank;
 }
 
 // Every ranked operand must agree. The first operand does not own the op.
@@ -84,7 +75,86 @@ std::optional<int64_t> compRank(Operation *op) {
   return seen;
 }
 
+void addRank(std::optional<int64_t> rank,
+             llvm::SmallSetVector<int64_t, 4> &ranks) {
+  if (rank)
+    ranks.insert(*rank);
+}
+
+void noteBuffer(Value buffer, llvm::SmallSetVector<int64_t, 4> &ranks) {
+  addRank(ownerRank(buffer), ranks);
+}
+
+// One op can carry more than one rank (a compute, a copy). Record each
+// of them. Do not collapse to the first operand.
+void noteOp(Operation *op, llvm::SmallSetVector<int64_t, 4> &ranks) {
+  if (auto pack = dyn_cast<PackOp>(op))
+    noteBuffer(pack.getBuffer(), ranks);
+  else if (auto unpack = dyn_cast<UnpackOp>(op))
+    noteBuffer(unpack.getBuffer(), ranks);
+  else if (auto materialize = dyn_cast<MaterializeOp>(op))
+    noteBuffer(materialize.getBuffer(), ranks);
+  else if (auto transfer = dyn_cast<TransferOp>(op))
+    noteBuffer(transfer.getBuffer(), ranks);
+  else if (auto stream = dyn_cast<StreamOp>(op)) {
+    noteBuffer(stream.getSrc(), ranks);
+    noteBuffer(stream.getDst(), ranks);
+  } else if (auto copy = dyn_cast<CopyOp>(op)) {
+    noteBuffer(copy.getSrc(), ranks);
+    noteBuffer(copy.getDst(), ranks);
+  } else if (isV0Collective(op)) {
+    if (auto consumed = op->getOperand(0).getDefiningOp<UnpackOp>())
+      noteBuffer(consumed.getBuffer(), ranks);
+  } else if (op->getName().getStringRef().starts_with("comp.")) {
+    for (Value value : op->getOperands()) {
+      if (auto unpack = value.getDefiningOp<UnpackOp>())
+        noteBuffer(unpack.getBuffer(), ranks);
+      else if (Operation *def = value.getDefiningOp())
+        if (def->getName().getStringRef().starts_with("comp."))
+          addRank(compRank(def), ranks);
+    }
+  }
+}
+
+TaskBodyRank analyzeTaskBody(TaskOp task) {
+  llvm::SmallSetVector<int64_t, 4> ranks;
+  // Walk every op in this body. A nested task is its own token; skip its
+  // region so the parent is not a cross-rank task merely because it
+  // contains two single-rank children.
+  task.walk([&](Operation *op) -> WalkResult {
+    if (op == task.getOperation())
+      return WalkResult::advance();
+    if (isa<TaskOp>(op))
+      return WalkResult::skip();
+    noteOp(op, ranks);
+    return WalkResult::advance();
+  });
+  TaskBodyRank result;
+  if (ranks.size() == 1)
+    result.rank = ranks[0];
+  else if (ranks.size() > 1)
+    result.mixed = true;
+  return result;
+}
+
 } // namespace
+
+TaskBodyRank mlir::s2c2::exec::taskBodyRank(TaskOp task) {
+  return analyzeTaskBody(task);
+}
+
+LogicalResult mlir::s2c2::exec::checkTaskSingleRank(func::FuncOp func) {
+  std::optional<LogicalResult> fault;
+  func.walk([&](TaskOp task) {
+    if (fault)
+      return;
+    if (analyzeTaskBody(task).mixed)
+      fault = task.emitOpError("task ops are on different ranks");
+  });
+  if (fault)
+    return *fault;
+  return success();
+}
 
 std::optional<int64_t> mlir::s2c2::exec::rankOf(Operation *op) {
   if (!op)

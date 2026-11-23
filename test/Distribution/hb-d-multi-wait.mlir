@@ -1,6 +1,7 @@
-// One sched.wait may list one task token per rank. The wait joins only those
-// ranks. A path through the other rank's collective edge does not complete
-// this rank. This is compiler lowering fidelity, not the host MPI witness.
+// One sched.wait joins only the ranks of the tokens it lists. Two tokens of
+// the same rank are not rejected. A path through the other rank's collective
+// edge does not complete this rank. This is compiler lowering fidelity, not
+// the host MPI witness.
 // RUN: s2c2-opt %s --check-s2c2-hb-d -split-input-file
 // RUN: s2c2-opt %s --lower-s2c2-hb-d=async --check-s2c2-hb-d-fidelity=mode=async -split-input-file | FileCheck %s --check-prefix=ASYNC
 // RUN: s2c2-opt %s --lower-s2c2-hb-d=sync --check-s2c2-hb-d-fidelity=mode=sync -split-input-file | FileCheck %s --check-prefix=SYNC

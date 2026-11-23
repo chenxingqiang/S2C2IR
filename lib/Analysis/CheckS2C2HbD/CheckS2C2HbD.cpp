@@ -202,6 +202,11 @@ static std::optional<bool> shardingReplicated(Operation *emitOn, Value buffer) {
 }
 
 static LogicalResult checkFunction(func::FuncOp func) {
+  // A mixed-rank task is one error. Do not continue into must-valid or
+  // later-collective checks, which would report a different fault.
+  if (failed(exec::checkTaskSingleRank(func)))
+    return failure();
+
   SmallVector<Operation *> collectives;
   bool sawToAll = false;
   Operation *toAll = nullptr;
