@@ -3,14 +3,20 @@
 // the host MPI witness.
 // RUN: s2c2-opt %s --lower-s2c2-hb-d=async --check-s2c2-hb-d-fidelity=mode=async -split-input-file | FileCheck %s --check-prefix=ASYNC
 // RUN: s2c2-opt %s --lower-s2c2-hb-d=sync --check-s2c2-hb-d-fidelity=mode=sync -split-input-file | FileCheck %s --check-prefix=SYNC
+// An empty task on one line, then a free collective, must not match ASYNC.
+// RUN: not FileCheck --check-prefix=ASYNC --input-file=%S/Inputs/async-collective-escapes-task.mlir %s
 
 // ASYNC-LABEL: func.func @id_all_gather_fidelity
 // ASYNC: stor.localize {{.*}} rank = 0
 // ASYNC: stor.localize {{.*}} rank = 1
 // ASYNC: sched.task
 // ASYNC-NEXT: shard.all_gather {{.*}} on @tp grid_axes = {{\[0\]}} gather_axis = 0
+// ASYNC-NEXT: sched.yield
+// ASYNC-NEXT: {{^ *\}$}}
 // ASYNC: sched.task
 // ASYNC-NEXT: shard.all_gather {{.*}} on @tp grid_axes = {{\[0\]}} gather_axis = 0
+// ASYNC-NEXT: sched.yield
+// ASYNC-NEXT: {{^ *\}$}}
 // ASYNC: stor.pack
 // SYNC-LABEL: func.func @id_all_gather_fidelity
 // SYNC-NOT: sched.task
@@ -60,8 +66,12 @@ module {
 // ASYNC: stor.localize {{.*}} rank = 1
 // ASYNC: sched.task
 // ASYNC-NEXT: shard.reduce_scatter {{.*}} on @tp grid_axes = {{\[0\]}} scatter_axis = 0
+// ASYNC-NEXT: sched.yield
+// ASYNC-NEXT: {{^ *\}$}}
 // ASYNC: sched.task
 // ASYNC-NEXT: shard.reduce_scatter {{.*}} on @tp grid_axes = {{\[0\]}} scatter_axis = 0
+// ASYNC-NEXT: sched.yield
+// ASYNC-NEXT: {{^ *\}$}}
 // ASYNC: stor.pack
 // SYNC-LABEL: func.func @id_reduce_scatter_fidelity
 // SYNC-NOT: sched.task
