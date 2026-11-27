@@ -284,6 +284,35 @@ struct Finder {
           must.insert(communicate.begin(), communicate.end());
           continue;
         }
+        if (auto task = dyn_cast<TaskOp>(op)) {
+          // The token is the completion event. Packs inside the body are
+          // visible to later ops only after sched.wait, or after a
+          // sched.concurrent that joins this task.
+          MustSet inner = must;
+          if (!task.getBody().empty())
+            run(task.getBody().front(), inner);
+          if (found)
+            return;
+          for (Value buffer : inner)
+            if (!must.contains(buffer))
+              eventDst[task.getToken()].push_back(buffer);
+          continue;
+        }
+        if (auto conc = dyn_cast<ConcurrentOp>(op)) {
+          MustSet inner = must;
+          if (!conc.getBody().empty())
+            run(conc.getBody().front(), inner);
+          if (found)
+            return;
+          for (Value buffer : inner)
+            must.insert(buffer);
+          if (!conc.getBody().empty()) {
+            for (TaskOp child : conc.getBody().front().getOps<TaskOp>())
+              for (Value buffer : eventDst.lookup(child.getToken()))
+                must.insert(buffer);
+          }
+          continue;
+        }
         if (op.getNumRegions() == 0) {
           if (auto pack = dyn_cast<PackOp>(op))
             must.insert(pack.getBuffer());
