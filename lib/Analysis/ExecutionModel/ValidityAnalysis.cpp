@@ -8,6 +8,7 @@
 
 #include "s2c2/ExecutionModel/ValidityAnalysis.h"
 #include "s2c2/ExecutionModel/EventDependency.h"
+#include "s2c2/ExecutionModel/RankContext.h"
 
 #include "s2c2/Comm/CommOps.h"
 #include "s2c2/Schedule/ScheduleOps.h"
@@ -287,15 +288,28 @@ struct Finder {
         if (auto task = dyn_cast<TaskOp>(op)) {
           // The token is the completion event. Packs inside the body are
           // visible to later ops only after sched.wait, or after a
-          // sched.concurrent that joins this task.
+          // sched.concurrent that joins this task. A mixed body does not
+          // complete every rank's write. A single-rank body only completes
+          // buffers of that rank. A body with no ranked op of its own still
+          // carries nested tasks' writes on this token.
           MustSet inner = must;
           if (!task.getBody().empty())
             run(task.getBody().front(), inner);
           if (found)
             return;
-          for (Value buffer : inner)
-            if (!must.contains(buffer))
-              eventDst[task.getToken()].push_back(buffer);
+          TaskBodyRank body = taskBodyRank(task);
+          for (Value buffer : inner) {
+            if (must.contains(buffer))
+              continue;
+            std::optional<int64_t> owner = ownerRank(buffer);
+            if (body.mixed) {
+              if (owner)
+                continue;
+            } else if (body.rank && owner && *owner != *body.rank) {
+              continue;
+            }
+            eventDst[task.getToken()].push_back(buffer);
+          }
           continue;
         }
         if (auto conc = dyn_cast<ConcurrentOp>(op)) {

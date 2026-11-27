@@ -136,7 +136,6 @@ module {
     %in0 = stor.materialize %l0 : !stor.object<tensor<4xf32>> -> !stor.buffer<tensor<4xf32>, hbm>
     %in1 = stor.materialize %l1 : !stor.object<tensor<4xf32>> -> !stor.buffer<tensor<4xf32>, hbm>
     %out0 = stor.materialize %l0 : !stor.object<tensor<4xf32>> -> !stor.buffer<tensor<4xf32>, hbm>
-    %out1 = stor.materialize %l1 : !stor.object<tensor<4xf32>> -> !stor.buffer<tensor<4xf32>, hbm>
     sched.concurrent {
       %t0 = sched.task {
         stor.pack %partial into %in0 : tensor<4xf32>, !stor.buffer<tensor<4xf32>, hbm>
@@ -144,7 +143,6 @@ module {
         // expected-error @+1 {{rank pack does not enter the collective}}
         %c = shard.all_reduce %u0 on @tp grid_axes = [0] : tensor<4xf32> -> tensor<4xf32>
         stor.pack %c into %out0 : tensor<4xf32>, !stor.buffer<tensor<4xf32>, hbm>
-        stor.pack %c into %out1 : tensor<4xf32>, !stor.buffer<tensor<4xf32>, hbm>
         sched.yield
       }
       %t1 = sched.task {
