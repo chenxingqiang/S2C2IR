@@ -121,7 +121,10 @@ TaskBodyRank analyzeTaskBody(TaskOp task) {
   // Walk every op in this body. A nested task is its own token; skip its
   // region so the parent is not a cross-rank task merely because it
   // contains two single-rank children.
-  task.walk([&](Operation *op) -> WalkResult {
+  // Pre-order is required. The default post-order visits a nested task's
+  // body before the task op, so skip() would be too late and those ops
+  // would be counted on the parent.
+  task.walk<WalkOrder::PreOrder>([&](Operation *op) -> WalkResult {
     if (op == task.getOperation())
       return WalkResult::advance();
     if (isa<TaskOp>(op))
